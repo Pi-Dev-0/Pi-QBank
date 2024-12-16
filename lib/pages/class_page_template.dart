@@ -1,0 +1,140 @@
+import 'package:flutter/material.dart';
+import '../widgets/app_drawer.dart';
+import '../widgets/custom_app_bar.dart';
+
+class ClassPage extends StatelessWidget {
+  final String title;
+  final List<Map<String, dynamic>> subjects;
+
+  const ClassPage({
+    super.key,
+    required this.title,
+    required this.subjects,
+  });
+
+  String _getRouteName(String className, String subjectName) {
+    // Convert class name (e.g., "Class 1" to "class1")
+    String classRoute = className.toLowerCase().replaceAll(' ', '');
+    
+    // Convert subject name to route name
+    String subjectRoute = '';
+    switch (subjectName) {
+      // Primary Classes (1-5)
+      case 'আমার বাংলা বই':
+        subjectRoute = '_bangla';
+        break;
+      case 'English For Today':
+        subjectRoute = '_english';
+        break;
+      case 'প্রাথমিক গণিত':
+        subjectRoute = '_math';
+        break;
+      case 'প্রাথমিক বিজ্ঞান':
+        subjectRoute = '_science';
+        break;
+      case 'বাংলাদেশ ও বিশ্বপরিচয়':
+        subjectRoute = '_social_science';
+        break;
+      case 'ইসলাম ও নৈতিক শিক্ষা':
+        subjectRoute = '_religion';
+        break;
+      
+      // Secondary Classes (6-8)
+      case 'বাংলা':
+        subjectRoute = '_bangla';
+        break;
+      case 'English':
+        subjectRoute = '_english';
+        break;
+      case 'গণিত':
+        subjectRoute = '_math';
+        break;
+      case 'বিজ্ঞান অনুসন্ধানী পাঠ':
+        subjectRoute = '_science_inquiry';
+        break;
+      case 'বিজ্ঞান অনুশীলন':
+        subjectRoute = '_science_practice';
+        break;
+      case 'ইতিহাস ও সামাজিক বিজ্ঞান':
+        subjectRoute = '_social_science';
+        break;
+      case 'ডিজিটাল প্রযুক্তি':
+        subjectRoute = '_digital_tech';
+        break;
+      case 'স্বাস্থ্য সুরক্ষা':
+        subjectRoute = '_health';
+        break;
+      case 'জীবন ও জীবিকা':
+        subjectRoute = '_life_career';
+        break;
+      case 'শিল্প ও সংস্কৃতি':
+        subjectRoute = '_arts_culture';
+        break;
+      case 'ইসলাম শিক্ষা':
+        subjectRoute = '_islam';
+        break;
+      case 'হিন্দুধর্ম শিক্ষা':
+        subjectRoute = '_hindu';
+        break;
+      case 'খ্রিস্ট্রধর্ম শিক্ষা':
+        subjectRoute = '_christian';
+        break;
+      case 'বৌদ্ধধর্ম শিক্ষা':
+        subjectRoute = '_buddhist';
+        break;
+    }
+    
+    return '/$classRoute$subjectRoute';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
+    return Scaffold(
+      appBar: CustomAppBar(title: title),
+      drawer: const AppDrawer(),
+      body: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isLandscape ? 3 : 2,
+          childAspectRatio: isLandscape ? 2 : 1.5,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: subjects.length,
+        itemBuilder: (context, index) {
+          final subject = subjects[index];
+          return Card(
+            elevation: 4,
+            child: InkWell(
+              onTap: () {
+                String route = _getRouteName(title, subject['name']);
+                Navigator.pushNamed(context, route);
+              },
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    subject['icon'],
+                    size: isLandscape ? 28 : 32,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    subject['name'] ?? '',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
