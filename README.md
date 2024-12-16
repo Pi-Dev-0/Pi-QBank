@@ -1,16 +1,42 @@
-# blogger
+# 📚 Pi-QBank: Flutter Question Bank Application
 
-A new Flutter project.
+## 🌟 Overview
 
-## Getting Started
+Pi-QBank is an innovative Flutter-based mobile application designed to revolutionize the way students and educators interact with question banks. This comprehensive learning tool provides a seamless, intuitive platform for managing, exploring, and practicing questions across various subjects and difficulty levels.
 
-This project is a starting point for a Flutter application.
+## 🚀 Features
 
-A few resources to get you started if this is your first Flutter project:
+- **Dynamic Question Management**
+  - Create, edit, and organize questions effortlessly
+  - Support for multiple question types
+  - Categorization by subject, difficulty, and topic
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- **Interactive Learning Experience**
+  - Adaptive quiz generation
+  - Real-time performance tracking
+  - Detailed answer explanations
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- **User-Friendly Interface**
+  - Clean, modern Flutter design
+  - Responsive layout
+  - Dark and light mode support
+
+## 🛠 Tech Stack
+
+- **Framework**: Flutter
+- **State Management**: Provider/Riverpod
+- **Database**: Firebase/SQLite
+- **Authentication**: Firebase Authentication
+
+## 📦 Prerequisites
+
+- Flutter SDK (latest stable version)
+- Dart SDK
+- Android Studio or VS Code
+- Git
+
+## 🔧 Installation
+
+1. Clone the repository
+```bash
+git clone https://github.com/yourusername/pi-qbank.git
