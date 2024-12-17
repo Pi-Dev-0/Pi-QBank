@@ -97,6 +97,26 @@ import 'pages/ssc/business.dart';
 import 'pages/ssc/economics.dart';
 import 'pages/formula_page.dart';
 import 'pages/suggestions_page.dart';
+import 'pages/class7/bangla_page.dart';
+import 'pages/class7/english_page.dart';
+import 'pages/class7/math_page.dart';
+import 'pages/class7/science_page.dart';
+import 'pages/class7/social_science_page.dart';
+import 'pages/class7/religion_page.dart';
+import 'pages/class7/ict_page.dart';
+import 'pages/class7/health_page.dart';
+import 'pages/class7/life_career_page.dart';
+import 'pages/class7/arts_culture_page.dart';
+import 'pages/class8/bangla_page.dart';
+import 'pages/class8/english_page.dart';
+import 'pages/class8/math_page.dart';
+import 'pages/class8/science_page.dart';
+import 'pages/class8/social_science_page.dart';
+import 'pages/class8/religion_page.dart';
+import 'pages/class8/ict_page.dart';
+import 'pages/class8/health_page.dart';
+import 'pages/class8/life_career_page.dart';
+import 'pages/class8/arts_culture_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -238,6 +258,30 @@ class MyApp extends StatelessWidget {
         '/hsc_business_org_2nd': (context) => const HSCBusinessOrgSecondPaper(),
         '/hsc_production': (context) => const HSCProductionManagement(),
         '/hsc_ict': (context) => const HSCICT(),
+
+        // Class 7 Routes
+        '/class7/bangla': (context) => const Class7BanglaPage(),
+        '/class7/english': (context) => const Class7EnglishPage(),
+        '/class7/math': (context) => const Class7MathPage(),
+        '/class7/science': (context) => const Class7SciencePage(),
+        '/class7/social_science': (context) => const Class7SocialSciencePage(),
+        '/class7/religion': (context) => const Class7ReligionPage(),
+        '/class7/ict': (context) => const Class7IctPage(),
+        '/class7/health': (context) => const Class7HealthPage(),
+        '/class7/life_career': (context) => const Class7LifeCareerPage(),
+        '/class7/arts_culture': (context) => const Class7ArtsCulturePage(),
+
+        // Class 8 Routes
+        '/class8/bangla': (context) => const Class8BanglaPage(),
+        '/class8/english': (context) => const Class8EnglishPage(),
+        '/class8/math': (context) => const Class8MathPage(),
+        '/class8/science': (context) => const Class8SciencePage(),
+        '/class8/social_science': (context) => const Class8SocialSciencePage(),
+        '/class8/religion': (context) => const Class8ReligionPage(),
+        '/class8/ict': (context) => const Class8IctPage(),
+        '/class8/health': (context) => const Class8HealthPage(),
+        '/class8/life_career': (context) => const Class8LifeCareerPage(),
+        '/class8/arts_culture': (context) => const Class8ArtsCulturePage(),
       },
     );
   }
