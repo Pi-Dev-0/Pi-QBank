@@ -109,6 +109,9 @@ import 'pages/class8/math_page.dart';
 import 'pages/class8/science_page.dart';
 import 'pages/class8/social_science_page.dart';
 import 'pages/class8/islamic_studies_page.dart';
+import 'pages/class6/arts_culture_page.dart';
+import 'pages/class6/islamic_studies_page.dart';
+import 'pages/class6/science_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -265,7 +268,12 @@ class MyApp extends StatelessWidget {
         '/class8/math': (context) => const Class8MathPage(),
         '/class8/science': (context) => const Class8SciencePage(),
         '/class8/social_science': (context) => const Class8SocialSciencePage(),
-        '/class8/religion': (context) => const Class7IslamicStudiesPage(),
+        '/class8/religion': (context) => const Class8IslamicStudiesPage(),
+
+        // Class 6 Routes
+        '/class6_arts_culture': (context) => const Class6ArtsCulturePage(),
+        '/class6_islam': (context) => const Class6IslamicStudiesPage(),
+        '/class6_science': (context) => const Class6SciencePage(),
       },
     );
   }
