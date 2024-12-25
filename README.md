@@ -39,4 +39,4 @@ Pi-QBank is an innovative Flutter-based mobile application designed to revolutio
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/pi-qbank.git
+git clone https://github.com/pi-dev-0/pi-qbank.git
