@@ -423,6 +423,12 @@ class _FormulaPageState extends State<FormulaPage> {
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Formulas',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refreshFormulas,
+          ),
+        ],
       ),
       drawer: const AppDrawer(),
       backgroundColor: Colors.grey.shade50,
@@ -430,7 +436,10 @@ class _FormulaPageState extends State<FormulaPage> {
         children: [
           _buildSubjectSelector(),
           Expanded(
-            child: _buildFormulaList(),
+            child: RefreshIndicator(
+              onRefresh: _refreshFormulas,
+              child: _buildFormulaList(),
+            ),
           ),
         ],
       ),
