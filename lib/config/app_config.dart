@@ -32,6 +32,8 @@ class AppConfig {
       String.fromEnvironment('SEVEN_COLLEGE_MATH_API');
   static const String universityAdmissionApi =
       String.fromEnvironment('UNIVERSITY_ADMISSION_API');
+  static const String engineeringUniversityAdmissionApi =
+      String.fromEnvironment('ENGINEERING_UNIVERSITY_ADMISSION_API');
 
   // Add more configuration values as needed
 

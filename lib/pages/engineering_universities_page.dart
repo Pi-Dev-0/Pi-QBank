@@ -9,34 +9,39 @@ class EngineeringUniversitiesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final universities = [
       {
-        'name': 'Bangladesh University of Engineering and Technology (BUET)',
+        'name': 'BUET',
+        'fullName': 'Bangladesh University of Engineering and Technology',
         'location': 'Dhaka',
         'established': '1962',
-        'type': 'Public',
+        'route': '/buet',
       },
       {
-        'name': 'Khulna University of Engineering & Technology (KUET)',
-        'location': 'Khulna',
-        'established': '1967',
-        'type': 'Public',
-      },
-      {
-        'name': 'Rajshahi University of Engineering & Technology (RUET)',
-        'location': 'Rajshahi',
-        'established': '1964',
-        'type': 'Public',
-      },
-      {
-        'name': 'Chittagong University of Engineering & Technology (CUET)',
+        'name': 'CUET',
+        'fullName': 'Chittagong University of Engineering and Technology',
         'location': 'Chittagong',
         'established': '1968',
-        'type': 'Public',
+        'route': '/cuet',
       },
       {
-        'name': 'Dhaka University of Engineering & Technology (DUET)',
+        'name': 'RUET',
+        'fullName': 'Rajshahi University of Engineering and Technology',
+        'location': 'Rajshahi',
+        'established': '1964',
+        'route': '/ruet',
+      },
+      {
+        'name': 'KUET',
+        'fullName': 'Khulna University of Engineering and Technology',
+        'location': 'Khulna',
+        'established': '1967',
+        'route': '/kuet',
+      },
+      {
+        'name': 'DUET',
+        'fullName': 'Dhaka University of Engineering and Technology',
         'location': 'Gazipur',
         'established': '1980',
-        'type': 'Public',
+        'route': '/duet',
       },
     ];
 
@@ -51,43 +56,51 @@ class EngineeringUniversitiesPage extends StatelessWidget {
           return Card(
             elevation: 4,
             margin: const EdgeInsets.only(bottom: 16),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              title: Text(
-                university['name']!,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+            child: InkWell(
+              onTap: () {
+                if (university['route'] != null) {
+                  Navigator.pushNamed(context, university['route']!);
+                }
+              },
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                title: Text(
+                  university['name']!,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on, size: 16),
-                      const SizedBox(width: 4),
-                      Text(university['location']!),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.calendar_today, size: 16),
-                      const SizedBox(width: 4),
-                      Text('Established: ${university["established"]}'),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.school, size: 16),
-                      const SizedBox(width: 4),
-                      Text('Type: ${university["type"]}'),
-                    ],
-                  ),
-                ],
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    Text(
+                      university['fullName']!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on, size: 16),
+                        const SizedBox(width: 4),
+                        Text(university['location']!),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today, size: 16),
+                        const SizedBox(width: 4),
+                        Text('Established: ${university["established"]}'),
+                      ],
+                    ),
+                  ],
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios),
               ),
             ),
           );
@@ -95,4 +108,4 @@ class EngineeringUniversitiesPage extends StatelessWidget {
       ),
     );
   }
-} 
+}

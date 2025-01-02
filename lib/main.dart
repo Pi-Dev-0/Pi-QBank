@@ -116,6 +116,11 @@ import 'pages/university_admission/dhaka_university.dart';
 import 'pages/university_admission/rajshahi_university.dart';
 import 'pages/university_admission/chittagong_university.dart';
 import 'pages/university_admission/jahangirnagar_university.dart';
+import 'pages/engineering_university_admission/buet_page.dart';
+import 'pages/engineering_university_admission/cuet_page.dart';
+import 'pages/engineering_university_admission/ruet_page.dart';
+import 'pages/engineering_university_admission/kuet_page.dart';
+import 'pages/engineering_university_admission/duet_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -285,6 +290,13 @@ class MyApp extends StatelessWidget {
         '/chittagong_university': (context) => const ChittagongUniversityPage(),
         '/jahangirnagar_university': (context) =>
             const JahangirnagarUniversityPage(),
+
+        // Engineering University Routes
+        '/buet': (context) => const BUETPage(),
+        '/cuet': (context) => const CUETPage(),
+        '/ruet': (context) => const RUETPage(),
+        '/kuet': (context) => const KUETPage(),
+        '/duet': (context) => const DUETPage(),
       },
     );
   }

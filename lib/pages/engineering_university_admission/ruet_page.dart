@@ -7,30 +7,25 @@ import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../services/data_cache_service.dart';
 import '../../widgets/exam_year_selector.dart';
-import '../../widgets/group_selector.dart';
 
-class ChittagongUniversityPage extends StatefulWidget {
-  const ChittagongUniversityPage({super.key});
+class RUETPage extends StatefulWidget {
+  const RUETPage({super.key});
 
   @override
-  State<ChittagongUniversityPage> createState() =>
-      _ChittagongUniversityPageState();
+  State<RUETPage> createState() => _RUETPageState();
 }
 
-class _ChittagongUniversityPageState extends State<ChittagongUniversityPage> {
+class _RUETPageState extends State<RUETPage> {
   List<Map<String, dynamic>> questionPapers = [];
   bool isLoading = true;
   bool hasError = false;
   String _selectedExamYear = '';
-  String _selectedGroup = 'Science';
   final _cacheService = DataCacheService();
 
   final List<String> examYears = List.generate(
     DateTime.now().year - 2015 + 1,
     (index) => (DateTime.now().year - index).toString(),
   );
-
-  final List<String> groups = ['Science', 'Arts', 'Commerce'];
 
   @override
   void initState() {
@@ -39,8 +34,8 @@ class _ChittagongUniversityPageState extends State<ChittagongUniversityPage> {
   }
 
   Future<void> fetchQuestionPapers() async {
-    final scriptUrl = AppConfig.universityAdmissionApi;
-    const String cacheKey = 'chittagong_university_papers';
+    final scriptUrl = AppConfig.engineeringUniversityAdmissionApi;
+    const String cacheKey = 'ruet_papers';
 
     try {
       if (mounted) {
@@ -59,11 +54,10 @@ class _ChittagongUniversityPageState extends State<ChittagongUniversityPage> {
           if (response.statusCode == 200) {
             final List<dynamic> data = json.decode(response.body);
             return data
-                .where((paper) => paper['Title'] == 'Chittagong University')
+                .where((paper) => paper['Title'] == 'RUET')
                 .map((paper) => {
                       'title': paper['Title'],
                       'subtitle': paper['Subtitle'],
-                      'group': paper['Group'],
                       'examYear': paper['ExamYear']?.toString() ?? '',
                       'downloadUrl': paper['DownloadURL']?.toString() ?? '',
                     })
@@ -92,28 +86,17 @@ class _ChittagongUniversityPageState extends State<ChittagongUniversityPage> {
   @override
   Widget build(BuildContext context) {
     final filteredPapers = questionPapers.where((paper) {
-      final yearMatch = _selectedExamYear.isEmpty ||
+      return _selectedExamYear.isEmpty ||
           paper['examYear'].toString() == _selectedExamYear;
-      final groupMatch =
-          _selectedGroup.isEmpty || paper['group'] == _selectedGroup;
-      return yearMatch && groupMatch;
     }).toList()
       ..sort((a, b) => int.parse(b['examYear'].toString())
           .compareTo(int.parse(a['examYear'].toString())));
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'Chittagong University'),
+      appBar: const CustomAppBar(title: 'RUET'),
       drawer: const AppDrawer(),
       body: Column(
         children: [
-          // Group Selection
-          GroupSelector(
-            selectedGroup: _selectedGroup,
-            groups: groups,
-            onGroupChanged: (value) =>
-                setState(() => _selectedGroup = value ?? ''),
-          ),
-
           // Exam Year Selection
           ExamYearSelector(
             selectedYear: _selectedExamYear,
@@ -161,21 +144,16 @@ class _ChittagongUniversityPageState extends State<ChittagongUniversityPage> {
                             itemCount: filteredPapers.length,
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
-                              final key = ValueKey(
-                                  '${paper['examYear']}_${paper['title']}_$_selectedGroup');
-                              return KeyedSubtree(
-                                key: key,
-                                child: QuestionPaperCard(
-                                  key: ValueKey(
-                                      '${paper['examYear']}_${paper['title']}_$_selectedGroup'),
-                                  title: paper['title']?.toString() ?? '',
-                                  subtitle: paper['subtitle']?.toString() ?? '',
-                                  year: paper['examYear']?.toString() ?? '',
-                                  examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl:
-                                      paper['downloadUrl']?.toString() ?? '',
-                                  category: 'GST',
-                                ),
+                              return QuestionPaperCard(
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}'),
+                                title: paper['title']?.toString() ?? '',
+                                subtitle: paper['subtitle']?.toString() ?? '',
+                                year: paper['examYear']?.toString() ?? '',
+                                examYear: paper['examYear']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
+                                category: 'Engineering',
                               );
                             },
                           ),
