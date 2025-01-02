@@ -39,7 +39,7 @@ class _ChittagongUniversityPageState extends State<ChittagongUniversityPage> {
   }
 
   Future<void> fetchQuestionPapers() async {
-    final scriptUrl = AppConfig.gstApi;
+    final scriptUrl = AppConfig.universityAdmissionApi;
     const String cacheKey = 'chittagong_university_papers';
 
     try {

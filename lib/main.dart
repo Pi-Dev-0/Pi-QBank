@@ -112,6 +112,10 @@ import 'pages/class8/islamic_studies_page.dart';
 import 'pages/class6/arts_culture_page.dart';
 import 'pages/class6/islamic_studies_page.dart';
 import 'pages/class6/science_page.dart';
+import 'pages/dhaka_university.dart';
+import 'pages/rajshahi_university.dart';
+import 'pages/chittagong_university.dart';
+import 'pages/jahangirnagar_university.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -274,6 +278,13 @@ class MyApp extends StatelessWidget {
         '/class6_arts_culture': (context) => const Class6ArtsCulturePage(),
         '/class6_islam': (context) => const Class6IslamicStudiesPage(),
         '/class6_science': (context) => const Class6SciencePage(),
+
+        // Universities Routes
+        '/dhaka_university': (context) => const DhakaUniversityPage(),
+        '/rajshahi_university': (context) => const RajshahiUniversityPage(),
+        '/chittagong_university': (context) => const ChittagongUniversityPage(),
+        '/jahangirnagar_university': (context) =>
+            const JahangirnagarUniversityPage(),
       },
     );
   }
