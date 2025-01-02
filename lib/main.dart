@@ -112,10 +112,10 @@ import 'pages/class8/islamic_studies_page.dart';
 import 'pages/class6/arts_culture_page.dart';
 import 'pages/class6/islamic_studies_page.dart';
 import 'pages/class6/science_page.dart';
-import 'pages/dhaka_university.dart';
-import 'pages/rajshahi_university.dart';
-import 'pages/chittagong_university.dart';
-import 'pages/jahangirnagar_university.dart';
+import 'pages/university_admission/dhaka_university.dart';
+import 'pages/university_admission/rajshahi_university.dart';
+import 'pages/university_admission/chittagong_university.dart';
+import 'pages/university_admission/jahangirnagar_university.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

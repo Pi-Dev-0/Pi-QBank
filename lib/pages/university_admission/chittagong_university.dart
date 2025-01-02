@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
-import '../config/app_config.dart';
+import '../../config/app_config.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../widgets/app_drawer.dart';
-import '../widgets/question_paper_card.dart';
-import '../widgets/custom_app_bar.dart';
-import '../services/data_cache_service.dart';
-import '../widgets/exam_year_selector.dart';
-import '../widgets/group_selector.dart';
+import '../../widgets/app_drawer.dart';
+import '../../widgets/question_paper_card.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../services/data_cache_service.dart';
+import '../../widgets/exam_year_selector.dart';
+import '../../widgets/group_selector.dart';
 
-class RajshahiUniversityPage extends StatefulWidget {
-  const RajshahiUniversityPage({super.key});
+class ChittagongUniversityPage extends StatefulWidget {
+  const ChittagongUniversityPage({super.key});
 
   @override
-  State<RajshahiUniversityPage> createState() => _RajshahiUniversityPageState();
+  State<ChittagongUniversityPage> createState() =>
+      _ChittagongUniversityPageState();
 }
 
-class _RajshahiUniversityPageState extends State<RajshahiUniversityPage> {
+class _ChittagongUniversityPageState extends State<ChittagongUniversityPage> {
   List<Map<String, dynamic>> questionPapers = [];
   bool isLoading = true;
   bool hasError = false;
@@ -39,7 +40,7 @@ class _RajshahiUniversityPageState extends State<RajshahiUniversityPage> {
 
   Future<void> fetchQuestionPapers() async {
     final scriptUrl = AppConfig.universityAdmissionApi;
-    const String cacheKey = 'rajshahi_university_papers';
+    const String cacheKey = 'chittagong_university_papers';
 
     try {
       if (mounted) {
@@ -58,7 +59,7 @@ class _RajshahiUniversityPageState extends State<RajshahiUniversityPage> {
           if (response.statusCode == 200) {
             final List<dynamic> data = json.decode(response.body);
             return data
-                .where((paper) => paper['Title'] == 'Rajshahi University')
+                .where((paper) => paper['Title'] == 'Chittagong University')
                 .map((paper) => {
                       'title': paper['Title'],
                       'subtitle': paper['Subtitle'],
@@ -101,7 +102,7 @@ class _RajshahiUniversityPageState extends State<RajshahiUniversityPage> {
           .compareTo(int.parse(a['examYear'].toString())));
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'Rajshahi University'),
+      appBar: const CustomAppBar(title: 'Chittagong University'),
       drawer: const AppDrawer(),
       body: Column(
         children: [

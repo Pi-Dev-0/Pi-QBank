@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import '../config/app_config.dart';
+import '../../config/app_config.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../widgets/app_drawer.dart';
-import '../widgets/question_paper_card.dart';
-import '../widgets/custom_app_bar.dart';
-import '../services/data_cache_service.dart';
-import '../widgets/exam_year_selector.dart';
-import '../widgets/group_selector.dart';
+import '../../widgets/app_drawer.dart';
+import '../../widgets/question_paper_card.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../services/data_cache_service.dart';
+import '../../widgets/exam_year_selector.dart';
+import '../../widgets/group_selector.dart';
 
 class DhakaUniversityPage extends StatefulWidget {
   const DhakaUniversityPage({super.key});
