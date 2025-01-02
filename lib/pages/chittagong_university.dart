@@ -9,14 +9,15 @@ import '../services/data_cache_service.dart';
 import '../widgets/exam_year_selector.dart';
 import '../widgets/group_selector.dart';
 
-class GSTPage extends StatefulWidget {
-  const GSTPage({super.key});
+class ChittagongUniversityPage extends StatefulWidget {
+  const ChittagongUniversityPage({super.key});
 
   @override
-  State<GSTPage> createState() => _GSTPageState();
+  State<ChittagongUniversityPage> createState() =>
+      _ChittagongUniversityPageState();
 }
 
-class _GSTPageState extends State<GSTPage> {
+class _ChittagongUniversityPageState extends State<ChittagongUniversityPage> {
   List<Map<String, dynamic>> questionPapers = [];
   bool isLoading = true;
   bool hasError = false;
@@ -39,8 +40,8 @@ class _GSTPageState extends State<GSTPage> {
 
   Future<void> fetchQuestionPapers() async {
     final scriptUrl = AppConfig.gstApi;
-    const String cacheKey = 'gst_papers';
-    
+    const String cacheKey = 'chittagong_university_papers';
+
     try {
       if (mounted) {
         setState(() {
@@ -54,10 +55,11 @@ class _GSTPageState extends State<GSTPage> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final List<dynamic> data = json.decode(response.body);
             return data
+                .where((paper) => paper['Title'] == 'Chittagong University')
                 .map((paper) => {
                       'title': paper['Title'],
                       'subtitle': paper['Subtitle'],
@@ -90,17 +92,17 @@ class _GSTPageState extends State<GSTPage> {
   @override
   Widget build(BuildContext context) {
     final filteredPapers = questionPapers.where((paper) {
-      final yearMatch = _selectedExamYear.isEmpty || 
-                       paper['examYear'].toString() == _selectedExamYear;
-      final groupMatch = _selectedGroup.isEmpty || 
-                        paper['group'] == _selectedGroup;
+      final yearMatch = _selectedExamYear.isEmpty ||
+          paper['examYear'].toString() == _selectedExamYear;
+      final groupMatch =
+          _selectedGroup.isEmpty || paper['group'] == _selectedGroup;
       return yearMatch && groupMatch;
     }).toList()
       ..sort((a, b) => int.parse(b['examYear'].toString())
           .compareTo(int.parse(a['examYear'].toString())));
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'GST Admission'),
+      appBar: const CustomAppBar(title: 'Chittagong University'),
       drawer: const AppDrawer(),
       body: Column(
         children: [
@@ -108,14 +110,16 @@ class _GSTPageState extends State<GSTPage> {
           GroupSelector(
             selectedGroup: _selectedGroup,
             groups: groups,
-            onGroupChanged: (value) => setState(() => _selectedGroup = value ?? ''),
+            onGroupChanged: (value) =>
+                setState(() => _selectedGroup = value ?? ''),
           ),
 
           // Exam Year Selection
           ExamYearSelector(
             selectedYear: _selectedExamYear,
             examYears: examYears,
-            onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
 
           // Question Papers List
@@ -157,16 +161,19 @@ class _GSTPageState extends State<GSTPage> {
                             itemCount: filteredPapers.length,
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
-                              final key = ValueKey('${paper['examYear']}_${paper['title']}_$_selectedGroup');
+                              final key = ValueKey(
+                                  '${paper['examYear']}_${paper['title']}_$_selectedGroup');
                               return KeyedSubtree(
                                 key: key,
                                 child: QuestionPaperCard(
-                                  key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedGroup'),
+                                  key: ValueKey(
+                                      '${paper['examYear']}_${paper['title']}_$_selectedGroup'),
                                   title: paper['title']?.toString() ?? '',
                                   subtitle: paper['subtitle']?.toString() ?? '',
                                   year: paper['examYear']?.toString() ?? '',
                                   examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                  downloadUrl:
+                                      paper['downloadUrl']?.toString() ?? '',
                                   category: 'GST',
                                 ),
                               );
@@ -177,4 +184,4 @@ class _GSTPageState extends State<GSTPage> {
       ),
     );
   }
-} 
+}
