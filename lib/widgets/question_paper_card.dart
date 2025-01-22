@@ -356,8 +356,8 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
 
     RewardedInterstitialAd.load(
       adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/5354046379' // Android test ID
-          : 'ca-app-pub-3940256099942544/6978759866', // iOS test ID
+          ? 'ca-app-pub-5555177535051011/2786965968' // Android test ID
+          : 'ca-app-pub-5555177535051011/2786965968', // iOS test ID
       request: const AdRequest(),
       rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
         onAdLoaded: (ad) {
