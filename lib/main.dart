@@ -121,9 +121,23 @@ import 'pages/engineering_university_admission/cuet_page.dart';
 import 'pages/engineering_university_admission/ruet_page.dart';
 import 'pages/engineering_university_admission/kuet_page.dart';
 import 'pages/engineering_university_admission/duet_page.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Mobile Ads SDK
+  await MobileAds.instance.initialize();
+
+  // Optional: Set test device IDs
+  MobileAds.instance.updateRequestConfiguration(
+    RequestConfiguration(
+      testDeviceIds: [
+        '804F93A8B7688310BBC454692AA0C808'
+      ], // Add your test device ID here
+    ),
+  );
+
   runApp(
     MultiProvider(
       providers: [

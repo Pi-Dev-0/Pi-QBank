@@ -6,6 +6,7 @@ import 'dart:io';
 import '../pages/pdf_viewer_page.dart';
 import '../services/services.dart';
 import '../services/downloaded_papers_registry.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class DownloadedFileRegistry {
   static final Map<String, String> _registry = {};
@@ -51,12 +52,22 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
   bool _isFileDownloaded = false;
   String? _downloadedFilePath;
   bool _isBookmarked = false;
+  RewardedInterstitialAd? _interstitialAd;
+  bool _isAdLoading = false;
+  bool _isShowingAd = false;
+  final GlobalKey<State> _dialogKey = GlobalKey<State>();
 
   @override
   void initState() {
     super.initState();
     _checkExistingFile();
     _checkBookmarkStatus();
+  }
+
+  @override
+  void dispose() {
+    _interstitialAd?.dispose();
+    super.dispose();
   }
 
   @override
@@ -247,15 +258,195 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
     }
   }
 
-  Future<void> _downloadFile(BuildContext context) async {
-    if (_isDownloading) return;
+  void _loadInterstitialAd({bool isRefresh = false}) {
+    if (_isAdLoading) return;
+    _isAdLoading = true;
 
-    // First check if file is already downloaded
+    // Show loading indicator while ad loads
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (builderContext) => PopScope(
+        key: _dialogKey,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+
+          // Ensure we can dismiss the dialog and reset ad loading state
+          _dismissLoadingDialog();
+          _isAdLoading = false;
+          _interstitialAd?.dispose();
+          _interstitialAd = null;
+
+          // Trigger download if ad loading is cancelled
+          if (isRefresh) {
+            _redownloadFile(context);
+          } else {
+            _startDownload(context);
+          }
+        },
+        child: Center(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text('Loading Ad...'),
+                  const SizedBox(height: 24), // Increased spacing
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300, // Light background
+                      shape: BoxShape.circle, // Circular background
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.red, // Red color for emphasis
+                        size: 24, // Slightly larger icon
+                      ),
+                      onPressed: () {
+                        // If ad is loaded and not already showing, try to show it
+                        if (_interstitialAd != null && !_isShowingAd) {
+                          try {
+                            _interstitialAd?.show(
+                              onUserEarnedReward: (ad, reward) {
+                                Logger().d(
+                                    'User earned reward: ${reward.amount} ${reward.type}');
+                              },
+                            );
+                          } catch (e) {
+                            Logger().e('Failed to show ad: $e');
+                            // Close dialog and start download if ad fails
+                            _dismissLoadingDialog();
+                            _isAdLoading = false;
+                            _interstitialAd?.dispose();
+                            _interstitialAd = null;
+                            if (isRefresh) {
+                              _redownloadFile(context);
+                            } else {
+                              _startDownload(context);
+                            }
+                          }
+                        } else {
+                          // If no ad is loaded or already showing, close dialog and start download
+                          _dismissLoadingDialog();
+                          _isAdLoading = false;
+                          _interstitialAd?.dispose();
+                          _interstitialAd = null;
+                          if (isRefresh) {
+                            _redownloadFile(context);
+                          } else {
+                            _startDownload(context);
+                          }
+                        }
+                      },
+                      tooltip: 'Cancel',
+                      padding: const EdgeInsets.all(8), // More padding
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    RewardedInterstitialAd.load(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/5354046379' // Android test ID
+          : 'ca-app-pub-3940256099942544/6978759866', // iOS test ID
+      request: const AdRequest(),
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _interstitialAd = ad;
+          _isAdLoading = false;
+          Logger().d('Ad loaded successfully');
+
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              Logger().d('Ad dismissed, starting download...');
+              _dismissLoadingDialog();
+              ad.dispose();
+              _interstitialAd = null;
+              _isShowingAd = false;
+              if (isRefresh) {
+                _redownloadFile(context);
+              } else {
+                _startDownload(context);
+              }
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) {
+              Logger().e('Ad failed to show: $error');
+              _dismissLoadingDialog();
+              ad.dispose();
+              _interstitialAd = null;
+              _isShowingAd = false;
+              if (isRefresh) {
+                _redownloadFile(context);
+              } else {
+                _startDownload(context);
+              }
+            },
+            onAdShowedFullScreenContent: (ad) {
+              Logger().d('Ad showed full screen content');
+              _isShowingAd = true;
+            },
+          );
+
+          // Attempt to show the ad immediately
+          try {
+            _interstitialAd?.show(
+              onUserEarnedReward: (ad, reward) {
+                Logger()
+                    .d('User earned reward: ${reward.amount} ${reward.type}');
+              },
+            );
+          } catch (e) {
+            Logger().e('Failed to show ad: $e');
+            _dismissLoadingDialog();
+            if (isRefresh) {
+              _redownloadFile(context);
+            } else {
+              _startDownload(context);
+            }
+          }
+        },
+        onAdFailedToLoad: (error) {
+          Logger().e('Ad failed to load: $error');
+          _isAdLoading = false;
+          _interstitialAd = null;
+          _dismissLoadingDialog();
+          if (isRefresh) {
+            _redownloadFile(context);
+          } else {
+            _startDownload(context);
+          }
+        },
+      ),
+    );
+  }
+
+  void _dismissLoadingDialog() {
+    if (_dialogKey.currentContext != null) {
+      Navigator.of(_dialogKey.currentContext!).pop();
+    }
+  }
+
+  Future<void> _downloadFile(BuildContext context) async {
+    if (_isDownloading || _isShowingAd) return;
+
     if (_isFileDownloaded && _downloadedFilePath != null) {
       _openPDF(_downloadedFilePath!, context);
       return;
     }
 
+    _loadInterstitialAd();
+  }
+
+  Future<void> _startDownload(BuildContext context) async {
     if (!context.mounted) return;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
@@ -487,7 +678,10 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                   if (_isFileDownloaded && _downloadedFilePath != null)
                     IconButton(
                       icon: const Icon(Icons.refresh),
-                      onPressed: () => _redownloadFile(context),
+                      onPressed: () {
+                        // Show ad before redownloading
+                        _loadInterstitialAd(isRefresh: true);
+                      },
                       tooltip: 'Redownload',
                       color: Colors.grey,
                     ),
