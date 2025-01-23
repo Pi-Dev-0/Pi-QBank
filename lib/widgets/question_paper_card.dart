@@ -52,7 +52,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
   bool _isFileDownloaded = false;
   String? _downloadedFilePath;
   bool _isBookmarked = false;
-  RewardedInterstitialAd? _interstitialAd;
+  RewardedInterstitialAd? _rewardedInterstitialAd;
   bool _isAdLoading = false;
   bool _isShowingAd = false;
   final GlobalKey<State> _dialogKey = GlobalKey<State>();
@@ -66,7 +66,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
 
   @override
   void dispose() {
-    _interstitialAd?.dispose();
+    _rewardedInterstitialAd?.dispose();
     super.dispose();
   }
 
@@ -259,180 +259,158 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
   }
 
   void _loadInterstitialAd({bool isRefresh = false}) {
-    if (_isAdLoading) return;
-    _isAdLoading = true;
+    // Prevent multiple ad loading attempts
+    if (_isAdLoading || _isShowingAd) return;
 
-    // Show loading indicator while ad loads
+    setState(() {
+      _isAdLoading = true;
+    });
+
+    // Show loading dialog with countdown
+    _showAdLoadingDialog(isRefresh);
+
+    // Load rewarded interstitial ad
+    RewardedInterstitialAd.load(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/5354046379' // Android test rewarded interstitial ad ID
+          : 'ca-app-pub-3940256099942544/6978759866', // iOS test rewarded interstitial ad ID
+      request: const AdRequest(),
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
+        onAdLoaded: (ad) => _onAdLoaded(ad, isRefresh),
+        onAdFailedToLoad: (error) => _onAdLoadFailed(error, isRefresh),
+      ),
+    );
+  }
+
+  void _showAdLoadingDialog(bool isRefresh) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (builderContext) => PopScope(
+      builder: (BuildContext dialogContext) => Center(
         key: _dialogKey,
-        onPopInvokedWithResult: (didPop, result) {
-          if (didPop) return;
-
-          // Ensure we can dismiss the dialog and reset ad loading state
-          _dismissLoadingDialog();
-          _isAdLoading = false;
-          _interstitialAd?.dispose();
-          _interstitialAd = null;
-
-          // Trigger download if ad loading is cancelled
-          if (isRefresh) {
-            _redownloadFile(context);
-          } else {
-            _startDownload(context);
-          }
-        },
-        child: Center(
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  const Text('Loading Ad...'),
-                  const SizedBox(height: 24), // Increased spacing
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300, // Light background
-                      shape: BoxShape.circle, // Circular background
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: Colors.red, // Red color for emphasis
-                        size: 24, // Slightly larger icon
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                const Text('Loading Ad...'),
+                const SizedBox(height: 24),
+                TweenAnimationBuilder<double>(
+                  duration: const Duration(seconds: 5),
+                  tween: Tween<double>(begin: 5, end: 0),
+                  builder: (context, value, child) {
+                    int countdown = value.toInt();
+                    return Text(
+                      '$countdown',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: _getCountdownColor(countdown + 1),
                       ),
-                      onPressed: () {
-                        // If ad is loaded and not already showing, try to show it
-                        if (_interstitialAd != null && !_isShowingAd) {
-                          try {
-                            _interstitialAd?.show(
-                              onUserEarnedReward: (ad, reward) {
-                                Logger().d(
-                                    'User earned reward: ${reward.amount} ${reward.type}');
-                              },
-                            );
-                          } catch (e) {
-                            Logger().e('Failed to show ad: $e');
-                            // Close dialog and start download if ad fails
-                            _dismissLoadingDialog();
-                            _isAdLoading = false;
-                            _interstitialAd?.dispose();
-                            _interstitialAd = null;
-                            if (isRefresh) {
-                              _redownloadFile(context);
-                            } else {
-                              _startDownload(context);
-                            }
-                          }
-                        } else {
-                          // If no ad is loaded or already showing, close dialog and start download
-                          _dismissLoadingDialog();
-                          _isAdLoading = false;
-                          _interstitialAd?.dispose();
-                          _interstitialAd = null;
-                          if (isRefresh) {
-                            _redownloadFile(context);
-                          } else {
-                            _startDownload(context);
-                          }
-                        }
-                      },
-                      tooltip: 'Cancel',
-                      padding: const EdgeInsets.all(8), // More padding
-                    ),
-                  ),
-                ],
-              ),
+                    );
+                  },
+                  onEnd: () => _handleCountdownEnd(isRefresh),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
+  }
 
-    RewardedInterstitialAd.load(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-5555177535051011/2786965968' // Android test ID
-          : 'ca-app-pub-5555177535051011/2786965968', // iOS test ID
-      request: const AdRequest(),
-      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
-        onAdLoaded: (ad) {
-          _interstitialAd = ad;
-          _isAdLoading = false;
-          Logger().d('Ad loaded successfully');
+  void _onAdLoaded(RewardedInterstitialAd ad, bool isRefresh) {
+    _rewardedInterstitialAd = ad;
+    _isAdLoading = false;
+    Logger().d('Rewarded Interstitial Ad loaded successfully');
 
-          ad.fullScreenContentCallback = FullScreenContentCallback(
-            onAdDismissedFullScreenContent: (ad) {
-              Logger().d('Ad dismissed, starting download...');
-              _dismissLoadingDialog();
-              ad.dispose();
-              _interstitialAd = null;
-              _isShowingAd = false;
-              if (isRefresh) {
-                _redownloadFile(context);
-              } else {
-                _startDownload(context);
-              }
-            },
-            onAdFailedToShowFullScreenContent: (ad, error) {
-              Logger().e('Ad failed to show: $error');
-              _dismissLoadingDialog();
-              ad.dispose();
-              _interstitialAd = null;
-              _isShowingAd = false;
-              if (isRefresh) {
-                _redownloadFile(context);
-              } else {
-                _startDownload(context);
-              }
-            },
-            onAdShowedFullScreenContent: (ad) {
-              Logger().d('Ad showed full screen content');
-              _isShowingAd = true;
-            },
-          );
+    // Dismiss the loading dialog first
+    _dismissLoadingDialog();
 
-          // Attempt to show the ad immediately
-          try {
-            _interstitialAd?.show(
-              onUserEarnedReward: (ad, reward) {
-                Logger()
-                    .d('User earned reward: ${reward.amount} ${reward.type}');
-              },
-            );
-          } catch (e) {
-            Logger().e('Failed to show ad: $e');
-            _dismissLoadingDialog();
-            if (isRefresh) {
-              _redownloadFile(context);
-            } else {
-              _startDownload(context);
-            }
-          }
-        },
-        onAdFailedToLoad: (error) {
-          Logger().e('Ad failed to load: $error');
-          _isAdLoading = false;
-          _interstitialAd = null;
-          _dismissLoadingDialog();
-          if (isRefresh) {
-            _redownloadFile(context);
-          } else {
-            _startDownload(context);
-          }
-        },
-      ),
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) => _handleAdDismissed(ad, isRefresh),
+      onAdFailedToShowFullScreenContent: (ad, error) =>
+          _handleAdShowError(ad, error, isRefresh),
+      onAdShowedFullScreenContent: (ad) {
+        Logger().d('Rewarded Interstitial Ad showed full screen content');
+        _isShowingAd = true;
+      },
     );
+
+    // Attempt to show the ad immediately after loading
+    _showInterstitialAd(isRefresh);
+  }
+
+  void _showInterstitialAd(bool isRefresh) {
+    if (_rewardedInterstitialAd == null) {
+      Logger().e('Attempted to show ad, but ad is null');
+      _proceedWithDownload(isRefresh);
+      return;
+    }
+
+    try {
+      _rewardedInterstitialAd?.show(
+        onUserEarnedReward: (ad, reward) {
+          Logger().d('User earned reward: ${reward.amount} ${reward.type}');
+          // You can add additional logic here if needed when a reward is earned
+        },
+      );
+    } catch (e) {
+      Logger().e('Failed to show rewarded interstitial ad: $e');
+      _handleAdShowFailure(isRefresh);
+    }
+  }
+
+  void _handleAdShowFailure(bool isRefresh) {
+    _isAdLoading = false;
+    _proceedWithDownload(isRefresh);
+  }
+
+  void _handleAdDismissed(RewardedInterstitialAd ad, bool isRefresh) {
+    Logger().d('Rewarded Interstitial Ad dismissed, starting download...');
+    ad.dispose();
+    _rewardedInterstitialAd = null;
+    _isShowingAd = false;
+    _proceedWithDownload(isRefresh);
+  }
+
+  void _handleAdShowError(
+      RewardedInterstitialAd ad, AdError error, bool isRefresh) {
+    Logger().e('Rewarded Interstitial Ad failed to show: $error');
+    ad.dispose();
+    _rewardedInterstitialAd = null;
+    _isShowingAd = false;
+    _proceedWithDownload(isRefresh);
+  }
+
+  void _handleCountdownEnd(bool isRefresh) {
+    _dismissLoadingDialog();
+    _isAdLoading = false;
+    _rewardedInterstitialAd?.dispose();
+    _rewardedInterstitialAd = null;
+    _proceedWithDownload(isRefresh);
+  }
+
+  void _proceedWithDownload(bool isRefresh) {
+    if (isRefresh) {
+      _redownloadFile(context);
+    } else {
+      _startDownload(context);
+    }
   }
 
   void _dismissLoadingDialog() {
     if (_dialogKey.currentContext != null) {
       Navigator.of(_dialogKey.currentContext!).pop();
     }
+  }
+
+  Color _getCountdownColor(int countdown) {
+    return const Color.fromARGB(
+        255, 92, 92, 92); // Consistent color for all countdown values
   }
 
   Future<void> _downloadFile(BuildContext context) async {
@@ -476,8 +454,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
           _downloadedFilePath = fullPath;
           _isDownloading = false;
         });
-        if (!context.mounted) return;
-        _openPDF(fullPath, context);
         return;
       }
 
@@ -527,7 +503,9 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
               label: 'View',
               textColor: Colors.white,
               onPressed: () {
+                // Optional: You can add a method to show a dialog or navigate to a page with download options
                 if (_downloadedFilePath != null) {
+                  // Commented out to prevent auto-opening
                   _openPDF(_downloadedFilePath!, context);
                 }
               },
@@ -611,6 +589,14 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
 
     await BookmarkService.toggleBookmark(paper);
     await _checkBookmarkStatus();
+  }
+
+  void _onAdLoadFailed(AdError error, bool isRefresh) {
+    Logger().e('Rewarded Interstitial Ad failed to load: $error');
+    _dismissLoadingDialog();
+    _isAdLoading = false;
+    _rewardedInterstitialAd = null;
+    _proceedWithDownload(isRefresh);
   }
 
   @override
