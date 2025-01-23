@@ -4,6 +4,7 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:logger/logger.dart';
+import '../widgets/custom_app_bar.dart';
 
 class OnlinePDFViewerPage extends StatefulWidget {
   final String pdfUrl;
@@ -90,12 +91,8 @@ class OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: Text(
-          widget.title,
-          textAlign: TextAlign.center,
-        ),
+      appBar: CustomAppBar(
+        title: widget.title,
       ),
       body: _isLoading
           ? Center(
