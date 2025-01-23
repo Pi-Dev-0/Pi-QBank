@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'dart:io';
 import '../pages/pdf_viewer_page.dart';
+import '../pages/online_pdf_viewer_page.dart';
 import '../services/services.dart';
 import '../services/downloaded_papers_registry.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -657,6 +658,27 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
     }
   }
 
+  void _viewOnlinePDF(BuildContext context) {
+    if (widget.downloadUrl.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OnlinePDFViewerPage(
+            pdfUrl: widget.downloadUrl,
+            title: widget.title,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('PDF URL is not available'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -767,23 +789,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      if (widget.downloadUrl.isNotEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Online PDF viewing not implemented'),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('PDF URL is not available'),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                      }
-                    },
+                    onPressed: () => _viewOnlinePDF(context),
                     icon: const Icon(
                       Icons.remove_red_eye_outlined,
                       size: 20,
