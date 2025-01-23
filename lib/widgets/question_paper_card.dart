@@ -599,6 +599,64 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
     _proceedWithDownload(isRefresh);
   }
 
+  void _deleteDownloadedFile() async {
+    if (_downloadedFilePath != null) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete Paper'),
+          content: const Text('Are you sure you want to delete this paper?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        final file = File(_downloadedFilePath!);
+        final folder = file.parent;
+        
+        try {
+          if (await folder.exists()) {
+            await folder.delete(recursive: true);
+          }
+          
+          // Check if the widget is still mounted before showing SnackBar
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${widget.title} deleted'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+
+          setState(() {
+            _isFileDownloaded = false;
+            _downloadedFilePath = null;
+          });
+        } catch (e) {
+          // Check if the widget is still mounted before showing SnackBar
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to delete ${widget.title}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -606,72 +664,151 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       shadowColor: Colors.grey[600],
       color: Colors.white,
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 0, 16),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 4,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.subtitle,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (_isDownloading && _downloadProgress > 0)
-              Container(
-                width: 40,
-                height: 40,
-                margin: const EdgeInsets.only(right: 8),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value: _downloadProgress,
-                      strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          Theme.of(context).primaryColor),
-                    ),
-                    Text(
-                      '${(_downloadProgress * 100).toInt()}%',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 10, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              )
-            else
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_isFileDownloaded && _downloadedFilePath != null)
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      onPressed: () {
-                        // Show ad before redownloading
-                        _loadInterstitialAd(isRefresh: true);
-                      },
-                      tooltip: 'Redownload',
-                      color: Colors.grey,
+                if (_isDownloading && _downloadProgress > 0)
+                  Container(
+                    width: 40,
+                    height: 40,
+                    margin: const EdgeInsets.only(right: 8),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          value: _downloadProgress,
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              Theme.of(context).primaryColor),
+                        ),
+                        Text(
+                          '${(_downloadProgress * 100).toInt()}%',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                  ElevatedButton.icon(
+                  )
+                else
+                  Row(
+                    children: [
+                      if (_isFileDownloaded && _downloadedFilePath != null)
+                        IconButton(
+                          icon: const Icon(Icons.refresh),
+                          onPressed: () {
+                            // Show ad before redownloading
+                            _loadInterstitialAd(isRefresh: true);
+                          },
+                          tooltip: 'Redownload',
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      IconButton(
+                        icon: Icon(
+                          _isBookmarked
+                              ? Icons.bookmark
+                              : Icons.bookmark_border,
+                          color: _isBookmarked
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: _toggleBookmark,
+                      ),
+                      if (_isFileDownloaded)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () {
+                            _deleteDownloadedFile();
+                          },
+                          tooltip: 'Delete File',
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      if (widget.downloadUrl.isNotEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Online PDF viewing not implemented'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('PDF URL is not available'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(
+                      Icons.remove_red_eye_outlined,
+                      size: 20,
+                    ),
+                    label: const Text(
+                      'View Online',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      elevation: 4,
+                      shadowColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 10,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
                     onPressed: _isDownloading
                         ? null
                         : () {
@@ -691,6 +828,12 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                             color: _isFileDownloaded ? Colors.white : null,
                             size: 20,
                           ),
+                    label: Text(
+                      _isFileDownloaded
+                          ? 'View Offline'
+                          : (_isDownloading ? 'Downloading' : 'Download'),
+                      style: const TextStyle(fontSize: 14),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isFileDownloaded ? Colors.green : null,
                       foregroundColor: _isFileDownloaded ? Colors.white : null,
@@ -703,31 +846,12 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    label: Text(
-                      _isFileDownloaded
-                          ? 'View'
-                          : (_isDownloading ? 'Downloading' : 'Download'),
-                      style: const TextStyle(fontSize: 14),
-                    ),
                   ),
-                ],
-              ),
-            Padding(
-              padding: const EdgeInsets.only(right: 0),
-              child: IconButton(
-                icon: Icon(
-                  _isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                  color: _isBookmarked
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
                 ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                onPressed: _toggleBookmark,
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
