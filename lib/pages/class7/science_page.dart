@@ -9,14 +9,14 @@ import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
 import '../../widgets/error_state_widget.dart';
 
-class Class7SciencePage extends StatefulWidget {
-  const Class7SciencePage({super.key});
+class Class7ScienceInquiryPage extends StatefulWidget {
+  const Class7ScienceInquiryPage({super.key});
 
   @override
-  State<Class7SciencePage> createState() => _Class7SciencePageState();
+  State<Class7ScienceInquiryPage> createState() => _Class7SciencePageState();
 }
 
-class _Class7SciencePageState extends State<Class7SciencePage> {
+class _Class7SciencePageState extends State<Class7ScienceInquiryPage> {
   String _selectedType = 'Half Yearly';
   String _selectedExamYear = '';
   List<Map<String, dynamic>> questionPapers = [];
@@ -99,7 +99,7 @@ class _Class7SciencePageState extends State<Class7SciencePage> {
           .compareTo(int.parse(a['examYear'].toString())));
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'বিজ্ঞান - Class 7'),
+      appBar: const CustomAppBar(title: 'বিজ্ঞান অনুসন্ধানী - Class 7'),
       drawer: const AppDrawer(),
       body: Column(
         children: [

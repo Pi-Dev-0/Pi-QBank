@@ -7,7 +7,7 @@ import '../widgets/question_paper_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../services/data_cache_service.dart';
 import '../widgets/exam_year_selector.dart';
-import '../widgets/connectivity_wrapper.dart';
+import '../widgets/error_state_widget.dart';
 
 class MedicalPage extends StatefulWidget {
   const MedicalPage({super.key});
@@ -36,7 +36,7 @@ class _MedicalPageState extends State<MedicalPage> {
   Future<void> fetchQuestionPapers() async {
     final scriptUrl = AppConfig.medicalApi;
     const String cacheKey = 'medical_papers';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -50,7 +50,7 @@ class _MedicalPageState extends State<MedicalPage> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final List<dynamic> data = json.decode(response.body);
             return data
@@ -85,8 +85,8 @@ class _MedicalPageState extends State<MedicalPage> {
   @override
   Widget build(BuildContext context) {
     final filteredPapers = questionPapers.where((paper) {
-      return _selectedExamYear.isEmpty || 
-             paper['examYear'].toString() == _selectedExamYear;
+      return _selectedExamYear.isEmpty ||
+          paper['examYear'].toString() == _selectedExamYear;
     }).toList()
       ..sort((a, b) => int.parse(b['examYear'].toString())
           .compareTo(int.parse(a['examYear'].toString())));
@@ -101,12 +101,11 @@ class _MedicalPageState extends State<MedicalPage> {
               horizontal: 16.0,
             ).copyWith(top: 10.0),
             child: SizedBox(
-              width: MediaQuery.of(context).size.width * 0.8,
-              height: 55,
               child: ExamYearSelector(
                 selectedYear: _selectedExamYear,
                 examYears: examYears,
-                onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+                onYearChanged: (value) =>
+                    setState(() => _selectedExamYear = value ?? ''),
               ),
             ),
           ),
@@ -131,20 +130,8 @@ class _MedicalPageState extends State<MedicalPage> {
                     ),
                   )
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: () {
-                                ConnectivityWrapper.showOnRetry(context);
-                                fetchQuestionPapers();
-                              },
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -153,16 +140,19 @@ class _MedicalPageState extends State<MedicalPage> {
                             itemCount: filteredPapers.length,
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
-                              final key = ValueKey('${paper['examYear']}_${paper['title']}');
+                              final key = ValueKey(
+                                  '${paper['examYear']}_${paper['title']}');
                               return KeyedSubtree(
                                 key: key,
                                 child: QuestionPaperCard(
-                                  key: ValueKey('${paper['examYear']}_${paper['title']}'),
+                                  key: ValueKey(
+                                      '${paper['examYear']}_${paper['title']}'),
                                   title: paper['title']?.toString() ?? '',
                                   subtitle: paper['subtitle']?.toString() ?? '',
                                   year: paper['examYear']?.toString() ?? '',
                                   examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                  downloadUrl:
+                                      paper['downloadUrl']?.toString() ?? '',
                                   category: 'Medical',
                                 ),
                               );
@@ -173,4 +163,4 @@ class _MedicalPageState extends State<MedicalPage> {
       ),
     );
   }
-} 
+}

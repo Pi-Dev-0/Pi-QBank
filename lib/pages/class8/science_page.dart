@@ -9,14 +9,14 @@ import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
 import '../../widgets/error_state_widget.dart';
 
-class Class8SciencePage extends StatefulWidget {
-  const Class8SciencePage({super.key});
+class Class8ScienceInquiryPage extends StatefulWidget {
+  const Class8ScienceInquiryPage({super.key});
 
   @override
-  State<Class8SciencePage> createState() => _Class8SciencePageState();
+  State<Class8ScienceInquiryPage> createState() => _Class8SciencePageState();
 }
 
-class _Class8SciencePageState extends State<Class8SciencePage> {
+class _Class8SciencePageState extends State<Class8ScienceInquiryPage> {
   String _selectedType = 'Half Yearly';
   String _selectedExamYear = '';
   List<Map<String, dynamic>> questionPapers = [];

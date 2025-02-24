@@ -276,20 +276,20 @@ class MyApp extends StatelessWidget {
         '/hsc_ict': (context) => const HSCICT(),
 
         // Class 7 Routes
-        '/class7/bangla': (context) => const Class7BanglaPage(),
-        '/class7/english': (context) => const Class7EnglishPage(),
-        '/class7/math': (context) => const Class7MathPage(),
-        '/class7/science': (context) => const Class7SciencePage(),
-        '/class7/social_science': (context) => const Class7SocialSciencePage(),
-        '/class7/religion': (context) => const Class7IslamicStudiesPage(),
+        '/class7_bangla': (context) => const Class7BanglaPage(),
+        '/class7_english': (context) => const Class7EnglishPage(),
+        '/class7_math': (context) => const Class7MathPage(),
+        '/class7_science_inquiry': (context) => const Class7ScienceInquiryPage(),
+        '/class7_social_science': (context) => const Class7SocialSciencePage(),
+        '/class7_islam': (context) => const Class7IslamicStudiesPage(),
 
         // Class 8 Routes
-        '/class8/bangla': (context) => const Class8BanglaPage(),
-        '/class8/english': (context) => const Class8EnglishPage(),
-        '/class8/math': (context) => const Class8MathPage(),
-        '/class8/science': (context) => const Class8SciencePage(),
-        '/class8/social_science': (context) => const Class8SocialSciencePage(),
-        '/class8/religion': (context) => const Class8IslamicStudiesPage(),
+        '/class8_bangla': (context) => const Class8BanglaPage(),
+        '/class8_english': (context) => const Class8EnglishPage(),
+        '/class8_math': (context) => const Class8MathPage(),
+        '/class8_science_inquiry': (context) => const Class8ScienceInquiryPage(),
+        '/class8_social_science': (context) => const Class8SocialSciencePage(),
+        '/class8_islam': (context) => const Class8IslamicStudiesPage(),
 
         // Class 6 Routes
         '/class6_arts_culture': (context) => const Class6ArtsCulturePage(),

@@ -8,13 +8,14 @@ import '../widgets/custom_app_bar.dart';
 import '../services/data_cache_service.dart';
 import '../widgets/exam_year_selector.dart';
 import '../widgets/group_selector.dart';
-import '../widgets/connectivity_wrapper.dart';
+import '../widgets/error_state_widget.dart';
 
 class SevenCollegeAdmissionPage extends StatefulWidget {
   const SevenCollegeAdmissionPage({super.key});
 
   @override
-  State<SevenCollegeAdmissionPage> createState() => _SevenCollegeAdmissionPageState();
+  State<SevenCollegeAdmissionPage> createState() =>
+      _SevenCollegeAdmissionPageState();
 }
 
 class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
@@ -41,7 +42,7 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
   Future<void> fetchQuestionPapers() async {
     final scriptUrl = AppConfig.sevenCollegeAdmissionApi;
     const String cacheKey = 'seven_college_admission_papers';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -55,7 +56,7 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final List<dynamic> data = json.decode(response.body);
             return data
@@ -91,10 +92,10 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
   @override
   Widget build(BuildContext context) {
     final filteredPapers = questionPapers.where((paper) {
-      final yearMatch = _selectedExamYear.isEmpty || 
-                       paper['examYear'].toString() == _selectedExamYear;
-      final groupMatch = _selectedGroup.isEmpty || 
-                        paper['group'].toString() == _selectedGroup;
+      final yearMatch = _selectedExamYear.isEmpty ||
+          paper['examYear'].toString() == _selectedExamYear;
+      final groupMatch =
+          _selectedGroup.isEmpty || paper['group'].toString() == _selectedGroup;
       return yearMatch && groupMatch;
     }).toList();
 
@@ -105,23 +106,27 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
         children: [
           // Group Selection
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
             child: GroupSelector(
               selectedGroup: _selectedGroup,
               groups: groups,
-              onGroupChanged: (value) => setState(() => _selectedGroup = value ?? ''),
+              onGroupChanged: (value) =>
+                  setState(() => _selectedGroup = value ?? ''),
             ),
           ),
 
           // Exam Year Selection
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
             child: Container(
               margin: const EdgeInsets.only(bottom: 8.0),
               child: ExamYearSelector(
                 selectedYear: _selectedExamYear,
                 examYears: examYears,
-                onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+                onYearChanged: (value) =>
+                    setState(() => _selectedExamYear = value ?? ''),
               ),
             ),
           ),
@@ -146,20 +151,8 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
                     ),
                   )
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: () {
-                                ConnectivityWrapper.showOnRetry(context);
-                                fetchQuestionPapers();
-                              },
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -168,16 +161,19 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
                             itemCount: filteredPapers.length,
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
-                              final key = ValueKey('${paper['examYear']}_${paper['title']}_$_selectedGroup');
+                              final key = ValueKey(
+                                  '${paper['examYear']}_${paper['title']}_$_selectedGroup');
                               return KeyedSubtree(
                                 key: key,
                                 child: QuestionPaperCard(
-                                  key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedGroup'),
+                                  key: ValueKey(
+                                      '${paper['examYear']}_${paper['title']}_$_selectedGroup'),
                                   title: paper['title']?.toString() ?? '',
                                   subtitle: paper['subtitle']?.toString() ?? '',
                                   year: paper['examYear']?.toString() ?? '',
                                   examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                  downloadUrl:
+                                      paper['downloadUrl']?.toString() ?? '',
                                   category: 'Seven College',
                                 ),
                               );
@@ -188,4 +184,4 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
       ),
     );
   }
-} 
+}

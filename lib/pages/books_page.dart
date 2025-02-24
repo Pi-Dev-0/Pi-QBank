@@ -7,7 +7,7 @@ import '../widgets/question_paper_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
 import '../services/connectivity_service.dart';
-import '../widgets/connectivity_wrapper.dart';
+import '../widgets/error_state_widget.dart';
 import 'dart:io';
 
 class BooksPage extends StatefulWidget {
@@ -158,8 +158,6 @@ class _BooksPageState extends State<BooksPage> {
         Provider.of<ConnectivityService>(context, listen: false);
     await connectivityService.initConnectivity();
 
-    debugPrint('Retry - Connectivity status: ${connectivityService.isOnline}');
-
     if (!mounted) return;
 
     if (connectivityService.isOnline) {
@@ -169,69 +167,8 @@ class _BooksPageState extends State<BooksPage> {
       });
       _fetchBooksData();
     } else {
-      // Show dialog with only close button
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext dialogContext) {
-          return AlertDialog(
-            contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.signal_wifi_off,
-                size: 40,
-                color: Colors.red,
-              ),
-            ),
-            title: const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text(
-                'No Internet Connection',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 20),
-              ),
-            ),
-            content: const Text(
-              'Please connect to the internet to continue.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
-            ),
-            actionsAlignment: MainAxisAlignment.center,
-            actionsPadding: const EdgeInsets.symmetric(vertical: 16),
-            actions: [
-              TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: Colors.blue,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 26, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                ),
-                child: const Text(
-                  'Close',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
-
-      debugPrint('Showing offline dialog');
+      // Remove the debug print statement
+      // debugPrint('Showing offline dialog');
     }
   }
 
@@ -306,28 +243,8 @@ class _BooksPageState extends State<BooksPage> {
       appBar: const CustomAppBar(title: 'Books'),
       drawer: const AppDrawer(),
       body: _showConnectivityWrapper
-          ? ConnectivityWrapper(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.signal_wifi_off,
-                        size: 48, color: Colors.red),
-                    const SizedBox(height: 8),
-                    const Text('No Internet Connection',
-                        style: TextStyle(fontSize: 18, color: Colors.red)),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
-                      onPressed: _retryFetchBooksData,
-                      style: ElevatedButton.styleFrom(
-                        alignment: Alignment.center,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          ? ErrorStateWidget(
+              onRetry: _retryFetchBooksData,
             )
           : Padding(
               padding: const EdgeInsets.all(16.0),
