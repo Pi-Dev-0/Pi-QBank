@@ -203,29 +203,6 @@ class _AppDrawerState extends State<AppDrawer>
                                 .withOpacity(0.3),
                           ),
                           ListTile(
-                            leading: const Icon(Icons.library_books),
-                            title: const Text('Guides'),
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 24.0),
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.zero,
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(context, '/guides');
-                            },
-                          ),
-                          Divider(
-                            height: 1,
-                            thickness: 1,
-                            indent: 24,
-                            endIndent: 24,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primaryContainer
-                                .withOpacity(0.3),
-                          ),
-                          ListTile(
                             leading: const Icon(Icons.lightbulb_outline),
                             title: const Text('Suggestions'),
                             contentPadding:

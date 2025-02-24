@@ -7,52 +7,14 @@ import '../widgets/question_paper_card.dart';
 import 'dart:io';
 import '../widgets/custom_app_bar.dart';
 import '../services/data_cache_service.dart';
-import '../widgets/connectivity_wrapper.dart';
+import '../widgets/exam_year_selector.dart';
+import '../widgets/error_state_widget.dart';
 
 class NursingAdmissionPage extends StatefulWidget {
   const NursingAdmissionPage({super.key});
 
   @override
   State<NursingAdmissionPage> createState() => _NursingAdmissionPageState();
-}
-
-class YearDropdown extends StatelessWidget {
-  final String selectedYear;
-  final List<String> examYears;
-  final Function(String?) onYearChanged;
-
-  const YearDropdown({
-    super.key,
-    required this.selectedYear,
-    required this.examYears,
-    required this.onYearChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-      child: DropdownButtonFormField<String>(
-        value: selectedYear.isEmpty ? null : selectedYear,
-        hint: const Text('Select Year'),
-        items: [
-          const DropdownMenuItem<String>(
-            value: '',
-            child: Text('All Years'),
-          ),
-          ...examYears.map((year) => DropdownMenuItem<String>(
-                value: year,
-                child: Text(year),
-              )),
-        ],
-        onChanged: onYearChanged,
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        ),
-      ),
-    );
-  }
 }
 
 class _NursingAdmissionPageState extends State<NursingAdmissionPage> {
@@ -169,15 +131,13 @@ class _NursingAdmissionPageState extends State<NursingAdmissionPage> {
   @override
   Widget build(BuildContext context) {
     final filteredPapers = questionPapers.where((paper) {
-      // Case-insensitive type matching
       final paperType = paper['type']?.toString().toLowerCase() ?? '';
       final selectedType = _selectedType.toLowerCase();
       final typeMatch = paperType == selectedType;
-      
-      // Match examyear
-      final examYearMatch = _selectedExamYear.isEmpty || 
-                           paper['examYear']?.toString() == _selectedExamYear;
-      
+
+      final examYearMatch = _selectedExamYear.isEmpty ||
+          paper['examYear']?.toString() == _selectedExamYear;
+
       return typeMatch && examYearMatch;
     }).toList()
       ..sort((a, b) => int.parse(b['examYear'].toString())
@@ -221,114 +181,19 @@ class _NursingAdmissionPageState extends State<NursingAdmissionPage> {
               }).toList(),
             ),
           ),
-          Container(
-            width: MediaQuery.of(context).size.width * 0.6,
-            height: 35,
-            margin: const EdgeInsets.only(left: 8, right: 8, bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                  spreadRadius: 0,
-                ),
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                  spreadRadius: 2,
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                  spreadRadius: -1,
-                ),
-              ],
-            ),
-            child: InkWell(
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: const Center(
-                        child: Text('Select Year'),
-                      ),
-                      content: SizedBox(
-                        width: double.minPositive,
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: examYears.length + 1,
-                          itemBuilder: (BuildContext context, int index) {
-                            if (index == 0) {
-                              return ListTile(
-                                title: const Center(
-                                  child: Text(
-                                    'All Years',
-                                    style: TextStyle(fontSize: 16),
-                                  ),
-                                ),
-                                onTap: () {
-                                  setState(() => _selectedExamYear = '');
-                                  Navigator.pop(context);
-                                },
-                              );
-                            }
-                            final year = examYears[index - 1];
-                            return ListTile(
-                              title: Center(
-                                child: Text(
-                                  year,
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                              ),
-                              onTap: () {
-                                setState(() => _selectedExamYear = year);
-                                Navigator.pop(context);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Year: ',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Expanded(
-                    child: Text(
-                      _selectedExamYear.isEmpty
-                          ? 'All Years'
-                          : _selectedExamYear,
-                      style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const Icon(Icons.arrow_drop_down, size: 20),
-                ],
-              ),
-            ),
+          const SizedBox(height: 8),
+          ExamYearSelector(
+            selectedYear: _selectedExamYear,
+            examYears: examYears,
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
           Expanded(
             child: isLoading
-                ? Center(
+                ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
+                      children: [
                         CircularProgressIndicator(),
                         SizedBox(height: 16),
                         Text(
@@ -342,50 +207,26 @@ class _NursingAdmissionPageState extends State<NursingAdmissionPage> {
                     ),
                   )
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              errorMessage,
-                              style: const TextStyle(fontSize: 16),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                ConnectivityWrapper.showOnRetry(context);
-                                fetchQuestionPapers();
-                              },
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'No question papers found',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                          )
+                        ? const Center(child: Text('No question papers found'))
                         : ListView.builder(
                             padding: const EdgeInsets.all(8),
                             itemCount: filteredPapers.length,
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
-                              final key = ValueKey('${paper['type']}_${paper['examYear']}_${paper['title']}');
-                              return KeyedSubtree(
-                                key: key,
-                                child: QuestionPaperCard(
-                                  key: ValueKey('${paper['type']}_${paper['examYear']}_${paper['title']}'),
-                                  title: paper['title']?.toString() ?? '',
-                                  subtitle: paper['subtitle']?.toString() ?? '',
-                                  year: '',
-                                  examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl: paper['downloadUrl']?.toString() ?? '',
-                                  category: 'Nursing Admission',
-                                ),
+                              return QuestionPaperCard(
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}'),
+                                title: paper['title']?.toString() ?? '',
+                                subtitle: paper['subtitle']?.toString() ?? '',
+                                year: paper['examYear']?.toString() ?? '',
+                                examYear: paper['examYear']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
+                                category: 'Nursing Admission',
                               );
                             },
                           ),

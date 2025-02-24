@@ -5,8 +5,9 @@ import 'package:http/http.dart' as http;
 import '../../widgets/app_drawer.dart';
 import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
-import '../../services/data_cache_service.dart';
 import '../../widgets/exam_year_selector.dart';
+import '../../services/data_cache_service.dart';
+import '../../widgets/error_state_widget.dart';
 
 class CUETPage extends StatefulWidget {
   const CUETPage({super.key});
@@ -97,6 +98,7 @@ class _CUETPageState extends State<CUETPage> {
       drawer: const AppDrawer(),
       body: Column(
         children: [
+          const SizedBox(height: 16),
           // Exam Year Selection
           ExamYearSelector(
             selectedYear: _selectedExamYear,
@@ -108,34 +110,10 @@ class _CUETPageState extends State<CUETPage> {
           // Question Papers List
           Expanded(
             child: isLoading
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading Question Papers...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
+                ? const Center(child: CircularProgressIndicator())
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: fetchQuestionPapers,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))

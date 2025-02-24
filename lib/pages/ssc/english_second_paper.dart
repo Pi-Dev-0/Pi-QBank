@@ -38,7 +38,7 @@ class _SSCEnglishSecondPaperState extends State<SSCEnglishSecondPaper> {
   Future<void> fetchQuestionPapers() async {
     final String scriptUrl = AppConfig.sscApi;
     const String cacheKey = 'ssc_english_second';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -92,7 +92,8 @@ class _SSCEnglishSecondPaperState extends State<SSCEnglishSecondPaper> {
     final filteredPapers = questionPapers
         .where((paper) =>
             (_selectedType.isEmpty || paper['examType'] == _selectedType) &&
-            (_selectedExamYear.isEmpty || paper['examYear'] == _selectedExamYear))
+            (_selectedExamYear.isEmpty ||
+                paper['examYear'] == _selectedExamYear))
         .toList()
       ..sort((a, b) => int.parse(b['examYear'].toString())
           .compareTo(int.parse(a['examYear'].toString())));
@@ -135,14 +136,12 @@ class _SSCEnglishSecondPaperState extends State<SSCEnglishSecondPaper> {
                 }).toList(),
               ),
             ),
-
             ExamYearSelector(
               selectedYear: _selectedExamYear,
               examYears: examYears,
               onYearChanged: (value) =>
                   setState(() => _selectedExamYear = value ?? ''),
             ),
-
             Expanded(
               child: isLoading
                   ? const Center(
@@ -178,7 +177,8 @@ class _SSCEnglishSecondPaperState extends State<SSCEnglishSecondPaper> {
                           ),
                         )
                       : filteredPapers.isEmpty
-                          ? const Center(child: Text('No question papers found'))
+                          ? const Center(
+                              child: Text('No question papers found'))
                           : ListView.builder(
                               padding: const EdgeInsets.all(8),
                               itemCount: filteredPapers.length,
@@ -187,7 +187,8 @@ class _SSCEnglishSecondPaperState extends State<SSCEnglishSecondPaper> {
                                 return QuestionPaperCard(
                                   key: ValueKey(
                                       '${paper['examYear']}_${paper['title']}_$_selectedType'),
-                                  title: '${paper['title']} (${paper['examYear']})',
+                                  title:
+                                      '${paper['title']} (${paper['examYear']})',
                                   subtitle: paper['subtitle']?.toString() ?? '',
                                   year: 'SSC',
                                   examYear: paper['examYear']?.toString() ?? '',

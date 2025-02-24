@@ -13,117 +13,174 @@ class ExamYearSelector extends StatelessWidget {
   });
 
   void _showYearSelectionDialog(BuildContext context) {
+    if (examYears.isEmpty) return;
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    final maxHeight = screenHeight * 0.7;
+
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Center(
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        elevation: 8,
+        title: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Center(
             child: Text(
               'Select Year',
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
+                color: Colors.blue,
               ),
             ),
           ),
-          content: SizedBox(
-            width: double.minPositive,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: examYears.length + 1,
-              itemBuilder: (BuildContext context, int index) {
-                if (index == 0) {
-                  return ListTile(
-                    title: const Center(
-                      child: Text(
-                        'All Years',
-                        style: TextStyle(fontSize: 16),
+        ),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: SingleChildScrollView(
+            child: ListBody(
+              children: [
+                // "All Years" option
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(dialogContext).maybePop();
+                    onYearChanged('');
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: selectedYear.isEmpty
+                          ? Colors.blue.shade100
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selectedYear.isEmpty
+                            ? Colors.blue
+                            : Colors.grey.shade300,
+                        width: 1.5,
                       ),
                     ),
-                    onTap: () {
-                      onYearChanged('');
-                      Navigator.pop(context);
-                    },
-                  );
-                }
-                final year = examYears[index - 1];
-                return ListTile(
-                  title: Center(
                     child: Text(
-                      year,
-                      style: const TextStyle(fontSize: 16),
+                      'All Years',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: selectedYear.isEmpty
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: selectedYear.isEmpty
+                            ? Colors.blue.shade900
+                            : Colors.black87,
+                      ),
                     ),
                   ),
-                  onTap: () {
-                    onYearChanged(year);
-                    Navigator.pop(context);
-                  },
-                );
-              },
+                ),
+                ...examYears.map((year) => GestureDetector(
+                      onTap: () {
+                        Navigator.of(dialogContext).maybePop();
+                        onYearChanged(year);
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: selectedYear == year
+                              ? Colors.blue.shade100
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: selectedYear == year
+                                ? Colors.blue
+                                : Colors.grey.shade300,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Text(
+                          year,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: selectedYear == year
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: selectedYear == year
+                                ? Colors.blue.shade900
+                                : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    )),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: MediaQuery.of(context).size.width * 0.6,
-      height: 35,
-      margin: const EdgeInsets.only(left: 8, right: 8, bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      width: MediaQuery.of(context).size.width * 0.7,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
             color: Colors.grey.withOpacity(0.3),
+            spreadRadius: 2,
             blurRadius: 8,
             offset: const Offset(0, 4),
-            spreadRadius: 2,
           ),
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
+            spreadRadius: 0,
             blurRadius: 12,
             offset: const Offset(0, 6),
-            spreadRadius: -1,
           ),
         ],
       ),
       child: InkWell(
         onTap: () => _showYearSelectionDialog(context),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Year: ',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.black54,
-              ),
-            ),
-            Expanded(
-              child: Text(
-                selectedYear.isEmpty ? 'All Years' : selectedYear,
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 14,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              const Text(
+                'Select Year:',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black54,
                 ),
-                textAlign: TextAlign.center,
               ),
-            ),
-            const Icon(Icons.arrow_drop_down, size: 20),
-          ],
+              Expanded(
+                child: Center(
+                  child: Text(
+                    selectedYear.isEmpty ? 'All Years' : selectedYear,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+              const Icon(Icons.arrow_drop_down),
+            ],
+          ),
         ),
       ),
     );
   }
-} 
+}

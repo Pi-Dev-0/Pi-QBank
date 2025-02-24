@@ -55,10 +55,9 @@ class _SSCBanglaSecondPaperState extends State<SSCBanglaSecondPaper> {
 
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
-            
+
             final filteredPapers = (data['papers'] as List)
-                .where((paper) => 
-                    paper['subject'] == 'Bangla2')
+                .where((paper) => paper['subject'] == 'Bangla2')
                 .map((paper) => {
                       'title': paper['title'],
                       'subtitle': paper['subtitle'],
@@ -67,7 +66,7 @@ class _SSCBanglaSecondPaperState extends State<SSCBanglaSecondPaper> {
                       'downloadUrl': paper['downloadUrl'],
                     })
                 .toList();
-            
+
             return filteredPapers;
           }
           throw Exception('Failed to load papers: ${response.statusCode}');
@@ -144,7 +143,8 @@ class _SSCBanglaSecondPaperState extends State<SSCBanglaSecondPaper> {
           ExamYearSelector(
             selectedYear: _selectedExamYear,
             examYears: examYears,
-            onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
 
           // Question Papers List
@@ -190,12 +190,15 @@ class _SSCBanglaSecondPaperState extends State<SSCBanglaSecondPaper> {
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
                               return QuestionPaperCard(
-                                key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
-                                title: '${paper['title']} (${paper['examYear']})',
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                title:
+                                    '${paper['title']} (${paper['examYear']})',
                                 subtitle: paper['subtitle']?.toString() ?? '',
                                 year: 'SSC',
                                 examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
                                 category: 'SSC Bangla Second Paper',
                               );
                             },

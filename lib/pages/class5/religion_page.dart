@@ -7,6 +7,7 @@ import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
+import '../../widgets/error_state_widget.dart';
 
 class Class5ReligionPage extends StatefulWidget {
   const Class5ReligionPage({super.key});
@@ -147,34 +148,10 @@ class _Class5ReligionPageState extends State<Class5ReligionPage> {
           // Question Papers List
           Expanded(
             child: isLoading
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading Question Papers...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
+                ? const Center(child: CircularProgressIndicator())
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: fetchQuestionPapers,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -184,12 +161,15 @@ class _Class5ReligionPageState extends State<Class5ReligionPage> {
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
                               return QuestionPaperCard(
-                                key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
-                                title: '${paper['title']} ($_selectedType)',
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                title:
+                                    '${paper['title']} ($_selectedType) (${paper['examYear']?.toString() ?? ''})',
                                 subtitle: paper['subtitle']?.toString() ?? '',
                                 year: '5',
                                 examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
                                 category: 'Class 5 Religion',
                               );
                             },

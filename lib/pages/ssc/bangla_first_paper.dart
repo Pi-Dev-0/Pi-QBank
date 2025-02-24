@@ -38,7 +38,7 @@ class _SSCBanglaFirstPaperState extends State<SSCBanglaFirstPaper> {
   Future<void> fetchQuestionPapers() async {
     final String scriptUrl = AppConfig.sscApi;
     const String cacheKey = 'ssc_bangla_first';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -52,12 +52,11 @@ class _SSCBanglaFirstPaperState extends State<SSCBanglaFirstPaper> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
             final filteredPapers = (data['papers'] as List)
-                .where((paper) => 
-                    paper['subject'] == 'Bangla1')
+                .where((paper) => paper['subject'] == 'Bangla1')
                 .map((paper) => {
                       'title': paper['title'],
                       'subtitle': paper['subtitle'],
@@ -142,7 +141,8 @@ class _SSCBanglaFirstPaperState extends State<SSCBanglaFirstPaper> {
           ExamYearSelector(
             selectedYear: _selectedExamYear,
             examYears: examYears,
-            onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
 
           // Question Papers List
@@ -188,12 +188,15 @@ class _SSCBanglaFirstPaperState extends State<SSCBanglaFirstPaper> {
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
                               return QuestionPaperCard(
-                                key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
-                                title: '${paper['title']} (${paper['examYear']})',
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                title:
+                                    '${paper['title']} (${paper['examYear']})',
                                 subtitle: paper['subtitle']?.toString() ?? '',
                                 year: 'SSC',
                                 examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
                                 category: 'SSC Bangla First Paper',
                               );
                             },

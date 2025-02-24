@@ -7,6 +7,7 @@ import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
+import '../../widgets/error_state_widget.dart';
 
 class Class2MathPage extends StatefulWidget {
   const Class2MathPage({super.key});
@@ -37,7 +38,7 @@ class _Class2MathPageState extends State<Class2MathPage> {
   Future<void> fetchQuestionPapers() async {
     final String scriptUrl = AppConfig.class2Api;
     const String cacheKey = 'class2_math';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -51,11 +52,11 @@ class _Class2MathPageState extends State<Class2MathPage> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
             return (data['papers'] as List)
-                .where((paper) => 
+                .where((paper) =>
                     paper['subject'].toString().toLowerCase() == 'math')
                 .map((paper) => {
                       'title': paper['title'],
@@ -90,8 +91,8 @@ class _Class2MathPageState extends State<Class2MathPage> {
   Widget build(BuildContext context) {
     final filteredPapers = questionPapers.where((paper) {
       final typeMatch = paper['examType'].toString() == _selectedType;
-      final yearMatch = _selectedExamYear.isEmpty || 
-                       paper['examYear'].toString() == _selectedExamYear;
+      final yearMatch = _selectedExamYear.isEmpty ||
+          paper['examYear'].toString() == _selectedExamYear;
       return typeMatch && yearMatch;
     }).toList()
       ..sort((a, b) => int.parse(b['examYear'].toString())
@@ -140,7 +141,8 @@ class _Class2MathPageState extends State<Class2MathPage> {
           ExamYearSelector(
             selectedYear: _selectedExamYear,
             examYears: examYears,
-            onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
 
           // Question Papers List
@@ -163,17 +165,8 @@ class _Class2MathPageState extends State<Class2MathPage> {
                     ),
                   )
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: fetchQuestionPapers,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -183,12 +176,14 @@ class _Class2MathPageState extends State<Class2MathPage> {
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
                               return QuestionPaperCard(
-                                key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedType'),
                                 title: '${paper['title']} ($_selectedType)',
                                 subtitle: paper['subtitle']?.toString() ?? '',
                                 year: '2',
                                 examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
                                 category: 'Class 2 Math',
                               );
                             },
@@ -198,4 +193,4 @@ class _Class2MathPageState extends State<Class2MathPage> {
       ),
     );
   }
-} 
+}

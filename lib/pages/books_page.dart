@@ -57,8 +57,8 @@ class _BooksPageState extends State<BooksPage> {
 
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) => AlertDialog(
         backgroundColor: Colors.white,
         elevation: 8,
         title: Container(
@@ -83,25 +83,10 @@ class _BooksPageState extends State<BooksPage> {
           child: ListBody(
             children: classSubjects.keys.map((className) {
               return GestureDetector(
-                onTap: () async {
-                  final navigator = Navigator.of(context);
-                  setState(() {
-                    selectedClass = className;
-                  });
-                  subjects = await Future.wait(
-                      classSubjects[className]!.map((book) async {
-                    return {
-                      'title': book['title'],
-                      'downloadUrl': book['downloadUrl'],
-                      'subtitle': className,
-                      'year': '',
-                      'examYear': '2024',
-                      'isDownloaded':
-                          await _checkIfFileExists(book['title'], className),
-                    };
-                  }).toList());
-                  setState(() {});
-                  navigator.pop();
+                onTap: () {
+                  Navigator.of(dialogContext).maybePop();
+                  if (!mounted) return;
+                  _updateSelectedClass(className);
                 },
                 child: Container(
                   margin: const EdgeInsets.symmetric(vertical: 6),
@@ -139,6 +124,33 @@ class _BooksPageState extends State<BooksPage> {
         ),
       ),
     );
+  }
+
+  // Separate method to handle class selection and state updates
+  void _updateSelectedClass(String className) async {
+    if (!mounted) return;
+
+    try {
+      final newSubjects =
+          await Future.wait(classSubjects[className]!.map((book) async {
+        return {
+          'title': book['title'],
+          'downloadUrl': book['downloadUrl'],
+          'subtitle': className,
+          'year': '',
+          'examYear': '2024',
+          'isDownloaded': await _checkIfFileExists(book['title'], className),
+        };
+      }).toList());
+
+      if (!mounted) return;
+      setState(() {
+        selectedClass = className;
+        subjects = newSubjects;
+      });
+    } catch (e) {
+      debugPrint('Error updating selected class: $e');
+    }
   }
 
   void _retryFetchBooksData() async {

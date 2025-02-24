@@ -7,6 +7,7 @@ import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
+import '../../widgets/error_state_widget.dart';
 
 class Class3EnglishPage extends StatefulWidget {
   const Class3EnglishPage({super.key});
@@ -37,7 +38,7 @@ class _Class3EnglishPageState extends State<Class3EnglishPage> {
   Future<void> fetchQuestionPapers() async {
     final String scriptUrl = AppConfig.class3Api;
     const String cacheKey = 'class3_english';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -51,11 +52,11 @@ class _Class3EnglishPageState extends State<Class3EnglishPage> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
             return (data['papers'] as List)
-                .where((paper) => 
+                .where((paper) =>
                     paper['subject'].toString().toLowerCase() == 'english')
                 .map((paper) => {
                       'title': paper['title'],
@@ -91,7 +92,7 @@ class _Class3EnglishPageState extends State<Class3EnglishPage> {
     final filteredPapers = questionPapers.where((paper) {
       final typeMatch = paper['examType'].toString() == _selectedType;
       final yearMatch = _selectedExamYear.isEmpty ||
-                       paper['examYear'].toString() == _selectedExamYear;
+          paper['examYear'].toString() == _selectedExamYear;
       return typeMatch && yearMatch;
     }).toList()
       ..sort((a, b) => int.parse(b['examYear'].toString())
@@ -140,7 +141,8 @@ class _Class3EnglishPageState extends State<Class3EnglishPage> {
           ExamYearSelector(
             selectedYear: _selectedExamYear,
             examYears: examYears,
-            onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
 
           // Question Papers List
@@ -163,17 +165,8 @@ class _Class3EnglishPageState extends State<Class3EnglishPage> {
                     ),
                   )
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: fetchQuestionPapers,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -183,12 +176,14 @@ class _Class3EnglishPageState extends State<Class3EnglishPage> {
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
                               return QuestionPaperCard(
-                                key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedType'),
                                 title: '${paper['title']} ($_selectedType)',
                                 subtitle: paper['subtitle']?.toString() ?? '',
                                 year: '3',
                                 examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
                                 category: 'Class 3 English',
                               );
                             },
@@ -198,4 +193,4 @@ class _Class3EnglishPageState extends State<Class3EnglishPage> {
       ),
     );
   }
-} 
+}

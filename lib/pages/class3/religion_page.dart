@@ -6,6 +6,8 @@ import '../../widgets/app_drawer.dart';
 import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
+import '../../services/data_cache_service.dart';
+import '../../widgets/error_state_widget.dart';
 
 class Class3ReligionPage extends StatefulWidget {
   const Class3ReligionPage({super.key});
@@ -20,6 +22,7 @@ class _Class3ReligionPageState extends State<Class3ReligionPage> {
   List<Map<String, dynamic>> questionPapers = [];
   bool isLoading = true;
   bool hasError = false;
+  final _cacheService = DataCacheService();
 
   final List<String> examYears = List.generate(
     DateTime.now().year - 2015 + 1,
@@ -34,34 +37,46 @@ class _Class3ReligionPageState extends State<Class3ReligionPage> {
 
   Future<void> fetchQuestionPapers() async {
     final String scriptUrl = AppConfig.class3Api;
+    const String cacheKey = 'class3_religion';
 
     try {
-      final response = await http.get(Uri.parse(scriptUrl));
+      if (mounted) {
+        setState(() {
+          isLoading = true;
+          hasError = false;
+        });
+      }
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (mounted) {
-          setState(() {
-            questionPapers = (data['papers'] as List)
+      final papers = await _cacheService.fetchData(
+        scriptUrl,
+        cacheKey,
+        () async {
+          final response = await http.get(Uri.parse(scriptUrl));
+
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            return (data['papers'] as List)
                 .where((paper) =>
-                    paper['title'].toString().toLowerCase() ==
-                        'islam' || // Check title
-                    paper['subject'].toString().toLowerCase() ==
-                        'islam') // Check subject
-                .map((paper) {
-              return {
-                'title': paper['title'],
-                'subtitle': paper['subtitle'],
-                'examType': paper['examType'],
-                'examYear': paper['examYear'].toString(),
-                'downloadUrl': paper['downloadUrl'],
-              };
-            }).toList();
-            isLoading = false;
-          });
-        }
-      } else {
-        throw Exception('Failed to load papers');
+                    paper['title'].toString().toLowerCase() == 'islam' ||
+                    paper['subject'].toString().toLowerCase() == 'islam')
+                .map((paper) => {
+                      'title': paper['title'],
+                      'subtitle': paper['subtitle'],
+                      'examType': paper['examType'],
+                      'examYear': paper['examYear'].toString(),
+                      'downloadUrl': paper['downloadUrl'],
+                    })
+                .toList();
+          }
+          throw Exception('Failed to load papers');
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          questionPapers = papers;
+          isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -136,17 +151,8 @@ class _Class3ReligionPageState extends State<Class3ReligionPage> {
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: fetchQuestionPapers,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -156,12 +162,14 @@ class _Class3ReligionPageState extends State<Class3ReligionPage> {
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
                               return QuestionPaperCard(
-                                key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedType'),
                                 title: '${paper['title']} ($_selectedType)',
                                 subtitle: paper['subtitle']?.toString() ?? '',
                                 year: '3',
                                 examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
                                 category: 'Class 3 Religion',
                               );
                             },

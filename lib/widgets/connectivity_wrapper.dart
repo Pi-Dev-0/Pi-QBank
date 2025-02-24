@@ -57,7 +57,7 @@ class ConnectivityWrapper extends StatefulWidget {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(120, 40),
                 ),
-                child: const Text('Retry'),
+                child: const Text('Close'),
                 onPressed: () async {
                   Navigator.of(dialogContext).pop();
                   await connectivityService.initConnectivity();

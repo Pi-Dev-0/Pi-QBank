@@ -7,6 +7,7 @@ import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
+import '../../widgets/error_state_widget.dart';
 
 class Class4MathPage extends StatefulWidget {
   const Class4MathPage({super.key});
@@ -45,11 +46,11 @@ class _Class4MathPageState extends State<Class4MathPage> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
             return (data['papers'] as List)
-                .where((paper) => 
+                .where((paper) =>
                     paper['subject'].toString().toLowerCase() == 'math')
                 .map((paper) => {
                       'title': paper['title'],
@@ -143,17 +144,8 @@ class _Class4MathPageState extends State<Class4MathPage> {
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: fetchQuestionPapers,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -163,12 +155,14 @@ class _Class4MathPageState extends State<Class4MathPage> {
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
                               return QuestionPaperCard(
-                                key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedType'),
                                 title: '${paper['title']} ($_selectedType)',
                                 subtitle: paper['subtitle']?.toString() ?? '',
                                 year: '4',
                                 examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
                                 category: 'Class 4 Math',
                               );
                             },

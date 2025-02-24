@@ -37,7 +37,6 @@ import 'pages/class6/bangla_page.dart';
 import 'pages/class6/english_page.dart';
 import 'pages/ssc_page.dart';
 import 'pages/hsc_page.dart';
-import 'pages/guide_book.dart';
 import 'pages/universities_page.dart';
 import 'pages/engineering_universities_page.dart';
 import 'pages/gst_page.dart';
@@ -216,7 +215,6 @@ class MyApp extends StatelessWidget {
         '/class6_bangla': (context) => const Class6BanglaPage(),
         '/class6_english': (context) => const Class6EnglishPage(),
         '/class6_math': (context) => const Class6MathPage(),
-        '/guides': (context) => const GuideBookPage(),
         '/suggestions': (context) => const SuggestionsPage(),
         '/universities': (context) => UniversitiesPage(),
         '/engineering_universities': (context) =>

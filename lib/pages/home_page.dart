@@ -199,42 +199,6 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
-
-          // Guides Section
-          const SizedBox(height: 24),
-          Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: InkWell(
-              onTap: () {
-                Navigator.pushNamed(context, '/guides');
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.library_books,
-                      size: 40,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Guides',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

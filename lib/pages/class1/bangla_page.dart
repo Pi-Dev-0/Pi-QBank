@@ -7,7 +7,7 @@ import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
-import '../../widgets/connectivity_wrapper.dart';
+import '../../widgets/error_state_widget.dart';
 
 class Class1BanglaPage extends StatefulWidget {
   const Class1BanglaPage({super.key});
@@ -165,20 +165,8 @@ class _Class1BanglaPageState extends State<Class1BanglaPage> {
                     ),
                   )
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: () {
-                                ConnectivityWrapper.showOnRetry(context);
-                                fetchQuestionPapers();
-                              },
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -187,16 +175,19 @@ class _Class1BanglaPageState extends State<Class1BanglaPage> {
                             itemCount: filteredPapers.length,
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
-                              final key = ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType');
+                              final key = ValueKey(
+                                  '${paper['examYear']}_${paper['title']}_$_selectedType');
                               return KeyedSubtree(
                                 key: key,
                                 child: QuestionPaperCard(
-                                  key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                  key: ValueKey(
+                                      '${paper['examYear']}_${paper['title']}_$_selectedType'),
                                   title: '${paper['title']} ($_selectedType)',
                                   subtitle: paper['subtitle']?.toString() ?? '',
                                   year: '1',
                                   examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                  downloadUrl:
+                                      paper['downloadUrl']?.toString() ?? '',
                                   category: 'Class 1 Bangla',
                                 ),
                               );

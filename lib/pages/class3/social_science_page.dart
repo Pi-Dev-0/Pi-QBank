@@ -7,12 +7,14 @@ import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
+import '../../widgets/error_state_widget.dart';
 
 class Class3SocialSciencePage extends StatefulWidget {
   const Class3SocialSciencePage({super.key});
 
   @override
-  State<Class3SocialSciencePage> createState() => _Class3SocialSciencePageState();
+  State<Class3SocialSciencePage> createState() =>
+      _Class3SocialSciencePageState();
 }
 
 class _Class3SocialSciencePageState extends State<Class3SocialSciencePage> {
@@ -37,7 +39,7 @@ class _Class3SocialSciencePageState extends State<Class3SocialSciencePage> {
   Future<void> fetchQuestionPapers() async {
     final String scriptUrl = AppConfig.class3Api;
     const String cacheKey = 'class3_social_science';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -51,11 +53,11 @@ class _Class3SocialSciencePageState extends State<Class3SocialSciencePage> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
             return (data['papers'] as List)
-                .where((paper) => 
+                .where((paper) =>
                     paper['subject'].toString().toLowerCase() == 'social')
                 .map((paper) => {
                       'title': paper['title'],
@@ -140,7 +142,8 @@ class _Class3SocialSciencePageState extends State<Class3SocialSciencePage> {
           ExamYearSelector(
             selectedYear: _selectedExamYear,
             examYears: examYears,
-            onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
 
           // Question Papers List
@@ -163,17 +166,8 @@ class _Class3SocialSciencePageState extends State<Class3SocialSciencePage> {
                     ),
                   )
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: fetchQuestionPapers,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -183,12 +177,14 @@ class _Class3SocialSciencePageState extends State<Class3SocialSciencePage> {
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
                               return QuestionPaperCard(
-                                key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedType'),
                                 title: '${paper['title']} ($_selectedType)',
                                 subtitle: paper['subtitle']?.toString() ?? '',
                                 year: '3',
                                 examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
                                 category: 'Class 3 Social Science',
                               );
                             },
@@ -198,4 +194,4 @@ class _Class3SocialSciencePageState extends State<Class3SocialSciencePage> {
       ),
     );
   }
-} 
+}

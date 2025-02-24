@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../config/app_config.dart';
@@ -8,6 +7,7 @@ import '../../widgets/question_paper_card.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
+import '../../widgets/error_state_widget.dart';
 
 class Class1EnglishPage extends StatefulWidget {
   const Class1EnglishPage({super.key});
@@ -38,7 +38,7 @@ class _Class1EnglishPageState extends State<Class1EnglishPage> {
   Future<void> fetchQuestionPapers() async {
     final String scriptUrl = AppConfig.class1Api;
     const String cacheKey = 'class1_english';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -52,11 +52,11 @@ class _Class1EnglishPageState extends State<Class1EnglishPage> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
             return (data['papers'] as List)
-                .where((paper) => 
+                .where((paper) =>
                     paper['subject'].toString().toLowerCase() == 'english')
                 .map((paper) => {
                       'title': paper['title'],
@@ -91,8 +91,8 @@ class _Class1EnglishPageState extends State<Class1EnglishPage> {
   Widget build(BuildContext context) {
     final filteredPapers = questionPapers.where((paper) {
       final typeMatch = paper['examType'].toString() == _selectedType;
-      final yearMatch = _selectedExamYear.isEmpty || 
-                       paper['examYear'].toString() == _selectedExamYear;
+      final yearMatch = _selectedExamYear.isEmpty ||
+          paper['examYear'].toString() == _selectedExamYear;
       return typeMatch && yearMatch;
     }).toList()
       ..sort((a, b) => int.parse(b['examYear'].toString())
@@ -141,7 +141,8 @@ class _Class1EnglishPageState extends State<Class1EnglishPage> {
           ExamYearSelector(
             selectedYear: _selectedExamYear,
             examYears: examYears,
-            onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
 
           // Question Papers List
@@ -164,17 +165,8 @@ class _Class1EnglishPageState extends State<Class1EnglishPage> {
                     ),
                   )
                 : hasError
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text('Failed to load question papers'),
-                            ElevatedButton(
-                              onPressed: fetchQuestionPapers,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                    ? ErrorStateWidget(
+                        onRetry: fetchQuestionPapers,
                       )
                     : filteredPapers.isEmpty
                         ? const Center(child: Text('No question papers found'))
@@ -183,16 +175,19 @@ class _Class1EnglishPageState extends State<Class1EnglishPage> {
                             itemCount: filteredPapers.length,
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
-                              final key = ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType');
+                              final key = ValueKey(
+                                  '${paper['examYear']}_${paper['title']}_$_selectedType');
                               return KeyedSubtree(
                                 key: key,
                                 child: QuestionPaperCard(
-                                  key: ValueKey('${paper['examYear']}_${paper['title']}_$_selectedType'),
+                                  key: ValueKey(
+                                      '${paper['examYear']}_${paper['title']}_$_selectedType'),
                                   title: '${paper['title']} ($_selectedType)',
                                   subtitle: paper['subtitle']?.toString() ?? '',
                                   year: '1',
                                   examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl: paper['downloadUrl']?.toString() ?? '',
+                                  downloadUrl:
+                                      paper['downloadUrl']?.toString() ?? '',
                                   category: 'Class 1 English',
                                 ),
                               );
