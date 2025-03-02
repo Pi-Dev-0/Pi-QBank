@@ -44,7 +44,7 @@ Platform: ${Theme.of(context).platform}
 
       final Uri emailLaunchUri = Uri(
         scheme: 'mailto',
-        path: 'your-email@example.com', // Replace with your support email
+        path: 'pimathematics1@gmail.com', // Replace with your support email
         queryParameters: {
           'subject': 'Pi-QBank $_feedbackType',
           'body': emailBody,
