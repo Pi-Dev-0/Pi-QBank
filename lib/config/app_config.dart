@@ -9,6 +9,7 @@ class AppConfig {
       String.fromEnvironment('NOTIFICATION_API');
   static const String fileUploadApi =
       String.fromEnvironment('UPLOADCARE_PUBLIC_KEY');
+  static const String uploadBase = String.fromEnvironment('UPLOADCARE_BASE_URL');
   static const String guideBookApi = String.fromEnvironment('GUIDE_BOOK_API');
   static const String booksApi = String.fromEnvironment('BOOKS_API');
   static const String class1Api = String.fromEnvironment('CLASS1_API');

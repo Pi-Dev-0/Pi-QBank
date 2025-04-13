@@ -85,7 +85,7 @@ class FileUploadPageState extends State<FileUploadPage>
     });
 
     try {
-      final uri = Uri.parse('https://upload.uploadcare.com/base/');
+      final uri = Uri.parse(AppConfig.uploadBase);
       final request = http.MultipartRequest('POST', uri);
 
       // Add Uploadcare specific parameters
