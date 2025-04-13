@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:timeago/timeago.dart' as timeago;
 import '../services/notification_service.dart';
 
 class NotificationIcon extends StatefulWidget {
@@ -87,23 +86,21 @@ class _NotificationIconState extends State<NotificationIcon>
                     itemCount: _notifications.length,
                     itemBuilder: (context, index) {
                       final notification = _notifications[index];
-                      final isSeen = !NotificationService.isNotificationUnseen(notification);
+                      final isSeen = !NotificationService.isNotificationUnseen(
+                          notification);
 
                       return Theme(
-                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                        data: Theme.of(context)
+                            .copyWith(dividerColor: Colors.transparent),
                         child: ExpansionTile(
-                          tilePadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                          tilePadding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 6),
                           expandedAlignment: Alignment.topLeft,
-                          trailing: Text(
-                            timeago.format(notification.timestamp),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.grey,
-                                ),
-                          ),
                           title: Text(
                             notification.title,
                             style: TextStyle(
-                              fontWeight: isSeen ? FontWeight.normal : FontWeight.bold,
+                              fontWeight:
+                                  isSeen ? FontWeight.normal : FontWeight.bold,
                               fontSize: 18,
                             ),
                           ),
@@ -138,9 +135,13 @@ class _NotificationIconState extends State<NotificationIcon>
                             ),
                           ],
                           onExpansionChanged: (expanded) async {
-                            if (expanded && NotificationService.isNotificationUnseen(notification)) {
-                              await NotificationService.markNotificationAsSeen(notification);
-                              final hasUnseen = await NotificationService.hasUnseenNotifications();
+                            if (expanded &&
+                                NotificationService.isNotificationUnseen(
+                                    notification)) {
+                              await NotificationService.markNotificationAsSeen(
+                                  notification);
+                              final hasUnseen = await NotificationService
+                                  .hasUnseenNotifications();
                               if (mounted) {
                                 setState(() {
                                   _hasUnseenNotifications = hasUnseen;
@@ -160,18 +161,21 @@ class _NotificationIconState extends State<NotificationIcon>
             onPressed: () async {
               // Capture the context before async operation
               final localContext = context;
-              
+
               await NotificationService.markAllAsSeen();
-              await NotificationService.hasUnseenNotifications(); // Update the unseen status
-              
+              await NotificationService
+                  .hasUnseenNotifications(); // Update the unseen status
+
               // Check mounted before updating UI
               if (mounted) {
                 setState(() {
                   _hasUnseenNotifications = false;
                 });
-                
+
                 // Additional mounted check before using context
-                if (mounted && context.mounted && Navigator.of(localContext).canPop()) {
+                if (mounted &&
+                    context.mounted &&
+                    Navigator.of(localContext).canPop()) {
                   Navigator.of(localContext).pop();
                 }
               }
