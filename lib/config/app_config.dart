@@ -7,6 +7,8 @@ class AppConfig {
   static const String fileIoApiKey = String.fromEnvironment('FILE_IO_API_KEY');
   static const String notificationApi =
       String.fromEnvironment('NOTIFICATION_API');
+  static const String fileUploadApi =
+      String.fromEnvironment('UPLOADCARE_PUBLIC_KEY');
   static const String guideBookApi = String.fromEnvironment('GUIDE_BOOK_API');
   static const String booksApi = String.fromEnvironment('BOOKS_API');
   static const String class1Api = String.fromEnvironment('CLASS1_API');

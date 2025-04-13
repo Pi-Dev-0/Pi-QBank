@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import '../widgets/custom_app_bar.dart';
-import 'package:provider/provider.dart';
-import '../services/connectivity_service.dart';
-import '../widgets/connectivity_wrapper.dart';
+import '../config/app_config.dart';
 
 class FileUploadPage extends StatefulWidget {
   const FileUploadPage({super.key});
@@ -12,542 +11,302 @@ class FileUploadPage extends StatefulWidget {
   FileUploadPageState createState() => FileUploadPageState();
 }
 
-class FileUploadPageState extends State<FileUploadPage> {
-  final FileIOUploadService _uploadService = FileIOUploadService();
+class FileUploadPageState extends State<FileUploadPage>
+    with SingleTickerProviderStateMixin {
+  // Add constant for max file size (25MB in bytes)
+  static const int _maxFileSize = 25 * 1024 * 1024; // 25MB in bytes
+
   bool _isUploading = false;
-  bool _isLoading = false;
-  bool _showSuccess = false;
-  FileUploadResult? _selectedFile;
-  Timer? _successTimer;
+  PlatformFile? _selectedFile;
+  String? _uploadStatus;
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+  }
 
   @override
   void dispose() {
-    _successTimer?.cancel();
+    _animationController.dispose();
     super.dispose();
   }
 
-  Future<void> _selectFile() async {
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _pickFile() async {
     try {
-      final file = await _uploadService.selectFile();
-      setState(() {
-        _selectedFile = file;
-        _isLoading = false;
-      });
-    } on FileSizeExceededException catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        _showErrorBox(e.toString());
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+      );
+
+      if (result != null) {
+        if (result.files.first.size > _maxFileSize) {
+          setState(() {
+            _uploadStatus = 'File size exceeds 25MB limit';
+          });
+          _clearStatus();
+          return;
+        }
+        setState(() {
+          _selectedFile = result.files.first;
+        });
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        _showErrorBox('An error occurred: $e');
-      }
+      debugPrint('Error picking file: $e');
     }
   }
 
   Future<void> _uploadFile() async {
-    if (_selectedFile == null) return;
+    if (_selectedFile == null) {
+      setState(() {
+        _uploadStatus = 'Please select a file first';
+      });
+      _clearStatus();
+      return;
+    }
 
-    // Capture context-dependent services before async operations
-    final connectivityService =
-        Provider.of<ConnectivityService>(context, listen: false);
+    // Double check file size before upload
+    if (_selectedFile!.size > _maxFileSize) {
+      setState(() {
+        _uploadStatus = 'File size exceeds 25MB limit';
+        _selectedFile = null;
+      });
+      _clearStatus();
+      return;
+    }
+
+    setState(() {
+      _isUploading = true;
+      _uploadStatus = 'Uploading...';
+    });
 
     try {
-      await connectivityService.initConnectivity();
+      final uri = Uri.parse('https://upload.uploadcare.com/base/');
+      final request = http.MultipartRequest('POST', uri);
 
-      if (!connectivityService.isOnline) {
-        // Use a null-aware context check
-        if (mounted) {
-          ConnectivityWrapper.showOnRetry(context);
-        }
-        return;
-      }
+      // Add Uploadcare specific parameters
+      request.fields['UPLOADCARE_PUB_KEY'] = AppConfig.fileUploadApi;
+      request.fields['UPLOADCARE_STORE'] = '1';
 
-      setState(() {
-        _isUploading = true;
-        _showSuccess = false;
-      });
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          _selectedFile!.path!,
+          filename: _selectedFile!.name,
+        ),
+      );
 
-      final result = await _uploadService.uploadFile(_selectedFile!);
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
-      if (result != null && result.containsKey('file')) {
+      if (response.statusCode == 200) {
         setState(() {
-          _selectedFile = null;
-          _showSuccess = true;
+          _isUploading = false;
+          _selectedFile = null; // Clear selected file
+          _uploadStatus = 'File uploaded successfully!';
         });
-
-        // Cancel any existing timer
-        _successTimer?.cancel();
-
-        // Set new timer for 3 seconds
-        _successTimer = Timer(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() {
-              _showSuccess = false;
-            });
-          }
+        _clearStatus();
+      } else {
+        setState(() {
+          _isUploading = false;
+          _uploadStatus = 'Upload failed: ${response.statusCode}';
         });
       }
     } catch (e) {
-      // Ensure context is still valid before showing error
-      if (mounted) {
-        _showErrorBox('An error occurred: $e');
-      }
-    } finally {
-      // Reset uploading state if widget is still mounted
+      setState(() {
+        _isUploading = false;
+        _uploadStatus = 'Error uploading file: Something went wrong :-(';
+      });
+    }
+  }
+
+  void _clearStatus() {
+    Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         setState(() {
-          _isUploading = false;
+          _uploadStatus = null;
         });
       }
-    }
+    });
   }
 
-  void _showErrorBox(String message) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.red.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.error_outline,
-                    color: Colors.red.shade700,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'File Size Error',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red.shade700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.red.shade50,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'OK',
-                    style: TextStyle(
-                      color: Colors.red.shade700,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  Widget _buildStatusMessage() {
+    if (_uploadStatus == null) return const SizedBox();
 
-  void showPrivacyPolicy() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.privacy_tip, color: Colors.blue.shade700),
-              const SizedBox(width: 8),
-              const Text('Privacy Policy'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildPolicySection(
-                  'File Upload Services',
-                  [
-                    'We use file.io to temporarily store files you upload',
-                    'When you upload files, they are transmitted to file.io\'s servers',
-                    'We only accept PDF and image files (jpg, jpeg, png, gif)',
-                    'Files are automatically deleted from file.io\'s servers after a short period',
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildPolicySection(
-                  'Third-Party Services',
-                  [
-                    'Our app integrates with file.io (File Hosting Service):',
-                    '• Purpose: Temporary file storage and transfer',
-                    '• Data shared: User-uploaded files',
-                    '• Data retention: Files are temporarily stored',
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildPolicySection(
-                  'User Rights',
-                  [
-                    'You have the right to:',
-                    '• Know how your uploaded files are processed',
-                    '• Request information about file storage duration',
-                    '• Understand that files are subject to file.io\'s terms',
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildPolicySection(
-                  'Security Measures',
-                  [
-                    'To protect your uploaded files:',
-                    '• We use secure HTTPS connections',
-                    '• Files are only temporarily stored',
-                    '• We limit file types to PDFs and images',
-                    '• We implement file size restrictions',
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+    final isSuccess = _uploadStatus!.contains('successful');
+    final color = isSuccess ? Colors.green.shade100 : Colors.red.shade100;
+    final iconColor = isSuccess ? Colors.green : Colors.red;
+    final icon = isSuccess ? Icons.check_circle : Icons.error;
 
-  Widget _buildPolicySection(String title, List<String> points) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.blue.shade700,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...points.map((point) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(point),
-            )),
-      ],
-    );
-  }
-
-  Widget _buildFilePreview() {
-    if (_selectedFile == null) {
-      return Container(
-        padding: const EdgeInsets.all(20),
+    return AnimatedSlide(
+      duration: const Duration(milliseconds: 300),
+      offset: Offset(0, _uploadStatus == null ? 1 : 0),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
+          color: color,
           borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.file_upload_outlined, size: 48, color: Colors.grey),
-            SizedBox(height: 8),
-            Text('No file selected', style: TextStyle(color: Colors.grey)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.insert_drive_file, color: Colors.blue.shade700),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _selectedFile!.fileName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _uploadStatus!,
+                style: TextStyle(color: iconColor),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Size: ${(_selectedFile!.fileSize / 1024).toStringAsFixed(2)} KB',
-            style: TextStyle(color: Colors.blue.shade700),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInstructionItem({
-    required IconData icon,
-    required String text,
-  }) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 20,
-          color: Colors.blue.shade600,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: Colors.blue.shade700,
-              fontSize: 14,
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(
+      appBar: const CustomAppBar(
         title: 'Upload File',
         centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: showPrivacyPolicy,
-            icon: Icon(Icons.privacy_tip),
-          ),
-        ],
       ),
-      body: SingleChildScrollView(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade50,
+              Colors.white,
+            ],
+          ),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
-                margin: const EdgeInsets.only(bottom: 24),
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade200),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.blue.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  border: Border.all(color: Colors.blue.shade100),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Text(
+                      'Upload Guidelines',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• Maximum file size: 25MB\n• Supported files: All formats\n• Files will be stored securely',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: InkWell(
+                  onTap: _pickFile,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
                       children: [
                         Icon(
-                          Icons.info_outline,
-                          color: Colors.blue.shade700,
-                          size: 24,
+                          _selectedFile != null
+                              ? Icons.file_present
+                              : Icons.cloud_upload,
+                          size: 48,
+                          color: Colors.blue,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(height: 16),
                         Text(
-                          'Instructions:',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade700,
-                          ),
+                          _selectedFile != null
+                              ? 'Selected: ${_selectedFile!.name}'
+                              : 'Tap to select a file',
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.center,
                         ),
+                        if (_selectedFile != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Size: ${(_selectedFile!.size / 1024).toStringAsFixed(2)} KB',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    _buildInstructionItem(
-                      icon: Icons.description_outlined,
-                      text: 'Upload PDF or Image files only',
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInstructionItem(
-                      icon: Icons.file_copy_outlined,
-                      text: 'Maximum file size: 25MB',
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInstructionItem(
-                      icon: Icons.warning_amber_outlined,
-                      text:
-                          'Please don\'t close this page until upload is complete',
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              _buildFilePreview(),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _selectFile,
-                      icon: const Icon(Icons.file_upload),
-                      label: const Text('Select File'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _selectedFile == null || _isUploading
-                          ? null
-                          : _uploadFile,
-                      icon: const Icon(Icons.cloud_upload),
-                      label: Text(_isUploading ? 'Uploading...' : 'Upload'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        backgroundColor: Theme.of(context).primaryColor,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              if (_isUploading)
-                Column(
-                  children: const [
-                    SizedBox(height: 24),
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text(
-                      'Uploading your file...',
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              if (_isLoading)
-                Column(
-                  children: const [
-                    SizedBox(height: 24),
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text(
-                      'Loading file...',
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              if (_showSuccess)
+              if (_selectedFile != null)
                 Container(
-                  margin: const EdgeInsets.only(top: 24),
-                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.shade200),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.green.withOpacity(0.1),
-                        blurRadius: 10,
+                        color: Colors.blue.withOpacity(0.2),
+                        spreadRadius: 1,
+                        blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline,
-                        color: Colors.green.shade700,
-                        size: 48,
+                  child: ElevatedButton(
+                    onPressed: _isUploading ? null : _uploadFile,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 8,
+                      shadowColor: Colors.blue.withOpacity(0.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Upload Successful!',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your file has been successfully uploaded to our servers.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.green.shade600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                    ),
+                    child: _isUploading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Upload File',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
                   ),
                 ),
+              _buildStatusMessage(),
             ],
           ),
         ),
