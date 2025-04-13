@@ -275,7 +275,16 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
         title: 'Suggestions',
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text('Loading, Suggestions...'),
+                ],
+              ),
+            )
           : errorMessage != null
               ? _buildErrorView()
               : ListView.builder(
