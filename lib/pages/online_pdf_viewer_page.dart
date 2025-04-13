@@ -1,9 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
-import 'package:logger/logger.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../widgets/custom_app_bar.dart';
 
 class OnlinePDFViewerPage extends StatefulWidget {
@@ -21,71 +17,39 @@ class OnlinePDFViewerPage extends StatefulWidget {
 }
 
 class OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
-  String? _localFilePath;
+  late final WebViewController _controller;
   bool _isLoading = true;
-  double _downloadProgress = 0.0;
-  final Logger _logger = Logger();
 
   @override
   void initState() {
     super.initState();
-    _downloadAndSavePDF();
+    _initializeWebView();
   }
 
-  Future<void> _downloadAndSavePDF() async {
-    try {
-      // Get the file size first
-      final headResponse = await http.head(Uri.parse(widget.pdfUrl));
-      final totalBytes = int.tryParse(headResponse.headers['content-length'] ?? '0') ?? 0;
+  void _initializeWebView() {
+    // Using Google Docs viewer as a fallback for viewing PDFs
+    final googleDocsUrl =
+        'https://docs.google.com/viewer?url=${Uri.encodeComponent(widget.pdfUrl)}&embedded=true';
 
-      // Download the PDF
-      final client = http.Client();
-      final request = http.Request('GET', Uri.parse(widget.pdfUrl));
-      final streamedResponse = await client.send(request);
-      
-      // Prepare file for writing
-      final directory = await getTemporaryDirectory();
-      final filePath = '${directory.path}/${widget.title}.pdf';
-      final file = File(filePath);
-      final fileWriter = file.openWrite();
-
-      // Track download progress
-      int receivedBytes = 0;
-      await for (var chunk in streamedResponse.stream) {
-        fileWriter.add(chunk);
-        receivedBytes += chunk.length;
-        
-        setState(() {
-          _downloadProgress = totalBytes > 0 
-              ? receivedBytes / totalBytes 
-              : 0.0;
-        });
-      }
-
-      await fileWriter.close();
-      client.close();
-
-      setState(() {
-        _localFilePath = filePath;
-        _isLoading = false;
-        _downloadProgress = 1.0;
-      });
-    } catch (e) {
-      _logger.e('PDF Download Error: $e');
-      _showErrorSnackBar('Error downloading PDF');
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
-    setState(() {
-      _isLoading = false;
-    });
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (String url) {
+            setState(() {
+              _isLoading = false;
+            });
+          },
+          onNavigationRequest: (NavigationRequest request) {
+            // Prevent navigation to other pages
+            if (!request.url.contains('docs.google.com')) {
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(googleDocsUrl));
   }
 
   @override
@@ -94,44 +58,15 @@ class OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
       appBar: CustomAppBar(
         title: widget.title,
       ),
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    value: _downloadProgress,
-                    backgroundColor: Colors.grey[300],
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Theme.of(context).primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '${(_downloadProgress * 100).toStringAsFixed(0)}%',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
-              ),
-            )
-          : _localFilePath != null
-              ? PDFView(
-                  filePath: _localFilePath!,
-                  enableSwipe: true,
-                  swipeHorizontal: false,
-                  autoSpacing: false,
-                  pageFling: true,
-                  onError: (error) {
-                    _logger.e('PDF View Error: $error');
-                    _showErrorSnackBar('Error viewing PDF');
-                  },
-                  onPageError: (page, error) {
-                    _logger.e('PDF Page Error on page $page: $error');
-                  },
-                )
-              : Center(
-                  child: Text('Unable to load PDF: ${widget.title}'),
-                ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
+        ],
+      ),
     );
   }
 }
