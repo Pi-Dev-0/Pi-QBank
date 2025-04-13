@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../services/fileio_upload_service.dart';
 import '../widgets/custom_app_bar.dart';
 import 'package:provider/provider.dart';
 import '../services/connectivity_service.dart';
@@ -58,8 +57,9 @@ class FileUploadPageState extends State<FileUploadPage> {
     if (_selectedFile == null) return;
 
     // Capture context-dependent services before async operations
-    final connectivityService = Provider.of<ConnectivityService>(context, listen: false);
-    
+    final connectivityService =
+        Provider.of<ConnectivityService>(context, listen: false);
+
     try {
       await connectivityService.initConnectivity();
 
@@ -78,11 +78,10 @@ class FileUploadPageState extends State<FileUploadPage> {
 
       final result = await _uploadService.uploadFile(_selectedFile!);
 
-      if (result != null && result.containsKey('link')) {
+      if (result != null && result.containsKey('file')) {
         setState(() {
           _selectedFile = null;
           _showSuccess = true;
-// Store the link
         });
 
         // Cancel any existing timer
