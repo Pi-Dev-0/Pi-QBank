@@ -120,22 +120,9 @@ import 'pages/engineering_university_admission/cuet_page.dart';
 import 'pages/engineering_university_admission/ruet_page.dart';
 import 'pages/engineering_university_admission/kuet_page.dart';
 import 'pages/engineering_university_admission/duet_page.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Mobile Ads SDK
-  await MobileAds.instance.initialize();
-
-  // Optional: Set test device IDs
-  MobileAds.instance.updateRequestConfiguration(
-    RequestConfiguration(
-      testDeviceIds: [
-        '804F93A8B7688310BBC454692AA0C808'
-      ], // Add your test device ID here
-    ),
-  );
 
   runApp(
     MultiProvider(
@@ -279,7 +266,8 @@ class MyApp extends StatelessWidget {
         '/class7_bangla': (context) => const Class7BanglaPage(),
         '/class7_english': (context) => const Class7EnglishPage(),
         '/class7_math': (context) => const Class7MathPage(),
-        '/class7_science_inquiry': (context) => const Class7ScienceInquiryPage(),
+        '/class7_science_inquiry': (context) =>
+            const Class7ScienceInquiryPage(),
         '/class7_social_science': (context) => const Class7SocialSciencePage(),
         '/class7_islam': (context) => const Class7IslamicStudiesPage(),
 
@@ -287,7 +275,8 @@ class MyApp extends StatelessWidget {
         '/class8_bangla': (context) => const Class8BanglaPage(),
         '/class8_english': (context) => const Class8EnglishPage(),
         '/class8_math': (context) => const Class8MathPage(),
-        '/class8_science_inquiry': (context) => const Class8ScienceInquiryPage(),
+        '/class8_science_inquiry': (context) =>
+            const Class8ScienceInquiryPage(),
         '/class8_social_science': (context) => const Class8SocialSciencePage(),
         '/class8_islam': (context) => const Class8IslamicStudiesPage(),
 

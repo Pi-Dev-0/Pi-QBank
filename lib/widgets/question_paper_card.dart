@@ -7,7 +7,7 @@ import '../pages/pdf_viewer_page.dart';
 import '../pages/online_pdf_viewer_page.dart';
 import '../services/services.dart';
 import '../services/downloaded_papers_registry.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../services/adsterra_service.dart';
 
 class DownloadedFileRegistry {
   static final Map<String, String> _registry = {};
@@ -53,22 +53,12 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
   bool _isFileDownloaded = false;
   String? _downloadedFilePath;
   bool _isBookmarked = false;
-  RewardedInterstitialAd? _rewardedInterstitialAd;
-  bool _isAdLoading = false;
-  bool _isShowingAd = false;
-  final GlobalKey<State> _dialogKey = GlobalKey<State>();
 
   @override
   void initState() {
     super.initState();
     _checkExistingFile();
     _checkBookmarkStatus();
-  }
-
-  @override
-  void dispose() {
-    _rewardedInterstitialAd?.dispose();
-    super.dispose();
   }
 
   @override
@@ -259,183 +249,45 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
     }
   }
 
-  void _loadInterstitialAd({bool isRefresh = false}) {
-    // Prevent multiple ad loading attempts
-    if (_isAdLoading || _isShowingAd) return;
-
-    setState(() {
-      _isAdLoading = true;
-    });
-
-    // Show loading dialog with countdown
-    _showAdLoadingDialog(isRefresh);
-
-    // Load rewarded interstitial ad
-    RewardedInterstitialAd.load(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/5354046379' // Android test rewarded interstitial ad ID
-          : 'ca-app-pub-3940256099942544/6978759866', // iOS test rewarded interstitial ad ID
-      request: const AdRequest(),
-      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
-        onAdLoaded: (ad) => _onAdLoaded(ad, isRefresh),
-        onAdFailedToLoad: (error) => _onAdLoadFailed(error, isRefresh),
-      ),
-    );
-  }
-
-  void _showAdLoadingDialog(bool isRefresh) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) => Center(
-        key: _dialogKey,
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                const Text('Loading Ad...'),
-                const SizedBox(height: 24),
-                TweenAnimationBuilder<double>(
-                  duration: const Duration(seconds: 5),
-                  tween: Tween<double>(begin: 5, end: 0),
-                  builder: (context, value, child) {
-                    int countdown = value.toInt();
-                    return Text(
-                      '$countdown',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        color: _getCountdownColor(countdown + 1),
-                      ),
-                    );
-                  },
-                  onEnd: () => _handleCountdownEnd(isRefresh),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _onAdLoaded(RewardedInterstitialAd ad, bool isRefresh) {
-    _rewardedInterstitialAd = ad;
-    _isAdLoading = false;
-    Logger().d('Rewarded Interstitial Ad loaded successfully');
-
-    // Dismiss the loading dialog first
-    _dismissLoadingDialog();
-
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) => _handleAdDismissed(ad, isRefresh),
-      onAdFailedToShowFullScreenContent: (ad, error) =>
-          _handleAdShowError(ad, error, isRefresh),
-      onAdShowedFullScreenContent: (ad) {
-        Logger().d('Rewarded Interstitial Ad showed full screen content');
-        _isShowingAd = true;
-      },
-    );
-
-    // Attempt to show the ad immediately after loading
-    _showInterstitialAd(isRefresh);
-  }
-
-  void _showInterstitialAd(bool isRefresh) {
-    if (_rewardedInterstitialAd == null) {
-      Logger().e('Attempted to show ad, but ad is null');
-      _proceedWithDownload(isRefresh);
-      return;
-    }
-
-    try {
-      _rewardedInterstitialAd?.show(
-        onUserEarnedReward: (ad, reward) {
-          Logger().d('User earned reward: ${reward.amount} ${reward.type}');
-          // You can add additional logic here if needed when a reward is earned
-        },
-      );
-    } catch (e) {
-      Logger().e('Failed to show rewarded interstitial ad: $e');
-      _handleAdShowFailure(isRefresh);
-    }
-  }
-
-  void _handleAdShowFailure(bool isRefresh) {
-    _isAdLoading = false;
-    _proceedWithDownload(isRefresh);
-  }
-
-  void _handleAdDismissed(RewardedInterstitialAd ad, bool isRefresh) {
-    Logger().d('Rewarded Interstitial Ad dismissed, starting download...');
-    ad.dispose();
-    _rewardedInterstitialAd = null;
-    _isShowingAd = false;
-    _proceedWithDownload(isRefresh);
-  }
-
-  void _handleAdShowError(
-      RewardedInterstitialAd ad, AdError error, bool isRefresh) {
-    Logger().e('Rewarded Interstitial Ad failed to show: $error');
-    ad.dispose();
-    _rewardedInterstitialAd = null;
-    _isShowingAd = false;
-    _proceedWithDownload(isRefresh);
-  }
-
-  void _handleCountdownEnd(bool isRefresh) {
-    _dismissLoadingDialog();
-    _isAdLoading = false;
-    _rewardedInterstitialAd?.dispose();
-    _rewardedInterstitialAd = null;
-    _proceedWithDownload(isRefresh);
-  }
-
-  void _proceedWithDownload(bool isRefresh) {
-    if (isRefresh) {
-      _redownloadFile(context);
-    } else {
-      _startDownload(context);
-    }
-  }
-
-  void _dismissLoadingDialog() {
-    if (_dialogKey.currentContext != null) {
-      Navigator.of(_dialogKey.currentContext!).pop();
-    }
-  }
-
-  Color _getCountdownColor(int countdown) {
-    return const Color.fromARGB(
-        255, 92, 92, 92); // Consistent color for all countdown values
-  }
-
   Future<void> _downloadFile(BuildContext context) async {
-    if (_isDownloading || _isShowingAd) return;
+    if (_isDownloading) return;
 
     if (_isFileDownloaded && _downloadedFilePath != null) {
       _openPDF(_downloadedFilePath!, context);
       return;
     }
 
-    _loadInterstitialAd();
-  }
-
-  Future<void> _startDownload(BuildContext context) async {
-    if (!context.mounted) return;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
+    try {
+      // Show ad dialog and capture result before async gap
+      final shouldDownload = await AdsterraService.showAdDialog(context);
+
+      // Check mounted after async operation
+      if (!mounted) return;
+
+      // Use captured context through scaffoldMessenger
+      if (shouldDownload) {
+        await _startDownload(scaffoldMessenger);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _startDownload(ScaffoldMessengerState messenger) async {
     setState(() {
       _isDownloading = true;
       _downloadProgress = 0;
     });
 
     try {
-      // Create unique filename including path
       final baseDir = await _storageDir;
       final uniqueFolder = _getUniqueFolder();
       final paperDir = Directory('$baseDir/$uniqueFolder');
@@ -447,7 +299,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       final fileName = 'paper.pdf';
       final fullPath = '${paperDir.path}/$fileName';
 
-      // Check if file exists
       final file = File(fullPath);
       if (await file.exists() && await _isValidPDF(fullPath)) {
         setState(() {
@@ -458,7 +309,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
         return;
       }
 
-      // Download the file
       final downloadedFilePath = await DownloadService.downloadPDF(
         url: widget.downloadUrl,
         fileName: fileName,
@@ -472,12 +322,10 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       );
 
       if (downloadedFilePath != null && mounted) {
-        // Move the downloaded file to the correct location
         final downloadedFile = File(downloadedFilePath);
         await downloadedFile.copy(fullPath);
-        await downloadedFile.delete(); // Delete the temporary file
+        await downloadedFile.delete();
 
-        // Add to downloaded papers registry
         final downloadedPaper = DownloadedPaper(
           title: widget.title,
           subtitle: widget.subtitle,
@@ -493,20 +341,16 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
           _downloadProgress = 1.0;
         });
 
-        scaffoldMessenger.showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
-            content: const Text(
-              'Download complete',
-              style: TextStyle(color: Colors.white),
-            ),
+            content: const Text('Download complete',
+                style: TextStyle(color: Colors.white)),
             backgroundColor: Colors.green,
             action: SnackBarAction(
               label: 'View',
               textColor: Colors.white,
               onPressed: () {
-                // Optional: You can add a method to show a dialog or navigate to a page with download options
-                if (_downloadedFilePath != null) {
-                  // Commented out to prevent auto-opening
+                if (_downloadedFilePath != null && mounted) {
                   _openPDF(_downloadedFilePath!, context);
                 }
               },
@@ -516,14 +360,13 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       }
     } catch (e) {
       Logger().e('Download error: $e');
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isDownloading = false);
@@ -592,14 +435,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
     await _checkBookmarkStatus();
   }
 
-  void _onAdLoadFailed(AdError error, bool isRefresh) {
-    Logger().e('Rewarded Interstitial Ad failed to load: $error');
-    _dismissLoadingDialog();
-    _isAdLoading = false;
-    _rewardedInterstitialAd = null;
-    _proceedWithDownload(isRefresh);
-  }
-
   void _deleteDownloadedFile() async {
     if (_downloadedFilePath != null) {
       final confirmed = await showDialog<bool>(
@@ -623,12 +458,12 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       if (confirmed == true) {
         final file = File(_downloadedFilePath!);
         final folder = file.parent;
-        
+
         try {
           if (await folder.exists()) {
             await folder.delete(recursive: true);
           }
-          
+
           // Check if the widget is still mounted before showing SnackBar
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -681,184 +516,199 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 6.0,
-      shadowColor: Colors.grey[600],
-      color: Colors.white,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 10, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.subtitle,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_isDownloading && _downloadProgress > 0)
-                  Container(
-                    width: 40,
-                    height: 40,
-                    margin: const EdgeInsets.only(right: 8),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          value: _downloadProgress,
-                          strokeWidth: 3,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              Theme.of(context).primaryColor),
-                        ),
-                        Text(
-                          '${(_downloadProgress * 100).toInt()}%',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
+    return Stack(
+      children: [
+        Card(
+          elevation: 6.0,
+          shadowColor: Colors.grey[600],
+          color: Colors.white,
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 10, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  Row(
-                    children: [
-                      if (_isFileDownloaded && _downloadedFilePath != null)
-                        IconButton(
-                          icon: const Icon(Icons.refresh),
-                          onPressed: () {
-                            // Show ad before redownloading
-                            _loadInterstitialAd(isRefresh: true);
-                          },
-                          tooltip: 'Redownload',
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          _isBookmarked
-                              ? Icons.bookmark
-                              : Icons.bookmark_border,
-                          color: _isBookmarked
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: _toggleBookmark,
-                      ),
-                      if (_isFileDownloaded)
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              color: Colors.red),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () {
-                            _deleteDownloadedFile();
-                          },
-                          tooltip: 'Delete File',
-                        ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _viewOnlinePDF(context),
-                    icon: const Icon(
-                      Icons.remove_red_eye_outlined,
-                      size: 20,
-                    ),
-                    label: const Text(
-                      'View Online',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      elevation: 4,
-                      shadowColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 10,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isDownloading
-                        ? null
-                        : () {
-                            if (_isFileDownloaded &&
-                                _downloadedFilePath != null) {
-                              _openPDF(_downloadedFilePath!, context);
-                            } else {
-                              _downloadFile(context);
-                            }
-                          },
-                    icon: _isDownloading
-                        ? const SizedBox.shrink() // No icon while downloading
-                        : Icon(
-                            _isFileDownloaded
-                                ? Icons.visibility
-                                : Icons.download,
-                            color: _isFileDownloaded ? Colors.white : null,
-                            size: 20,
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.subtitle,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
                           ),
-                    label: Text(
-                      _isFileDownloaded
-                          ? 'View Offline'
-                          : (_isDownloading ? 'Downloading' : 'Download'),
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isFileDownloaded ? Colors.green : null,
-                      foregroundColor: _isFileDownloaded ? Colors.white : null,
-                      elevation: 4,
-                      shadowColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 10,
+                        ],
                       ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                  ),
+                    if (_isDownloading && _downloadProgress > 0)
+                      Container(
+                        width: 40,
+                        height: 40,
+                        margin: const EdgeInsets.only(right: 8),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              value: _downloadProgress,
+                              strokeWidth: 3,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Theme.of(context).primaryColor),
+                            ),
+                            Text(
+                              '${(_downloadProgress * 100).toInt()}%',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Row(
+                        children: [
+                          if (_isFileDownloaded && _downloadedFilePath != null)
+                            IconButton(
+                              icon: const Icon(Icons.refresh),
+                              onPressed: () {
+                                _redownloadFile(context);
+                              },
+                              tooltip: 'Redownload',
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          IconButton(
+                            icon: Icon(
+                              _isBookmarked
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                              color: _isBookmarked
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: _toggleBookmark,
+                          ),
+                          if (_isFileDownloaded)
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: Colors.red),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                _deleteDownloadedFile();
+                              },
+                              tooltip: 'Delete File',
+                            ),
+                        ],
+                      ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _viewOnlinePDF(context),
+                        icon: const Icon(
+                          Icons.remove_red_eye_outlined,
+                          size: 20,
+                        ),
+                        label: const Text(
+                          'View Online',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          elevation: 4,
+                          shadowColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isDownloading
+                            ? null
+                            : () {
+                                if (_isFileDownloaded &&
+                                    _downloadedFilePath != null) {
+                                  _openPDF(_downloadedFilePath!, context);
+                                } else {
+                                  _downloadFile(context);
+                                }
+                              },
+                        icon: _isDownloading
+                            ? const SizedBox
+                                .shrink() // No icon while downloading
+                            : Icon(
+                                _isFileDownloaded
+                                    ? Icons.visibility
+                                    : Icons.download,
+                                color: _isFileDownloaded ? Colors.white : null,
+                                size: 20,
+                              ),
+                        label: Text(
+                          _isFileDownloaded
+                              ? 'View Offline'
+                              : (_isDownloading ? 'Downloading' : 'Download'),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              _isFileDownloaded ? Colors.green : null,
+                          foregroundColor:
+                              _isFileDownloaded ? Colors.white : null,
+                          elevation: 4,
+                          shadowColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          bottom: 0,
+          left: 0,
+          child: SizedBox(
+            height: 1,
+            width: 1,
+            child: AdsterraService.showAd(),
+          ),
+        ),
+      ],
     );
   }
 }
