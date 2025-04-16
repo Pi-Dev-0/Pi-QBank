@@ -80,7 +80,7 @@ class AdsterraService {
                             ),
                             child: Center(
                               child: Container(
-                                margin: const EdgeInsets.only(top: 26.0),
+                                margin: const EdgeInsets.only(top: 12.0),
                                 child: const Text(
                                   'Advertisement',
                                   style: TextStyle(
