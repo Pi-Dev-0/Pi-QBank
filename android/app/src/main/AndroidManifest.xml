@@ -28,9 +28,6 @@
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-5555177535051011~7492497737"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
