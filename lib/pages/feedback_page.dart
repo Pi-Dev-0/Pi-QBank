@@ -39,30 +39,30 @@ ${_feedbackController.text}
 
 Device Information:
 App Version: 1.0.0
-Platform: ${Theme.of(context).platform}
-''';
+Platform: ${Theme.of(context).platform}''';
 
       final Uri emailLaunchUri = Uri(
         scheme: 'mailto',
-        path: 'pimathematics1@gmail.com', // Replace with your support email
-        queryParameters: {
+        path: 'pimathematics1@gmail.com',
+        query: encodeQueryParameters({
           'subject': 'Pi-QBank $_feedbackType',
           'body': emailBody,
-        },
+        }),
       );
 
-      if (!await launchUrl(emailLaunchUri)) {
+      if (await canLaunchUrl(emailLaunchUri)) {
+        await launchUrl(emailLaunchUri);
+        if (mounted) {
+          navigator.pop();
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('Email client opened. Please send your feedback!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
         throw Exception('Could not launch email client');
-      }
-
-      if (mounted) {
-        navigator.pop();
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Email client opened. Please send your feedback!'),
-            backgroundColor: Colors.green,
-          ),
-        );
       }
     } catch (e) {
       if (mounted) {
@@ -74,6 +74,13 @@ Platform: ${Theme.of(context).platform}
         );
       }
     }
+  }
+
+  String? encodeQueryParameters(Map<String, String> params) {
+    return params.entries
+        .map((e) =>
+            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+        .join('&');
   }
 
   @override
