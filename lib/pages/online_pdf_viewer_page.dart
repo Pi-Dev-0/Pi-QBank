@@ -1,72 +1,160 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import '../widgets/custom_app_bar.dart';
 
 class OnlinePDFViewerPage extends StatefulWidget {
-  final String pdfUrl;
-  final String title;
-
   const OnlinePDFViewerPage({
     super.key,
     required this.pdfUrl,
     required this.title,
   });
+  final String pdfUrl;
+  final String title;
 
   @override
-  OnlinePDFViewerPageState createState() => OnlinePDFViewerPageState();
+  State<OnlinePDFViewerPage> createState() => _OnlinePDFViewerPageState();
 }
 
-class OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
-  late final WebViewController _controller;
+class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
+  late final PdfViewerController _pdfViewerController;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _initializeWebView();
+    _pdfViewerController = PdfViewerController();
   }
 
-  void _initializeWebView() {
-    // Using Google Docs viewer as a fallback for viewing PDFs
-    final googleDocsUrl =
-        'https://docs.google.com/viewer?url=${Uri.encodeComponent(widget.pdfUrl)}&embedded=true';
+  void _showPageDialog() {
+    final pageCount = _pdfViewerController.pageCount;
+    final currentPage = _pdfViewerController.pageNumber;
 
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (String url) {
-            setState(() {
-              _isLoading = false;
-            });
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            // Prevent navigation to other pages
-            if (!request.url.contains('docs.google.com')) {
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Row(
+          children: [
+            const Icon(Icons.pages, color: Colors.blue),
+            const SizedBox(width: 10),
+            const Text('Go to Page'),
+          ],
         ),
-      )
-      ..loadRequest(Uri.parse(googleDocsUrl));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: CustomAppBar(
-        title: widget.title,
-      ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Current Page: $currentPage of $pageCount',
+              style: const TextStyle(color: Colors.grey),
             ),
+            const SizedBox(height: 16),
+            TextField(
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 18),
+              decoration: InputDecoration(
+                hintText: 'Enter page number (1-$pageCount)',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                prefixIcon: const Icon(Icons.article),
+              ),
+              onSubmitted: (value) {
+                final page = int.tryParse(value);
+                if (page != null && page > 0 && page <= pageCount) {
+                  _pdfViewerController.jumpToPage(page);
+                  Navigator.pop(context);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Invalid page number')),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
         ],
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _pdfViewerController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Theme(
+        data: Theme.of(context).copyWith(
+          primaryColor: Colors.blue.shade700,
+          colorScheme: ColorScheme.fromSwatch().copyWith(
+            secondary: Colors.blue.shade500,
+          ),
+        ),
+        child: Scaffold(
+          appBar: CustomAppBar(
+            title: widget.title,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.pageview),
+                onPressed: _showPageDialog,
+              ),
+            ],
+          ),
+          body: Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                margin: const EdgeInsets.all(8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SfPdfViewer.network(
+                    widget.pdfUrl,
+                    controller: _pdfViewerController,
+                    canShowScrollHead: true,
+                    enableDoubleTapZooming: true,
+                    enableTextSelection: true,
+                    onDocumentLoaded: (details) =>
+                        setState(() => _isLoading = false),
+                    onDocumentLoadFailed: (details) {
+                      setState(() => _isLoading = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: ${details.error}')),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              if (_isLoading)
+                Container(
+                  color: Colors.white.withOpacity(0.8),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Loading PDF...',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
 }
