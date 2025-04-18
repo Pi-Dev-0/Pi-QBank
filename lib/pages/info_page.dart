@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../widgets/custom_app_bar.dart';
 import 'privacy_policy_page.dart';
 import 'terms_of_service_page.dart';
@@ -6,6 +7,13 @@ import 'feedback_page.dart';
 
 class InfoPage extends StatelessWidget {
   const InfoPage({super.key});
+
+  Future<void> _launchUrl() async {
+    final Uri url = Uri.parse('https://rashid-sahriar.blogspot.com');
+    if (!await launchUrl(url)) {
+      throw Exception('Could not launch $url');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,14 +25,17 @@ class InfoPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Center(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(100),
-                  child: Image.asset(
-                    'assets/images/hero.jpg',
-                    width: 200,
-                    height: 200,
-                    fit: BoxFit.cover,
+              GestureDetector(
+                onTap: _launchUrl,
+                child: Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: Image.asset(
+                      'assets/images/hero.jpg',
+                      width: 200,
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
@@ -77,9 +88,13 @@ class InfoPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     ListTile(
-                      leading: const Icon(Icons.privacy_tip_outlined, color: Colors.blue),
-                      title: const Text('Privacy Policy', textAlign: TextAlign.center),
-                      subtitle: const Text('Read our privacy policy and data handling practices', textAlign: TextAlign.center),
+                      leading: const Icon(Icons.privacy_tip_outlined,
+                          color: Colors.blue),
+                      title: const Text('Privacy Policy',
+                          textAlign: TextAlign.center),
+                      subtitle: const Text(
+                          'Read our privacy policy and data handling practices',
+                          textAlign: TextAlign.center),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () => Navigator.push(
                         context,
@@ -90,9 +105,12 @@ class InfoPage extends StatelessWidget {
                     ),
                     const Divider(height: 1),
                     ListTile(
-                      leading: const Icon(Icons.gavel_outlined, color: Colors.blue),
-                      title: const Text('Terms of Service', textAlign: TextAlign.center),
-                      subtitle: const Text('View our terms and conditions', textAlign: TextAlign.center),
+                      leading:
+                          const Icon(Icons.gavel_outlined, color: Colors.blue),
+                      title: const Text('Terms of Service',
+                          textAlign: TextAlign.center),
+                      subtitle: const Text('View our terms and conditions',
+                          textAlign: TextAlign.center),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () => Navigator.push(
                         context,
@@ -103,9 +121,12 @@ class InfoPage extends StatelessWidget {
                     ),
                     const Divider(height: 1),
                     ListTile(
-                      leading: const Icon(Icons.feedback_outlined, color: Colors.blue),
-                      title: const Text('Send Feedback', textAlign: TextAlign.center),
-                      subtitle: const Text('Help us improve Pi-QBank', textAlign: TextAlign.center),
+                      leading: const Icon(Icons.feedback_outlined,
+                          color: Colors.blue),
+                      title: const Text('Send Feedback',
+                          textAlign: TextAlign.center),
+                      subtitle: const Text('Help us improve Pi-QBank',
+                          textAlign: TextAlign.center),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () => Navigator.push(
                         context,
