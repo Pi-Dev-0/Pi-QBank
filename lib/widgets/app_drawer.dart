@@ -77,36 +77,102 @@ class _AppDrawerState extends State<AppDrawer>
                 ),
                 Consumer2<ConnectivityService, AppModeProvider>(
                   builder: (context, connectivity, appMode, _) {
-                    return ListTile(
-                      leading: Icon(
-                        connectivity.isOnline ? Icons.wifi : Icons.wifi_off,
-                        color:
-                            connectivity.isOnline ? Colors.green : Colors.red,
-                        size: 20,
-                      ),
-                      title: Text(
-                        connectivity.isOnline ? 'Connected' : 'Disconnected',
-                        style: TextStyle(
-                          color:
-                              connectivity.isOnline ? Colors.green : Colors.red,
-                          fontSize: 14,
+                    return Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: connectivity.isOnline
+                              ? [Colors.green.shade50, Colors.blue.shade50]
+                              : [Colors.red.shade50, Colors.orange.shade50],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: connectivity.isOnline
+                              ? Colors.green.shade200
+                              : Colors.red.shade200,
                         ),
                       ),
-                      trailing: ElevatedButton.icon(
-                        icon: const Icon(Icons.download_done, size: 16),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                        ),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          Navigator.pushNamed(context, '/downloaded');
-                        },
-                        label: const Text(
-                          'Downloads',
-                          style: TextStyle(fontSize: 12),
-                        ),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 8),
+                            title: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 500),
+                                  child: Icon(
+                                    connectivity.isOnline
+                                        ? Icons.wifi
+                                        : Icons.wifi_off,
+                                    key: ValueKey(connectivity.isOnline),
+                                    color: connectivity.isOnline
+                                        ? Colors.green
+                                        : Colors.red,
+                                    size: 16,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  connectivity.isOnline
+                                      ? 'Connected'
+                                      : 'Disconnected',
+                                  style: TextStyle(
+                                    color: connectivity.isOnline
+                                        ? Colors.green
+                                        : Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(
+                                bottom: 16, left: 16, right: 16),
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                Navigator.pushNamed(context, '/downloaded');
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                elevation: 4,
+                                shadowColor: Theme.of(context)
+                                    .primaryColor
+                                    .withOpacity(0.4),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.download_done,
+                                    size: 20,
+                                    color: Colors.white.withOpacity(0.9),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'View Downloads',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
