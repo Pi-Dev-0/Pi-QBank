@@ -28,12 +28,14 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
   void _showPageDialog() {
     final pageCount = _pdfViewerController.pageCount;
     final currentPage = _pdfViewerController.pageNumber;
+    final TextEditingController pageController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.pages, color: Colors.blue),
             const SizedBox(width: 10),
@@ -49,11 +51,12 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
             ),
             const SizedBox(height: 16),
             TextField(
+              controller: pageController,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 18),
               decoration: InputDecoration(
-                hintText: 'Enter page number (1-$pageCount)',
+                hintText: 'Page number (1-$pageCount)',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -62,27 +65,85 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
                 prefixIcon: const Icon(Icons.article),
               ),
               onSubmitted: (value) {
-                final page = int.tryParse(value);
-                if (page != null && page > 0 && page <= pageCount) {
-                  _pdfViewerController.jumpToPage(page);
-                  Navigator.pop(context);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Invalid page number')),
-                  );
-                }
+                Navigator.pop(context);
+                _handlePageNavigation(value);
               },
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'CANCEL',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _handlePageNavigation(pageController.text);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade700,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  'GO',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  void _handlePageNavigation(String value) {
+    final pageCount = _pdfViewerController.pageCount;
+    final page = int.tryParse(value);
+    if (page == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid number'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (page <= 0 || page > pageCount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter a number between 1 and $pageCount'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      _pdfViewerController.jumpToPage(page);
+    }
   }
 
   @override
