@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'dart:io';
 import '../widgets/custom_app_bar.dart';
 
 class PDFViewerPage extends StatefulWidget {
@@ -17,69 +18,51 @@ class PDFViewerPage extends StatefulWidget {
 }
 
 class _PDFViewerPageState extends State<PDFViewerPage> {
-  bool _isLoading = true;
+  late PdfViewerController _pdfViewerController;
   final TextEditingController _pageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+  bool _isLoading = true;
   int? _totalPages;
-  int? _currentPage;
-  PDFViewController? _pdfViewController;
-  double _handlePosition = 0.0; // Changed from 16.0 to 0.0
-  bool _isDragging = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_updateHandlePosition);
+    _pdfViewerController = PdfViewerController();
   }
 
-  void _updateHandlePosition() {
-    if (!mounted) return;
-    setState(() {
-      if (_scrollController.hasClients) {
-        final scrollProgress = _scrollController.offset /
-            _scrollController.position.maxScrollExtent;
-        final availableHeight = MediaQuery.of(context).size.height - 100;
-        _handlePosition =
-            scrollProgress * availableHeight; // Removed 16.0 offset
-      }
-    });
+  @override
+  void dispose() {
+    _pdfViewerController.dispose();
+    _pageController.dispose();
+    super.dispose();
   }
 
-  void _updateHandlePositionFromPage(int page) {
-    if (!mounted || _totalPages == null) return;
-    setState(() {
-      final maxHeight =
-          MediaQuery.of(context).size.height - kToolbarHeight - 80;
-      if (page == _totalPages! - 1) {
-        _handlePosition = maxHeight;
-      } else {
-        final progress = page / (_totalPages! - 1);
-        _handlePosition = progress * maxHeight;
-      }
-    });
-  }
-
-  void _handleDragUpdate(DragUpdateDetails details) {
-    if (!mounted || _totalPages == null) return;
-    setState(() {
-      _handlePosition += details.delta.dy;
-
-      final maxHeight =
-          MediaQuery.of(context).size.height - kToolbarHeight - 80;
-      _handlePosition = _handlePosition.clamp(0.0, maxHeight);
-
-      final progress = _handlePosition / maxHeight;
-      final targetPage = (progress * (_totalPages! - 1)).round();
-
-      if (targetPage >= 0 && targetPage < (_totalPages ?? 1)) {
-        _pdfViewController?.setPage(targetPage);
-      }
-    });
+  void _handlePageNavigation(String value) {
+    if (_totalPages == null) return;
+    final page = int.tryParse(value);
+    if (page == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid number'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (page <= 0 || page > _totalPages!) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter a number between 1 and $_totalPages'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      _pdfViewerController.jumpToPage(page);
+    }
   }
 
   void _showPageDialog() {
     if (_totalPages == null) return;
-    _pageController.text = ''; // Reset the text field
+    _pageController.text = '';
 
     showDialog(
       context: context,
@@ -97,7 +80,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Current Page: ${_currentPage ?? 1} of $_totalPages',
+              'Current Page: ${_pdfViewerController.pageNumber} of $_totalPages',
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -117,27 +100,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               ),
               onSubmitted: (value) {
                 Navigator.pop(context);
-                final page = int.tryParse(value);
-                if (page == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter a valid number'),
-                      backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                } else if (page <= 0 || page > (_totalPages ?? 0)) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                          'Please enter a number between 1 and $_totalPages'),
-                      backgroundColor: Colors.red,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                } else {
-                  _pdfViewController?.setPage(page - 1);
-                }
+                _handlePageNavigation(value);
               },
             ),
           ],
@@ -167,27 +130,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  final page = int.tryParse(_pageController.text);
-                  if (page == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter a valid number'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  } else if (page <= 0 || page > (_totalPages ?? 0)) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            'Please enter a number between 1 and $_totalPages'),
-                        backgroundColor: Colors.red,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  } else {
-                    _pdfViewController?.setPage(page - 1);
-                  }
+                  _handlePageNavigation(_pageController.text);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue.shade700,
@@ -214,127 +157,68 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
   }
 
   @override
-  void dispose() {
-    _scrollController.removeListener(_updateHandlePosition);
-    _pageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Theme(
-        data: Theme.of(context).copyWith(
-          primaryColor: Colors.blue.shade700,
-          colorScheme: ColorScheme.fromSwatch().copyWith(
-            secondary: Colors.blue.shade500,
-          ),
+  Widget build(BuildContext context) => Scaffold(
+        appBar: CustomAppBar(
+          title: widget.title,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.pageview),
+              iconSize: 28, // Increased icon size
+              onPressed: _showPageDialog,
+            ),
+          ],
         ),
-        child: Scaffold(
-          appBar: CustomAppBar(
-            title: widget.title,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.pageview),
-                onPressed: _showPageDialog,
+        body: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
-          ),
-          body: Stack(
-            children: [
-              SizedBox(
-                width: MediaQuery.of(context).size.width,
-                height: MediaQuery.of(context).size.height - kToolbarHeight,
-                child: PDFView(
-                  filePath: widget.filePath,
-                  enableSwipe: true,
-                  swipeHorizontal: false,
-                  autoSpacing: false,
-                  pageFling: false,
-                  defaultPage: 0,
-                  fitPolicy: FitPolicy.WIDTH,
-                  pageSnap: false,
-                  onRender: (pages) {
+              margin: const EdgeInsets.all(8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SfPdfViewer.file(
+                  File(widget.filePath),
+                  controller: _pdfViewerController,
+                  canShowScrollHead: true,
+                  enableDoubleTapZooming: true,
+                  enableTextSelection: true,
+                  onDocumentLoaded: (PdfDocumentLoadedDetails details) {
                     setState(() {
-                      _totalPages = pages;
+                      _isLoading = false;
+                      _totalPages = details.document.pages.count;
+                    });
+                  },
+                  onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
+                    setState(() {
                       _isLoading = false;
                     });
-                  },
-                  onError: (error) {
-                    setState(() => _isLoading = false);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $error')),
+                      SnackBar(content: Text('Error: ${details.error}')),
                     );
                   },
-                  onPageChanged: (page, total) {
-                    setState(() {
-                      _currentPage = page! + 1;
-                      if (!_isDragging) {
-                        _updateHandlePositionFromPage(page);
-                      }
-                    });
-                  },
-                  onViewCreated: (controller) {
-                    _pdfViewController = controller;
-                  },
                 ),
               ),
-              Positioned(
-                right: 0,
-                top: _handlePosition.clamp(
-                  0.0,
-                  MediaQuery.of(context).size.height - kToolbarHeight - 80,
-                ),
-                child: GestureDetector(
-                  onVerticalDragStart: (_) => _isDragging = true,
-                  onVerticalDragEnd: (_) => _isDragging = false,
-                  onVerticalDragUpdate: _handleDragUpdate,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade700.withOpacity(0.9),
-                      borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(12),
+            ),
+            if (_isLoading)
+              Container(
+                color: Colors.white.withOpacity(0.8),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Loading PDF...',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      'Page ${_currentPage ?? 1}/$_totalPages',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               ),
-              if (_isLoading)
-                SizedBox(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Loading PDF...',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          ],
         ),
       );
 }

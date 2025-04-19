@@ -153,69 +153,62 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Theme(
-        data: Theme.of(context).copyWith(
-          primaryColor: Colors.blue.shade700,
-          colorScheme: ColorScheme.fromSwatch().copyWith(
-            secondary: Colors.blue.shade500,
-          ),
+  Widget build(BuildContext context) => Scaffold(
+        appBar: CustomAppBar(
+          title: widget.title,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.pageview),
+              iconSize: 28,
+              onPressed: _showPageDialog,
+            ),
+          ],
         ),
-        child: Scaffold(
-          appBar: CustomAppBar(
-            title: widget.title,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.pageview),
-                onPressed: _showPageDialog,
+        body: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
-          ),
-          body: Stack(
-            children: [
+              margin: const EdgeInsets.all(8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SfPdfViewer.network(
+                  widget.pdfUrl,
+                  controller: _pdfViewerController,
+                  canShowScrollHead: true,
+                  enableDoubleTapZooming: true,
+                  enableTextSelection: true,
+                  onDocumentLoaded: (details) =>
+                      setState(() => _isLoading = false),
+                  onDocumentLoadFailed: (details) {
+                    setState(() => _isLoading = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: ${details.error}')),
+                    );
+                  },
+                ),
+              ),
+            ),
+            if (_isLoading)
               Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                margin: const EdgeInsets.all(8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SfPdfViewer.network(
-                    widget.pdfUrl,
-                    controller: _pdfViewerController,
-                    canShowScrollHead: true,
-                    enableDoubleTapZooming: true,
-                    enableTextSelection: true,
-                    onDocumentLoaded: (details) =>
-                        setState(() => _isLoading = false),
-                    onDocumentLoadFailed: (details) {
-                      setState(() => _isLoading = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: ${details.error}')),
-                      );
-                    },
+                color: Colors.white.withOpacity(0.8),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Loading PDF...',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
                   ),
                 ),
               ),
-              if (_isLoading)
-                Container(
-                  color: Colors.white.withOpacity(0.8),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Loading PDF...',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          ],
         ),
       );
 }
