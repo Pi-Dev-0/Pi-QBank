@@ -31,7 +31,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  syncfusion_flutter_pdfviewer: ^24.1.41
+  syncfusion_flutter_pdfviewer: ^26.2.4
   webview_flutter: ^4.4.2
   cupertino_icons: ^1.0.8
   url_launcher: ^6.2.1
