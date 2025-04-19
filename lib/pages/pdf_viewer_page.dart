@@ -23,10 +23,58 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
   int? _totalPages;
   int? _currentPage;
   PDFViewController? _pdfViewController;
+  double _handlePosition = 0.0; // Changed from 16.0 to 0.0
+  bool _isDragging = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_updateHandlePosition);
+  }
+
+  void _updateHandlePosition() {
+    if (!mounted) return;
+    setState(() {
+      if (_scrollController.hasClients) {
+        final scrollProgress = _scrollController.offset /
+            _scrollController.position.maxScrollExtent;
+        final availableHeight = MediaQuery.of(context).size.height - 100;
+        _handlePosition =
+            scrollProgress * availableHeight; // Removed 16.0 offset
+      }
+    });
+  }
+
+  void _updateHandlePositionFromPage(int page) {
+    if (!mounted || _totalPages == null) return;
+    setState(() {
+      final maxHeight =
+          MediaQuery.of(context).size.height - kToolbarHeight - 80;
+      if (page == _totalPages! - 1) {
+        _handlePosition = maxHeight;
+      } else {
+        final progress = page / (_totalPages! - 1);
+        _handlePosition = progress * maxHeight;
+      }
+    });
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (!mounted || _totalPages == null) return;
+    setState(() {
+      _handlePosition += details.delta.dy;
+
+      final maxHeight =
+          MediaQuery.of(context).size.height - kToolbarHeight - 80;
+      _handlePosition = _handlePosition.clamp(0.0, maxHeight);
+
+      final progress = _handlePosition / maxHeight;
+      final targetPage = (progress * (_totalPages! - 1)).round();
+
+      if (targetPage >= 0 && targetPage < (_totalPages ?? 1)) {
+        _pdfViewController?.setPage(targetPage);
+      }
+    });
   }
 
   void _showPageDialog() {
@@ -167,6 +215,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_updateHandlePosition);
     _pageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -192,87 +241,84 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
           ),
           body: Stack(
             children: [
-              Scrollbar(
-                controller: _scrollController,
-                thumbVisibility: true,
-                trackVisibility: true,
-                interactive: true,
-                thickness: 12,
-                radius: const Radius.circular(20),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  margin: const EdgeInsets.only(
-                    top: 8,
-                    bottom: 8,
-                    left: 8,
-                    right: 8, // Add space for scrollbar
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Stack(
-                      children: [
-                        PDFView(
-                          filePath: widget.filePath,
-                          enableSwipe: true,
-                          swipeHorizontal: false,
-                          autoSpacing: false,
-                          pageFling: false,
-                          defaultPage: 0,
-                          fitPolicy: FitPolicy.WIDTH,
-                          onRender: (pages) {
-                            setState(() {
-                              _totalPages = pages;
-                              _isLoading = false;
-                            });
-                          },
-                          onError: (error) {
-                            setState(() => _isLoading = false);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: $error')),
-                            );
-                          },
-                          onPageChanged: (page, total) {
-                            setState(() => _currentPage = page! + 1);
-                          },
-                          onViewCreated: (controller) {
-                            _pdfViewController = controller;
-                          },
-                        ),
-                        Positioned(
-                          right: 0,
-                          top: 16,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade700.withOpacity(0.9),
-                              borderRadius: const BorderRadius.horizontal(
-                                left: Radius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Page ${_currentPage ?? 1}/$_totalPages',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
+              SizedBox(
+                width: MediaQuery.of(context).size.width,
+                height: MediaQuery.of(context).size.height - kToolbarHeight,
+                child: PDFView(
+                  filePath: widget.filePath,
+                  enableSwipe: true,
+                  swipeHorizontal: false,
+                  autoSpacing: false,
+                  pageFling: false,
+                  defaultPage: 0,
+                  fitPolicy: FitPolicy.WIDTH,
+                  pageSnap: false,
+                  onRender: (pages) {
+                    setState(() {
+                      _totalPages = pages;
+                      _isLoading = false;
+                    });
+                  },
+                  onError: (error) {
+                    setState(() => _isLoading = false);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $error')),
+                    );
+                  },
+                  onPageChanged: (page, total) {
+                    setState(() {
+                      _currentPage = page! + 1;
+                      if (!_isDragging) {
+                        _updateHandlePositionFromPage(page);
+                      }
+                    });
+                  },
+                  onViewCreated: (controller) {
+                    _pdfViewController = controller;
+                  },
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: _handlePosition.clamp(
+                  0.0,
+                  MediaQuery.of(context).size.height - kToolbarHeight - 80,
+                ),
+                child: GestureDetector(
+                  onVerticalDragStart: (_) => _isDragging = true,
+                  onVerticalDragEnd: (_) => _isDragging = false,
+                  onVerticalDragUpdate: _handleDragUpdate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade700.withOpacity(0.9),
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(12),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
                       ],
+                    ),
+                    child: Text(
+                      'Page ${_currentPage ?? 1}/$_totalPages',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
               ),
               if (_isLoading)
-                Container(
-                  color: Colors.white.withOpacity(0.8),
+                SizedBox(
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
