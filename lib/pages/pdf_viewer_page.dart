@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'dart:io';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../widgets/custom_app_bar.dart';
 
 class PDFViewerPage extends StatefulWidget {
@@ -18,19 +17,20 @@ class PDFViewerPage extends StatefulWidget {
 }
 
 class _PDFViewerPageState extends State<PDFViewerPage> {
-  late final PdfViewerController _pdfViewerController;
   bool _isLoading = true;
   final TextEditingController _pageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  int? _totalPages;
+  int? _currentPage;
+  PDFViewController? _pdfViewController;
 
   @override
   void initState() {
     super.initState();
-    _pdfViewerController = PdfViewerController();
   }
 
   void _showPageDialog() {
-    final pageCount = _pdfViewerController.pageCount;
-    final currentPage = _pdfViewerController.pageNumber;
+    if (_totalPages == null) return;
     _pageController.text = ''; // Reset the text field
 
     showDialog(
@@ -49,7 +49,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Current Page: $currentPage of $pageCount',
+              'Current Page: ${_currentPage ?? 1} of $_totalPages',
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -59,7 +59,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 18),
               decoration: InputDecoration(
-                hintText: 'Enter page number (1-$pageCount)',
+                hintText: 'Page number (1-$_totalPages)',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -68,7 +68,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
                 prefixIcon: const Icon(Icons.article),
               ),
               onSubmitted: (value) {
-                Navigator.pop(context); // Close dialog first
+                Navigator.pop(context);
                 final page = int.tryParse(value);
                 if (page == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -78,17 +78,17 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
-                } else if (page <= 0 || page > pageCount) {
+                } else if (page <= 0 || page > (_totalPages ?? 0)) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                          'Please enter a number between 1 and $pageCount'),
+                          'Please enter a number between 1 and $_totalPages'),
                       backgroundColor: Colors.red,
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
                 } else {
-                  _pdfViewerController.jumpToPage(page);
+                  _pdfViewController?.setPage(page - 1);
                 }
               },
             ),
@@ -118,7 +118,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context); // Close dialog first
+                  Navigator.pop(context);
                   final page = int.tryParse(_pageController.text);
                   if (page == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -128,17 +128,17 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
-                  } else if (page <= 0 || page > pageCount) {
+                  } else if (page <= 0 || page > (_totalPages ?? 0)) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                            'Please enter a number between 1 and $pageCount'),
+                            'Please enter a number between 1 and $_totalPages'),
                         backgroundColor: Colors.red,
                         behavior: SnackBarBehavior.floating,
                       ),
                     );
                   } else {
-                    _pdfViewerController.jumpToPage(page);
+                    _pdfViewController?.setPage(page - 1);
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -167,8 +167,8 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
 
   @override
   void dispose() {
-    _pdfViewerController.dispose();
     _pageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -192,28 +192,81 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
           ),
           body: Stack(
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                margin: const EdgeInsets.all(8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SfPdfViewer.file(
-                    File(widget.filePath),
-                    controller: _pdfViewerController,
-                    canShowScrollHead: true,
-                    enableDoubleTapZooming: true,
-                    enableTextSelection: true,
-                    onDocumentLoaded: (details) =>
-                        setState(() => _isLoading = false),
-                    onDocumentLoadFailed: (details) {
-                      setState(() => _isLoading = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error: ${details.error}')),
-                      );
-                    },
+              Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                trackVisibility: true,
+                interactive: true,
+                thickness: 12,
+                radius: const Radius.circular(20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  margin: const EdgeInsets.only(
+                    top: 8,
+                    bottom: 8,
+                    left: 8,
+                    right: 8, // Add space for scrollbar
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Stack(
+                      children: [
+                        PDFView(
+                          filePath: widget.filePath,
+                          enableSwipe: true,
+                          swipeHorizontal: false,
+                          autoSpacing: false,
+                          pageFling: false,
+                          defaultPage: 0,
+                          fitPolicy: FitPolicy.WIDTH,
+                          onRender: (pages) {
+                            setState(() {
+                              _totalPages = pages;
+                              _isLoading = false;
+                            });
+                          },
+                          onError: (error) {
+                            setState(() => _isLoading = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $error')),
+                            );
+                          },
+                          onPageChanged: (page, total) {
+                            setState(() => _currentPage = page! + 1);
+                          },
+                          onViewCreated: (controller) {
+                            _pdfViewController = controller;
+                          },
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: 16,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade700.withOpacity(0.9),
+                              borderRadius: const BorderRadius.horizontal(
+                                left: Radius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Page ${_currentPage ?? 1}/$_totalPages',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
