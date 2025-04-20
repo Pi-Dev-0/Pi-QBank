@@ -121,7 +121,16 @@ import 'pages/engineering_university_admission/ruet_page.dart';
 import 'pages/engineering_university_admission/kuet_page.dart';
 import 'pages/engineering_university_admission/duet_page.dart';
 import 'pages/national_university/mathematics_page.dart';
-
+import 'pages/national_university/physics_page.dart';
+import 'pages/national_university/chemistry_page.dart';
+import 'pages/national_university/statistics_page.dart';
+import 'pages/national_university/economics_page.dart';
+import 'pages/national_university/accounting_page.dart';
+import 'pages/national_university/management_page.dart';
+import 'pages/national_university/english_page.dart';
+import 'pages/national_university/bangla_page.dart';
+import 'pages/national_university/history_page.dart';
+import 'pages/national_university/islamic_studies_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -173,6 +182,19 @@ class MyApp extends StatelessWidget {
         '/national_university': (context) => const NationalUniversityPage(),
         '/national_university/mathematics': (context) =>
             const NuMathematicsPage(),
+        '/national_university/physics': (context) =>
+            const NuPhysicsPage(),
+        '/national_university/chemistry': (context) =>
+            const NuChemistryPage(),
+        '/nu_statistics': (context) => const NuStatisticsPage(),
+        '/nu_economics': (context) => const NuEconomicsPage(),
+        '/nu_accounting': (context) => const NuAccountingPage(),
+        '/nu_management': (context) => const NuManagementPage(),
+        '/nu_english': (context) => const NuEnglishPage(),
+        '/nu_bangla': (context) => const NuBanglaPage(),
+        '/nu_history': (context) => const NuHistoryPage(),
+        '/nu_islamic_studies': (context) =>
+            const NuIslamicStudiesPage(),
         '/seven_college': (context) => const SevenCollegePage(),
         '/nursing_admission': (context) => const NursingAdmissionPage(),
         '/nursing': (context) => const NursingPage(),

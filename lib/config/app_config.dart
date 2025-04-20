@@ -67,6 +67,14 @@ class AppConfig {
       String.fromEnvironment('NU_HISTORY_API');
   static const String nuGeographyApi =
       String.fromEnvironment('NU_GEOGRAPHY_API');
+  static const String nuStatisticsApi =
+      String.fromEnvironment('NU_STATISTICS_API');
+  static const String nuPoliticalScienceApi =
+      String.fromEnvironment('NU_POLITICAL_SCIENCE_API');
+  static const String nuSociologyApi =
+      String.fromEnvironment('NU_SOCIOLOGY_API');
+  static const String nuIslamicStudiesApi =
+      String.fromEnvironment('NU_ISLAMIC_STUDIES_API');
 
   // Add more configuration values as needed
 
