@@ -150,7 +150,25 @@ abstract class NuQuestionPageState<T extends NuQuestionPage> extends State<T> {
                 ConnectivityWrapper.showOnRetry(context);
                 fetchQuestionPapers();
               },
-              child: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 3,
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor:
+                    Colors.white, // Add this line to ensure text is visible
+              ),
+              child: const Text(
+                'Retry',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1,
+                ),
+              ),
             ),
           ],
         ),
