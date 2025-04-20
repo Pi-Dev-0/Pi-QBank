@@ -375,6 +375,105 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
   }
 
   Future<void> _redownloadFile(BuildContext context) async {
+    // Show confirmation dialog first
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.cloud_download_outlined,
+                color: Theme.of(context).primaryColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Redownload Paper',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Do you want to redownload this paper?',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              widget.title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              widget.subtitle,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: Colors.grey[800],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            icon: const Icon(Icons.cloud_download_outlined, size: 18),
+            label: const Text(
+              'Redownload',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+    );
+
+    if (confirmed != true) return;
+
     // Capture BuildContext early
     if (!context.mounted) return;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -440,18 +539,98 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Delete Paper'),
-          content: const Text('Are you sure you want to delete this paper?'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Delete Paper',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to delete this paper?',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[800],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                widget.title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                widget.subtitle,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.grey[800],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
-            TextButton(
+            ElevatedButton.icon(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text(
+                'Delete',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
+            const SizedBox(width: 8),
           ],
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         ),
       );
 
@@ -519,15 +698,28 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
     return Stack(
       children: [
         Card(
-          elevation: 6.0,
-          shadowColor: Colors.grey[600],
-          color: Colors.white,
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          elevation: 8.0,
+          shadowColor: Colors.black.withOpacity(0.8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.0),
+            side: BorderSide(
+              color: Colors.grey.withOpacity(0.1),
+              width: 0.2,
+            ),
+          ),
+          margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 10, 4),
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12.0),
+                    topRight: Radius.circular(12.0),
+                  ),
+                ),
+                padding: const EdgeInsets.fromLTRB(24, 12, 10, 6),
                 child: Row(
                   children: [
                     Expanded(
@@ -538,16 +730,26 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                           Text(
                             widget.title,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 0.3,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.subtitle,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 0),
+                            decoration: BoxDecoration(
+                              color: Colors.lightBlue.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(
+                              widget.subtitle,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.blue,
+                                letterSpacing: 0.2,
+                              ),
                             ),
                           ),
                         ],
@@ -555,8 +757,8 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                     ),
                     if (_isDownloading && _downloadProgress > 0)
                       Container(
-                        width: 40,
-                        height: 40,
+                        width: 45,
+                        height: 45,
                         margin: const EdgeInsets.only(right: 8),
                         child: Stack(
                           alignment: Alignment.center,
@@ -565,12 +767,14 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                               value: _downloadProgress,
                               strokeWidth: 3,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                  Theme.of(context).primaryColor),
+                                Theme.of(context).primaryColor,
+                              ),
+                              backgroundColor: Colors.grey[200],
                             ),
                             Text(
                               '${(_downloadProgress * 100).toInt()}%',
                               style: const TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -578,40 +782,55 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                         ),
                       )
                     else
-                      Row(
+                      OverflowBar(
+                        spacing: 0,
+                        overflowAlignment: OverflowBarAlignment.end,
                         children: [
                           if (_isFileDownloaded && _downloadedFilePath != null)
                             IconButton(
-                              icon: const Icon(Icons.refresh),
-                              onPressed: () {
-                                _redownloadFile(context);
-                              },
+                              icon: const Icon(Icons.cloud_download_outlined),
+                              onPressed: () => _redownloadFile(context),
                               tooltip: 'Redownload',
-                              color: Theme.of(context).colorScheme.primary,
+                              color: Theme.of(context).primaryColor,
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                                highlightColor: Theme.of(context)
+                                    .primaryColor
+                                    .withOpacity(0.2),
+                              ),
                             ),
                           IconButton(
                             icon: Icon(
                               _isBookmarked
-                                  ? Icons.bookmark
-                                  : Icons.bookmark_border,
+                                  ? Icons.bookmark_rounded
+                                  : Icons.bookmark_outline_rounded,
                               color: _isBookmarked
-                                  ? Theme.of(context).colorScheme.primary
-                                  : null,
+                                  ? Theme.of(context).primaryColor
+                                  : Colors.grey[600],
                             ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
                             onPressed: _toggleBookmark,
+                            style: IconButton.styleFrom(
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                              highlightColor: Theme.of(context)
+                                  .primaryColor
+                                  .withOpacity(0.2),
+                            ),
                           ),
                           if (_isFileDownloaded)
                             IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.red),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () {
-                                _deleteDownloadedFile();
-                              },
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.redAccent,
+                              ),
+                              onPressed: _deleteDownloadedFile,
                               tooltip: 'Delete File',
+                              style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                                highlightColor: Colors.red.withOpacity(0.2),
+                              ),
                             ),
                         ],
                       ),
@@ -619,32 +838,30 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                 ),
               ),
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                padding: const EdgeInsets.all(16.0),
                 child: Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () => _viewOnlinePDF(context),
-                        icon: const Icon(
-                          Icons.remove_red_eye_outlined,
-                          size: 20,
-                        ),
-                        label: const Text(
-                          'View Online',
-                          style: TextStyle(fontSize: 14),
-                        ),
+                        icon:
+                            const Icon(Icons.remove_red_eye_outlined, size: 20),
+                        label: const Text('View Online',
+                            style: TextStyle(fontSize: 14, letterSpacing: 0.5)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                           foregroundColor: Colors.white,
-                          elevation: 4,
-                          shadowColor: Colors.black,
+                          elevation: 6,
+                          shadowColor:
+                              Theme.of(context).primaryColor.withOpacity(0.5),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 10,
-                          ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color: Colors.blue.shade800,
+                                width: 1,
+                              )),
                         ),
                       ),
                     ),
@@ -662,34 +879,41 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                                 }
                               },
                         icon: _isDownloading
-                            ? const SizedBox
-                                .shrink() // No icon while downloading
+                            ? const SizedBox.shrink()
                             : Icon(
                                 _isFileDownloaded
-                                    ? Icons.visibility
-                                    : Icons.download,
-                                color: _isFileDownloaded ? Colors.white : null,
+                                    ? Icons.visibility_rounded
+                                    : Icons.download_rounded,
                                 size: 20,
                               ),
                         label: Text(
                           _isFileDownloaded
                               ? 'View Offline'
                               : (_isDownloading ? 'Downloading' : 'Download'),
-                          style: const TextStyle(fontSize: 14),
+                          style:
+                              const TextStyle(fontSize: 14, letterSpacing: 0.5),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _isFileDownloaded ? Colors.green : null,
-                          foregroundColor:
-                              _isFileDownloaded ? Colors.white : null,
-                          elevation: 4,
-                          shadowColor: Colors.black,
+                          backgroundColor: _isFileDownloaded
+                              ? Colors.green
+                              : Colors.grey[200],
+                          foregroundColor: _isFileDownloaded
+                              ? Colors.white
+                              : Colors.grey[800],
+                          elevation: 6,
+                          shadowColor:
+                              (_isFileDownloaded ? Colors.green : Colors.grey)
+                                  .withOpacity(0.5),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 10,
-                          ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: BorderSide(
+                                color: _isFileDownloaded
+                                    ? Colors.green.shade600
+                                    : Colors.grey.shade400,
+                                width: 1,
+                              )),
                         ),
                       ),
                     ),
