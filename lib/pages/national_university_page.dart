@@ -7,23 +7,24 @@ class NationalUniversityPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     final List<Map<String, dynamic>> subjects = [
       {
         'name': 'Mathematics',
         'icon': Icons.functions,
-        'route': '/nu_mathematics'
+        'route': '/national_university/mathematics'
       },
       {
         'name': 'Physics',
         'icon': Icons.science,
-        'route': '/nu_physics'
+        'route': '/national_university/physics'
       },
       {
         'name': 'Chemistry',
         'icon': Icons.science_outlined,
-        'route': '/nu_chemistry'
+        'route': '/national_university/chemistry'
       },
       {
         'name': 'Statistics',
@@ -40,26 +41,10 @@ class NationalUniversityPage extends StatelessWidget {
         'icon': Icons.account_balance_wallet,
         'route': '/nu_accounting'
       },
-      {
-        'name': 'Management',
-        'icon': Icons.business,
-        'route': '/nu_management'
-      },
-      {
-        'name': 'English',
-        'icon': Icons.language,
-        'route': '/nu_english'
-      },
-      {
-        'name': 'Bangla',
-        'icon': Icons.book,
-        'route': '/nu_bangla'
-      },
-      {
-        'name': 'History',
-        'icon': Icons.history_edu,
-        'route': '/nu_history'
-      },
+      {'name': 'Management', 'icon': Icons.business, 'route': '/nu_management'},
+      {'name': 'English', 'icon': Icons.language, 'route': '/nu_english'},
+      {'name': 'Bangla', 'icon': Icons.book, 'route': '/nu_bangla'},
+      {'name': 'History', 'icon': Icons.history_edu, 'route': '/nu_history'},
       {
         'name': 'Islamic Studies',
         'icon': Icons.mosque,
@@ -116,4 +101,4 @@ class NationalUniversityPage extends StatelessWidget {
       ),
     );
   }
-} 
+}

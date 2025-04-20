@@ -120,6 +120,7 @@ import 'pages/engineering_university_admission/cuet_page.dart';
 import 'pages/engineering_university_admission/ruet_page.dart';
 import 'pages/engineering_university_admission/kuet_page.dart';
 import 'pages/engineering_university_admission/duet_page.dart';
+import 'pages/national_university/mathematics_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -170,6 +171,8 @@ class MyApp extends StatelessWidget {
         '/question_bank': (context) => const QuestionBankPage(),
         '/info': (context) => const InfoPage(),
         '/national_university': (context) => const NationalUniversityPage(),
+        '/national_university/mathematics': (context) =>
+            const NuMathematicsPage(),
         '/seven_college': (context) => const SevenCollegePage(),
         '/nursing_admission': (context) => const NursingAdmissionPage(),
         '/nursing': (context) => const NursingPage(),
