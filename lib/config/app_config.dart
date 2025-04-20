@@ -37,6 +37,36 @@ class AppConfig {
       String.fromEnvironment('UNIVERSITY_ADMISSION_API');
   static const String engineeringUniversityAdmissionApi =
       String.fromEnvironment('ENGINEERING_UNIVERSITY_ADMISSION_API');
+  static const String nationalUniversityApi =
+      String.fromEnvironment('NATIONAL_UNIVERSITY_API');
+  static const String nuMathematicsApi=
+      String.fromEnvironment('NU_MATHEMATICS_API');
+  static const String nuManagementApi =
+      String.fromEnvironment('NU_MANAGEMENT_API');
+  static const String nuMarketingApi =
+      String.fromEnvironment('NU_MARKETING_API');
+  static const String nuAccountingApi =
+      String.fromEnvironment('NU_ACCOUNTING_API');
+  static const String nuEconomicsApi =
+      String.fromEnvironment('NU_ECONOMICS_API');
+  static const String nuFinanceApi =
+      String.fromEnvironment('NU_FINANCE_API');
+  static const String nuZoologyApi =
+      String.fromEnvironment('NU_ZOOLOGY_API');
+  static const String nuBotanyApi = 
+      String.fromEnvironment('NU_BOTANY_API');
+  static const String nuPhysicsApi =
+      String.fromEnvironment('NU_PHYSICS_API');
+  static const String nuChemistryApi =
+      String.fromEnvironment('NU_CHEMISTRY_API');
+  static const String nuBanglaApi =
+      String.fromEnvironment('NU_BANGLA_API');
+  static const String nuEnglishApi =
+      String.fromEnvironment('NU_ENGLISH_API');
+  static const String nuHistoryApi =
+      String.fromEnvironment('NU_HISTORY_API');
+  static const String nuGeographyApi =
+      String.fromEnvironment('NU_GEOGRAPHY_API');
 
   // Add more configuration values as needed
 
