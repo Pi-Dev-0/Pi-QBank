@@ -108,7 +108,7 @@ class _QuestionBankPageState extends State<QuestionBankPage> {
           .compareTo(int.parse(a['examyear'].toString())));
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'Question Bank'),
+      appBar: const CustomAppBar(title: '7 College'),
       drawer: const AppDrawer(),
       body: Column(
         children: [
@@ -183,7 +183,7 @@ class _QuestionBankPageState extends State<QuestionBankPage> {
                                   year: paper['year']?.toString() ?? '',
                                   examYear: paper['examyear']?.toString() ?? '',
                                   downloadUrl: paper['downloadurl']?.toString() ?? '',
-                                  category: 'Question Bank',
+                                  category: '7 College',
                                 ),
                               );
                             },
