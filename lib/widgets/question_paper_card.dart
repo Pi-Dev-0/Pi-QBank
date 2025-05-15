@@ -8,6 +8,7 @@ import '../pages/online_pdf_viewer_page.dart';
 import '../services/services.dart';
 import '../services/downloaded_papers_registry.dart';
 import '../services/adsterra_service.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class DownloadedFileRegistry {
   static final Map<String, String> _registry = {};
@@ -536,105 +537,15 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
 
   void _deleteDownloadedFile() async {
     if (_downloadedFilePath != null) {
-      final confirmed = await showDialog<bool>(
+      final shouldDelete = await showDeleteConfirmationDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.delete_outline_rounded,
-                  color: Colors.red,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Delete Paper',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Are you sure you want to delete this paper?',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                widget.title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                widget.subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  color: Colors.grey[800],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              icon: const Icon(Icons.delete_outline, size: 18),
-              label: const Text(
-                'Delete',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        ),
+        title: 'Delete Paper',
+        message: 'Are you sure you want to delete this paper?',
+        paperTitle: widget.title,
+        paperSubtitle: widget.subtitle,
       );
 
-      if (confirmed == true) {
+      if (shouldDelete == true) {
         final file = File(_downloadedFilePath!);
         final folder = file.parent;
 
@@ -643,7 +554,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
             await folder.delete(recursive: true);
           }
 
-          // Check if the widget is still mounted before showing SnackBar
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -658,7 +568,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
             _downloadedFilePath = null;
           });
         } catch (e) {
-          // Check if the widget is still mounted before showing SnackBar
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

@@ -16,6 +16,8 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
   List<DownloadedPaper> _downloadedPapers = [];
   bool _isLoading = true;
   Map<String, Map<String, List<DownloadedPaper>>> _nestedGroupedPapers = {};
+  String? expandedCategory;
+  Map<String, String?> expandedSubCategories = {};
 
   @override
   void initState() {
@@ -73,9 +75,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _downloadedPapers.isEmpty
-              ? const Center(
-                  child: Text('No downloaded papers found',
-                      style: TextStyle(fontSize: 16)))
+              ? const Center(child: Text('No downloaded papers found'))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _nestedGroupedPapers.length,
@@ -84,30 +84,61 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                         _nestedGroupedPapers.keys.elementAt(mainIndex);
                     final subCategories = _nestedGroupedPapers[mainCategory]!;
 
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        dividerColor: Colors.transparent,
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
                       ),
-                      child: Theme(
-                        data: Theme.of(context)
-                            .copyWith(dividerColor: Colors.transparent),
-                        child: ExpansionTile(
-                          title: Row(
+                      child: ExpansionTile(
+                        key: Key(mainCategory),
+                        initiallyExpanded: false,
+                        tilePadding: EdgeInsets.zero,
+                        onExpansionChanged: (expanded) {
+                          setState(() {
+                            expandedCategory = expanded ? mainCategory : null;
+                            if (!expanded) {
+                              expandedSubCategories.remove(mainCategory);
+                            }
+                          });
+                        },
+                        title: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Theme.of(context).primaryColor,
+                                Theme.of(context).primaryColor.withOpacity(0.8),
+                              ],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .primaryColor
-                                      .withOpacity(0.1),
+                                  color: Colors.white.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Icon(Icons.folder,
-                                    color: Theme.of(context).primaryColor),
+                                child: const Icon(
+                                  Icons.folder_rounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
                               ),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,78 +148,104 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                                       style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
+                                        color: Colors.white,
                                       ),
                                     ),
                                     Text(
                                       '${subCategories.length} subjects',
                                       style: TextStyle(
-                                          color: Colors.grey.shade600),
+                                        fontSize: 13,
+                                        color: Colors.white.withOpacity(0.9),
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
                             ],
                           ),
-                          children: subCategories.entries.map((subEntry) {
+                        ),
+                        children: [
+                          const SizedBox(height: 12),
+                          ...subCategories.entries.map((subEntry) {
                             return Theme(
-                              data: Theme.of(context)
-                                  .copyWith(dividerColor: Colors.transparent),
+                              data: Theme.of(context).copyWith(
+                                dividerColor: Colors.transparent,
+                                splashColor: Colors.transparent,
+                                highlightColor: Colors.transparent,
+                              ),
                               child: ExpansionTile(
-                                title: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(6),
+                                key: Key('${mainCategory}_${subEntry.key}'),
+                                initiallyExpanded: false,
+                                tilePadding: EdgeInsets.zero,
+                                title: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  margin: const EdgeInsets.only(left: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border:
+                                        Border.all(color: Colors.grey.shade300),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.subject_rounded,
+                                        size: 20,
+                                        color: Colors.grey.shade700,
                                       ),
-                                      child: const Icon(Icons.subject,
-                                          color: Colors.grey, size: 20),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            subEntry.key,
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w500,
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              subEntry.key,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w500,
+                                              ),
                                             ),
-                                          ),
-                                          Text(
-                                            '${subEntry.value.length} papers',
-                                            style: TextStyle(
+                                            Text(
+                                              '${subEntry.value.length} papers',
+                                              style: TextStyle(
+                                                fontSize: 13,
                                                 color: Colors.grey.shade600,
-                                                fontSize: 12),
-                                          ),
-                                        ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                                children: subEntry.value.map((paper) {
-                                  return DownloadedPaperCard(
-                                    key: ValueKey(paper.filePath),
-                                    title: paper.title,
-                                    subtitle: paper.subtitle,
-                                    examYear: paper.examYear,
-                                    category: paper.category,
-                                    filePath: paper.filePath,
-                                    onDeleted: () {
-                                      DownloadedPapersRegistry()
-                                          .removeDownloadedPaper(
-                                              paper.filePath);
-                                      _loadDownloadedPapers();
-                                    },
-                                  );
-                                }).toList(),
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 16),
+                                    child: Column(
+                                      children: subEntry.value.map((paper) {
+                                        return DownloadedPaperCard(
+                                          key: ValueKey(paper.filePath),
+                                          title: paper.title,
+                                          subtitle: paper.subtitle,
+                                          examYear: paper.examYear,
+                                          category: paper.category,
+                                          filePath: paper.filePath,
+                                          onDeleted: () {
+                                            DownloadedPapersRegistry()
+                                                .removeDownloadedPaper(
+                                                    paper.filePath);
+                                            _loadDownloadedPapers();
+                                          },
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
-                          }).toList(),
-                        ),
+                          })
+                        ],
                       ),
                     );
                   },
