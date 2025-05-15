@@ -578,8 +578,8 @@ class _AppDrawerState extends State<AppDrawer>
                             onTap: () {
                               Navigator.pop(context);
                               Share.share(
-                                'Check out Pi-Mathematics App: https://pi-mathematics.blogspot.com/p/our-app.html',
-                                subject: 'Pi-Mathematics App',
+                                'Check out Pi-QBank App: https://pi-qbank.blogspot.comhtml',
+                                subject: 'Pi-QBank App',
                               );
                             },
                           ),
