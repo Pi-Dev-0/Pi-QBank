@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '../pages/pdf_viewer_page.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class FormulaPage extends StatefulWidget {
   const FormulaPage({super.key});
@@ -273,104 +274,18 @@ class _FormulaPageState extends State<FormulaPage> {
                 if (isDownloaded)
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () {
-                      showDialog(
+                    onPressed: () async {
+                      final shouldDelete = await showDeleteConfirmationDialog(
                         context: context,
-                        builder: (context) => AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          title: Row(
-                            children: [
-                              const Icon(Icons.warning_amber_rounded,
-                                  color: Colors.red, size: 32),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Text(
-                                  'Delete Formula',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const SizedBox(height: 8),
-                              Text(
-                                'Are you sure you want to delete this formula?',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[900],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.info_outline,
-                                        color: Colors.red, size: 20),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'This will remove the downloaded PDF from your device.',
-                                        style: TextStyle(
-                                          color: Colors.red[700],
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          actionsPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.grey[700],
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 18, vertical: 10),
-                                textStyle: const TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              child: const Text('Cancel'),
-                            ),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 22, vertical: 10),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 2,
-                              ),
-                              icon: const Icon(Icons.delete_forever),
-                              label: const Text('Delete'),
-                              onPressed: () async {
-                                Navigator.pop(context);
-                                await _deleteFormula(title);
-                              },
-                            ),
-                          ],
-                        ),
+                        title: 'Delete Formula',
+                        message:
+                            'Are you sure you want to delete this formula?',
+                        paperTitle: title,
+                        paperSubtitle: null,
                       );
+                      if (shouldDelete == true) {
+                        await _deleteFormula(title);
+                      }
                     },
                   ),
                 Icon(
