@@ -54,20 +54,14 @@ class _FormulaPageState extends State<FormulaPage> {
     {'title': 'গতি', 'key': 'Motion'},
     {'title': 'বল', 'key': 'Force'},
     {'title': 'কাজ, ক্ষমতা ও শক্তি', 'key': 'Work, Power and Energy'},
-    {
-      'title': 'পদার্থের অবস্থা ও চাপ',
-      'key': 'State of Matter and Pressure'
-    },
+    {'title': 'পদার্থের অবস্থা ও চাপ', 'key': 'State of Matter and Pressure'},
     {'title': 'বস্তুর ওপর তাপের প্রভাব', 'key': 'Effect of Heat on Matter'},
     {'title': 'তরঙ্গ ও শব্দ', 'key': 'Waves and Sound'},
     {'title': 'আলোর প্রতিফলন', 'key': 'Reflection of Light'},
     {'title': 'আলোর প্রতিসরণ', 'key': 'Refraction of light'},
     {'title': 'স্থির বিদ্যুৎ ', 'key': 'Static Electricity'},
     {'title': 'চল বিদ্যুৎ', 'key': 'Current Electricity'},
-    {
-      'title': 'বিদ্যুতের চৌম্বক ক্রিয়া',
-      'key': 'Magnetic Effects of Current'
-    },
+    {'title': 'বিদ্যুতের চৌম্বক ক্রিয়া', 'key': 'Magnetic Effects of Current'},
   ];
 
   @override
@@ -347,7 +341,8 @@ class _FormulaPageState extends State<FormulaPage> {
                   ),
                 );
               } else {
-                // Show popup with options
+                // Capture parent context
+                final parentContext = context;
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -407,8 +402,9 @@ class _FormulaPageState extends State<FormulaPage> {
                               onPressed: () {
                                 Navigator.pop(context);
                                 if (formula.formula.startsWith('http')) {
+                                  // Use parentContext for navigation
                                   Navigator.push(
-                                    context,
+                                    parentContext,
                                     MaterialPageRoute(
                                       builder: (context) => OnlinePDFViewerPage(
                                         pdfUrl: formula.formula,
