@@ -45,6 +45,31 @@ class _FormulaPageState extends State<FormulaPage> {
     {'title': 'পরিসংখ্যান (Statistics)', 'key': 'Statistics'},
   ];
 
+  final List<Map<String, String>> _physicsCategories = [
+    {'title': 'গুরুত্বপূর্ণ রাশি ও শর্টকাট', 'key': 'Expression And Shortcut'},
+    {
+      'title': 'ভৌত রাশি এবং পরিমাপ',
+      'key': 'Physical Quantities and Their Measurements'
+    },
+    {'title': 'গতি', 'key': 'Motion'},
+    {'title': 'বল', 'key': 'Force'},
+    {'title': 'কাজ, ক্ষমতা ও শক্তি', 'key': 'Work, Power and Energy'},
+    {
+      'title': 'পদার্থের অবস্থা ও চাপ',
+      'key': 'State of Matter and Pressure'
+    },
+    {'title': 'বস্তুর ওপর তাপের প্রভাব', 'key': 'Effect of Heat on Matter'},
+    {'title': 'তরঙ্গ ও শব্দ', 'key': 'Waves and Sound'},
+    {'title': 'আলোর প্রতিফলন', 'key': 'Reflection of Light'},
+    {'title': 'আলোর প্রতিসরণ', 'key': 'Refraction of light'},
+    {'title': 'স্থির বিদ্যুৎ ', 'key': 'Static Electricity'},
+    {'title': 'চল বিদ্যুৎ', 'key': 'Current Electricity'},
+    {
+      'title': 'বিদ্যুতের চৌম্বক ক্রিয়া',
+      'key': 'Magnetic Effects of Current'
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -81,8 +106,19 @@ class _FormulaPageState extends State<FormulaPage> {
         if (!mounted) return; // Ensure widget is still mounted
         setState(() {
           _formulas = formulas.where((formula) {
-            return _mathCategories
-                .any((category) => category['key'] == formula.title);
+            return _mathCategories.any(
+                (category) => category['key']!.trim() == formula.title.trim());
+          }).toList();
+          _isLoading = false;
+        });
+      } else if (_selectedSubject == 'Physics') {
+        final formulas =
+            await formulaService.getFormulas(subject: _selectedSubject);
+        if (!mounted) return; // Ensure widget is still mounted
+        setState(() {
+          _formulas = formulas.where((formula) {
+            return _physicsCategories.any(
+                (category) => category['key']!.trim() == formula.title.trim());
           }).toList();
           _isLoading = false;
         });
@@ -200,7 +236,7 @@ class _FormulaPageState extends State<FormulaPage> {
     final title = category['title']!;
     final key = category['key']!;
     final formula = _formulas.firstWhere(
-      (f) => f.title == key,
+      (f) => f.title.trim() == key.trim(),
       orElse: () => Formula(
         id: '',
         title: key,
@@ -567,6 +603,17 @@ class _FormulaPageState extends State<FormulaPage> {
         itemCount: _mathCategories.length,
         itemBuilder: (context, index) {
           final category = _mathCategories[index];
+          return _buildFormulaCard(category);
+        },
+      );
+    }
+
+    if (_selectedSubject == 'Physics') {
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _physicsCategories.length,
+        itemBuilder: (context, index) {
+          final category = _physicsCategories[index];
           return _buildFormulaCard(category);
         },
       );
