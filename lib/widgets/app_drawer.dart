@@ -578,7 +578,7 @@ class _AppDrawerState extends State<AppDrawer>
                             onTap: () {
                               Navigator.pop(context);
                               Share.share(
-                                'Check out Pi-QBank App: https://pi-qbank.blogspot.comhtml',
+                                'Check out Pi-QBank App: https://pi-qbank.blogspot.com',
                                 subject: 'Pi-QBank App',
                               );
                             },
