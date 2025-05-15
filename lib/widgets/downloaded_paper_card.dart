@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import '../pages/pdf_viewer_page.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class DownloadedPaperCard extends StatelessWidget {
   final String title;
@@ -32,42 +33,21 @@ class DownloadedPaperCard extends StatelessWidget {
     );
   }
 
-  Future<void> _deletePaper(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+  void _handleDelete(BuildContext context) async {
+    final shouldDelete = await showDeleteConfirmationDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Paper'),
-        content: const Text('Are you sure you want to delete this paper?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+      title: 'Delete Paper',
+      message: 'Are you sure you want to delete this paper?',
+      paperTitle: title,
+      paperSubtitle: subtitle,
     );
 
-    if (confirmed == true) {
+    if (shouldDelete == true) {
       try {
         final file = File(filePath);
         if (await file.exists()) {
           await file.delete();
           onDeleted();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Paper deleted successfully',
-                  style: TextStyle(color: Colors.white),
-                ),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
         }
       } catch (e) {
         if (context.mounted) {
@@ -118,7 +98,8 @@ class DownloadedPaperCard extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: Colors.blue[100],
                           borderRadius: BorderRadius.circular(12),
@@ -164,7 +145,7 @@ class DownloadedPaperCard extends StatelessWidget {
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _deletePaper(context),
+                  onPressed: () => _handleDelete(context),
                 ),
               ],
             ),

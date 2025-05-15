@@ -177,8 +177,8 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                                     examYear: paper.examYear,
                                     category: paper.category,
                                     filePath: paper.filePath,
-                                    onDeleted: () async {
-                                      await DownloadedPapersRegistry()
+                                    onDeleted: () {
+                                      DownloadedPapersRegistry()
                                           .removeDownloadedPaper(
                                               paper.filePath);
                                       _loadDownloadedPapers();
