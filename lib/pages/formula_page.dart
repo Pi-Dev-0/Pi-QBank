@@ -64,6 +64,20 @@ class _FormulaPageState extends State<FormulaPage> {
     {'title': 'বিদ্যুতের চৌম্বক ক্রিয়া', 'key': 'Magnetic Effects of Current'},
   ];
 
+  final List<Map<String, String>> _chemistryCategories = [
+    {'title': 'রসায়ন শর্টকাট কৌশল', 'key': 'Chemistry Shortcut'},
+    {
+      'title': 'যৌগের সংকেত ও রাসায়নিক নাম',
+      'key': 'Name and Symbol Of Compound'
+    },
+    {'title': 'লবন এর সংকেত', 'key': 'Salt'},
+    {'title': 'এ্যসিড এর সংকেত', 'key': 'Acid'},
+    {'title': 'এ্যসিড এর উৎস', 'key': 'Source_Acid'},
+    {'title': 'গ্যাসের উপাদান', 'key': 'Gas_Source'},
+    {'title': 'PH মাণ', 'key': 'PH Value'},
+    {'title': 'পর্যায় সারণী শর্টকাট', 'key': 'Periodic Table'},
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -112,6 +126,17 @@ class _FormulaPageState extends State<FormulaPage> {
         setState(() {
           _formulas = formulas.where((formula) {
             return _physicsCategories.any(
+                (category) => category['key']!.trim() == formula.title.trim());
+          }).toList();
+          _isLoading = false;
+        });
+      } else if (_selectedSubject == 'Chemistry') {
+        final formulas =
+            await formulaService.getFormulas(subject: _selectedSubject);
+        if (!mounted) return; // Ensure widget is still mounted
+        setState(() {
+          _formulas = formulas.where((formula) {
+            return _chemistryCategories.any(
                 (category) => category['key']!.trim() == formula.title.trim());
           }).toList();
           _isLoading = false;
@@ -610,6 +635,17 @@ class _FormulaPageState extends State<FormulaPage> {
         itemCount: _physicsCategories.length,
         itemBuilder: (context, index) {
           final category = _physicsCategories[index];
+          return _buildFormulaCard(category);
+        },
+      );
+    }
+
+    if (_selectedSubject == 'Chemistry') {
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _chemistryCategories.length,
+        itemBuilder: (context, index) {
+          final category = _chemistryCategories[index];
           return _buildFormulaCard(category);
         },
       );
