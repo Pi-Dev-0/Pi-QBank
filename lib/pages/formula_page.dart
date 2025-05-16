@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tex/flutter_tex.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../services/formula_service.dart';
@@ -27,56 +26,7 @@ class _FormulaPageState extends State<FormulaPage> {
   String? _error;
   final Map<String, double> _downloadProgress = {};
 
-  final List<String> _subjects = [
-    'Mathematics',
-    'Physics',
-    'Chemistry',
-  ];
-
-  final List<Map<String, String>> _mathCategories = [
-    {'title': 'পাটিগণিত (Arithmetic)', 'key': 'Arithmetic'},
-    {'title': 'বীজগণিত (Algebra)', 'key': 'Algebra'},
-    {'title': 'সূচক (Index)', 'key': 'Index'},
-    {'title': 'লগারিদম (Logarithm)', 'key': 'Logarithm'},
-    {'title': 'ধারা (Series)', 'key': 'Series'},
-    {'title': 'ত্রিকোণমিতি (Trigonometry)', 'key': 'Trigonometry'},
-    {'title': 'পরিমিতি (Measurement)', 'key': 'Measurement'},
-    {'title': 'জ্যামিতি (Geometry)', 'key': 'Geometry'},
-    {'title': 'পরিসংখ্যান (Statistics)', 'key': 'Statistics'},
-  ];
-
-  final List<Map<String, String>> _physicsCategories = [
-    {'title': 'গুরুত্বপূর্ণ রাশি ও শর্টকাট', 'key': 'Expression And Shortcut'},
-    {
-      'title': 'ভৌত রাশি এবং পরিমাপ',
-      'key': 'Physical Quantities and Their Measurements'
-    },
-    {'title': 'গতি', 'key': 'Motion'},
-    {'title': 'বল', 'key': 'Force'},
-    {'title': 'কাজ, ক্ষমতা ও শক্তি', 'key': 'Work, Power and Energy'},
-    {'title': 'পদার্থের অবস্থা ও চাপ', 'key': 'State of Matter and Pressure'},
-    {'title': 'বস্তুর ওপর তাপের প্রভাব', 'key': 'Effect of Heat on Matter'},
-    {'title': 'তরঙ্গ ও শব্দ', 'key': 'Waves and Sound'},
-    {'title': 'আলোর প্রতিফলন', 'key': 'Reflection of Light'},
-    {'title': 'আলোর প্রতিসরণ', 'key': 'Refraction of light'},
-    {'title': 'স্থির বিদ্যুৎ ', 'key': 'Static Electricity'},
-    {'title': 'চল বিদ্যুৎ', 'key': 'Current Electricity'},
-    {'title': 'বিদ্যুতের চৌম্বক ক্রিয়া', 'key': 'Magnetic Effects of Current'},
-  ];
-
-  final List<Map<String, String>> _chemistryCategories = [
-    {'title': 'রসায়ন শর্টকাট কৌশল', 'key': 'Chemistry Shortcut'},
-    {
-      'title': 'যৌগের সংকেত ও রাসায়নিক নাম',
-      'key': 'Name and Symbol Of Compound'
-    },
-    {'title': 'লবন এর সংকেত', 'key': 'Salt'},
-    {'title': 'এ্যসিড এর সংকেত', 'key': 'Acid'},
-    {'title': 'এ্যসিড এর উৎস', 'key': 'Source_Acid'},
-    {'title': 'গ্যাসের উপাদান', 'key': 'Gas_Source'},
-    {'title': 'PH মাণ', 'key': 'PH Value'},
-    {'title': 'পর্যায় সারণী শর্টকাট', 'key': 'Periodic Table'},
-  ];
+  List<String> _subjects = []; // Will be populated from API
 
   @override
   void initState() {
@@ -96,11 +46,10 @@ class _FormulaPageState extends State<FormulaPage> {
       });
 
       final formulaService = await _formulaServiceFuture;
-
       await connectivityService.initConnectivity();
 
       if (!connectivityService.isOnline) {
-        if (!mounted) return; // Ensure widget is still mounted
+        if (!mounted) return;
         setState(() {
           _error = 'No internet connection. Please check your network.';
           _isLoading = false;
@@ -108,50 +57,24 @@ class _FormulaPageState extends State<FormulaPage> {
         return;
       }
 
-      if (_selectedSubject == 'Mathematics') {
-        final formulas =
-            await formulaService.getFormulas(subject: _selectedSubject);
-        if (!mounted) return; // Ensure widget is still mounted
-        setState(() {
-          _formulas = formulas.where((formula) {
-            return _mathCategories.any(
-                (category) => category['key']!.trim() == formula.title.trim());
-          }).toList();
-          _isLoading = false;
-        });
-      } else if (_selectedSubject == 'Physics') {
-        final formulas =
-            await formulaService.getFormulas(subject: _selectedSubject);
-        if (!mounted) return; // Ensure widget is still mounted
-        setState(() {
-          _formulas = formulas.where((formula) {
-            return _physicsCategories.any(
-                (category) => category['key']!.trim() == formula.title.trim());
-          }).toList();
-          _isLoading = false;
-        });
-      } else if (_selectedSubject == 'Chemistry') {
-        final formulas =
-            await formulaService.getFormulas(subject: _selectedSubject);
-        if (!mounted) return; // Ensure widget is still mounted
-        setState(() {
-          _formulas = formulas.where((formula) {
-            return _chemistryCategories.any(
-                (category) => category['key']!.trim() == formula.title.trim());
-          }).toList();
-          _isLoading = false;
-        });
-      } else {
-        final formulas =
-            await formulaService.getFormulas(subject: _selectedSubject);
-        if (!mounted) return; // Ensure widget is still mounted
-        setState(() {
-          _formulas = formulas;
-          _isLoading = false;
-        });
-      }
+      final formulas = await formulaService.getFormulas();
+      if (!mounted) return;
+
+      // Dynamically get all unique subjects from formulas
+      final subjects = formulas.map((f) => f.subject.trim()).toSet().toList();
+      subjects.sort();
+
+      setState(() {
+        _formulas = formulas;
+        _subjects = subjects;
+        // If the current selected subject is not in the new list, reset it
+        if (!_subjects.contains(_selectedSubject) && _subjects.isNotEmpty) {
+          _selectedSubject = _subjects.first;
+        }
+        _isLoading = false;
+      });
     } catch (e) {
-      if (!mounted) return; // Ensure widget is still mounted
+      if (!mounted) return;
       setState(() {
         _error = 'Unable to load formulas. Please try again later.';
         _isLoading = false;
@@ -170,11 +93,10 @@ class _FormulaPageState extends State<FormulaPage> {
       });
 
       final formulaService = await _formulaServiceFuture;
-
       await connectivityService.initConnectivity();
 
       if (!connectivityService.isOnline) {
-        if (!mounted) return; // Ensure widget is still mounted
+        if (!mounted) return;
         setState(() {
           _error = 'No internet connection. Please check your network.';
           _isLoading = false;
@@ -183,16 +105,9 @@ class _FormulaPageState extends State<FormulaPage> {
       }
 
       await formulaService.clearCache();
-      final formulas = await formulaService.getFormulas(
-        subject: _selectedSubject,
-      );
-      if (!mounted) return; // Ensure widget is still mounted
-      setState(() {
-        _formulas = formulas;
-        _isLoading = false;
-      });
+      await _fetchFormulas();
     } catch (e) {
-      if (!mounted) return; // Ensure widget is still mounted
+      if (!mounted) return;
       setState(() {
         _error = 'Unable to refresh formulas. Please try again later.';
         _isLoading = false;
@@ -204,16 +119,18 @@ class _FormulaPageState extends State<FormulaPage> {
     setState(() {
       _selectedSubject = subject;
     });
-    _fetchFormulas();
   }
 
-  Map<String, List<Formula>> _groupFormulas() {
+  // Group formulas by title for the selected subject
+  Map<String, List<Formula>> _groupFormulasByTitle() {
     final Map<String, List<Formula>> grouped = {};
-    for (var formula in _formulas) {
-      if (!grouped.containsKey(formula.title)) {
-        grouped[formula.title] = [];
+    for (var formula
+        in _formulas.where((f) => f.subject.trim() == _selectedSubject)) {
+      final title = formula.title.trim();
+      if (!grouped.containsKey(title)) {
+        grouped[title] = [];
       }
-      grouped[formula.title]!.add(formula);
+      grouped[title]!.add(formula);
     }
     return grouped;
   }
@@ -251,19 +168,10 @@ class _FormulaPageState extends State<FormulaPage> {
     }
   }
 
-  Widget _buildFormulaCard(Map<String, String> category) {
-    final title = category['title']!;
-    final key = category['key']!;
-    final formula = _formulas.firstWhere(
-      (f) => f.title.trim() == key.trim(),
-      orElse: () => Formula(
-        id: '',
-        title: key,
-        formula: '',
-        subject: _selectedSubject,
-      ),
-    );
-
+  Widget _buildFormulaCard(String title, List<Formula> formulas) {
+    // Use the first formula for download/view (assuming one per title)
+    final formula = formulas.first;
+    final subtitle = formula.subtitle ?? '';
     return FutureBuilder<bool>(
       future: _isFormulaDownloaded(title),
       builder: (context, snapshot) {
@@ -323,6 +231,7 @@ class _FormulaPageState extends State<FormulaPage> {
                 fontSize: 16,
               ),
             ),
+            subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -366,7 +275,6 @@ class _FormulaPageState extends State<FormulaPage> {
                   ),
                 );
               } else {
-                // Capture parent context
                 final parentContext = context;
                 showDialog(
                   context: context,
@@ -427,7 +335,6 @@ class _FormulaPageState extends State<FormulaPage> {
                               onPressed: () {
                                 Navigator.pop(context);
                                 if (formula.formula.startsWith('http')) {
-                                  // Use parentContext for navigation
                                   Navigator.push(
                                     parentContext,
                                     MaterialPageRoute(
@@ -438,7 +345,12 @@ class _FormulaPageState extends State<FormulaPage> {
                                     ),
                                   );
                                 } else {
-                                  _showLatexDialog(formula.formula, title);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('No preview available.'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
                                 }
                               },
                             ),
@@ -618,42 +530,10 @@ class _FormulaPageState extends State<FormulaPage> {
       );
     }
 
-    if (_selectedSubject == 'Mathematics') {
-      return ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _mathCategories.length,
-        itemBuilder: (context, index) {
-          final category = _mathCategories[index];
-          return _buildFormulaCard(category);
-        },
-      );
+    final groupedFormulas = _groupFormulasByTitle();
+    if (groupedFormulas.isEmpty) {
+      return const Center(child: Text('No formulas found.'));
     }
-
-    if (_selectedSubject == 'Physics') {
-      return ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _physicsCategories.length,
-        itemBuilder: (context, index) {
-          final category = _physicsCategories[index];
-          return _buildFormulaCard(category);
-        },
-      );
-    }
-
-    if (_selectedSubject == 'Chemistry') {
-      return ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _chemistryCategories.length,
-        itemBuilder: (context, index) {
-          final category = _chemistryCategories[index];
-          return _buildFormulaCard(category);
-        },
-      );
-    }
-
-    final groupedFormulas = _groupFormulas();
-    final screenWidth = MediaQuery.of(context).size.width;
-    final cardWidth = screenWidth * 0.92;
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
@@ -661,146 +541,7 @@ class _FormulaPageState extends State<FormulaPage> {
       itemBuilder: (context, index) {
         final title = groupedFormulas.keys.elementAt(index);
         final formulas = groupedFormulas[title]!;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          child: Material(
-            elevation: 6,
-            shadowColor: Colors.grey,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              width: cardWidth,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.grey.shade100,
-                  width: 1,
-                ),
-              ),
-              child: Theme(
-                data: Theme.of(context).copyWith(
-                  dividerColor: Colors.transparent,
-                ),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
-                  ),
-                  title: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.functions,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          title,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  children: formulas.map((formula) {
-                    return Container(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (formula.subtitle != null &&
-                              formula.subtitle!.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Text(
-                                formula.subtitle!,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color:
-                                      Theme.of(context).colorScheme.secondary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          if (formula.description != null &&
-                              formula.description!.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Text(
-                                formula.description!,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.black87,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.grey.shade200,
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.grey.withOpacity(0.05),
-                                  spreadRadius: 1,
-                                  blurRadius: 5,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(16),
-                            child: TeXView(
-                              child: TeXViewDocument(
-                                _wrapLatex(formula.formula),
-                                style: TeXViewStyle.fromCSS(
-                                  'padding: 0; color: #2D3748; font-size: 1.1em;',
-                                ),
-                              ),
-                              style: const TeXViewStyle(
-                                margin: TeXViewMargin.all(0),
-                                padding: TeXViewPadding.all(0),
-                                backgroundColor: Colors.transparent,
-                              ),
-                              renderingEngine:
-                                  const TeXViewRenderingEngine.katex(),
-                              loadingWidgetBuilder: (context) => const Center(
-                                child: SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
-          ),
-        );
+        return _buildFormulaCard(title, formulas);
       },
     );
   }
@@ -883,44 +624,6 @@ class _FormulaPageState extends State<FormulaPage> {
         ),
       );
     }
-  }
-
-  void _showLatexDialog(String latex, String title) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: SingleChildScrollView(
-          child: TeXView(
-            child: TeXViewDocument(
-              latex,
-              style: TeXViewStyle.fromCSS(
-                'padding: 0; color: #2D3748; font-size: 1.1em;',
-              ),
-            ),
-            style: const TeXViewStyle(
-              margin: TeXViewMargin.all(0),
-              padding: TeXViewPadding.all(0),
-              backgroundColor: Colors.transparent,
-            ),
-            renderingEngine: const TeXViewRenderingEngine.katex(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _wrapLatex(String formula) {
-    if (!formula.contains(r'\[') && !formula.contains(r'\(')) {
-      formula = r'\[' + formula + r'\]';
-    }
-    return formula;
   }
 
   @override
