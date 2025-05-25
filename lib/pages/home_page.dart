@@ -199,6 +199,43 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
+          // --- Add PDF Reader Button Below ---
+          const SizedBox(height: 24),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.blue,
+                  Colors.purple,
+                  Colors.pinkAccent,
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.picture_as_pdf, size: 28),
+              label: const Text(
+                'Local PDF',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              onPressed: () {
+                Navigator.pushNamed(context, '/pdf_reader');
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );

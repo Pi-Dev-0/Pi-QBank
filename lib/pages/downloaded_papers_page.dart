@@ -39,16 +39,33 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
         return !exists;
       });
 
-      // Group papers by main category and subcategory
+      // Group papers by main category and subject (no extra subgrouping except for books)
+      // Books: mainCategory > class > subject > [papers]
+      // Others: mainCategory > subject > [papers]
       final nested = <String, Map<String, List<DownloadedPaper>>>{};
-      for (var paper in papers) {
-        final mainCategory =
-            paper.category.isEmpty ? 'General' : paper.category;
-        final subCategory = paper.subtitle.isEmpty ? 'Other' : paper.subtitle;
 
-        nested.putIfAbsent(mainCategory, () => {});
-        nested[mainCategory]!.putIfAbsent(subCategory, () => []);
-        nested[mainCategory]![subCategory]!.add(paper);
+      for (var paper in papers) {
+        final isBook = paper.category.trim().toLowerCase() == 'books';
+        final mainCategory = isBook
+            ? 'Books'
+            : (paper.category.isEmpty ? 'General' : paper.category);
+
+        if (isBook) {
+          // Books: class (subtitle) > subject (title)
+          final classOrSub = paper.subtitle.isEmpty ? 'Other' : paper.subtitle;
+          final subject = paper.title.isEmpty ? 'Unknown Subject' : paper.title;
+          final key = '$classOrSub > $subject';
+          nested.putIfAbsent(mainCategory, () => {});
+          nested[mainCategory]!.putIfAbsent(key, () => []);
+          nested[mainCategory]![key]!.add(paper);
+        } else {
+          // Others: subject (subtitle)
+          final subject =
+              paper.subtitle.isEmpty ? 'Unknown Subject' : paper.subtitle;
+          nested.putIfAbsent(mainCategory, () => {});
+          nested[mainCategory]!.putIfAbsent(subject, () => []);
+          nested[mainCategory]![subject]!.add(paper);
+        }
       }
 
       if (mounted) {
@@ -82,7 +99,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                   itemBuilder: (context, mainIndex) {
                     final mainCategory =
                         _nestedGroupedPapers.keys.elementAt(mainIndex);
-                    final subCategories = _nestedGroupedPapers[mainCategory]!;
+                    final subjectMap = _nestedGroupedPapers[mainCategory]!;
 
                     return Theme(
                       data: Theme.of(context).copyWith(
@@ -152,7 +169,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                                       ),
                                     ),
                                     Text(
-                                      '${subCategories.length} subjects',
+                                      '${subjectMap.length} subjects',
                                       style: TextStyle(
                                         fontSize: 13,
                                         color: Colors.white.withOpacity(0.9),
@@ -166,7 +183,8 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                         ),
                         children: [
                           const SizedBox(height: 12),
-                          ...subCategories.entries.map((subEntry) {
+                          ...subjectMap.entries.map((subjectEntry) {
+                            final papers = subjectEntry.value;
                             return Theme(
                               data: Theme.of(context).copyWith(
                                 dividerColor: Colors.transparent,
@@ -174,7 +192,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                                 highlightColor: Colors.transparent,
                               ),
                               child: ExpansionTile(
-                                key: Key('${mainCategory}_${subEntry.key}'),
+                                key: Key('${mainCategory}_${subjectEntry.key}'),
                                 initiallyExpanded: false,
                                 tilePadding: EdgeInsets.zero,
                                 title: Container(
@@ -195,25 +213,19 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              subEntry.key,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                            Text(
-                                              '${subEntry.value.length} papers',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.grey.shade600,
-                                              ),
-                                            ),
-                                          ],
+                                        child: Text(
+                                          subjectEntry.key,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        '${papers.length} file(s)',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
                                         ),
                                       ),
                                     ],
@@ -221,9 +233,9 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                                 ),
                                 children: [
                                   Padding(
-                                    padding: const EdgeInsets.only(left: 16),
+                                    padding: const EdgeInsets.only(left: 24),
                                     child: Column(
-                                      children: subEntry.value.map((paper) {
+                                      children: papers.map((paper) {
                                         return DownloadedPaperCard(
                                           key: ValueKey(paper.filePath),
                                           title: paper.title,
@@ -244,7 +256,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                                 ],
                               ),
                             );
-                          })
+                          }),
                         ],
                       ),
                     );
