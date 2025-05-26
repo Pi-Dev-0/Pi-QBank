@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/notification_service.dart';
 
 class NotificationIcon extends StatefulWidget {
@@ -60,11 +62,57 @@ class _NotificationIconState extends State<NotificationIcon>
     }
   }
 
+  Widget _buildRichText(String text) {
+    final urlRegExp = RegExp(
+      r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)',
+      caseSensitive: false,
+    );
+
+    List<TextSpan> textSpans = [];
+    int lastMatchEnd = 0;
+
+    for (var match in urlRegExp.allMatches(text)) {
+      if (match.start > lastMatchEnd) {
+        textSpans.add(TextSpan(
+          text: text.substring(lastMatchEnd, match.start),
+        ));
+      }
+
+      final url = text.substring(match.start, match.end);
+      textSpans.add(
+        TextSpan(
+          text: url,
+          style: const TextStyle(
+            color: Colors.blue,
+            // Removed the underline decoration
+          ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () async {
+              final Uri uri = Uri.parse(url);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              }
+            },
+        ),
+      );
+
+      lastMatchEnd = match.end;
+    }
+
+    if (lastMatchEnd < text.length) {
+      textSpans.add(TextSpan(
+        text: text.substring(lastMatchEnd),
+      ));
+    }
+
+    return SelectableText.rich(TextSpan(children: textSpans));
+  }
+
   void _showNotificationsDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Center(child: Text('Notifications')),
+        title: Center(child: Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary))),
         content: SizedBox(
           width: double.maxFinite,
           child: StatefulBuilder(
@@ -124,14 +172,7 @@ class _NotificationIconState extends State<NotificationIcon>
                                   width: 1,
                                 ),
                               ),
-                              child: Text(
-                                notification.description,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ),
-                              ),
+                              child: _buildRichText(notification.description),
                             ),
                           ],
                           onExpansionChanged: (expanded) async {
@@ -157,36 +198,24 @@ class _NotificationIconState extends State<NotificationIcon>
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () async {
-              // Capture the context before async operation
-              final localContext = context;
-
-              await NotificationService.markAllAsSeen();
-              await NotificationService
-                  .hasUnseenNotifications(); // Update the unseen status
-
-              // Check mounted before updating UI
-              if (mounted) {
-                setState(() {
-                  _hasUnseenNotifications = false;
-                });
-
-                // Additional mounted check before using context
-                if (mounted &&
-                    context.mounted &&
-                    Navigator.of(localContext).canPop()) {
-                  Navigator.of(localContext).pop();
-                }
-              }
-            },
-            child: const Text('Mark All as Read'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: const Text('Close'),
+          Center(
+            child: TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Text(
+                'Close',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
         ],
       ),

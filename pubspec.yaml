@@ -34,7 +34,7 @@ dependencies:
   syncfusion_flutter_pdfviewer: ^26.2.4
   webview_flutter: ^4.4.2
   cupertino_icons: ^1.0.8
-  url_launcher: ^6.2.1
+  url_launcher: ^6.1.14
   logger: ^2.0.2+1
   path_provider: ^2.0.15
   permission_handler: ^11.3.1
