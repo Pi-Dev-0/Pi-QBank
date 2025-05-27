@@ -432,10 +432,13 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
             Expanded(
               child: Center(
                 child: Text(
-                  value ?? '',
-                  style: const TextStyle(
+                  value?.isNotEmpty == true ? value! : 'Select',
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
+                    color: value?.isNotEmpty == true
+                        ? Colors.black
+                        : Colors.grey[500],
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
