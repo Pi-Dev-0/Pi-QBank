@@ -19,6 +19,8 @@ class Video {
   final String className;
   final String subjectName;
   final String chapterName;
+  final String? department; // New field
+  final String? year; // New field
 
   Video({
     required this.title,
@@ -27,6 +29,8 @@ class Video {
     required this.className,
     required this.subjectName,
     required this.chapterName,
+    this.department, // Make it optional
+    this.year, // Make it optional
   });
 
   factory Video.fromJson(Map<String, dynamic> json) {
@@ -37,6 +41,8 @@ class Video {
       className: json['className'] ?? 'Unknown Class',
       subjectName: json['subjectName'] ?? 'Unknown Subject',
       chapterName: json['chapterName'] ?? 'Unknown Chapter',
+      department: json['department'] as String?, // Parse department
+      year: json['year']?.toString(), // Parse year, convert to String
     );
   }
 }

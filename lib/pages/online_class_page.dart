@@ -13,13 +13,18 @@ class OnlineClassPage extends StatefulWidget {
 }
 
 class _OnlineClassPageState extends State<OnlineClassPage> {
+  // --- Selected Values ---
   String? selectedClass;
   String? selectedSubject;
   String? selectedChapter;
+  String? _selectedDepartment;
+  String? _selectedYear;
+
   List<Video> videos = [];
   List<Video> filteredVideos = [];
   bool isLoading = false;
   String? errorMessage;
+  bool _showAdvancedFields = false;
 
   final YoutubeApiService _apiService = YoutubeApiService();
 
@@ -27,6 +32,8 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
   List<String> availableClasses = [];
   List<String> availableSubjects = [];
   List<String> availableChapters = [];
+  List<String> availableDepartments = []; // New dynamic list
+  List<String> availableYears = []; // New dynamic list
 
   @override
   void initState() {
@@ -97,6 +104,39 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
     } else {
       availableChapters = [];
     }
+
+    // Populate departments based on selected class (Honours/Masters)
+    if (selectedClass != null &&
+        (selectedClass == "Honours" || selectedClass == "Masters")) {
+      availableDepartments = videos
+          .where((video) => video.className == selectedClass!)
+          .map((video) => video.department)
+          .where((department) => department != null && department.isNotEmpty)
+          .toSet()
+          .cast<String>()
+          .toList()
+        ..sort();
+    } else {
+      availableDepartments = [];
+    }
+
+    // Populate years based on selected class and department
+    if (selectedClass != null &&
+        (selectedClass == "Honours" || selectedClass == "Masters") &&
+        _selectedDepartment != null) {
+      availableYears = videos
+          .where((video) =>
+              video.className == selectedClass! &&
+              video.department == _selectedDepartment!)
+          .map((video) => video.year)
+          .where((year) => year != null && year.isNotEmpty)
+          .toSet()
+          .cast<String>()
+          .toList()
+        ..sort();
+    } else {
+      availableYears = [];
+    }
   }
 
   void _applyFilters() {
@@ -108,7 +148,21 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
             selectedSubject == null || video.subjectName == selectedSubject!;
         final chapterMatch =
             selectedChapter == null || video.chapterName == selectedChapter!;
-        return classMatch && subjectMatch && chapterMatch;
+
+        // Advanced fields filtering for Honours/Masters
+        final departmentMatch = (_selectedDepartment == null ||
+            video.department == _selectedDepartment!);
+        final yearMatch = (_selectedYear == null || video.year == _selectedYear!);
+
+        if (_showAdvancedFields) {
+          return classMatch &&
+              subjectMatch &&
+              chapterMatch &&
+              departmentMatch &&
+              yearMatch;
+        } else {
+          return classMatch && subjectMatch && chapterMatch;
+        }
       }).toList();
     });
   }
@@ -124,9 +178,13 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Row(
+            Wrap(
+              spacing: 8.0, // Horizontal spacing between dropdowns
+              runSpacing: 8.0, // Vertical spacing if they wrap
+              alignment: WrapAlignment.center,
               children: [
-                Expanded(
+                SizedBox(
+                  width: 110, // Adjust width as needed
                   child: _buildDropdown(
                     labelText: 'Class',
                     value: selectedClass,
@@ -136,14 +194,53 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                         selectedClass = newValue;
                         selectedSubject = null; // Reset subject
                         selectedChapter = null; // Reset chapter
-                        _populateDropdowns(); // Repopulate subjects and chapters
+                        _showAdvancedFields =
+                            (newValue == "Honours" || newValue == "Masters");
+                        if (!_showAdvancedFields) {
+                          // Reset Honours/Masters specific fields if class is changed
+                          _selectedDepartment = null;
+                          _selectedYear = null;
+                        }
+                        _populateDropdowns(); // Repopulate all relevant dropdowns
                         _applyFilters();
                       });
                     },
                   ),
                 ),
-                const SizedBox(width: 8.0),
-                Expanded(
+                if (_showAdvancedFields)
+                  SizedBox(
+                    width: 110, // Adjust width as needed
+                    child: _buildDropdown(
+                      labelText: 'Department',
+                      value: _selectedDepartment,
+                      items: availableDepartments, // Use dynamic list
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedDepartment = newValue;
+                          _selectedYear = null; // Reset year when department changes
+                          _populateDropdowns(); // Repopulate years
+                          _applyFilters();
+                        });
+                      },
+                    ),
+                  ),
+                if (_showAdvancedFields)
+                  SizedBox(
+                    width: 110, // Adjust width as needed
+                    child: _buildDropdown(
+                      labelText: 'Year',
+                      value: _selectedYear,
+                      items: availableYears, // Use dynamic list
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedYear = newValue;
+                          _applyFilters();
+                        });
+                      },
+                    ),
+                  ),
+                SizedBox(
+                  width: 110, // Adjust width as needed
                   child: _buildDropdown(
                     labelText: 'Subject',
                     value: selectedSubject,
@@ -158,8 +255,8 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                     },
                   ),
                 ),
-                const SizedBox(width: 8.0),
-                Expanded(
+                SizedBox(
+                  width: 110, // Adjust width as needed
                   child: _buildDropdown(
                     labelText: 'Chapter',
                     value: selectedChapter,
