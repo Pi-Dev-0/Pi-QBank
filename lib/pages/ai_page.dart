@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:flutter/scheduler.dart';
-import 'package:pi_qbank/config/app_config.dart';
+import 'package:flutter_gemini/flutter_gemini.dart'; // Import flutter_gemini
+import 'package:image_picker/image_picker.dart'; // Import image_picker
+import 'dart:io'; // Import dart:io for File
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 
@@ -18,6 +18,12 @@ class _AIPageState extends State<AIPage> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Gemini.init(apiKey: 'AIzaSyDcCUa6A0K7ybStUl70iOr0MQQ47zgbA-0');
+  }
 
   @override
   void dispose() {
@@ -38,51 +44,49 @@ class _AIPageState extends State<AIPage> {
     });
   }
 
-  Future<void> _sendMessage() async {
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      _sendMessage(image: image);
+    }
+  }
+
+  Future<void> _sendMessage({XFile? image}) async {
     final messageText = _controller.text;
-    if (messageText.isEmpty) return;
+    if (messageText.isEmpty && image == null) return;
 
     _controller.clear();
     setState(() {
-      _messages.add(ChatMessage(text: messageText, isUser: true));
+      if (image != null) {
+        _messages.add(ChatMessage(text: 'Image sent', isUser: true, imagePath: image.path));
+      }
+      if (messageText.isNotEmpty) {
+        _messages.add(ChatMessage(text: messageText, isUser: true));
+      }
       _isLoading = true;
     });
 
     _scrollToBottom();
 
     try {
-      final response = await http.post(
-        Uri.parse(AppConfig.geminiApiKey),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [
-            {
-              'role': 'user',
-              'parts': [
-                {'text': messageText}
-              ]
-            }
-          ],
-        }),
+      final response = await Gemini.instance.textAndImage(
+        text: messageText.isNotEmpty ? messageText : '', // Ensure text is not null
+        images: image != null ? [await image.readAsBytes()] : [],
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['candidates']?[0]?['content']?['parts']?[0]?['text'] != null) {
-          final reply = data['candidates'][0]['content']['parts'][0]['text'];
-          setState(() {
-            _messages.add(ChatMessage(text: reply, isUser: false));
-          });
-        } else {
-          throw Exception('Invalid response format');
-        }
+      if (response != null && response.content?.parts?.isNotEmpty == true) {
+        final reply = response.content!.parts!.map((e) => e.text).join();
+        setState(() {
+          _messages.add(ChatMessage(text: reply, isUser: false));
+        });
       } else {
-        throw Exception('Failed to get response');
+        throw Exception('Invalid response format or empty response');
       }
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
-            text: 'Error: Failed to get response. Please try again.',
+            text: 'Error: Failed to get response. Please try again. ($e)',
             isUser: false));
       });
     } finally {
@@ -147,6 +151,10 @@ class _AIPageState extends State<AIPage> {
                           horizontal: 20,
                           vertical: 10,
                         ),
+                        prefixIcon: IconButton(
+                          icon: const Icon(Icons.image),
+                          onPressed: _isLoading ? null : _pickImage,
+                        ),
                       ),
                       onSubmitted: (_) => _sendMessage(),
                     ),
@@ -186,8 +194,9 @@ class _AIPageState extends State<AIPage> {
 class ChatMessage extends StatelessWidget {
   final String text;
   final bool isUser;
+  final String? imagePath; // Added for displaying images
 
-  const ChatMessage({super.key, required this.text, required this.isUser});
+  const ChatMessage({super.key, required this.text, required this.isUser, this.imagePath});
 
   List<TextSpan> _formatText(String text, BuildContext context) {
     final List<TextSpan> spans = [];
@@ -336,12 +345,26 @@ class ChatMessage extends StatelessWidget {
           color: isUser ? Colors.blue : Colors.grey[300],
           borderRadius: BorderRadius.circular(12.0),
         ),
-        child: isUser
-            ? Text(text, style: const TextStyle(color: Colors.white))
-            : SelectableText.rich(
-                TextSpan(children: _formatText(text, context)),
-                onTap: () {},
+        child: Column( // Changed to Column to stack text and image
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (imagePath != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Image.file(
+                  File(imagePath!),
+                  height: 150,
+                  fit: BoxFit.cover,
+                ),
               ),
+            isUser
+                ? Text(text, style: const TextStyle(color: Colors.white))
+                : SelectableText.rich(
+                    TextSpan(children: _formatText(text, context)),
+                    onTap: () {},
+                  ),
+          ],
+        ),
       ),
     );
   }

@@ -34,6 +34,7 @@ dependencies:
   syncfusion_flutter_pdfviewer: ^26.2.4
   webview_flutter: ^4.4.2
   cupertino_icons: ^1.0.8
+  flutter_gemini: ^2.0.5
   url_launcher: ^6.1.14
   logger: ^2.0.2+1
   path_provider: ^2.0.15
@@ -48,6 +49,7 @@ dependencies:
   http: ^1.1.0
   curved_navigation_bar: ^1.0.6
   youtube_player_flutter: ^9.1.1
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
