@@ -7,6 +7,10 @@ class AppConfig {
   static const String fileIoApiKey = String.fromEnvironment('FILE_IO_API_KEY');
   static const String notificationApi =
       String.fromEnvironment('NOTIFICATION_API');
+  static const String youtubeApiKey =
+      String.fromEnvironment('YOUTUBE_API_KEY');
+  static const String geminiApiKey =
+      String.fromEnvironment('GEMINI_API_KEY');
   static const String fileUploadApi =
       String.fromEnvironment('UPLOADCARE_PUBLIC_KEY');
   static const String uploadBase = String.fromEnvironment('UPLOADCARE_BASE_URL');

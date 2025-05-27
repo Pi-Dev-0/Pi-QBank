@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'pages/home_page.dart';
+import 'pages/online_class_page.dart';
+import 'pages/ai_page.dart';
 import 'pages/question_bank_page.dart';
 import 'pages/info_page.dart';
 import 'pages/class_pages.dart';
@@ -160,7 +163,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'HindSiliguri',
       ),
-      home: const HomePage(),
+      home: const MainScreen(),
       builder: (context, child) {
         return ConnectivityWrapper(
           child: child ?? const SizedBox(),
@@ -324,6 +327,69 @@ class MyApp extends StatelessWidget {
         '/kuet': (context) => const KUETPage(),
         '/duet': (context) => const DUETPage(),
       },
+    );
+  }
+}
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int _page = 1; // Start with Home (center) selected
+
+  final List<Widget> _pages = [
+    const OnlineClassPage(),
+    const HomePage(), // Keep Home in center
+    const AIPage(),
+  ];
+
+  Widget _buildNavItem(IconData icon, String label, bool isSelected) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 30,
+          color: isSelected ? Colors.white : Colors.black54,
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: isSelected ? Colors.white : Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      bottomNavigationBar: CurvedNavigationBar(
+        index: _page,
+        height: 55.0,
+        items: [
+          _buildNavItem(Icons.ondemand_video, 'Online Class', _page == 0),
+          _buildNavItem(Icons.home, 'Home', _page == 1),
+          _buildNavItem(Icons.psychology, 'AI', _page == 2),
+        ],
+        color: Theme.of(context).colorScheme.inversePrimary,
+        buttonBackgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: Colors.white,
+        animationCurve: Curves.easeInOut,
+        animationDuration: const Duration(milliseconds: 300),
+        onTap: (index) {
+          setState(() {
+            _page = index;
+          });
+        },
+      ),
+      body: _pages[_page],
     );
   }
 }
