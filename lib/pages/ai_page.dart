@@ -67,7 +67,10 @@ class _AIPageState extends State<AIPage> {
       }
       // Add user's image message to chat, if any
       if (_selectedImage != null) {
-        _messages.add(ChatMessage(text: 'Image attached', isUser: true, imagePath: _selectedImage!.path));
+        _messages.add(ChatMessage(
+            text: 'Image attached',
+            isUser: true,
+            imagePath: _selectedImage!.path));
       }
       _isLoading = true;
     });
@@ -77,7 +80,8 @@ class _AIPageState extends State<AIPage> {
     try {
       final response = await Gemini.instance.textAndImage(
         text: messageText.isNotEmpty ? messageText : '',
-        images: _selectedImage != null ? [await _selectedImage!.readAsBytes()] : [],
+        images:
+            _selectedImage != null ? [await _selectedImage!.readAsBytes()] : [],
       );
 
       if (response != null && response.content?.parts?.isNotEmpty == true) {
@@ -97,6 +101,7 @@ class _AIPageState extends State<AIPage> {
     } finally {
       setState(() {
         _isLoading = false;
+        _selectedImage = null; // Clear selected image after sending
       });
       _scrollToBottom();
     }
@@ -156,20 +161,31 @@ class _AIPageState extends State<AIPage> {
                           horizontal: 20,
                           vertical: 10,
                         ),
-                        prefixIcon: IconButton(
-                          icon: const Icon(Icons.image),
-                          onPressed: _isLoading ? null : _pickImage,
-                        ),
-                        suffixIcon: _selectedImage != null
-                            ? IconButton(
-                                icon: const Icon(Icons.close),
-                                onPressed: () {
-                                  setState(() {
-                                    _selectedImage = null;
-                                  });
-                                },
+                        prefixIcon: _selectedImage != null
+                            ? Padding(
+                                padding: const EdgeInsets.only(left: 8.0),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundImage: FileImage(File(_selectedImage!.path)),
+                                      radius: 18,
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.close),
+                                      onPressed: () {
+                                        setState(() {
+                                          _selectedImage = null;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
                               )
-                            : null,
+                            : IconButton(
+                                icon: const Icon(Icons.image),
+                                onPressed: _isLoading ? null : _pickImage,
+                              ),
                       ),
                       onSubmitted: (_) => _sendMessage(),
                     ),
@@ -184,7 +200,7 @@ class _AIPageState extends State<AIPage> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _isLoading ? null : () => _sendMessage(image: _selectedImage),
+                      onTap: _isLoading ? null : _sendMessage, // Call _sendMessage without image parameter
                       customBorder: const CircleBorder(),
                       child: Padding(
                         padding: const EdgeInsets.all(12.0),
@@ -211,7 +227,8 @@ class ChatMessage extends StatelessWidget {
   final bool isUser;
   final String? imagePath; // Added for displaying images
 
-  const ChatMessage({super.key, required this.text, required this.isUser, this.imagePath});
+  const ChatMessage(
+      {super.key, required this.text, required this.isUser, this.imagePath});
 
   List<TextSpan> _formatText(String text, BuildContext context) {
     final List<TextSpan> spans = [];
@@ -360,7 +377,8 @@ class ChatMessage extends StatelessWidget {
           color: isUser ? Colors.blue : Colors.grey[300],
           borderRadius: BorderRadius.circular(12.0),
         ),
-        child: Column( // Changed to Column to stack text and image
+        child: Column(
+          // Changed to Column to stack text and image
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (imagePath != null)
