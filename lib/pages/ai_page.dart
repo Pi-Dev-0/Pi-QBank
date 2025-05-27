@@ -18,6 +18,7 @@ class _AIPageState extends State<AIPage> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+  XFile? _selectedImage; // New state variable for selected image
 
   @override
   void initState() {
@@ -48,7 +49,9 @@ class _AIPageState extends State<AIPage> {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
-      _sendMessage(image: image);
+      setState(() {
+        _selectedImage = image;
+      });
     }
   }
 
@@ -58,11 +61,13 @@ class _AIPageState extends State<AIPage> {
 
     _controller.clear();
     setState(() {
-      if (image != null) {
-        _messages.add(ChatMessage(text: 'Image sent', isUser: true, imagePath: image.path));
-      }
+      // Add user's text message to chat, if any
       if (messageText.isNotEmpty) {
         _messages.add(ChatMessage(text: messageText, isUser: true));
+      }
+      // Add user's image message to chat, if any
+      if (_selectedImage != null) {
+        _messages.add(ChatMessage(text: 'Image attached', isUser: true, imagePath: _selectedImage!.path));
       }
       _isLoading = true;
     });
@@ -71,8 +76,8 @@ class _AIPageState extends State<AIPage> {
 
     try {
       final response = await Gemini.instance.textAndImage(
-        text: messageText.isNotEmpty ? messageText : '', // Ensure text is not null
-        images: image != null ? [await image.readAsBytes()] : [],
+        text: messageText.isNotEmpty ? messageText : '',
+        images: _selectedImage != null ? [await _selectedImage!.readAsBytes()] : [],
       );
 
       if (response != null && response.content?.parts?.isNotEmpty == true) {
@@ -155,6 +160,16 @@ class _AIPageState extends State<AIPage> {
                           icon: const Icon(Icons.image),
                           onPressed: _isLoading ? null : _pickImage,
                         ),
+                        suffixIcon: _selectedImage != null
+                            ? IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedImage = null;
+                                  });
+                                },
+                              )
+                            : null,
                       ),
                       onSubmitted: (_) => _sendMessage(),
                     ),
@@ -169,7 +184,7 @@ class _AIPageState extends State<AIPage> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _isLoading ? null : _sendMessage,
+                      onTap: _isLoading ? null : () => _sendMessage(image: _selectedImage),
                       customBorder: const CircleBorder(),
                       child: Padding(
                         padding: const EdgeInsets.all(12.0),
