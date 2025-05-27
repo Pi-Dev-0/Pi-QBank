@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class VideoPlayerPage extends StatefulWidget {
@@ -29,13 +30,26 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         mute: false,
         hideControls: false,
         enableCaption: true,
-        showLiveFullscreenButton: false, // Disable native fullscreen button
+        showLiveFullscreenButton: true, // Enable fullscreen button
       ),
     );
+
+    // Add fullscreen toggle with orientation lock
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      _controller.toggleFullScreenMode();
+    });
   }
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     _controller.dispose();
     super.dispose();
   }
