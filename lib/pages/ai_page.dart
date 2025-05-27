@@ -250,37 +250,45 @@ class ChatMessage extends StatelessWidget {
     );
 
     final lines = text.split('\n');
+    bool inCodeBlock = false;
+    List<String> codeLines = [];
 
     for (int i = 0; i < lines.length; i++) {
       String line = lines[i];
 
-      // Handle colons first
-      if (line.contains(':')) {
-        final parts = line.split(':');
-        spans.add(TextSpan(
-          text: '${parts.first}:', // Include the colon in bold
-          style: defaultStyle.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ));
-        if (parts.length > 1) {
+      // Handle code blocks
+      if (line.trim().startsWith('```')) {
+        if (inCodeBlock) {
+          // End code block
           spans.add(TextSpan(
-            text: parts.sublist(1).join(':'),
-            style: defaultStyle,
+            text: codeLines.join('\n'),
+            style: defaultStyle.copyWith(
+              fontFamily: 'monospace',
+              backgroundColor: Colors.grey[200],
+              color: Colors.black87,
+            ),
           ));
+          codeLines.clear();
+          inCodeBlock = false;
+        } else {
+          // Start code block
+          inCodeBlock = true;
         }
-        if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
         continue;
       }
 
-      // Handle headers
+      if (inCodeBlock) {
+        codeLines.add(line);
+        continue;
+      }
+
+      // Handle headings
       if (line.startsWith('### ')) {
         spans.add(TextSpan(
           text: line.substring(4),
           style: defaultStyle.copyWith(
-            fontSize: 22,
-            fontWeight: FontWeight.w900,
-            color: Colors.black87,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
           ),
         ));
         if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
@@ -292,97 +300,107 @@ class ChatMessage extends StatelessWidget {
           text: line.substring(3),
           style: defaultStyle.copyWith(
             fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: Colors.black87,
+            fontWeight: FontWeight.bold,
           ),
         ));
         if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
         continue;
       }
 
-      // Handle bullet points for single asterisk
-      if (line.trimLeft().startsWith('* ')) {
+      if (line.startsWith('# ')) {
         spans.add(TextSpan(
-          text: '•',
+          text: line.substring(2),
+          style: defaultStyle.copyWith(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ));
+        if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
+        continue;
+      }
+
+      // Handle lists
+      if (line.trimLeft().startsWith('- ') ||
+          line.trimLeft().startsWith('* ')) {
+        spans.add(TextSpan(
+          text: '• ',
           style: defaultStyle.copyWith(
             fontSize: 20,
             color: Theme.of(context).colorScheme.primary,
           ),
         ));
-        line = line.replaceFirst('* ', '');
+        line = line.replaceFirst(RegExp(r'^[\s-*]+'), '');
       }
 
-      // Handle numbers (1. 2. etc)
       final numberPattern = RegExp(r'^\d+\.\s');
       if (numberPattern.hasMatch(line)) {
         final match = numberPattern.firstMatch(line);
         spans.add(TextSpan(
           text: match!.group(0),
           style: defaultStyle.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 18),
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ));
         line = line.substring(match.end);
       }
 
-      // Handle double asterisk for strong emphasis
-      final strongPattern = RegExp(r'\*\*(.*?)\*\*');
-      final hashtags = RegExp(r'#\w+');
+      // Process inline formatting
+      String remaining = line;
+      while (remaining.isNotEmpty) {
+        // Handle inline code
+        Match? codeMatch = RegExp(r'`(.*?)`').firstMatch(remaining);
+        // Handle bold+italic
+        Match? boldItalicMatch =
+            RegExp(r'\*\*\*(.*?)\*\*\*').firstMatch(remaining);
+        // Handle bold
+        Match? boldMatch = RegExp(r'\*\*(.*?)\*\*').firstMatch(remaining);
+        // Handle italic
+        Match? italicMatch = RegExp(r'\*(.*?)\*|_(.*?)_').firstMatch(remaining);
 
-      int lastIndex = 0;
+        Match? firstMatch;
+        TextStyle? style;
+        int matchLength = 0;
+        String? content;
 
-      // First handle strong emphasis
-      final strongMatches = strongPattern.allMatches(line);
-      for (final match in strongMatches) {
-        if (match.start > lastIndex) {
-          spans.add(TextSpan(
-            text: line.substring(lastIndex, match.start),
-            style: defaultStyle,
-          ));
-        }
-
-        spans.add(TextSpan(
-          text: match.group(1),
-          style: defaultStyle.copyWith(
-            fontWeight: FontWeight.w900, // Stronger weight for **text**
-            fontSize: defaultStyle.fontSize! * 1.1, // Slightly larger
-          ),
-        ));
-
-        lastIndex = match.end;
-      }
-
-      // Handle remaining text and hashtags
-      String remainingText = line.substring(lastIndex);
-      final hashtagMatches = hashtags.allMatches(remainingText);
-      lastIndex = 0;
-
-      for (final match in hashtagMatches) {
-        if (match.start > lastIndex) {
-          spans.add(TextSpan(
-            text: remainingText.substring(lastIndex, match.start),
-            style: defaultStyle,
-          ));
-        }
-
-        spans.add(TextSpan(
-          text: match.group(0),
-          style: defaultStyle.copyWith(
-            color: Colors.blue,
+        // Find the first occurring match
+        if (codeMatch?.start == 0) {
+          firstMatch = codeMatch;
+          style = defaultStyle.copyWith(
+            fontFamily: 'monospace',
+            backgroundColor: Colors.grey[200],
+            color: Colors.black87,
+          );
+          content = codeMatch!.group(1);
+          matchLength = content!.length + 2;
+        } else if (boldItalicMatch?.start == 0) {
+          firstMatch = boldItalicMatch;
+          style = defaultStyle.copyWith(
             fontWeight: FontWeight.bold,
-          ),
-        ));
+            fontStyle: FontStyle.italic,
+          );
+          content = boldItalicMatch!.group(1);
+          matchLength = content!.length + 6;
+        } else if (boldMatch?.start == 0) {
+          firstMatch = boldMatch;
+          style = defaultStyle.copyWith(fontWeight: FontWeight.bold);
+          content = boldMatch!.group(1);
+          matchLength = content!.length + 4;
+        } else if (italicMatch?.start == 0) {
+          firstMatch = italicMatch;
+          style = defaultStyle.copyWith(fontStyle: FontStyle.italic);
+          content = italicMatch!.group(1) ?? italicMatch.group(2);
+          matchLength = content!.length + 2;
+        }
 
-        lastIndex = match.end;
-      }
-
-      // Add any remaining text after hashtags
-      if (lastIndex < remainingText.length) {
-        spans.add(TextSpan(
-          text: remainingText.substring(lastIndex),
-          style: defaultStyle,
-        ));
+        if (firstMatch != null && style != null && content != null) {
+          spans.add(TextSpan(text: content, style: style));
+          remaining = remaining.substring(matchLength);
+        } else {
+          // No formatting found, add the first character and continue
+          spans.add(TextSpan(text: remaining[0], style: defaultStyle));
+          remaining = remaining.substring(1);
+        }
       }
 
       // Add newline if not the last line
@@ -397,7 +415,7 @@ class ChatMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+      margin: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 8.0),
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.all(12.0),
@@ -407,6 +425,14 @@ class ChatMessage extends StatelessWidget {
         decoration: BoxDecoration(
           color: isUser ? Colors.blue : Colors.grey[300],
           borderRadius: BorderRadius.circular(12.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.20),
+              spreadRadius: 1,
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           // Changed to Column to stack text and image
