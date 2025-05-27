@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter_gemini/flutter_gemini.dart'; // Import flutter_gemini
+import 'package:flutter_gemini/flutter_gemini.dart'; // Main import for flutter_gemini
 import 'package:image_picker/image_picker.dart'; // Import image_picker
 import 'dart:io'; // Import dart:io for File
 import '../widgets/custom_app_bar.dart';
@@ -55,22 +55,20 @@ class _AIPageState extends State<AIPage> {
     }
   }
 
-  Future<void> _sendMessage({XFile? image}) async {
+  Future<void> _sendMessage() async {
     final messageText = _controller.text;
-    if (messageText.isEmpty && image == null) return;
+    if (messageText.isEmpty && _selectedImage == null) return;
 
     _controller.clear();
     setState(() {
-      // Add user's text message to chat, if any
-      if (messageText.isNotEmpty) {
-        _messages.add(ChatMessage(text: messageText, isUser: true));
-      }
-      // Add user's image message to chat, if any
       if (_selectedImage != null) {
         _messages.add(ChatMessage(
             text: 'Image attached',
             isUser: true,
             imagePath: _selectedImage!.path));
+      }
+      if (messageText.isNotEmpty) {
+        _messages.add(ChatMessage(text: messageText, isUser: true));
       }
       _isLoading = true;
     });
@@ -78,8 +76,19 @@ class _AIPageState extends State<AIPage> {
     _scrollToBottom();
 
     try {
+      // Build the conversation history string
+      String conversationHistory = '';
+      for (var msg in _messages) {
+        conversationHistory += '${msg.isUser ? 'User' : 'AI'}: ${msg.text}\n';
+        if (msg.imagePath != null) {
+          conversationHistory +=
+              'User: [Image attached]\n'; // Indicate image in history
+        }
+      }
+      conversationHistory += 'User: $messageText\n'; // Add current message
+
       final response = await Gemini.instance.textAndImage(
-        text: messageText.isNotEmpty ? messageText : '',
+        text: conversationHistory, // Send entire history as text
         images:
             _selectedImage != null ? [await _selectedImage!.readAsBytes()] : [],
       );
@@ -168,7 +177,8 @@ class _AIPageState extends State<AIPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     CircleAvatar(
-                                      backgroundImage: FileImage(File(_selectedImage!.path)),
+                                      backgroundImage:
+                                          FileImage(File(_selectedImage!.path)),
                                       radius: 18,
                                     ),
                                     IconButton(
@@ -200,7 +210,9 @@ class _AIPageState extends State<AIPage> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: _isLoading ? null : _sendMessage, // Call _sendMessage without image parameter
+                      onTap: _isLoading
+                          ? null
+                          : _sendMessage, // Call _sendMessage without image parameter
                       customBorder: const CircleBorder(),
                       child: Padding(
                         padding: const EdgeInsets.all(12.0),
@@ -241,6 +253,25 @@ class ChatMessage extends StatelessWidget {
 
     for (int i = 0; i < lines.length; i++) {
       String line = lines[i];
+
+      // Handle colons first
+      if (line.contains(':')) {
+        final parts = line.split(':');
+        spans.add(TextSpan(
+          text: '${parts.first}:', // Include the colon in bold
+          style: defaultStyle.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ));
+        if (parts.length > 1) {
+          spans.add(TextSpan(
+            text: parts.sublist(1).join(':'),
+            style: defaultStyle,
+          ));
+        }
+        if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
+        continue;
+      }
 
       // Handle headers
       if (line.startsWith('### ')) {
