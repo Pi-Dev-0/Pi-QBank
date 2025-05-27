@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import '../widgets/custom_app_bar.dart';
 
 class VideoPlayerPage extends StatefulWidget {
   final String youtubeUrl;
@@ -26,16 +25,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     _controller = YoutubePlayerController(
       initialVideoId: videoId ?? '',
       flags: const YoutubePlayerFlags(
-        autoPlay: false,
+        autoPlay: true, // Enable autoplay
         mute: false,
         disableDragSeek: false,
         loop: false,
         isLive: false,
-        forceHD: false,
+        forceHD: false, // Force HD quality
         enableCaption: true,
-        controlsVisibleAtStart: true, // Show controls immediately
+        controlsVisibleAtStart: false,
       ),
     )..addListener(listener);
+
+    // Automatically enter fullscreen mode
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.toggleFullScreenMode();
+    });
   }
 
   void listener() {}
@@ -65,8 +69,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       ),
       builder: (context, player) {
         return Scaffold(
-          appBar: CustomAppBar(
-            title: widget.videoTitle,
+          appBar: AppBar(
+            title: Text(widget.videoTitle),
           ),
           body: Stack(
             children: [
