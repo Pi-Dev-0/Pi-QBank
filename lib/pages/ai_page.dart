@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart'; // Import image_picker
 import 'dart:io'; // Import dart:io for File
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
+import '../config/app_config.dart';
 
 class AIPage extends StatefulWidget {
   const AIPage({super.key});
@@ -23,7 +24,7 @@ class _AIPageState extends State<AIPage> {
   @override
   void initState() {
     super.initState();
-    Gemini.init(apiKey: 'AIzaSyDcCUa6A0K7ybStUl70iOr0MQQ47zgbA-0');
+    Gemini.init(apiKey: AppConfig.geminiApiKey); // Initialize Gemini with API key
   }
 
   @override
