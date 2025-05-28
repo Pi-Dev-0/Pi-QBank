@@ -7,6 +7,7 @@ import 'dart:convert';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
+import 'personal_tone_setting_page.dart';
 
 class AIPage extends StatefulWidget {
   const AIPage({super.key});
@@ -158,7 +159,21 @@ class _AIPageState extends State<AIPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'AI Assistant'),
+      appBar: CustomAppBar(
+        title: 'AI Assistant',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings), // Changed to Icons.settings
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const PersonalToneSettingPage()),
+              );
+            },
+          ),
+        ],
+      ),
       drawer: const AppDrawer(),
       body: Column(
         children: [
