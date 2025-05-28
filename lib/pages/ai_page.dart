@@ -212,6 +212,8 @@ class _AIPageState extends State<AIPage> {
                     ),
                     child: TextField(
                       controller: _controller,
+                      maxLines: 3, // Allow up to 3 lines
+                      minLines: 1, // Start with at least 1 line
                       decoration: InputDecoration(
                         hintText: 'Type your message...',
                         border: OutlineInputBorder(
