@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter_gemini/flutter_gemini.dart'; // Main import for flutter_gemini
-import 'package:image_picker/image_picker.dart'; // Import image_picker
-import 'dart:io'; // Import dart:io for File
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
@@ -24,7 +25,6 @@ class _AIPageState extends State<AIPage> {
   @override
   void initState() {
     super.initState();
-    Gemini.init(apiKey: AppConfig.geminiApiKey); // Initialize Gemini with API key
   }
 
   @override
@@ -77,30 +77,66 @@ class _AIPageState extends State<AIPage> {
     _scrollToBottom();
 
     try {
-      // Build the conversation history string
-      String conversationHistory = '';
-      for (var msg in _messages) {
-        conversationHistory += '${msg.isUser ? 'User' : 'AI'}: ${msg.text}\n';
-        if (msg.imagePath != null) {
-          conversationHistory +=
-              'User: [Image attached]\n'; // Indicate image in history
-        }
-      }
-      conversationHistory += 'User: $messageText\n'; // Add current message
+      final String model = _selectedImage != null
+          ? 'gemini-2.0-flash'
+          : 'gemini-2.5-flash-preview-05-20';
+      final String geminiApiKey = AppConfig.geminiApiKey;
+      final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiApiKey');
 
-      final response = await Gemini.instance.textAndImage(
-        text: conversationHistory, // Send entire history as text
-        images:
-            _selectedImage != null ? [await _selectedImage!.readAsBytes()] : [],
+      List<Map<String, dynamic>> contents = [];
+
+      // Add previous messages to the conversation history
+      for (var msg in _messages) {
+        List<Map<String, dynamic>> msgParts = [];
+        msgParts.add({"text": msg.text});
+
+        if (msg.imagePath != null) {
+          final bytes = await File(msg.imagePath!).readAsBytes();
+          final base64Image = base64Encode(bytes);
+          msgParts.add({
+            "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
+          });
+        }
+        contents
+            .add({"role": msg.isUser ? "user" : "model", "parts": msgParts});
+      }
+
+      // Add the current message
+      List<Map<String, dynamic>> currentParts = [];
+      if (messageText.isNotEmpty) {
+        currentParts.add({"text": messageText});
+      }
+      if (_selectedImage != null) {
+        final bytes = await _selectedImage!.readAsBytes();
+        final base64Image = base64Encode(bytes);
+        currentParts.add({
+          "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
+        });
+      }
+      contents.add({"role": "user", "parts": currentParts});
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({"contents": contents}),
       );
 
-      if (response != null && response.content?.parts?.isNotEmpty == true) {
-        final reply = response.content!.parts!.map((e) => e.text).join();
-        setState(() {
-          _messages.add(ChatMessage(text: reply, isUser: false));
-        });
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        if (jsonResponse['candidates'] != null &&
+            jsonResponse['candidates'].isNotEmpty) {
+          final reply =
+              jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+          setState(() {
+            _messages.add(ChatMessage(text: reply, isUser: false));
+          });
+        } else {
+          throw Exception('Invalid response format or empty candidates');
+        }
       } else {
-        throw Exception('Invalid response format or empty response');
+        throw Exception(
+            'Failed to load response: ${response.statusCode} ${response.body}');
       }
     } catch (e) {
       setState(() {
@@ -111,7 +147,7 @@ class _AIPageState extends State<AIPage> {
     } finally {
       setState(() {
         _isLoading = false;
-        _selectedImage = null; // Clear selected image after sending
+        _selectedImage = null;
       });
       _scrollToBottom();
     }
