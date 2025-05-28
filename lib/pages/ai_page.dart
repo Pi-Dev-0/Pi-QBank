@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
@@ -23,9 +24,39 @@ class _AIPageState extends State<AIPage> {
   bool _isLoading = false;
   XFile? _selectedImage; // New state variable for selected image
 
+  // Personal Tone Settings
+  String _toneName = '';
+  String _toneGender = '';
+  String _toneRelationship = '';
+  String _toneLanguage = '';
+  String _tonePurpose = '';
+  List<Map<String, String>> _customTraits = [];
+
   @override
   void initState() {
     super.initState();
+    _loadPersonalToneSettings(); // Load settings on init
+  }
+
+  Future<void> _loadPersonalToneSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _toneName = prefs.getString('tone_name') ?? '';
+      _toneGender = prefs.getString('tone_gender') ?? '';
+      _toneRelationship = prefs.getString('tone_relationship') ?? '';
+      _toneLanguage = prefs.getString('tone_language') ?? '';
+      _tonePurpose = prefs.getString('tone_purpose') ?? '';
+
+      final customTraitsJson = prefs.getStringList('tone_customTraits');
+      if (customTraitsJson != null) {
+        _customTraits = customTraitsJson
+            .map((jsonString) =>
+                Map<String, String>.from(jsonDecode(jsonString)))
+            .toList();
+      } else {
+        _customTraits = [];
+      }
+    });
   }
 
   @override
@@ -86,6 +117,41 @@ class _AIPageState extends State<AIPage> {
           'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiApiKey');
 
       List<Map<String, dynamic>> contents = [];
+
+      // Construct the persona prompt from settings
+      String personaPrompt = "You are a real human being.";
+
+      if (_toneName.isNotEmpty) {
+        personaPrompt += " Your name is $_toneName.";
+      }
+      if (_toneGender.isNotEmpty) {
+        personaPrompt += " You identify as $_toneGender.";
+      }
+
+      // Directly assign the AI's role based on the 'relationship' setting
+      if (_toneRelationship.isNotEmpty) {
+        personaPrompt += " Your role is $_toneRelationship.";
+      }
+
+      if (_toneLanguage.isNotEmpty) {
+        personaPrompt += " Always respond strictly in $_toneLanguage."; // Emphasize strict language
+      }
+      if (_tonePurpose.isNotEmpty) {
+        personaPrompt += " Your main purpose is $_tonePurpose.";
+      }
+      if (_customTraits.isNotEmpty) {
+        personaPrompt += " Additionally, consider these specific traits and integrate them into your responses:";
+        for (var trait in _customTraits) {
+          if (trait['trait'] != null && trait['value'] != null && trait['trait']!.isNotEmpty && trait['value']!.isNotEmpty) {
+            personaPrompt += " ${trait['trait']}: ${trait['value']}.";
+          }
+        }
+      }
+
+      // Add the persona prompt as an initial user message to set the context
+      // The model's immediate response acknowledges this setup.
+      contents.add({"role": "user", "parts": [{"text": personaPrompt}]});
+      contents.add({"role": "model", "parts": [{"text": "Understood. I will adhere to these guidelines. How can I assist you today?"}]});
 
       // Add previous messages to the conversation history
       for (var msg in _messages) {
@@ -169,7 +235,9 @@ class _AIPageState extends State<AIPage> {
                 context,
                 MaterialPageRoute(
                     builder: (context) => const PersonalToneSettingPage()),
-              );
+              ).then((_) {
+                _loadPersonalToneSettings(); // Reload settings when returning from the settings page
+              });
             },
           ),
         ],
