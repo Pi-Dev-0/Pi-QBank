@@ -468,8 +468,10 @@ class ChatMessage extends StatelessWidget {
       }
 
       // Process inline formatting
-      String remaining = line;
-      while (remaining.isNotEmpty) {
+      Characters remainingChars = line.characters;
+      while (remainingChars.isNotEmpty) {
+        String remaining = remainingChars.string; // Get the string representation
+
         // Handle inline code
         Match? codeMatch = RegExp(r'`(.*?)`').firstMatch(remaining);
         // Handle bold+italic
@@ -517,11 +519,11 @@ class ChatMessage extends StatelessWidget {
 
         if (firstMatch != null && style != null && content != null) {
           spans.add(TextSpan(text: content, style: style));
-          remaining = remaining.substring(matchLength);
+          remainingChars = remainingChars.skip(matchLength);
         } else {
           // No formatting found, add the first character and continue
-          spans.add(TextSpan(text: remaining[0], style: defaultStyle));
-          remaining = remaining.substring(1);
+          spans.add(TextSpan(text: remainingChars.first, style: defaultStyle));
+          remainingChars = remainingChars.skip(1);
         }
       }
 
