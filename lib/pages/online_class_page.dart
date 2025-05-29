@@ -65,7 +65,7 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
       });
     } catch (e) {
       setState(() {
-        errorMessage = 'Failed to load videos: ${e.toString()}';
+        errorMessage = 'Failed to Load Video. Turn on internet connection';
       });
     } finally {
       setState(() {
@@ -152,7 +152,8 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
         // Advanced fields filtering for Honours/Masters
         final departmentMatch = (_selectedDepartment == null ||
             video.department == _selectedDepartment!);
-        final yearMatch = (_selectedYear == null || video.year == _selectedYear!);
+        final yearMatch =
+            (_selectedYear == null || video.year == _selectedYear!);
 
         if (_showAdvancedFields) {
           return classMatch &&
@@ -217,7 +218,8 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                       onChanged: (String? newValue) {
                         setState(() {
                           _selectedDepartment = newValue;
-                          _selectedYear = null; // Reset year when department changes
+                          _selectedYear =
+                              null; // Reset year when department changes
                           _populateDropdowns(); // Repopulate years
                           _applyFilters();
                         });
