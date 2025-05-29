@@ -203,7 +203,7 @@ class _AIPageState extends State<AIPage> {
         }
       } else {
         throw Exception(
-            'Failed to load response: ${response.statusCode} ${response.body}');
+            'Failed to load response: ${response.statusCode}');
       }
     } catch (e) {
       setState(() {
@@ -226,10 +226,10 @@ class _AIPageState extends State<AIPage> {
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: 'AI Assistant',
+        title: '${_toneName.isNotEmpty ? _toneName : 'AI Chat'} ',
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings), // Changed to Icons.settings
+            icon: const Icon(Icons.account_circle), // Changed to avatar icon
             onPressed: () {
               Navigator.push(
                 context,

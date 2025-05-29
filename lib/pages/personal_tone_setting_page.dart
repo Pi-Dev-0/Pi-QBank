@@ -19,6 +19,69 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
   final TextEditingController _purposeController = TextEditingController();
   final List<Map<String, String>> _customTraits = [];
 
+  final List<Map<String, dynamic>> _presetTones = [
+    {
+      'name': 'Personal AI Assistant',
+      'gender': 'Neutral',
+      'relationship': 'Assistant',
+      'language': 'English',
+      'purpose': 'General assistance, information retrieval, task automation',
+      'customTraits': [
+        {'trait': 'Formality', 'value': 'Formal'},
+        {'trait': 'Empathy', 'value': 'High'},
+        {'trait': 'Conciseness', 'value': 'High'},
+      ],
+    },
+    {
+      'name': 'Teacher/Professor',
+      'gender': 'Neutral',
+      'relationship': 'Educator',
+      'language': 'English',
+      'purpose': 'Instruction, explanation, guidance, knowledge sharing',
+      'customTraits': [
+        {'trait': 'Formality', 'value': 'Academic'},
+        {'trait': 'Authority', 'value': 'High'},
+        {'trait': 'Clarity', 'value': 'High'},
+      ],
+    },
+    {
+      'name': 'Friend',
+      'gender': 'Neutral',
+      'relationship': 'Friend',
+      'language': 'English',
+      'purpose': 'Casual conversation, emotional support, companionship',
+      'customTraits': [
+        {'trait': 'Formality', 'value': 'Informal'},
+        {'trait': 'Humor', 'value': 'Moderate'},
+        {'trait': 'Empathy', 'value': 'High'},
+      ],
+    },
+    {
+      'name': 'Professional',
+      'gender': 'Neutral',
+      'relationship': 'Colleague',
+      'language': 'English',
+      'purpose': 'Business communication, formal discussions, networking',
+      'customTraits': [
+        {'trait': 'Formality', 'value': 'Professional'},
+        {'trait': 'Directness', 'value': 'High'},
+        {'trait': 'Conciseness', 'value': 'High'},
+      ],
+    },
+    {
+      'name': 'Creative Writer',
+      'gender': 'Neutral',
+      'relationship': 'Collaborator',
+      'language': 'English',
+      'purpose': 'Brainstorming, story development, idea generation',
+      'customTraits': [
+        {'trait': 'Formality', 'value': 'Flexible'},
+        {'trait': 'Imagination', 'value': 'High'},
+        {'trait': 'Descriptiveness', 'value': 'High'},
+      ],
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -84,6 +147,35 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
     });
   }
 
+  void _applyPreset(Map<String, dynamic> preset) {
+    setState(() {
+      _nameController.text = preset['name'] ?? '';
+      _genderController.text = preset['gender'] ?? '';
+      _relationshipController.text = preset['relationship'] ?? '';
+      _languageController.text = preset['language'] ?? '';
+      _purposeController.text = preset['purpose'] ?? '';
+
+      _customTraits.clear();
+      if (preset['customTraits'] != null) {
+        for (var trait in preset['customTraits']) {
+          _customTraits.add(Map<String, String>.from(trait));
+        }
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Preset "${preset['name']}" Applied!',
+          style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+        ),
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -109,6 +201,53 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Card(
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              margin: const EdgeInsets.only(bottom: 25),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Preset Tones',
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                      decoration: InputDecoration(
+                        labelText: 'Select a Preset Tone',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8.0)),
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerLowest,
+                        prefixIcon: Icon(Icons.palette,
+                            color: colorScheme.onSurfaceVariant),
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 15, horizontal: 12),
+                      ),
+                      items: _presetTones.map((preset) {
+                        return DropdownMenuItem<Map<String, dynamic>>(
+                          value: preset,
+                          child: Text(preset['name']),
+                        );
+                      }).toList(),
+                      onChanged: (selectedPreset) {
+                        if (selectedPreset != null) {
+                          _applyPreset(selectedPreset);
+                        }
+                      },
+                      hint: Text('Choose a preset'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             Card(
               elevation: 6, // Increased elevation
               shape: RoundedRectangleBorder(
