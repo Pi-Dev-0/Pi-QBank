@@ -57,7 +57,8 @@ class _AIPageState extends State<AIPage> {
       } else {
         _customTraits = [];
       }
-      _selectedModel = prefs.getString('selected_model') ?? 'gemini-2.5-flash-preview-05-20'; // Default to gemini-2.5-flash-preview-05-20 if not found
+      _selectedModel = prefs.getString('selected_model') ??
+          'gemini-2.5-flash-preview-05-20'; // Default to gemini-2.5-flash-preview-05-20 if not found
     });
   }
 
@@ -136,15 +137,20 @@ class _AIPageState extends State<AIPage> {
       }
 
       if (_toneLanguage.isNotEmpty) {
-        personaPrompt += " Always respond strictly in $_toneLanguage."; // Emphasize strict language
+        personaPrompt +=
+            " Always respond strictly in $_toneLanguage."; // Emphasize strict language
       }
       if (_tonePurpose.isNotEmpty) {
         personaPrompt += " Your main purpose is $_tonePurpose.";
       }
       if (_customTraits.isNotEmpty) {
-        personaPrompt += " Additionally, consider these specific traits and integrate them into your responses:";
+        personaPrompt +=
+            " Additionally, consider these specific traits and integrate them into your responses:";
         for (var trait in _customTraits) {
-          if (trait['trait'] != null && trait['value'] != null && trait['trait']!.isNotEmpty && trait['value']!.isNotEmpty) {
+          if (trait['trait'] != null &&
+              trait['value'] != null &&
+              trait['trait']!.isNotEmpty &&
+              trait['value']!.isNotEmpty) {
             personaPrompt += " ${trait['trait']}: ${trait['value']}.";
           }
         }
@@ -152,8 +158,21 @@ class _AIPageState extends State<AIPage> {
 
       // Add the persona prompt as an initial user message to set the context
       // The model's immediate response acknowledges this setup.
-      contents.add({"role": "user", "parts": [{"text": personaPrompt}]});
-      contents.add({"role": "model", "parts": [{"text": "Understood. I will adhere to these guidelines. How can I assist you today?"}]});
+      contents.add({
+        "role": "user",
+        "parts": [
+          {"text": personaPrompt}
+        ]
+      });
+      contents.add({
+        "role": "model",
+        "parts": [
+          {
+            "text":
+                "Understood. I will adhere to these guidelines. How can I assist you today?"
+          }
+        ]
+      });
 
       // Add previous messages to the conversation history
       for (var msg in _messages) {
@@ -383,7 +402,6 @@ class ChatMessage extends StatelessWidget {
       // Handle code blocks
       if (line.trim().startsWith('```')) {
         if (inCodeBlock) {
-          // End code block
           spans.add(TextSpan(
             text: codeLines.join('\n'),
             style: defaultStyle.copyWith(
@@ -395,7 +413,6 @@ class ChatMessage extends StatelessWidget {
           codeLines.clear();
           inCodeBlock = false;
         } else {
-          // Start code block
           inCodeBlock = true;
         }
         continue;
@@ -406,128 +423,108 @@ class ChatMessage extends StatelessWidget {
         continue;
       }
 
-      // Handle headings
-      if (line.startsWith('### ')) {
-        spans.add(TextSpan(
-          text: line.substring(4),
-          style: defaultStyle.copyWith(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ));
-        if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
-        continue;
-      }
-
-      if (line.startsWith('## ')) {
-        spans.add(TextSpan(
-          text: line.substring(3),
-          style: defaultStyle.copyWith(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ));
-        if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
-        continue;
-      }
-
-      if (line.startsWith('# ')) {
-        spans.add(TextSpan(
-          text: line.substring(2),
-          style: defaultStyle.copyWith(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ));
-        if (i < lines.length - 1) spans.add(const TextSpan(text: '\n'));
-        continue;
-      }
-
-      // Handle lists
-      if (line.trimLeft().startsWith('- ') ||
-          line.trimLeft().startsWith('* ')) {
+      // Handle bullet points first - before any other formatting
+      if (line.trim().startsWith('* ') && !line.trim().endsWith('*')) {
+        // This is a bullet point, not italic text
         spans.add(TextSpan(
           text: '• ',
           style: defaultStyle.copyWith(
-            fontSize: 20,
+            fontSize: 15,
             color: Theme.of(context).colorScheme.primary,
           ),
         ));
-        line = line.replaceFirst(RegExp(r'^[\s-*]+'), '');
+        line = line.replaceFirst('* ', ''); // Remove the bullet marker
       }
 
-      final numberPattern = RegExp(r'^\d+\.\s');
-      if (numberPattern.hasMatch(line)) {
-        final match = numberPattern.firstMatch(line);
-        spans.add(TextSpan(
-          text: match!.group(0),
-          style: defaultStyle.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ));
-        line = line.substring(match.end);
-      }
+      // Process text formatting
+      String currentText = line;
+      List<TextSpan> lineSpans = [];
 
-      // Process inline formatting
-      Characters remainingChars = line.characters;
-      while (remainingChars.isNotEmpty) {
-        String remaining = remainingChars.string; // Get the string representation
+      // Process boldest (***text***)
+      while (currentText.contains('***')) {
+        int startIndex = currentText.indexOf('***');
+        int endIndex = currentText.indexOf('***', startIndex + 3);
 
-        // Handle inline code
-        Match? codeMatch = RegExp(r'`(.*?)`').firstMatch(remaining);
-        // Handle bold+italic
-        Match? boldItalicMatch =
-            RegExp(r'\*\*\*(.*?)\*\*\*').firstMatch(remaining);
-        // Handle bold
-        Match? boldMatch = RegExp(r'\*\*(.*?)\*\*').firstMatch(remaining);
-        // Handle italic
-        Match? italicMatch = RegExp(r'\*(.*?)\*|_(.*?)_').firstMatch(remaining);
+        if (endIndex != -1) {
+          // Add text before the marker
+          if (startIndex > 0) {
+            lineSpans.add(TextSpan(
+                text: currentText.substring(0, startIndex),
+                style: defaultStyle));
+          }
 
-        Match? firstMatch;
-        TextStyle? style;
-        int matchLength = 0;
-        String? content;
+          // Add the bold+italic text
+          lineSpans.add(TextSpan(
+            text: currentText.substring(startIndex + 3, endIndex),
+            style: defaultStyle.copyWith(
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+            ),
+          ));
 
-        // Find the first occurring match
-        if (codeMatch?.start == 0) {
-          firstMatch = codeMatch;
-          style = defaultStyle.copyWith(
-            fontFamily: 'monospace',
-            backgroundColor: Colors.grey[200],
-            color: Colors.black87,
-          );
-          content = codeMatch!.group(1);
-          matchLength = content!.length + 2;
-        } else if (boldItalicMatch?.start == 0) {
-          firstMatch = boldItalicMatch;
-          style = defaultStyle.copyWith(
-            fontWeight: FontWeight.bold,
-            fontStyle: FontStyle.italic,
-          );
-          content = boldItalicMatch!.group(1);
-          matchLength = content!.length + 6;
-        } else if (boldMatch?.start == 0) {
-          firstMatch = boldMatch;
-          style = defaultStyle.copyWith(fontWeight: FontWeight.bold);
-          content = boldMatch!.group(1);
-          matchLength = content!.length + 4;
-        } else if (italicMatch?.start == 0) {
-          firstMatch = italicMatch;
-          style = defaultStyle.copyWith(fontStyle: FontStyle.italic);
-          content = italicMatch!.group(1) ?? italicMatch.group(2);
-          matchLength = content!.length + 2;
-        }
-
-        if (firstMatch != null && style != null && content != null) {
-          spans.add(TextSpan(text: content, style: style));
-          remainingChars = remainingChars.skip(matchLength);
+          currentText = currentText.substring(endIndex + 3);
         } else {
-          // No formatting found, add the first character and continue
-          spans.add(TextSpan(text: remainingChars.first, style: defaultStyle));
-          remainingChars = remainingChars.skip(1);
+          break;
         }
       }
+
+      // Process bold (**text**)
+      while (currentText.contains('**')) {
+        int startIndex = currentText.indexOf('**');
+        int endIndex = currentText.indexOf('**', startIndex + 2);
+
+        if (endIndex != -1) {
+          // Add text before the marker
+          if (startIndex > 0) {
+            lineSpans.add(TextSpan(
+                text: currentText.substring(0, startIndex),
+                style: defaultStyle));
+          }
+
+          // Add the bold text
+          lineSpans.add(TextSpan(
+            text: currentText.substring(startIndex + 2, endIndex),
+            style: defaultStyle.copyWith(fontWeight: FontWeight.bold),
+          ));
+
+          currentText = currentText.substring(endIndex + 2);
+        } else {
+          break;
+        }
+      }
+
+      // Process italic (*text*)
+      while (currentText.contains('*')) {
+        int startIndex = currentText.indexOf('*');
+        int endIndex = currentText.indexOf('*', startIndex + 1);
+
+        if (endIndex != -1) {
+          // Add text before the marker
+          if (startIndex > 0) {
+            lineSpans.add(TextSpan(
+                text: currentText.substring(0, startIndex),
+                style: defaultStyle));
+          }
+
+          // Add the italic text
+          lineSpans.add(TextSpan(
+            text: currentText.substring(startIndex + 1, endIndex),
+            style: defaultStyle.copyWith(fontStyle: FontStyle.italic),
+          ));
+
+          currentText = currentText.substring(endIndex + 1);
+        } else {
+          break;
+        }
+      }
+
+      // Add any remaining text
+      if (currentText.isNotEmpty) {
+        lineSpans.add(TextSpan(text: currentText, style: defaultStyle));
+      }
+
+      // Add the processed line spans
+      spans.addAll(lineSpans);
 
       // Add newline if not the last line
       if (i < lines.length - 1) {
