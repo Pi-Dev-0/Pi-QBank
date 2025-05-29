@@ -18,8 +18,26 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
   final TextEditingController _languageController = TextEditingController();
   final TextEditingController _purposeController = TextEditingController();
   final List<Map<String, String>> _customTraits = [];
+  String? _selectedModel;
+  final List<String> _availableModels = [
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-pro-latest',
+    'gemini-pro',
+    'gemini-ultra',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash-preview-05-20',
+  ];
 
   final List<Map<String, dynamic>> _presetTones = [
+    {
+      'name': 'Custom Tone',
+      'gender': '',
+      'relationship': '',
+      'language': '',
+      'purpose': '',
+      'customTraits': [],
+      'isCustom': true, // Add a flag to identify custom tone
+    },
     {
       'name': 'Personal AI Assistant',
       'gender': 'Neutral',
@@ -103,7 +121,9 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         for (var jsonString in customTraitsJson) {
           _customTraits.add(Map<String, String>.from(jsonDecode(jsonString)));
         }
-      }
+      } // Added missing brace here
+      _selectedModel =
+          prefs.getString('selected_model') ?? 'gemini-2.5-flash-preview-05-20';
     });
   }
 
@@ -114,6 +134,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
     await prefs.setString('tone_relationship', _relationshipController.text);
     await prefs.setString('tone_language', _languageController.text);
     await prefs.setString('tone_purpose', _purposeController.text);
+    await prefs.setString(
+        'selected_model', _selectedModel ?? 'gemini-2.5-flash-preview-05-20');
 
     final customTraitsJson =
         _customTraits.map((trait) => jsonEncode(trait)).toList();
@@ -160,6 +182,16 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         for (var trait in preset['customTraits']) {
           _customTraits.add(Map<String, String>.from(trait));
         }
+      }
+
+      // Clear fields if 'Custom Tone' is selected
+      if (preset['isCustom'] == true) {
+        _nameController.clear();
+        _genderController.clear();
+        _relationshipController.clear();
+        _languageController.clear();
+        _purposeController.clear();
+        _customTraits.clear();
       }
     });
     ScaffoldMessenger.of(context).showSnackBar(
@@ -243,6 +275,61 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
                         }
                       },
                       hint: Text('Choose a preset'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Card(
+              elevation: 6,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              margin: const EdgeInsets.only(bottom: 25),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Model Settings',
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox( // Wrap with SizedBox to force full width
+                      width: double.infinity,
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true, // Add this to prevent overflow
+                        decoration: InputDecoration(
+                          labelText: 'Select AI Model',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8.0)),
+                          filled: true,
+                          fillColor: colorScheme.surfaceContainerLowest,
+                          prefixIcon: Icon(Icons.memory,
+                              color: colorScheme.onSurfaceVariant),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 15, horizontal: 12),
+                        ),
+                        value: _selectedModel,
+                        items: _availableModels.map((model) {
+                          return DropdownMenuItem<String>(
+                            value: model,
+                            child: Text(
+                              model,
+                              overflow: TextOverflow.ellipsis, // Add this to handle text overflow
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (selectedModel) {
+                          setState(() {
+                            _selectedModel = selectedModel;
+                          });
+                        },
+                        hint: Text('Choose a model'),
+                      ),
                     ),
                   ],
                 ),

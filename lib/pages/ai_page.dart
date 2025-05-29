@@ -31,6 +31,7 @@ class _AIPageState extends State<AIPage> {
   String _toneLanguage = '';
   String _tonePurpose = '';
   List<Map<String, String>> _customTraits = [];
+  String _selectedModel = 'gemini-2.5-flash-preview-05-20'; // Default model
 
   @override
   void initState() {
@@ -56,6 +57,7 @@ class _AIPageState extends State<AIPage> {
       } else {
         _customTraits = [];
       }
+      _selectedModel = prefs.getString('selected_model') ?? 'gemini-2.5-flash-preview-05-20'; // Default to gemini-2.5-flash-preview-05-20 if not found
     });
   }
 
@@ -110,8 +112,8 @@ class _AIPageState extends State<AIPage> {
 
     try {
       final String model = _selectedImage != null
-          ? 'gemini-2.0-flash'
-          : 'gemini-2.5-flash-preview-05-20';
+          ? 'gemini-2.0-flash' // Model for image chat
+          : _selectedModel; // Use selected model for text chat
       final String geminiApiKey = AppConfig.geminiApiKey;
       final url = Uri.parse(
           'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiApiKey');
@@ -208,7 +210,7 @@ class _AIPageState extends State<AIPage> {
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
-            text: 'Error: Failed to get response. Please try again. ($e)',
+            text: 'Sorry. Something went wrong!', // Simplified error message
             isUser: false));
       });
     } finally {
