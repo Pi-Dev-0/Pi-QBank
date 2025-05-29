@@ -429,7 +429,8 @@ class ChatMessage extends StatelessWidget {
         spans.add(TextSpan(
           text: '• ',
           style: defaultStyle.copyWith(
-            fontSize: 15,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
             color: Theme.of(context).colorScheme.primary,
           ),
         ));
@@ -459,6 +460,8 @@ class ChatMessage extends StatelessWidget {
             style: defaultStyle.copyWith(
               fontWeight: FontWeight.w900,
               fontStyle: FontStyle.italic,
+              color: Theme.of(context).colorScheme.primary,
+              fontSize: 18, // Increased size for boldest text
             ),
           ));
 
@@ -484,7 +487,10 @@ class ChatMessage extends StatelessWidget {
           // Add the bold text
           lineSpans.add(TextSpan(
             text: currentText.substring(startIndex + 2, endIndex),
-            style: defaultStyle.copyWith(fontWeight: FontWeight.bold),
+            style: defaultStyle.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 16, // Increased size for bold text
+            ),
           ));
 
           currentText = currentText.substring(endIndex + 2);
