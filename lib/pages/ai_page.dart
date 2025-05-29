@@ -9,6 +9,7 @@ import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
 import 'personal_tone_setting_page.dart';
+import '../widgets/image_generation_loader.dart';
 
 class AIPage extends StatefulWidget {
   const AIPage({super.key});
@@ -33,6 +34,9 @@ class _AIPageState extends State<AIPage> {
   List<Map<String, String>> _customTraits = [];
   String _selectedModel = 'gemini-2.5-flash-preview-05-20'; // Default model
   String _customApiKey = ''; // New state variable for custom API key
+
+  // Image generation state
+  bool _isGeneratingImage = false;
 
   @override
   void initState() {
@@ -60,7 +64,8 @@ class _AIPageState extends State<AIPage> {
       }
       _selectedModel = prefs.getString('selected_model') ??
           'gemini-2.5-flash-preview-05-20'; // Default to gemini-2.5-flash-preview-05-20 if not found
-      _customApiKey = prefs.getString('custom_api_key') ?? ''; // Load custom API key
+      _customApiKey =
+          prefs.getString('custom_api_key') ?? ''; // Load custom API key
     });
   }
 
@@ -119,7 +124,8 @@ class _AIPageState extends State<AIPage> {
           : _selectedModel; // Use selected model for text chat
 
       // Use custom API key if provided, otherwise fall back to default
-      final String apiKey = _customApiKey.isNotEmpty ? _customApiKey : AppConfig.geminiApiKey;
+      final String apiKey =
+          _customApiKey.isNotEmpty ? _customApiKey : AppConfig.geminiApiKey;
 
       final url = Uri.parse(
           'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
@@ -229,12 +235,12 @@ class _AIPageState extends State<AIPage> {
         }
       } else {
         throw Exception(
-            'Sorry. Something went wrong! Status code: ${response.statusCode}');
+            'Something went wrong! Consider using your own API key.');
       }
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
-            text: 'Sorry. Something went wrong!', // Simplified error message
+            text: 'Something went wrong! Consider using your own API Key.',
             isUser: false));
       });
     } finally {
@@ -243,6 +249,93 @@ class _AIPageState extends State<AIPage> {
         _selectedImage = null;
       });
       _scrollToBottom();
+    }
+  }
+
+  Future<void> _generateImage() async {
+    if (_controller.text.isEmpty) return;
+
+    setState(() {
+      _isGeneratingImage = true;
+      _messages.add(ChatMessage(
+          text: "Generating image...", isUser: false, showLoader: true));
+    });
+    _scrollToBottom(); // Add scroll after showing loader
+
+    try {
+      final String apiKey =
+          _customApiKey.isNotEmpty ? _customApiKey : AppConfig.geminiApiKey;
+      final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=$apiKey');
+
+      final requestBody = {
+        "contents": [
+          {
+            "parts": [
+              {"text": _controller.text}
+            ]
+          }
+        ],
+        "generationConfig": {
+          "temperature": 0.4,
+          "topP": 1,
+          "topK": 32,
+          "maxOutputTokens": 2048,
+          "responseModalities": ["TEXT", "IMAGE"]
+        }
+      };
+
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        final contentParts = jsonResponse['candidates'][0]['content']['parts'];
+
+        String generatedText = '';
+        String? base64Image;
+
+        for (var part in contentParts) {
+          if (part.containsKey('text')) {
+            generatedText = part['text'];
+          } else if (part.containsKey('inlineData') &&
+              part['inlineData'].containsKey('data')) {
+            base64Image = part['inlineData']['data'];
+          }
+        }
+
+        setState(() {
+          // Remove the loading message
+          _messages.removeLast();
+          // Add the final message with image
+          _messages.add(ChatMessage(
+            text: generatedText.isNotEmpty ? generatedText : "Generated image:",
+            isUser: false,
+            base64Image: base64Image,
+          ));
+          _scrollToBottom(); // Add scroll after adding generated image
+        });
+      } else {
+        throw Exception('Failed to generate image!');
+      }
+    } catch (e) {
+      setState(() {
+        // Remove the loading message first
+        _messages.removeLast();
+        // Then add the error message
+        _messages.add(ChatMessage(
+            text: 'Failed to generate image. Consider using your own API Key.',
+            isUser: false));
+        _scrollToBottom();
+      });
+    } finally {
+      setState(() {
+        _isGeneratingImage = false;
+        _controller.clear();
+      });
     }
   }
 
@@ -318,8 +411,11 @@ class _AIPageState extends State<AIPage> {
                           horizontal: 20,
                           vertical: 10,
                         ),
-                        prefixIcon: _selectedImage != null
-                            ? Padding(
+                        prefixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_selectedImage != null)
+                              Padding(
                                 padding: const EdgeInsets.only(left: 8.0),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -340,10 +436,22 @@ class _AIPageState extends State<AIPage> {
                                   ],
                                 ),
                               )
-                            : IconButton(
+                            else
+                              IconButton(
                                 icon: const Icon(Icons.image),
                                 onPressed: _isLoading ? null : _pickImage,
                               ),
+                            if (_selectedImage ==
+                                null) // Only show auto_awesome when no image is selected
+                              IconButton(
+                                icon: const Icon(Icons.auto_awesome),
+                                onPressed: _isLoading || _isGeneratingImage
+                                    ? null
+                                    : _generateImage,
+                                tooltip: 'Generate Image',
+                              ),
+                          ],
+                        ),
                       ),
                       onSubmitted: (_) => _sendMessage(),
                     ),
@@ -385,10 +493,20 @@ class _AIPageState extends State<AIPage> {
 class ChatMessage extends StatelessWidget {
   final String text;
   final bool isUser;
-  final String? imagePath; // Added for displaying images
+  final String? imagePath;
+  final List<String>? generatedImageUrls;
+  final String? base64Image;
+  final bool showLoader; // Add this line
 
-  const ChatMessage(
-      {super.key, required this.text, required this.isUser, this.imagePath});
+  const ChatMessage({
+    super.key,
+    required this.text,
+    required this.isUser,
+    this.imagePath,
+    this.generatedImageUrls,
+    this.base64Image,
+    this.showLoader = false, // Add this line with default value
+  });
 
   List<TextSpan> _formatText(String text, BuildContext context) {
     final List<TextSpan> spans = [];
@@ -580,6 +698,46 @@ class ChatMessage extends StatelessWidget {
                   height: 150,
                   fit: BoxFit.cover,
                 ),
+              ),
+            if (showLoader) // Changed condition to use showLoader flag
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: ImageGenerationLoader(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            if (base64Image != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8.0),
+                  child: Image.memory(
+                    base64Decode(base64Image!),
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            if (generatedImageUrls != null)
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 8.0,
+                children: generatedImageUrls!
+                    .map((url) => Image.network(
+                          url,
+                          height: 150,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return SizedBox(
+                              height: 150,
+                              width: 150,
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          },
+                        ))
+                    .toList(),
               ),
             isUser
                 ? Text(text, style: const TextStyle(color: Colors.white))
