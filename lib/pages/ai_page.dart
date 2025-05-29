@@ -205,7 +205,7 @@ class _AIPageState extends State<AIPage> {
         }
       } else {
         throw Exception(
-            'Failed to load response: ${response.statusCode}');
+            'Sorry. Something went wrong! Status code: ${response.statusCode}');
       }
     } catch (e) {
       setState(() {
