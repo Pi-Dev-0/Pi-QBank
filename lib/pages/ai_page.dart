@@ -32,6 +32,7 @@ class _AIPageState extends State<AIPage> {
   String _tonePurpose = '';
   List<Map<String, String>> _customTraits = [];
   String _selectedModel = 'gemini-2.5-flash-preview-05-20'; // Default model
+  String _customApiKey = ''; // New state variable for custom API key
 
   @override
   void initState() {
@@ -59,6 +60,7 @@ class _AIPageState extends State<AIPage> {
       }
       _selectedModel = prefs.getString('selected_model') ??
           'gemini-2.5-flash-preview-05-20'; // Default to gemini-2.5-flash-preview-05-20 if not found
+      _customApiKey = prefs.getString('custom_api_key') ?? ''; // Load custom API key
     });
   }
 
@@ -115,9 +117,12 @@ class _AIPageState extends State<AIPage> {
       final String model = _selectedImage != null
           ? 'gemini-2.0-flash' // Model for image chat
           : _selectedModel; // Use selected model for text chat
-      final String geminiApiKey = AppConfig.geminiApiKey;
+
+      // Use custom API key if provided, otherwise fall back to default
+      final String apiKey = _customApiKey.isNotEmpty ? _customApiKey : AppConfig.geminiApiKey;
+
       final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiApiKey');
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
 
       List<Map<String, dynamic>> contents = [];
 

@@ -17,14 +17,20 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
   final TextEditingController _relationshipController = TextEditingController();
   final TextEditingController _languageController = TextEditingController();
   final TextEditingController _purposeController = TextEditingController();
+  final TextEditingController _customApiKeyController =
+      TextEditingController(); // Always visible custom API key controller
   final List<Map<String, String>> _customTraits = [];
   String? _selectedModel;
+
   final List<String> _availableModels = [
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-pro-latest',
-    'gemini-pro',
-    'gemini-ultra',
+    'gemma-3-27b-it',
+    'gemma-3n-e4b-it',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash-lite',
     'gemini-2.0-flash',
+    'gemini-2.0-flash-preview-image-generation',
     'gemini-2.5-flash-preview-05-20',
   ];
 
@@ -121,9 +127,11 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         for (var jsonString in customTraitsJson) {
           _customTraits.add(Map<String, String>.from(jsonDecode(jsonString)));
         }
-      } // Added missing brace here
+      }
       _selectedModel =
           prefs.getString('selected_model') ?? 'gemini-2.5-flash-preview-05-20';
+      _customApiKeyController.text =
+          prefs.getString('custom_api_key') ?? ''; // Load custom API key
     });
   }
 
@@ -136,6 +144,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
     await prefs.setString('tone_purpose', _purposeController.text);
     await prefs.setString(
         'selected_model', _selectedModel ?? 'gemini-2.5-flash-preview-05-20');
+    await prefs.setString(
+        'custom_api_key', _customApiKeyController.text); // Save custom API key
 
     final customTraitsJson =
         _customTraits.map((trait) => jsonEncode(trait)).toList();
@@ -215,6 +225,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
     _relationshipController.dispose();
     _languageController.dispose();
     _purposeController.dispose();
+    _customApiKeyController.dispose(); // Dispose custom API key controller
     super.dispose();
   }
 
@@ -298,7 +309,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    SizedBox( // Wrap with SizedBox to force full width
+                    SizedBox(
+                      // Wrap with SizedBox to force full width
                       width: double.infinity,
                       child: DropdownButtonFormField<String>(
                         isExpanded: true, // Add this to prevent overflow
@@ -319,7 +331,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
                             value: model,
                             child: Text(
                               model,
-                              overflow: TextOverflow.ellipsis, // Add this to handle text overflow
+                              overflow: TextOverflow
+                                  .ellipsis, // Add this to handle text overflow
                             ),
                           );
                         }).toList(),
@@ -329,6 +342,26 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
                           });
                         },
                         hint: Text('Choose a model'),
+                      ),
+                    ),
+                    Padding(
+                      // Always render API key input
+                      padding: const EdgeInsets.only(
+                          top: 20.0), // Add some top padding
+                      child: TextFormField(
+                        controller: _customApiKeyController,
+                        decoration: InputDecoration(
+                          labelText: 'Custom API Key',
+                          hintText: 'Enter your API key here',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8.0)),
+                          filled: true,
+                          fillColor: colorScheme.surfaceContainerLowest,
+                          prefixIcon: Icon(Icons.vpn_key,
+                              color: colorScheme.onSurfaceVariant),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 15, horizontal: 12),
+                        ),
                       ),
                     ),
                   ],
