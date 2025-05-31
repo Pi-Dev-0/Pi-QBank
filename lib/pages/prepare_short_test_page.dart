@@ -72,7 +72,7 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error selecting image: ${e.toString()}'),
+          content: Text('Error selecting image!'),
           backgroundColor: Colors.red,
         ),
       );
@@ -145,7 +145,7 @@ Respond in the following JSON format:
           const SnackBar(
             content: Text(
                 'Selected image is too large. Please choose a smaller image (max 15MB).'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.yellow,
           ),
         );
         setState(() {
@@ -200,14 +200,16 @@ Respond in the following JSON format:
             'Failed to get AI understanding. Status: ${response.statusCode}, Body: ${response.body}');
       }
     } catch (e) {
-      logger.e('PrepareShortTest - Error in API request: $e');
+      logger.e('PrepareShortTest - Error in API request!');
       setState(() {
         _aiResponse = 'Error: ${e.toString()}';
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('Error getting AI understanding: ${e.toString()}')),
+            content: Text('Error getting AI understanding!'),
+            backgroundColor: Colors.red,),
+            
       );
     } finally {
       setState(() {
@@ -381,22 +383,30 @@ Respond in the following JSON format:
               if (_isProcessingImage)
                 const CircularProgressIndicator()
               else if (_aiResponse.isNotEmpty)
-                Container(
-                  height: 200, // Fixed height
-                  padding: const EdgeInsets.all(12.0),
-                  decoration: BoxDecoration(
-                    color: Colors.blueGrey[50],
-                    borderRadius: BorderRadius.circular(12.0),
-                    border: Border.all(color: Colors.blueGrey[200]!),
-                  ),
-                  child: SingleChildScrollView(
-                    // Add scrolling for overflow
-                    child: Text(
-                      'AI Generated Question: $_aiResponse',
-                      style: const TextStyle(
-                          fontSize: 14.0, color: Colors.black87),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _aiResponse.contains('Error')
+                          ? Icons.error_outline
+                          : Icons.check_circle_outline,
+                      color: _aiResponse.contains('Error')
+                          ? Colors.red
+                          : Colors.green,
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _aiResponse.contains('Error')
+                          ? 'Sorry! Generation Failed'
+                          : 'Successfully Generated',
+                      style: TextStyle(
+                        color: _aiResponse.contains('Error')
+                            ? Colors.red
+                            : Colors.green,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               const SizedBox(height: 16.0),
             ],
