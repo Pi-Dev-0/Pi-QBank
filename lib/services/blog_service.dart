@@ -1,6 +1,5 @@
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart';
-import 'package:logger/logger.dart';
 import 'package:html/parser.dart' as html_parser; // Import html parser
 
 class BlogPost {
@@ -26,17 +25,14 @@ class BlogPost {
 class BlogService {
   static const String _feedUrl =
       'https://pi-mathematics.blogspot.com/feeds/posts/default';
-  final Logger _logger = Logger();
 
   Future<List<BlogPost>> fetchBlogPosts() async {
     try {
-      _logger.i('Fetching blog posts from $_feedUrl');
       final response = await http.get(Uri.parse(_feedUrl));
 
       if (response.statusCode == 200) {
         final document = XmlDocument.parse(response.body);
         final entries = document.findAllElements('entry');
-        _logger.i('Found ${entries.length} blog entries.');
 
         return entries.map((node) {
           final title = node.findElements('title').isNotEmpty
@@ -84,8 +80,6 @@ class BlogService {
             }
           }
 
-          _logger.d(
-              'Parsed post: Title: $title, Link: $link, Published: $published, Author: $author, Image: $imageUrl');
 
           return BlogPost(
             title: title,
@@ -98,11 +92,9 @@ class BlogService {
           );
         }).toList();
       } else {
-        _logger.e('Failed to load blog posts: ${response.statusCode}');
         throw Exception('Failed to load blog posts: ${response.statusCode}');
       }
     } catch (e) {
-      _logger.e('Error fetching blog posts: $e');
       throw Exception('Error fetching blog posts: $e');
     }
   }
