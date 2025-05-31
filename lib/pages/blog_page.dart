@@ -41,6 +41,7 @@ class _BlogPageState extends State<BlogPage> {
                 final post = snapshot.data![index];
                 return Card(
                   margin: const EdgeInsets.all(8.0),
+                  elevation: 8.0, // Increased elevation for more shadow
                   child: InkWell(
                     onTap: () {
                       Navigator.push(
