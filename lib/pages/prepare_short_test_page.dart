@@ -108,9 +108,7 @@ Respond in the following JSON format:
 }
 ''';
       case 'Short Question':
-        return '${languageInstruction}Generate 3 short answer questions about this image that require brief explanations. Each answer should be 2-3 sentences.';
-      case 'Broad Question':
-        return '${languageInstruction}Generate 2 broad/essay type questions about this image that require detailed analysis and explanation. Include key points that should be covered in the answer.';
+        return '${languageInstruction}Generate 3 short answer questions about this image that require brief explanations. Each answer should be 1-3 words.';
       case 'Fill In the Blanks':
         return '${languageInstruction}Generate 5 fill-in-the-blank questions about this image. Format: Question with _____ for blanks, followed by the correct answer.';
       default:
@@ -264,7 +262,6 @@ Respond in the following JSON format:
               items: <String>[
                 'MCQ Test',
                 'Short Question',
-                'Broad Question',
                 'Fill In the Blanks',
               ].map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
@@ -298,7 +295,6 @@ Respond in the following JSON format:
                 return <String>[
                   'MCQ Test',
                   'Short Question',
-                  'Broad Question',
                   'Fill In the Blanks',
                 ].map<Widget>((String item) {
                   return Align(
