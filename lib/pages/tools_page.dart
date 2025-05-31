@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
+import 'package:pi_qbank/pages/short_test_page.dart';
 
 class ToolsPage extends StatelessWidget {
   const ToolsPage({super.key});
@@ -14,6 +15,12 @@ class ToolsPage extends StatelessWidget {
         crossAxisSpacing: 16.0,
         mainAxisSpacing: 16.0,
         children: [
+          _buildToolCard(context, Icons.assignment, 'Short Test', () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ShortTestPage()),
+            );
+          }),
           _buildToolCard(context, Icons.quiz, 'MCQ Generator', () {
             // Navigate to MCQ Generator page
           }),
