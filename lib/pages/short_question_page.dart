@@ -204,187 +204,182 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
   }
 
   Widget _buildTestView() {
-    return Stack(
-      children: [
-        SingleChildScrollView(
-          padding: const EdgeInsets.only(
-            left: 16.0,
-            right: 16.0,
-            top: 16.0,
-            bottom: 80.0, // Add padding for the floating submit button
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).primaryColor.withOpacity(0.1),
-                      Theme.of(context).primaryColor.withOpacity(0.05),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(15),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).primaryColor.withOpacity(0.1),
+                  Theme.of(context).primaryColor.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildInfoCard(
+                  'Questions',
+                  '${questions.length}',
+                  Icons.quiz_outlined,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                _buildInfoCard(
+                  'Answered',
+                  '${answerControllers.values.where((c) => c.text.isNotEmpty).length}',
+                  Icons.check_circle_outline,
+                ),
+                _buildInfoCard(
+                  'Remaining',
+                  '${answerControllers.values.where((c) => c.text.isEmpty).length}',
+                  Icons.pending_outlined,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...questions.asMap().entries.map((entry) {
+            final index = entry.key;
+            final question = entry.value;
+            final isAnswered =
+                answerControllers[index]?.text.isNotEmpty ?? false;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  side: BorderSide(
+                    color: isAnswered
+                        ? Theme.of(context).primaryColor.withOpacity(0.3)
+                        : Colors.grey.withOpacity(0.2),
+                  ),
+                ),
+                child: Column(
                   children: [
-                    _buildInfoCard(
-                      'Questions',
-                      '${questions.length}',
-                      Icons.quiz_outlined,
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(0.05),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(15),
+                          topRight: Radius.circular(15),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: isAnswered
+                                ? Theme.of(context).primaryColor
+                                : Colors.grey,
+                            child: Text(
+                              widget.language == 'বাংলা'
+                                  ? _convertToBengaliNumber(index + 1)
+                                  : '${index + 1}',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              question['question'] ?? '',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    _buildInfoCard(
-                      'Answered',
-                      '${answerControllers.values.where((c) => c.text.isNotEmpty).length}',
-                      Icons.check_circle_outline,
-                    ),
-                    _buildInfoCard(
-                      'Remaining',
-                      '${answerControllers.values.where((c) => c.text.isEmpty).length}',
-                      Icons.pending_outlined,
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: TextField(
+                        controller: answerControllers[index],
+                        decoration: InputDecoration(
+                          hintText: widget.language == 'বাংলা'
+                              ? 'আপনার উত্তর এখানে লিখুন'
+                              : 'Enter your answer here',
+                          border: const OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                        enabled: !_isSubmitted,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-              ...questions.asMap().entries.map((entry) {
-                final index = entry.key;
-                final question = entry.value;
-                final isAnswered =
-                    answerControllers[index]?.text.isNotEmpty ?? false;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  child: Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      side: BorderSide(
-                        color: isAnswered
-                            ? Theme.of(context).primaryColor.withOpacity(0.3)
-                            : Colors.grey.withOpacity(0.2),
-                      ),
+            );
+          }),
+          if (!_isSubmitted) ...[
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: questions.isEmpty ? null : _submitTest,
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: Theme.of(context).primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.language == 'বাংলা'
+                        ? 'পরীক্ষা জমা দিন'
+                        : 'Submit Test',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .primaryColor
-                                .withOpacity(0.05),
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(15),
-                              topRight: Radius.circular(15),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: isAnswered
-                                    ? Theme.of(context).primaryColor
-                                    : Colors.grey,
-                                child: Text(
-                                  widget.language == 'বাংলা'
-                                      ? _convertToBengaliNumber(index + 1)
-                                      : '${index + 1}',
-                                  style: const TextStyle(color: Colors.white),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  question['question'] ?? '',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: TextField(
-                            controller: answerControllers[index],
-                            decoration: InputDecoration(
-                              hintText: widget.language == 'বাংলা'
-                                  ? 'আপনার উত্তর এখানে লিখুন'
-                                  : 'Enter your answer here',
-                              border: const OutlineInputBorder(),
-                            ),
-                            maxLines: 3,
-                            enabled: !_isSubmitted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
-        if (!_isSubmitted)
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: Container(
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, -4),
                   ),
                 ],
               ),
-              child: ElevatedButton(
-                onPressed: questions.isEmpty ? null : _submitTest,
-                style: ElevatedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: Theme.of(context).primaryColor,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  minimumSize: const Size(double.infinity, 50),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check_circle_outline, size: 24),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.language == 'বাংলা'
-                          ? 'পরীক্ষা জমা দিন'
-                          : 'Submit Test',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
-          ),
-      ],
+            const SizedBox(height: 16),
+          ],
+        ],
+      ),
     );
   }
 
+  // Add this new method to check answer correctness
+  bool _isAnswerCorrect(String userAnswer, String correctAnswer) {
+    if (userAnswer.isEmpty) return false;
+    // Remove punctuation and normalize whitespace
+    String normalizeAnswer(String answer) {
+      return answer
+          .replaceAll(RegExp(r'[।,.]'), '') // Remove punctuation
+          .trim()
+          .toLowerCase();
+    }
+
+    return normalizeAnswer(userAnswer) == normalizeAnswer(correctAnswer);
+  }
+
   Widget _buildResultsView() {
+    final correctAnswers = questions
+        .where((q) => _isAnswerCorrect(
+            answerControllers[questions.indexOf(q)]?.text ?? '',
+            q['answer'] ?? ''))
+        .length;
     final answeredQuestions = questions
         .where((q) =>
-            answerControllers[questions.indexOf(q)]?.text.isNotEmpty ?? false)
+            (answerControllers[questions.indexOf(q)]?.text ?? '').isNotEmpty)
         .length;
     final percentage =
-        (answeredQuestions / questions.length * 100).toStringAsFixed(1);
+        (correctAnswers / questions.length * 100).toStringAsFixed(1);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -418,7 +413,7 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '$answeredQuestions/${questions.length}',
+                          '$correctAnswers/${questions.length}',
                           style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -444,12 +439,16 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
                     Icons.quiz,
                   ),
                   _buildStatisticRow(
-                    widget.language == 'বাংলা'
-                        ? 'উত্তর দেওয়া হয়েছে'
-                        : 'Answered',
-                    '$answeredQuestions',
+                    widget.language == 'বাংলা' ? 'সঠিক উত্তর' : 'Correct',
+                    '$correctAnswers',
                     Icons.check_circle,
                     color: Colors.green,
+                  ),
+                  _buildStatisticRow(
+                    widget.language == 'বাংলা' ? 'ভুল উত্তর' : 'Incorrect',
+                    '${answeredQuestions - correctAnswers}',
+                    Icons.cancel,
+                    color: Colors.red,
                   ),
                   _buildStatisticRow(
                     widget.language == 'বাংলা'
@@ -487,16 +486,26 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
                 borderRadius: BorderRadius.circular(10),
                 side: BorderSide(
                   color: hasAnswer
-                      ? Colors.green.shade200
+                      ? _isAnswerCorrect(answer, question['answer'] ?? '')
+                          ? Colors.green.shade200
+                          : Colors.red.shade200
                       : Colors.orange.shade200,
                   width: 1,
                 ),
               ),
               child: ExpansionTile(
                 leading: CircleAvatar(
-                  backgroundColor: hasAnswer ? Colors.green : Colors.orange,
+                  backgroundColor: hasAnswer
+                      ? _isAnswerCorrect(answer, question['answer'] ?? '')
+                          ? Colors.green
+                          : Colors.red
+                      : Colors.orange,
                   child: Icon(
-                    hasAnswer ? Icons.check : Icons.help,
+                    hasAnswer
+                        ? _isAnswerCorrect(answer, question['answer'] ?? '')
+                            ? Icons.check
+                            : Icons.close
+                        : Icons.help,
                     color: Colors.white,
                   ),
                 ),
@@ -524,19 +533,41 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
                         const SizedBox(height: 12),
                         Text(
                           widget.language == 'বাংলা'
+                              ? 'সঠিক উত্তর:'
+                              : 'Correct Answer:',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          question['answer'] ?? '',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          widget.language == 'বাংলা'
                               ? 'আপনার উত্তর:'
                               : 'Your Answer:',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          hasAnswer
-                              ? answer
-                              : (widget.language == 'বাংলা'
+                          answer.isEmpty
+                              ? (widget.language == 'বাংলা'
                                   ? 'উত্তর দেওয়া হয়নি'
-                                  : 'Not Answered'),
+                                  : 'Not Answered')
+                              : answer,
                           style: TextStyle(
-                            color: hasAnswer ? Colors.green : Colors.orange,
+                            color: _isAnswerCorrect(
+                                    answer, question['answer'] ?? '')
+                                ? Colors.green
+                                : Colors.orange,
+                            fontSize: 16,
                           ),
                         ),
                       ],
