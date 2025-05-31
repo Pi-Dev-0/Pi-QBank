@@ -11,13 +11,13 @@ class MCQTestPage extends StatefulWidget {
   final String language;
 
   const MCQTestPage({
-    Key? key,
+    super.key,
     required this.numberOfQuestions,
     required this.testTimeInMinutes,
     this.selectedImage,
     required this.aiResponse,
     required this.language,
-  }) : super(key: key);
+  });
 
   @override
   State<MCQTestPage> createState() => _MCQTestPageState();
@@ -25,10 +25,10 @@ class MCQTestPage extends StatefulWidget {
 
 class _MCQTestPageState extends State<MCQTestPage> {
   late List<dynamic> _mcqQuestions = [];
-  Map<int, String?> _userAnswers =
+  final Map<int, String?> _userAnswers =
       {}; // Stores selected option for each question
   bool _testSubmitted = false; // New state to track if test is submitted
-  List<Map<String, dynamic>> _mcqResults =
+  final List<Map<String, dynamic>> _mcqResults =
       []; // Stores results after submission
   late Timer _timer;
   late int _remainingSeconds;
@@ -75,7 +75,7 @@ class _MCQTestPageState extends State<MCQTestPage> {
         _userAnswers[i] = null;
       }
     } catch (e) {
-      print('Error parsing MCQ questions: $e');
+      // Silently handle the error
     }
   }
 
@@ -565,7 +565,7 @@ class _MCQTestPageState extends State<MCQTestPage> {
                 ],
               ),
             );
-          }).toList(),
+          }),
           const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: () => Navigator.of(context).pop(),
