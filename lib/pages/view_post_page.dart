@@ -1,7 +1,7 @@
 import 'dart:io';
+// Added for URL decoding
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
@@ -150,32 +150,20 @@ class _ViewPostPageState extends State<ViewPostPage> {
       ..setBackgroundColor(const Color(0x00000000))
       ..setNavigationDelegate(
         NavigationDelegate(
-          onProgress: (int progress) {
-            debugPrint('WebView is loading (progress: $progress%)');
-          },
-          onPageStarted: (String url) {
-            debugPrint('Page started loading: $url');
-          },
-          onPageFinished: (String url) {
-            debugPrint('Page finished loading: $url');
-          },
-          onWebResourceError: (WebResourceError error) {
-            debugPrint('''
-Page resource error:
-  code: ${error.errorCode}
-  description: ${error.description}
-  errorType: ${error.errorType}
-  isForMainFrame: ${error.isForMainFrame}
-          ''');
-          },
+          onProgress: (int progress) {},
+          onPageStarted: (String url) {},
+          onPageFinished: (String url) {},
+          onWebResourceError: (WebResourceError error) {},
           onNavigationRequest: (NavigationRequest request) async {
-            if ((request.url.contains('drive.google.com') || request.url.contains('drive.usercontent.google.com')) &&
-                (request.url.contains('export=download') || request.url.contains('/download')) &&
+            if ((request.url.contains('drive.google.com') ||
+                    request.url.contains('drive.usercontent.google.com')) &&
+                (request.url.contains('export=download') ||
+                    request.url.contains('/download')) &&
                 request.url.contains('id=')) {
               // This is likely a Google Drive download link for a PDF
-              debugPrint('Intercepted Google Drive download link: ${request.url}');
               await _downloadFile(request.url);
-              return NavigationDecision.prevent; // Prevent WebView from navigating
+              return NavigationDecision
+                  .prevent; // Prevent WebView from navigating
             }
             // Allow navigation to any other URL within the WebView
             return NavigationDecision.navigate;
@@ -190,15 +178,8 @@ Page resource error:
           );
         },
       )
-      ..loadHtmlString(_wrapContentWithHtml(widget.content)); // Load wrapped HTML content
-
-    // Removed platform-specific debugging/text zoom as it requires platform imports
-    // if (controller.platform is AndroidWebViewController) {
-    //   AndroidWebViewController.enableDebugging(true);
-    //   (controller.platform as AndroidWebViewController)
-    //       .setTextZoom(100); // Set text zoom to 100%
-    // }
-
+      ..loadHtmlString(
+          _wrapContentWithHtml(widget.content)); // Load wrapped HTML content
     _controller = controller;
   }
 
@@ -234,20 +215,103 @@ Page resource error:
         return;
       }
 
-      // Get the application documents directory
-      final directory = await getApplicationDocumentsDirectory();
+      // Hardcode the public downloads directory path on Android as requested
+      final String downloadsPath = '/storage/emulated/0/Download';
+      final directory = Directory(downloadsPath);
       // Extract a more user-friendly filename if possible, otherwise use a generic one
-      String fileName = 'downloaded_file.pdf';
+      String determinedFileName =
+          'downloaded_file'; // Default filename without extension
+      String determinedFileExtension = 'pdf'; // Default extension
+
       try {
         final uri = Uri.parse(url);
-        final id = uri.queryParameters['id'];
-        if (id != null) {
-          fileName = '$id.pdf';
+
+        // 1. Try to get filename from content-disposition header
+        final headResponse = await http.head(uri);
+        final contentDisposition = headResponse.headers['content-disposition'];
+
+        if (contentDisposition != null) {
+          // Regex to capture filename from both filename* and filename attributes
+          final filenameRegex =
+              RegExp(r'filename\*?=(?:UTF-8' '|")?([^;"\n]+)');
+          final match = filenameRegex.firstMatch(contentDisposition);
+
+          if (match != null && match.group(1) != null) {
+            String extracted = Uri.decodeComponent(match.group(1)!);
+            // Remove quotes if present
+            if (extracted.startsWith('"') && extracted.endsWith('"')) {
+              extracted = extracted.substring(1, extracted.length - 1);
+            }
+            determinedFileName = extracted;
+          }
+        }
+
+        // 2. Fallback: try to get filename from URL path if not found or still generic
+        if (determinedFileName == 'downloaded_file') {
+          final pathSegments = uri.pathSegments;
+          if (pathSegments.isNotEmpty) {
+            String lastSegment = pathSegments.last;
+            // Remove query parameters from the last segment if present
+            if (lastSegment.contains('?')) {
+              lastSegment = lastSegment.substring(0, lastSegment.indexOf('?'));
+            }
+            if (lastSegment.isNotEmpty) {
+              determinedFileName = lastSegment;
+            }
+          }
+        }
+
+        // 3. Extract extension from the determined filename
+        if (determinedFileName.contains('.')) {
+          determinedFileExtension = determinedFileName.split('.').last;
+          determinedFileName = determinedFileName.substring(
+              0, determinedFileName.lastIndexOf('.'));
+        } else {
+          // If no extension in filename, try to infer from URL or default
+          // This part can be expanded for more file types
+          if (uri.path.contains('.pdf')) {
+            determinedFileExtension = 'pdf';
+          } else if (uri.path.contains('.doc')) {
+            determinedFileExtension = 'doc';
+          } else if (uri.path.contains('.docx')) {
+            determinedFileExtension = 'docx';
+          } else if (uri.path.contains('.xls')) {
+            determinedFileExtension = 'xls';
+          } else if (uri.path.contains('.xlsx')) {
+            determinedFileExtension = 'xlsx';
+          } else if (uri.path.contains('.ppt')) {
+            determinedFileExtension = 'ppt';
+          } else if (uri.path.contains('.pptx')) {
+            determinedFileExtension = 'pptx';
+          } else if (uri.path.contains('.zip')) {
+            determinedFileExtension = 'zip';
+          } else if (uri.path.contains('.rar')) {
+            determinedFileExtension = 'rar';
+          } else if (uri.path.contains('.txt')) {
+            determinedFileExtension = 'txt';
+          } else if (uri.path.contains('.jpg') || uri.path.contains('.jpeg')) {
+            determinedFileExtension = 'jpg';
+          } else if (uri.path.contains('.png')) {
+            determinedFileExtension = 'png';
+          } else if (uri.path.contains('.gif')) {
+            determinedFileExtension = 'gif';
+          }
+          // Add more common file types as needed
+        }
+
+        // 4. Final fallback: if filename is still generic, use ID if available
+        if (determinedFileName == 'downloaded_file' &&
+            uri.queryParameters['id'] != null) {
+          determinedFileName = uri.queryParameters['id']!;
         }
       } catch (e) {
-        debugPrint('Error parsing URL !');
+        // Fallback to generic name if any error occurs during filename determination
+        determinedFileName = 'downloaded_file';
+        determinedFileExtension = 'pdf';
       }
-      final filePath = '${directory.path}/$fileName';
+
+      final fullFileName = '$determinedFileName.$determinedFileExtension';
+      final filePath = '${directory.path}/$fullFileName';
 
       // Download the file
       final response = await http.get(Uri.parse(url));
@@ -258,7 +322,8 @@ Page resource error:
         scaffoldMessenger.hideCurrentSnackBar(); // Hide downloading snackbar
         scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('Downloaded "$fileName" to: ${directory.path}'),
+            content: Text(
+                'Downloaded "$determinedFileName.$determinedFileExtension" to: ${directory.path}'),
             backgroundColor: Colors.green,
             action: SnackBarAction(
               label: 'Open',
