@@ -10,6 +10,7 @@ import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
 import 'personal_tone_setting_page.dart';
 import '../widgets/image_generation_loader.dart';
+import 'full_screen_image_page.dart'; // Import the new page
 
 class AIPage extends StatefulWidget {
   const AIPage({super.key});
@@ -693,10 +694,22 @@ class ChatMessage extends StatelessWidget {
             if (imagePath != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
-                child: Image.file(
-                  File(imagePath!),
-                  height: 150,
-                  fit: BoxFit.cover,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FullScreenImagePage(
+                          imagePath: imagePath,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Image.file(
+                    File(imagePath!),
+                    height: 150,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             if (showLoader) // Changed condition to use showLoader flag
@@ -709,13 +722,25 @@ class ChatMessage extends StatelessWidget {
             if (base64Image != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: Image.memory(
-                    base64Decode(base64Image!),
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FullScreenImagePage(
+                          base64Image: base64Image,
+                        ),
+                      ),
+                    );
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8.0),
+                    child: Image.memory(
+                      base64Decode(base64Image!),
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
