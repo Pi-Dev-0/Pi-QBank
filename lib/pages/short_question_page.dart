@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
-import 'package:logger/logger.dart';
 
 class ShortQuestionPage extends StatefulWidget {
   final int numberOfQuestions;
@@ -24,7 +23,6 @@ class ShortQuestionPage extends StatefulWidget {
 }
 
 class _ShortQuestionPageState extends State<ShortQuestionPage> {
-  final logger = Logger();
   List<Map<String, dynamic>> questions = [];
   Map<int, TextEditingController> answerControllers = {};
   int remainingTimeInSeconds = 0;
@@ -41,7 +39,6 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
   }
 
   void parseQuestions() {
-    logger.i('Parsing AI response: ${widget.aiResponse}');
     try {
       List<String> lines = widget.aiResponse.split('\n');
       String currentQuestion = '';
@@ -90,10 +87,8 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
       for (int i = 0; i < questions.length; i++) {
         answerControllers[i] = TextEditingController();
       }
-
-      logger.i('Parsed ${questions.length} questions: $questions');
     } catch (e) {
-      logger.e('Error parsing questions: $e');
+      // Silently handle error
     }
   }
 
