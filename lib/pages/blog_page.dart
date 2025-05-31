@@ -94,13 +94,6 @@ class _BlogPageState extends State<BlogPage> {
                               color: Colors.grey[600],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            post.summary,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 14),
-                          ),
                         ],
                       ),
                     ),

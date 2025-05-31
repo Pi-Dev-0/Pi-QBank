@@ -6,7 +6,6 @@ class BlogPost {
   final String title;
   final String link;
   final String published;
-  final String summary;
   final String author;
   final String content; // New field for full HTML content
   final String? imageUrl; // New optional field for the first image URL
@@ -15,7 +14,6 @@ class BlogPost {
     required this.title,
     required this.link,
     required this.published,
-    required this.summary,
     required this.author,
     required this.content,
     this.imageUrl,
@@ -48,9 +46,6 @@ class BlogService {
           final published = node.findElements('published').isNotEmpty
               ? node.findElements('published').first.innerText
               : 'No Date';
-          final summary = node.findElements('summary').isNotEmpty
-              ? node.findElements('summary').first.innerText
-              : 'No Summary';
           final author = node.findElements('author').isNotEmpty &&
                   node
                       .findElements('author')
@@ -85,7 +80,6 @@ class BlogService {
             title: title,
             link: link,
             published: published,
-            summary: summary,
             author: author,
             content: content,
             imageUrl: imageUrl,
