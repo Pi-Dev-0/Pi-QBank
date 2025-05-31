@@ -25,7 +25,6 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
       lineLength: 50,
       colors: true,
       printEmojis: true,
-      printTime: true,
     ),
   );
 
@@ -70,6 +69,7 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
       }
     } catch (e) {
       logger.e('PrepareShortTest - Error picking image: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error selecting image: ${e.toString()}'),
@@ -140,6 +140,7 @@ Respond in the following JSON format:
       if (bytes.length > maxImageSize) {
         logger.w(
             'PrepareShortTest - Image size too large: ${bytes.length} bytes');
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -203,6 +204,7 @@ Respond in the following JSON format:
       setState(() {
         _aiResponse = 'Error: ${e.toString()}';
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text('Error getting AI understanding: ${e.toString()}')),

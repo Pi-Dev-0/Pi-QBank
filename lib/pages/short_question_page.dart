@@ -49,8 +49,8 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
         line = line.trim();
         if (line.isEmpty) continue;
 
-        // Match Bengali numbers (১, ২, ৩) or English numbers followed by dot
-        if (RegExp(r'^[\u09E6-\u09EF]\.|\d+\.').hasMatch(line)) {
+        // Match any number (including multi-digit) followed by dot, or Bengali numbers
+        if (RegExp(r'^\d+\.|^[\u09E6-\u09EF]+\.').hasMatch(line)) {
           if (currentQuestion.isNotEmpty) {
             questions.add({
               'question': currentQuestion.trim(),
