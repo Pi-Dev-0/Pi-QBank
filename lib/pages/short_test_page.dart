@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
@@ -14,6 +13,7 @@ class ShortTestPage extends StatefulWidget {
   final int testTimeInMinutes;
   final XFile? selectedImage;
   final String aiResponse;
+  final String language; // Add this line
 
   const ShortTestPage({
     super.key,
@@ -22,6 +22,7 @@ class ShortTestPage extends StatefulWidget {
     required this.testTimeInMinutes,
     this.selectedImage,
     required this.aiResponse,
+    required this.language, // Add this line
   });
 
   @override

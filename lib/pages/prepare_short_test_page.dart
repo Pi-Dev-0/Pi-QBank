@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
-import 'short_test_page.dart'; // Import ShortTestPage for navigation
-import 'package:pi_qbank/widgets/custom_app_bar.dart'; // Import CustomAppBar
+import 'short_test_page.dart';
+import 'mcq_test_page.dart'; // Add this line
+import 'short_question_page.dart'; // Add this line
+import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:logger/logger.dart';
 
 class PrepareShortTestPage extends StatefulWidget {
@@ -34,6 +36,7 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
   String? _selectedImageMimeType; // New variable to store MIME type
   String _aiResponse = '';
   bool _isProcessingImage = false;
+  String _selectedLanguage = 'English'; // Default language
 
   @override
   void initState() {
@@ -77,12 +80,15 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
   }
 
   String _getAIInstructions(String testType) {
-    final int questionsCount =
-        _numberOfQuestions ?? 4; // Default to 4 if not set
+    final int questionsCount = _numberOfQuestions ?? 4;
+    final String languageInstruction = _selectedLanguage == 'বাংলা'
+        ? 'Generate questions in Bengali (Bangla) language. '
+        : '';
+
     switch (testType) {
       case 'MCQ Test':
         return '''
-Generate $questionsCount multiple choice questions about this image with 4 options each. 
+${languageInstruction}Generate $questionsCount multiple choice questions about this image with 4 options each. 
 Respond in the following JSON format:
 
 {
@@ -102,13 +108,13 @@ Respond in the following JSON format:
 }
 ''';
       case 'Short Question':
-        return 'Generate 3 short answer questions about this image that require brief explanations. Each answer should be 2-3 sentences.';
+        return '${languageInstruction}Generate 3 short answer questions about this image that require brief explanations. Each answer should be 2-3 sentences.';
       case 'Broad Question':
-        return 'Generate 2 broad/essay type questions about this image that require detailed analysis and explanation. Include key points that should be covered in the answer.';
+        return '${languageInstruction}Generate 2 broad/essay type questions about this image that require detailed analysis and explanation. Include key points that should be covered in the answer.';
       case 'Fill In the Blanks':
-        return 'Generate 5 fill-in-the-blank questions about this image. Format: Question with _____ for blanks, followed by the correct answer.';
+        return '${languageInstruction}Generate 5 fill-in-the-blank questions about this image. Format: Question with _____ for blanks, followed by the correct answer.';
       default:
-        return 'Generate questions about this image suitable for a test.';
+        return '${languageInstruction}Generate questions about this image suitable for a test.';
     }
   }
 
@@ -309,6 +315,68 @@ Respond in the following JSON format:
               },
             ),
             const SizedBox(height: 16.0),
+            DropdownButtonFormField<String>(
+              decoration: InputDecoration(
+                labelText: 'Select Language',
+                prefixIcon: const Icon(Icons.language),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                  borderSide: BorderSide(color: Colors.grey[300]!, width: 1.0),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                  borderSide: BorderSide(
+                      color: Theme.of(context).primaryColor, width: 2.0),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 12.0),
+                filled: true,
+                fillColor: Theme.of(context).inputDecorationTheme.fillColor ??
+                    Colors.grey[100],
+              ),
+              value: _selectedLanguage,
+              items: ['English', 'বাংলা'].map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedLanguage = newValue;
+                  });
+                }
+              },
+              dropdownColor: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(12.0),
+              elevation: 8,
+              icon: Icon(Icons.arrow_drop_down,
+                  color: Theme.of(context).primaryColor),
+              isExpanded: true,
+              selectedItemBuilder: (BuildContext context) {
+                return <String>[
+                  'English',
+                  'বাংলা',
+                ].map<Widget>((String item) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      item,
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: Theme.of(context).textTheme.bodyLarge?.color,
+                      ),
+                    ),
+                  );
+                }).toList();
+              },
+            ),
+            const SizedBox(height: 16.0),
             _buildImagePickerCard(),
             if (_selectedImage != null) ...[
               const SizedBox(height: 16.0),
@@ -316,16 +384,20 @@ Respond in the following JSON format:
                 const CircularProgressIndicator()
               else if (_aiResponse.isNotEmpty)
                 Container(
+                  height: 200, // Fixed height
                   padding: const EdgeInsets.all(12.0),
                   decoration: BoxDecoration(
                     color: Colors.blueGrey[50],
                     borderRadius: BorderRadius.circular(12.0),
                     border: Border.all(color: Colors.blueGrey[200]!),
                   ),
-                  child: Text(
-                    'AI Generated Question: $_aiResponse',
-                    style:
-                        const TextStyle(fontSize: 14.0, color: Colors.black87),
+                  child: SingleChildScrollView(
+                    // Add scrolling for overflow
+                    child: Text(
+                      'AI Generated Question: $_aiResponse',
+                      style: const TextStyle(
+                          fontSize: 14.0, color: Colors.black87),
+                    ),
                   ),
                 ),
               const SizedBox(height: 16.0),
@@ -427,17 +499,40 @@ Respond in the following JSON format:
                       _numberOfQuestions != null &&
                       _testTimeInMinutes != null &&
                       _testTimeInMinutes! > 0) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ShortTestPage(
+                    final Widget testPage;
+                    switch (_selectedTestType) {
+                      case 'MCQ Test':
+                        testPage = MCQTestPage(
+                          numberOfQuestions: _numberOfQuestions!,
+                          testTimeInMinutes: _testTimeInMinutes!,
+                          selectedImage: _selectedImage,
+                          aiResponse: _aiResponse,
+                          language: _selectedLanguage,
+                        );
+                        break;
+                      case 'Short Question':
+                        testPage = ShortQuestionPage(
+                          numberOfQuestions: _numberOfQuestions!,
+                          testTimeInMinutes: _testTimeInMinutes!,
+                          selectedImage: _selectedImage,
+                          aiResponse: _aiResponse,
+                          language: _selectedLanguage,
+                        );
+                        break;
+                      // ...similar cases for other test types...
+                      default:
+                        testPage = ShortTestPage(
                           selectedTestType: _selectedTestType!,
                           numberOfQuestions: _numberOfQuestions!,
                           testTimeInMinutes: _testTimeInMinutes!,
                           selectedImage: _selectedImage,
                           aiResponse: _aiResponse,
-                        ),
-                      ),
+                          language: _selectedLanguage,
+                        );
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => testPage),
                     );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
