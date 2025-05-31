@@ -46,6 +46,8 @@ dependencies:
   gif: ^2.3.0
   file_picker: ^6.1.1
   http: ^1.1.0
+  xml: ^6.3.0
+  html: ^0.15.4 # For parsing HTML content from blog posts
   curved_navigation_bar: ^1.0.6
   youtube_player_flutter: ^9.1.1
   image_picker: ^1.1.2
