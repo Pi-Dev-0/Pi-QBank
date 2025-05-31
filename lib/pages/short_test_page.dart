@@ -34,7 +34,7 @@ class _ShortTestPageState extends State<ShortTestPage> {
   void _showTestConfigDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false, // User must select options
+      barrierDismissible: true, // Allow dismissal by tapping outside or back button
       builder: (BuildContext context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
