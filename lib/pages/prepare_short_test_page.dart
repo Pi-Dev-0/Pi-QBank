@@ -108,9 +108,9 @@ Respond in the following JSON format:
 }
 ''';
       case 'Short Question':
-        return '${languageInstruction}Generate 3 short answer questions about this image that require brief explanations. Each answer should be 1-3 words.';
+        return '${languageInstruction}Generate $questionsCount short answer questions about this image that require brief explanations. Each answer should be 1-3 words.';
       case 'Fill In the Blanks':
-        return '${languageInstruction}Generate 5 fill-in-the-blank questions about this image. Format: Question with _____ for blanks, followed by the correct answer.';
+        return '${languageInstruction}Generate $questionsCount fill-in-the-blank questions about this image. Format: Question with _____ for blanks, followed by the correct answer.';
       default:
         return '${languageInstruction}Generate questions about this image suitable for a test.';
     }
