@@ -135,6 +135,8 @@ import 'pages/national_university/bangla_page.dart';
 import 'pages/national_university/history_page.dart';
 import 'pages/national_university/islamic_studies_page.dart';
 import 'pages/pdf_reader_page.dart';
+import 'pages/tools_page.dart';
+import 'pages/blog_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -339,11 +341,13 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _page = 1; // Start with Home (center) selected
+  int _page = 2; // Start with Home (now at index 2) selected
 
   final List<Widget> _pages = [
     const OnlineClassPage(),
-    const HomePage(), // Keep Home in center
+    const BlogPage(),
+    const HomePage(),
+    const ToolsPage(),
     const AIPage(),
   ];
 
@@ -375,8 +379,10 @@ class _MainScreenState extends State<MainScreen> {
         height: 55.0,
         items: [
           _buildNavItem(Icons.ondemand_video, 'Online Class', _page == 0),
-          _buildNavItem(Icons.home, 'Home', _page == 1),
-          _buildNavItem(Icons.psychology, 'AI', _page == 2),
+          _buildNavItem(Icons.article_outlined, 'Blog', _page == 1),
+          _buildNavItem(Icons.home, 'Home', _page == 2),
+          _buildNavItem(Icons.build_circle_outlined, 'Tools', _page == 3),
+          _buildNavItem(Icons.psychology, 'AI', _page == 4),
         ],
         color: Theme.of(context).colorScheme.inversePrimary,
         buttonBackgroundColor: Theme.of(context).colorScheme.primary,
