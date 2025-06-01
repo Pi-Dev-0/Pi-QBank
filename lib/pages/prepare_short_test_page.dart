@@ -4,11 +4,10 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
-import 'short_test_page.dart';
-import 'mcq_test_page.dart'; // Add this line
-import 'short_question_page.dart'; // Add this line
+import 'fill_in_the_blanks_test_page.dart';
+import 'mcq_test_page.dart';
+import 'short_question_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
-import 'package:logger/logger.dart';
 
 class PrepareShortTestPage extends StatefulWidget {
   const PrepareShortTestPage({super.key});
@@ -18,16 +17,6 @@ class PrepareShortTestPage extends StatefulWidget {
 }
 
 class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
-  final logger = Logger(
-    printer: PrettyPrinter(
-      methodCount: 0,
-      errorMethodCount: 5,
-      lineLength: 50,
-      colors: true,
-      printEmojis: true,
-    ),
-  );
-
   String? _selectedTestType;
   int? _numberOfQuestions;
   int? _testTimeInMinutes;
@@ -43,7 +32,6 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
   }
 
   Future<void> _pickImage() async {
-    logger.i('PrepareShortTest - _pickImage called');
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
@@ -54,8 +42,6 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
       );
 
       if (image != null) {
-        logger
-            .i('PrepareShortTest - Image selected successfully: ${image.path}');
         final File file = File(image.path);
         if (await file.exists()) {
           setState(() {
@@ -68,7 +54,6 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage> {
         }
       }
     } catch (e) {
-      logger.e('PrepareShortTest - Error picking image: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -117,12 +102,10 @@ Respond in the following JSON format:
   }
 
   Future<void> _sendImageToGemini() async {
-    logger.i('PrepareShortTest - Sending image to Gemini API');
     if (_selectedImage == null || _selectedTestType == null) return;
 
     setState(() {
       _isProcessingImage = true;
-      logger.i('PrepareShortTest - Processing started');
       _aiResponse = 'Processing image...';
     });
 
@@ -138,8 +121,6 @@ Respond in the following JSON format:
       // Check image size before encoding and sending
       const int maxImageSize = 15 * 1024 * 1024; // 15 MB
       if (bytes.length > maxImageSize) {
-        logger.w(
-            'PrepareShortTest - Image size too large: ${bytes.length} bytes');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -172,8 +153,6 @@ Respond in the following JSON format:
         {"role": "user", "parts": parts}
       ];
 
-      logger.i(
-          'PrepareShortTest - Sending API request with test type: $_selectedTestType');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -181,7 +160,6 @@ Respond in the following JSON format:
       );
 
       if (response.statusCode == 200) {
-        logger.i('PrepareShortTest - API request successful');
         final jsonResponse = json.decode(response.body);
         if (jsonResponse['candidates'] != null &&
             jsonResponse['candidates'].isNotEmpty) {
@@ -194,22 +172,19 @@ Respond in the following JSON format:
           throw Exception('Invalid response format or empty candidates');
         }
       } else {
-        logger.e(
-            'PrepareShortTest - API request failed with status: ${response.statusCode}');
         throw Exception(
             'Failed to get AI understanding. Status: ${response.statusCode}, Body: ${response.body}');
       }
     } catch (e) {
-      logger.e('PrepareShortTest - Error in API request!');
       setState(() {
         _aiResponse = 'Error: ${e.toString()}';
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('Error getting AI understanding!'),
-            backgroundColor: Colors.red,),
-            
+          content: Text('Error getting AI understanding!'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() {
@@ -220,7 +195,6 @@ Respond in the following JSON format:
 
   @override
   Widget build(BuildContext context) {
-    logger.i('PrepareShortTest - Building UI');
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Prepare Short Test',
@@ -284,7 +258,6 @@ Respond in the following JSON format:
                 );
               }).toList(),
               onChanged: (String? newValue) {
-                logger.i('PrepareShortTest - Test type changed to: $newValue');
                 setState(() {
                   _selectedTestType = newValue;
                 });
@@ -435,8 +408,6 @@ Respond in the following JSON format:
               ),
               keyboardType: TextInputType.number,
               onChanged: (value) {
-                logger.i(
-                    'PrepareShortTest - Number of questions changed to: $value');
                 _numberOfQuestions = int.tryParse(value);
               },
             ),
@@ -466,8 +437,6 @@ Respond in the following JSON format:
               ),
               keyboardType: TextInputType.number,
               onChanged: (value) {
-                logger.i(
-                    'PrepareShortTest - Test time changed to: $value minutes');
                 _testTimeInMinutes = int.tryParse(value);
               },
             ),
@@ -527,13 +496,18 @@ Respond in the following JSON format:
                           language: _selectedLanguage,
                         );
                         break;
-                      // ...similar cases for other test types...
-                      default:
-                        testPage = ShortTestPage(
-                          selectedTestType: _selectedTestType!,
+                      case 'Fill In the Blanks':
+                        testPage = FillInTheBlanksTestPage(
                           numberOfQuestions: _numberOfQuestions!,
                           testTimeInMinutes: _testTimeInMinutes!,
-                          selectedImage: _selectedImage,
+                          aiResponse: _aiResponse,
+                          language: _selectedLanguage,
+                        );
+                        break;
+                      default:
+                        testPage = FillInTheBlanksTestPage(
+                          numberOfQuestions: _numberOfQuestions!,
+                          testTimeInMinutes: _testTimeInMinutes!,
                           aiResponse: _aiResponse,
                           language: _selectedLanguage,
                         );
