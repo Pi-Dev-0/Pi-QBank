@@ -1,8 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Key for storing the API key in SharedPreferences
+const String _apiKeyPrefKey = 'openai_api_key';
+
+// Function to save the API key
+Future<void> saveApiKey(String apiKey) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(_apiKeyPrefKey, apiKey);
+}
+
+// Function to retrieve the API key
+Future<String?> getApiKey() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString(_apiKeyPrefKey);
+}
 
 void showApiKeyDialog(BuildContext context) {
   TextEditingController apiKeyController = TextEditingController();
-  
+  ValueNotifier<bool> obscureText = ValueNotifier<bool>(true);
+  String? initialApiKey;
+
+  // Fetch the API key when the dialog is first shown
+  getApiKey().then((key) {
+    initialApiKey = key;
+    if (key != null && key.isNotEmpty) {
+      apiKeyController.text = '••••••••••••••••'; // Mask the key
+    }
+  });
+
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -59,7 +85,7 @@ void showApiKeyDialog(BuildContext context) {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Enter your API key to continue',
+                          'Enter Your Gemini API key to continue',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey.shade600,
@@ -70,57 +96,73 @@ void showApiKeyDialog(BuildContext context) {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Input field
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.shade200,
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+              ValueListenableBuilder<bool>(
+                valueListenable: obscureText,
+                builder: (context, isObscure, child) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.shade200,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: TextField(
-                  controller: apiKeyController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter your API key',
-                    hintStyle: TextStyle(color: Colors.grey.shade500),
-                    prefixIcon: Icon(
-                      Icons.lock_outline,
-                      color: Colors.grey.shade500,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        Icons.visibility_off,
-                        color: Colors.grey.shade500,
+                    child: TextField(
+                      controller: apiKeyController,
+                      decoration: InputDecoration(
+                        hintText: 'Enter Gemini API key',
+                        hintStyle: TextStyle(color: Colors.grey.shade500),
+                        prefixIcon: Icon(
+                          Icons.lock_outline,
+                          color: Colors.grey.shade500,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            isObscure ? Icons.visibility_off : Icons.visibility,
+                            color: Colors.grey.shade500,
+                          ),
+                          onPressed: () {
+                            obscureText.value = !isObscure;
+                          },
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
                       ),
-                      onPressed: () {
-                        // Toggle visibility functionality
+                      keyboardType: TextInputType.text,
+                      obscureText: isObscure,
+                      onChanged: (text) {
+                        // If the user starts typing over the masked text, clear it
+                        if (text.length == 1 &&
+                            initialApiKey != null &&
+                            apiKeyController.text == '••••••••••••••••') {
+                          apiKeyController.text = text;
+                          apiKeyController.selection =
+                              TextSelection.fromPosition(TextPosition(
+                                  offset: apiKeyController.text.length));
+                        }
                       },
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                  ),
-                  keyboardType: TextInputType.text,
-                  obscureText: true,
-                ),
+                  );
+                },
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Action buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -148,12 +190,36 @@ void showApiKeyDialog(BuildContext context) {
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
-                    onPressed: () {
-                      // Add your save logic here
+                    onPressed: () async {
                       String apiKey = apiKeyController.text.trim();
+                      // If the masked text is still there, use the initial API key if it exists
+                      if (apiKey == '••••••••••••••••' &&
+                          initialApiKey != null) {
+                        apiKey = initialApiKey!;
+                      }
+
                       if (apiKey.isNotEmpty) {
-                        // Save the API key
+                        await saveApiKey(apiKey);
+                        if (!context.mounted) {
+                          return; // Check if the widget is still mounted
+                        }
                         Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('API Key saved successfully!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } else {
+                        if (!context.mounted) {
+                          return; // Check if the widget is still mounted
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('API Key cannot be empty.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
                       }
                     },
                     style: ElevatedButton.styleFrom(
