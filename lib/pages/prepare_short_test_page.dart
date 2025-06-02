@@ -736,7 +736,9 @@ Respond in the following JSON format:
         ),
 
         // Start Test Button
-        if (_aiResponse.isNotEmpty && !_isProcessingImage) ...[
+        if (_aiResponse.isNotEmpty &&
+            !_isProcessingImage &&
+            !_aiResponse.contains('Error')) ...[
           const SizedBox(height: 16),
           Container(
             width: double.infinity,
