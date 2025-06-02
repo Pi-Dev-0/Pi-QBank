@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../widgets/custom_app_bar.dart';
+import '../widgets/api_key_dialog.dart'; // Import the API key dialog
 
 class PersonalToneSettingPage extends StatefulWidget {
   const PersonalToneSettingPage({super.key});
@@ -17,8 +18,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
   final TextEditingController _relationshipController = TextEditingController();
   final TextEditingController _languageController = TextEditingController();
   final TextEditingController _purposeController = TextEditingController();
-  final TextEditingController _customApiKeyController =
-      TextEditingController(); // Always visible custom API key controller
   final List<Map<String, String>> _customTraits = [];
   String? _selectedModel;
 
@@ -130,8 +129,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
       }
       _selectedModel =
           prefs.getString('selected_model') ?? 'gemini-2.5-flash-preview-05-20';
-      _customApiKeyController.text =
-          prefs.getString('custom_api_key') ?? ''; // Load custom API key
     });
   }
 
@@ -144,8 +141,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
     await prefs.setString('tone_purpose', _purposeController.text);
     await prefs.setString(
         'selected_model', _selectedModel ?? 'gemini-2.5-flash-preview-05-20');
-    await prefs.setString(
-        'custom_api_key', _customApiKeyController.text); // Save custom API key
 
     final customTraitsJson =
         _customTraits.map((trait) => jsonEncode(trait)).toList();
@@ -225,7 +220,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
     _relationshipController.dispose();
     _languageController.dispose();
     _purposeController.dispose();
-    _customApiKeyController.dispose(); // Dispose custom API key controller
     super.dispose();
   }
 
@@ -345,22 +339,28 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
                       ),
                     ),
                     Padding(
-                      // Always render API key input
-                      padding: const EdgeInsets.only(
-                          top: 20.0), // Add some top padding
-                      child: TextFormField(
-                        controller: _customApiKeyController,
-                        decoration: InputDecoration(
-                          labelText: 'Custom API Key',
-                          hintText: 'Enter your API key here',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0)),
-                          filled: true,
-                          fillColor: colorScheme.surfaceContainerLowest,
-                          prefixIcon: Icon(Icons.vpn_key,
-                              color: colorScheme.onSurfaceVariant),
-                          contentPadding: const EdgeInsets.symmetric(
-                              vertical: 15, horizontal: 12),
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          showApiKeyDialog(context);
+                        },
+                        icon: Icon(Icons.vpn_key, color: colorScheme.onPrimary),
+                        label: Text(
+                          'Manage API Key',
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onPrimary,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 4,
                         ),
                       ),
                     ),
