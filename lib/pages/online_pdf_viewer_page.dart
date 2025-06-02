@@ -45,7 +45,8 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
               _isLoading = false;
             });
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error loading PDF: ${error.description}')),
+              SnackBar(
+                  content: Text('Error loading PDF: ${error.description}')),
             );
           },
           onNavigationRequest: (NavigationRequest request) {
@@ -61,12 +62,18 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
     final uri = Uri.parse(widget.pdfUrl);
 
     // Check if it's a Google Drive download link and convert it
-    if (uri.host == 'drive.google.com' && uri.path == '/uc' && uri.queryParameters.containsKey('export') && uri.queryParameters['export'] == 'download' && uri.queryParameters.containsKey('id')) {
-      finalPdfUrl = 'https://drive.google.com/uc?id=${uri.queryParameters['id']}';
+    if (uri.host == 'drive.google.com' &&
+        uri.path == '/uc' &&
+        uri.queryParameters.containsKey('export') &&
+        uri.queryParameters['export'] == 'download' &&
+        uri.queryParameters.containsKey('id')) {
+      finalPdfUrl =
+          'https://drive.google.com/uc?id=${uri.queryParameters['id']}';
     }
 
     final encodedPdfUrl = Uri.encodeComponent(finalPdfUrl);
-    final googleViewerUrl = 'https://docs.google.com/gview?embedded=true&url=$encodedPdfUrl';
+    final googleViewerUrl =
+        'https://docs.google.com/gview?embedded=true&url=$encodedPdfUrl';
 
     return '''
       <!DOCTYPE html>
