@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
+import 'package:pi_qbank/widgets/api_key_dialog.dart'; // Import the API key dialog
 import 'fill_in_the_blanks_test_page.dart';
 import 'mcq_test_page.dart';
 import 'short_question_page.dart';
@@ -138,7 +139,23 @@ Respond in the following JSON format:
     });
 
     try {
-      final String apiKey = AppConfig.geminiApiKey;
+      String? apiKey = await getApiKey(); // Try to get API key from SharedPreferences
+
+      if (apiKey == null || apiKey.isEmpty) {
+        // If not found in SharedPreferences, use the default from AppConfig
+        apiKey = AppConfig.geminiApiKey;
+      }
+
+      if (apiKey.isEmpty) { // Removed unnecessary non-null assertion.
+        if (!mounted) return;
+        showApiKeyDialog(context); // Show dialog if API key is still not set
+        setState(() {
+          _isProcessingImage = false;
+          _aiResponse = 'API Key not set. Please enter your API key.';
+        });
+        return;
+      }
+
       final url = Uri.parse(
           'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
 
