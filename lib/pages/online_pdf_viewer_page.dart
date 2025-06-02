@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../widgets/custom_app_bar.dart';
 
 class OnlinePDFViewerPage extends StatefulWidget {
@@ -16,139 +16,77 @@ class OnlinePDFViewerPage extends StatefulWidget {
 }
 
 class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
-  late final PdfViewerController _pdfViewerController;
+  late final WebViewController _controller;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _pdfViewerController = PdfViewerController();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0x00000000))
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onProgress: (int progress) {
+            // Update loading bar.
+          },
+          onPageStarted: (String url) {
+            setState(() {
+              _isLoading = true;
+            });
+          },
+          onPageFinished: (String url) {
+            setState(() {
+              _isLoading = false;
+            });
+          },
+          onWebResourceError: (WebResourceError error) {
+            setState(() {
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error loading PDF: ${error.description}')),
+            );
+          },
+          onNavigationRequest: (NavigationRequest request) {
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+      ..loadHtmlString(_buildPdfHtml());
   }
 
-  void _showPageDialog() {
-    final pageCount = _pdfViewerController.pageCount;
-    final currentPage = _pdfViewerController.pageNumber;
-    final TextEditingController pageController = TextEditingController();
+  String _buildPdfHtml() {
+    String finalPdfUrl = widget.pdfUrl;
+    final uri = Uri.parse(widget.pdfUrl);
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.pages, color: Colors.blue),
-            const SizedBox(width: 10),
-            const Text('Go to Page'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Current Page: $currentPage of $pageCount',
-              style: const TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: pageController,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18),
-              decoration: InputDecoration(
-                hintText: 'Page number (1-$pageCount)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                prefixIcon: const Icon(Icons.article),
-              ),
-              onSubmitted: (value) {
-                Navigator.pop(context);
-                _handlePageNavigation(value);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'CANCEL',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _handlePageNavigation(pageController.text);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue.shade700,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'GO',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _handlePageNavigation(String value) {
-    final pageCount = _pdfViewerController.pageCount;
-    final page = int.tryParse(value);
-    if (page == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid number'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } else if (page <= 0 || page > pageCount) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please enter a number between 1 and $pageCount'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } else {
-      _pdfViewerController.jumpToPage(page);
+    // Check if it's a Google Drive download link and convert it
+    if (uri.host == 'drive.google.com' && uri.path == '/uc' && uri.queryParameters.containsKey('export') && uri.queryParameters['export'] == 'download' && uri.queryParameters.containsKey('id')) {
+      finalPdfUrl = 'https://drive.google.com/uc?id=${uri.queryParameters['id']}';
     }
+
+    final encodedPdfUrl = Uri.encodeComponent(finalPdfUrl);
+    final googleViewerUrl = 'https://docs.google.com/gview?embedded=true&url=$encodedPdfUrl';
+
+    return '''
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { margin: 0; overflow: hidden; }
+          iframe { border: none; width: 100vw; height: 100vh; }
+        </style>
+      </head>
+      <body>
+        <iframe src="$googleViewerUrl"></iframe>
+      </body>
+      </html>
+    ''';
   }
 
   @override
   void dispose() {
-    _pdfViewerController.dispose();
     super.dispose();
   }
 
@@ -156,41 +94,11 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
   Widget build(BuildContext context) => Scaffold(
         appBar: CustomAppBar(
           title: widget.title,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.pageview),
-              iconSize: 28,
-              onPressed: _showPageDialog,
-            ),
-          ],
+          actions: const [], // Removed page navigation button
         ),
         body: Stack(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              margin: const EdgeInsets.all(8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SfPdfViewer.network(
-                  widget.pdfUrl,
-                  controller: _pdfViewerController,
-                  canShowScrollHead: true,
-                  enableDoubleTapZooming: true,
-                  enableTextSelection: true,
-                  onDocumentLoaded: (details) =>
-                      setState(() => _isLoading = false),
-                  onDocumentLoadFailed: (details) {
-                    setState(() => _isLoading = false);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: ${details.error}')),
-                    );
-                  },
-                ),
-              ),
-            ),
+            WebViewWidget(controller: _controller),
             if (_isLoading)
               Container(
                 color: Colors.white.withOpacity(0.8),
