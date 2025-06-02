@@ -121,13 +121,13 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       final file = File(filePath);
 
       if (!await file.exists()) {
-        Logger().d('File does not exist: $filePath');
+        Logger().d('[_findExistingFile] File does not exist: $filePath');
         await paperDir.delete(recursive: true);
         return null;
       }
 
       if (!await _isValidPDF(filePath)) {
-        Logger().d('Invalid PDF file: $filePath');
+        Logger().d('[_findExistingFile] Invalid PDF file: $filePath');
         await paperDir.delete(recursive: true);
         return null;
       }
@@ -173,41 +173,45 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
   }
 
   Future<bool> _isValidPDF(String filePath) async {
+    Logger().d('[_isValidPDF] Checking file: $filePath');
     try {
       final file = File(filePath);
-      if (!await file.exists()) return false;
+      final fileExists = await file.exists();
+      Logger().d('[_isValidPDF] File exists: $fileExists');
+      if (!fileExists) return false;
 
       // Check if file size is too small
       final fileSize = await file.length();
+      Logger().d('[_isValidPDF] File size: $fileSize bytes');
       if (fileSize < 100) {
         await file.delete();
-        Logger().d('File too small, deleting: $filePath');
+        Logger().d('[_isValidPDF] File too small (<100 bytes), deleting: $filePath');
         return false;
       }
 
       // Read first few bytes to check PDF signature
       final bytes = await file.openRead(0, 4).first;
       final signature = String.fromCharCodes(bytes);
+      Logger().d('[_isValidPDF] PDF signature: "$signature"');
 
       if (signature != '%PDF') {
         await file.delete();
-        Logger().d('Invalid PDF signature, deleting: $filePath');
+        Logger().d('[_isValidPDF] Invalid PDF signature, deleting: $filePath');
         return false;
       }
 
-      // Add logging to debug file validation
-      Logger().d('Valid PDF found: $filePath');
+      Logger().d('[_isValidPDF] Valid PDF found: $filePath');
       return true;
     } catch (e) {
-      Logger().e('Error validating PDF: $e');
+      Logger().e('[_isValidPDF] Error validating PDF: $e');
       try {
         final file = File(filePath);
         if (await file.exists()) {
           await file.delete();
-          Logger().d('Deleted invalid file after error: $filePath');
+          Logger().d('[_isValidPDF] Deleted invalid file after error: $filePath');
         }
       } catch (deleteError) {
-        Logger().e('Error deleting invalid file: $deleteError');
+        Logger().e('[_isValidPDF] Error deleting invalid file: $deleteError');
       }
       return false;
     }
@@ -323,9 +327,11 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       );
 
       if (downloadedFilePath != null && mounted) {
+        Logger().d('[_startDownload] Downloaded temp file to: $downloadedFilePath');
         final downloadedFile = File(downloadedFilePath);
         await downloadedFile.copy(fullPath);
         await downloadedFile.delete();
+        Logger().d('[_startDownload] Copied to final path: $fullPath');
 
         final downloadedPaper = DownloadedPaper(
           title: widget.title,

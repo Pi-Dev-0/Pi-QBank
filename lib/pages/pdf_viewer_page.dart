@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'dart:io';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../widgets/custom_app_bar.dart';
 
 class PDFViewerPage extends StatefulWidget {
@@ -18,20 +17,13 @@ class PDFViewerPage extends StatefulWidget {
 }
 
 class _PDFViewerPageState extends State<PDFViewerPage> {
-  late PdfViewerController _pdfViewerController;
+  PDFViewController? _pdfViewController;
   final TextEditingController _pageController = TextEditingController();
   bool _isLoading = true;
   int? _totalPages;
 
   @override
-  void initState() {
-    super.initState();
-    _pdfViewerController = PdfViewerController();
-  }
-
-  @override
   void dispose() {
-    _pdfViewerController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -56,13 +48,16 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
         ),
       );
     } else {
-      _pdfViewerController.jumpToPage(page);
+      _pdfViewController?.setPage(page - 1); // flutter_pdfview is 0-indexed
     }
   }
 
-  void _showPageDialog() {
-    if (_totalPages == null) return;
+  void _showPageDialog() async {
+    if (_totalPages == null || _pdfViewController == null) return;
     _pageController.text = '';
+
+    final currentPage = await _pdfViewController!.getCurrentPage();
+    if (!mounted) return; // Add mounted check
 
     showDialog(
       context: context,
@@ -80,7 +75,7 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Current Page: ${_pdfViewerController.pageNumber} of $_totalPages',
+              'Current Page: ${currentPage! + 1} of $_totalPages',
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -178,25 +173,43 @@ class _PDFViewerPageState extends State<PDFViewerPage> {
               margin: const EdgeInsets.all(8),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: SfPdfViewer.file(
-                  File(widget.filePath),
-                  controller: _pdfViewerController,
-                  canShowScrollHead: true,
-                  enableDoubleTapZooming: true,
-                  enableTextSelection: true,
-                  onDocumentLoaded: (PdfDocumentLoadedDetails details) {
+                child: PDFView(
+                  filePath: widget.filePath,
+                  enableSwipe: true,
+                  swipeHorizontal: false,
+                  autoSpacing: false,
+                  pageFling: true,
+                  pageSnap: true,
+                  defaultPage: 0,
+                  fitPolicy: FitPolicy.WIDTH,
+                  preventLinkNavigation: false,
+                  onRender: (pages) {
                     setState(() {
+                      _totalPages = pages;
                       _isLoading = false;
-                      _totalPages = details.document.pages.count;
                     });
                   },
-                  onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
+                  onError: (error) {
                     setState(() {
                       _isLoading = false;
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: ${details.error}')),
+                      SnackBar(content: Text('Error: $error')),
                     );
+                  },
+                  onPageError: (page, error) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Page Error: $error')),
+                    );
+                  },
+                  onViewCreated: (PDFViewController pdfViewController) {
+                    _pdfViewController = pdfViewController;
+                  },
+                  onPageChanged: (int? page, int? total) {
+                    // Optional: Update current page display if needed
                   },
                 ),
               ),
