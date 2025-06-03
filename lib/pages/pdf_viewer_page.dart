@@ -432,16 +432,80 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                       child: Container(
                         height: thumbHeight,
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade700,
+                          color: (_totalPages! <= 1
+                                  ? Colors.blue.shade700
+                                  : () {
+                                      final List<Color> gradientColors = [
+                                        Colors.red.shade700,
+                                        Colors.orange.shade700,
+                                        Colors.yellow.shade700,
+                                        Colors.green.shade700,
+                                        Colors.blue.shade700,
+                                        Colors.purple.shade700,
+                                      ];
+                                      final int colorCount = gradientColors.length;
+                                      final double progress = (_currentPage - 1) / (_totalPages! - 1);
+                                      final double clampedProgress = progress.clamp(0.0, 1.0);
+                                      final int segmentIndex = (clampedProgress * (colorCount - 1)).floor();
+                                      final double segmentProgress = (clampedProgress * (colorCount - 1)) - segmentIndex;
+                                      final Color startColor = gradientColors[segmentIndex];
+                                      final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
+                                      return Color.lerp(startColor, endColor, segmentProgress)!;
+                                    }())
+                              .withOpacity(0.6), // Semi-transparent color
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(15),
                             bottomLeft: Radius.circular(15),
                           ),
+                          border: Border.all(
+                            color: (_totalPages! <= 1
+                                    ? Colors.blue.shade700
+                                    : () {
+                                        final List<Color> gradientColors = [
+                                          Colors.red.shade700,
+                                          Colors.orange.shade700,
+                                          Colors.yellow.shade700,
+                                          Colors.green.shade700,
+                                          Colors.blue.shade700,
+                                          Colors.purple.shade700,
+                                        ];
+                                        final int colorCount = gradientColors.length;
+                                        final double progress = (_currentPage - 1) / (_totalPages! - 1);
+                                        final double clampedProgress = progress.clamp(0.0, 1.0);
+                                        final int segmentIndex = (clampedProgress * (colorCount - 1)).floor();
+                                        final double segmentProgress = (clampedProgress * (colorCount - 1)) - segmentIndex;
+                                        final Color startColor = gradientColors[segmentIndex];
+                                        final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
+                                        return Color.lerp(startColor, endColor, segmentProgress)!;
+                                      }())
+                                  .withOpacity(0.8), // Subtle border
+                            width: 0.4,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 5,
-                              offset: const Offset(0, 2),
+                              color: (_totalPages! <= 1
+                                      ? Colors.blue.shade700
+                                      : () {
+                                          final List<Color> gradientColors = [
+                                            Colors.red.shade700,
+                                            Colors.orange.shade700,
+                                            Colors.yellow.shade700,
+                                            Colors.green.shade700,
+                                            Colors.blue.shade700,
+                                            Colors.purple.shade700,
+                                          ];
+                                          final int colorCount = gradientColors.length;
+                                          final double progress = (_currentPage - 1) / (_totalPages! - 1);
+                                          final double clampedProgress = progress.clamp(0.0, 1.0);
+                                          final int segmentIndex = (clampedProgress * (colorCount - 1)).floor();
+                                          final double segmentProgress = (clampedProgress * (colorCount - 1)) - segmentIndex;
+                                          final Color startColor = gradientColors[segmentIndex];
+                                          final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
+                                          return Color.lerp(startColor, endColor, segmentProgress)!;
+                                        }())
+                                  .withOpacity(0.4), // Shadow with dynamic color
+                              blurRadius: 10, // Increased blur for softer shadow
+                              offset: const Offset(0, 4), // Adjusted offset
                             ),
                           ],
                         ),
