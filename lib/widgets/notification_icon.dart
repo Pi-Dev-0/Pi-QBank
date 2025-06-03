@@ -49,7 +49,7 @@ class _NotificationIconState extends State<NotificationIcon>
   @override
   void initState() {
     super.initState();
-    
+
     // Pulse animation for notification badge
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
@@ -162,8 +162,9 @@ class _NotificationIconState extends State<NotificationIcon>
       textSpans.add(
         TextSpan(
           text: url,
-          style:  TextStyle(
-            background: Paint()..color = const Color(0xFF667eea).withOpacity(0.1),
+          style: TextStyle(
+            background: Paint()
+              ..color = const Color(0xFF667eea).withOpacity(0.1),
             color: Color(0xFF667eea),
             fontWeight: FontWeight.w600,
             height: 1.5,
@@ -222,7 +223,7 @@ class _NotificationIconState extends State<NotificationIcon>
           animation: _rainbowAnimation,
           builder: (context, child) {
             return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+              margin: const EdgeInsets.symmetric(vertical: 40),
               child: AlertDialog(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
@@ -290,14 +291,18 @@ class _NotificationIconState extends State<NotificationIcon>
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        const Color(0xFF667eea).withOpacity(_glowAnimation.value),
-                                        const Color(0xFFfa709a).withOpacity(_glowAnimation.value * 0.7),
+                                        const Color(0xFF667eea)
+                                            .withOpacity(_glowAnimation.value),
+                                        const Color(0xFFfa709a).withOpacity(
+                                            _glowAnimation.value * 0.7),
                                       ],
                                     ),
                                     borderRadius: BorderRadius.circular(16),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: const Color(0xFF667eea).withOpacity(_glowAnimation.value * 0.4),
+                                        color: const Color(0xFF667eea)
+                                            .withOpacity(
+                                                _glowAnimation.value * 0.4),
                                         blurRadius: 20,
                                         spreadRadius: 2,
                                       ),
@@ -325,7 +330,7 @@ class _NotificationIconState extends State<NotificationIcon>
                                     ),
                                   ),
                                   Text(
-                                    'Stay updated with latest news',
+                                    'All your updates here',
                                     style: TextStyle(
                                       color: Colors.grey[600],
                                       fontSize: 14,
@@ -337,15 +342,20 @@ class _NotificationIconState extends State<NotificationIcon>
                             ),
                             if (_notifications.isNotEmpty)
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
                                   gradient: const LinearGradient(
-                                    colors: [Color(0xFF43e97b), Color(0xFF38f9d7)],
+                                    colors: [
+                                      Color(0xFF43e97b),
+                                      Color(0xFF38f9d7)
+                                    ],
                                   ),
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF43e97b).withOpacity(0.3),
+                                      color: const Color(0xFF43e97b)
+                                          .withOpacity(0.3),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),
@@ -363,16 +373,18 @@ class _NotificationIconState extends State<NotificationIcon>
                           ],
                         ),
                       ),
-                      
+
                       // Content Area
                       Expanded(
                         child: Container(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                           child: StatefulBuilder(
-                            builder: (context, setDialogState) => _notifications.isEmpty
+                            builder: (context, setDialogState) => _notifications
+                                    .isEmpty
                                 ? Center(
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         AnimatedBuilder(
                                           animation: _glowAnimation,
@@ -382,16 +394,25 @@ class _NotificationIconState extends State<NotificationIcon>
                                               decoration: BoxDecoration(
                                                 gradient: LinearGradient(
                                                   colors: [
-                                                    const Color(0xFF667eea).withOpacity(0.1 * _glowAnimation.value),
-                                                    const Color(0xFFfa709a).withOpacity(0.05 * _glowAnimation.value),
+                                                    const Color(0xFF667eea)
+                                                        .withOpacity(0.1 *
+                                                            _glowAnimation
+                                                                .value),
+                                                    const Color(0xFFfa709a)
+                                                        .withOpacity(0.05 *
+                                                            _glowAnimation
+                                                                .value),
                                                   ],
                                                 ),
-                                                borderRadius: BorderRadius.circular(24),
+                                                borderRadius:
+                                                    BorderRadius.circular(24),
                                               ),
                                               child: Icon(
-                                                Icons.notifications_none_rounded,
+                                                Icons
+                                                    .notifications_none_rounded,
                                                 size: 80,
-                                                color: const Color(0xFF667eea).withOpacity(0.6),
+                                                color: const Color(0xFF667eea)
+                                                    .withOpacity(0.6),
                                               ),
                                             );
                                           },
@@ -420,42 +441,55 @@ class _NotificationIconState extends State<NotificationIcon>
                                   )
                                 : ListView.separated(
                                     itemCount: _notifications.length,
-                                    separatorBuilder: (context, index) => const SizedBox(height: 16),
+                                    separatorBuilder: (context, index) =>
+                                        const SizedBox(height: 16),
                                     itemBuilder: (context, index) {
-                                      final notification = _notifications[index];
-                                      final isSeen = !NotificationService.isNotificationUnseen(notification);
-                                      final gradient = _getNotificationGradient(index);
-                                      final iconColor = _getNotificationColor(index);
+                                      final notification =
+                                          _notifications[index];
+                                      final isSeen = !NotificationService
+                                          .isNotificationUnseen(notification);
+                                      final gradient =
+                                          _getNotificationGradient(index);
+                                      final iconColor =
+                                          _getNotificationColor(index);
 
                                       return AnimatedContainer(
-                                        duration: const Duration(milliseconds: 300),
+                                        duration:
+                                            const Duration(milliseconds: 300),
                                         decoration: BoxDecoration(
-                                          gradient: isSeen 
-                                            ? LinearGradient(
-                                                colors: [Colors.white, const Color(0xFFF7FAFC)],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              )
-                                            : LinearGradient(
-                                                colors: [
-                                                  gradient[0].withOpacity(0.05),
-                                                  gradient[1].withOpacity(0.02),
-                                                ],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              ),
-                                          borderRadius: BorderRadius.circular(20),
+                                          gradient: isSeen
+                                              ? LinearGradient(
+                                                  colors: [
+                                                    Colors.white,
+                                                    const Color(0xFFF7FAFC)
+                                                  ],
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                )
+                                              : LinearGradient(
+                                                  colors: [
+                                                    gradient[0]
+                                                        .withOpacity(0.05),
+                                                    gradient[1]
+                                                        .withOpacity(0.02),
+                                                  ],
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                ),
+                                          borderRadius:
+                                              BorderRadius.circular(20),
                                           border: Border.all(
-                                            color: isSeen 
-                                              ? Colors.grey[200]!
-                                              : gradient[0].withOpacity(0.3),
+                                            color: isSeen
+                                                ? Colors.grey[200]!
+                                                : gradient[0].withOpacity(0.3),
                                             width: 2,
                                           ),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: isSeen 
-                                                ? Colors.grey.withOpacity(0.1)
-                                                : gradient[0].withOpacity(0.15),
+                                              color: isSeen
+                                                  ? Colors.grey.withOpacity(0.1)
+                                                  : gradient[0]
+                                                      .withOpacity(0.15),
                                               blurRadius: 15,
                                               offset: const Offset(0, 8),
                                             ),
@@ -468,20 +502,35 @@ class _NotificationIconState extends State<NotificationIcon>
                                             highlightColor: Colors.transparent,
                                           ),
                                           child: ExpansionTile(
-                                            tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                            expandedAlignment: Alignment.topLeft,
-                                            childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                            tilePadding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 20,
+                                                    vertical: 12),
+                                            expandedAlignment:
+                                                Alignment.topLeft,
+                                            childrenPadding:
+                                                const EdgeInsets.fromLTRB(
+                                                    20, 0, 20, 20),
                                             leading: AnimatedContainer(
-                                              duration: const Duration(milliseconds: 300),
+                                              duration: const Duration(
+                                                  milliseconds: 300),
                                               padding: const EdgeInsets.all(10),
                                               decoration: BoxDecoration(
-                                                gradient: isSeen 
-                                                  ? LinearGradient(colors: [Colors.grey[300]!, Colors.grey[200]!])
-                                                  : LinearGradient(colors: gradient),
-                                                borderRadius: BorderRadius.circular(16),
+                                                gradient: isSeen
+                                                    ? LinearGradient(colors: [
+                                                        Colors.grey[300]!,
+                                                        Colors.grey[200]!
+                                                      ])
+                                                    : LinearGradient(
+                                                        colors: gradient),
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
                                                 boxShadow: [
                                                   BoxShadow(
-                                                    color: (isSeen ? Colors.grey[400]! : iconColor).withOpacity(0.3),
+                                                    color: (isSeen
+                                                            ? Colors.grey[400]!
+                                                            : iconColor)
+                                                        .withOpacity(0.3),
                                                     blurRadius: 8,
                                                     offset: const Offset(0, 4),
                                                   ),
@@ -499,9 +548,12 @@ class _NotificationIconState extends State<NotificationIcon>
                                                   child: Text(
                                                     notification.title,
                                                     style: TextStyle(
-                                                      fontWeight: isSeen ? FontWeight.w600 : FontWeight.bold,
+                                                      fontWeight: isSeen
+                                                          ? FontWeight.w600
+                                                          : FontWeight.bold,
                                                       fontSize: 17,
-                                                      color: const Color(0xFF2D3748),
+                                                      color: const Color(
+                                                          0xFF2D3748),
                                                     ),
                                                   ),
                                                 ),
@@ -510,16 +562,28 @@ class _NotificationIconState extends State<NotificationIcon>
                                                     animation: _pulseAnimation,
                                                     builder: (context, child) {
                                                       return Transform.scale(
-                                                        scale: _pulseAnimation.value * 0.5 + 0.5,
+                                                        scale: _pulseAnimation
+                                                                    .value *
+                                                                0.5 +
+                                                            0.5,
                                                         child: Container(
                                                           width: 10,
                                                           height: 10,
-                                                          decoration: BoxDecoration(
-                                                            gradient: LinearGradient(colors: gradient),
-                                                            borderRadius: BorderRadius.circular(5),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            gradient:
+                                                                LinearGradient(
+                                                                    colors:
+                                                                        gradient),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        5),
                                                             boxShadow: [
                                                               BoxShadow(
-                                                                color: iconColor.withOpacity(0.6),
+                                                                color: iconColor
+                                                                    .withOpacity(
+                                                                        0.6),
                                                                 blurRadius: 8,
                                                                 spreadRadius: 1,
                                                               ),
@@ -532,12 +596,17 @@ class _NotificationIconState extends State<NotificationIcon>
                                               ],
                                             ),
                                             subtitle: Padding(
-                                              padding: const EdgeInsets.only(top: 6),
+                                              padding:
+                                                  const EdgeInsets.only(top: 6),
                                               child: Text(
                                                 notification.subtitle,
                                                 style: TextStyle(
-                                                  color: isSeen ? Colors.grey[600] : iconColor,
-                                                  fontWeight: isSeen ? FontWeight.w500 : FontWeight.w600,
+                                                  color: isSeen
+                                                      ? Colors.grey[600]
+                                                      : iconColor,
+                                                  fontWeight: isSeen
+                                                      ? FontWeight.w500
+                                                      : FontWeight.w600,
                                                   fontSize: 15,
                                                 ),
                                               ),
@@ -545,7 +614,8 @@ class _NotificationIconState extends State<NotificationIcon>
                                             children: [
                                               Container(
                                                 width: double.infinity,
-                                                padding: const EdgeInsets.all(20),
+                                                padding:
+                                                    const EdgeInsets.all(20),
                                                 decoration: BoxDecoration(
                                                   gradient: LinearGradient(
                                                     colors: [
@@ -555,22 +625,34 @@ class _NotificationIconState extends State<NotificationIcon>
                                                     begin: Alignment.topLeft,
                                                     end: Alignment.bottomRight,
                                                   ),
-                                                  borderRadius: BorderRadius.circular(16),
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
                                                   border: Border.all(
-                                                    color: gradient[0].withOpacity(0.1),
+                                                    color: gradient[0]
+                                                        .withOpacity(0.1),
                                                     width: 1,
                                                   ),
                                                 ),
-                                                child: _buildRichText(notification.description),
+                                                child: _buildRichText(
+                                                    notification.description),
                                               ),
                                             ],
-                                            onExpansionChanged: (expanded) async {
-                                              if (expanded && NotificationService.isNotificationUnseen(notification)) {
-                                                await NotificationService.markNotificationAsSeen(notification);
-                                                final hasUnseen = await NotificationService.hasUnseenNotifications();
+                                            onExpansionChanged:
+                                                (expanded) async {
+                                              if (expanded &&
+                                                  NotificationService
+                                                      .isNotificationUnseen(
+                                                          notification)) {
+                                                await NotificationService
+                                                    .markNotificationAsSeen(
+                                                        notification);
+                                                final hasUnseen =
+                                                    await NotificationService
+                                                        .hasUnseenNotifications();
                                                 if (mounted) {
                                                   setState(() {
-                                                    _hasUnseenNotifications = hasUnseen;
+                                                    _hasUnseenNotifications =
+                                                        hasUnseen;
                                                   });
                                                   setDialogState(() {});
                                                 }
@@ -584,7 +666,7 @@ class _NotificationIconState extends State<NotificationIcon>
                           ),
                         ),
                       ),
-                      
+
                       // Footer with gradient button
                       Container(
                         padding: const EdgeInsets.all(24),
@@ -597,14 +679,17 @@ class _NotificationIconState extends State<NotificationIcon>
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    const Color(0xFF667eea).withOpacity(0.8 + _glowAnimation.value * 0.2),
-                                    const Color(0xFFfa709a).withOpacity(0.8 + _glowAnimation.value * 0.2),
+                                    const Color(0xFF667eea).withOpacity(
+                                        0.8 + _glowAnimation.value * 0.2),
+                                    const Color(0xFFfa709a).withOpacity(
+                                        0.8 + _glowAnimation.value * 0.2),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(16),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF667eea).withOpacity(0.4 * _glowAnimation.value),
+                                    color: const Color(0xFF667eea).withOpacity(
+                                        0.4 * _glowAnimation.value),
                                     blurRadius: 20,
                                     offset: const Offset(0, 8),
                                     spreadRadius: 2,
@@ -627,7 +712,7 @@ class _NotificationIconState extends State<NotificationIcon>
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 18,
-                                    letterSpacing: 0.5,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
                               ),
@@ -665,8 +750,11 @@ class _NotificationIconState extends State<NotificationIcon>
                     Icons.notifications_rounded,
                     size: 28,
                     color: _hasUnseenNotifications
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.7 + _glowAnimation.value * 0.3),
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.7 + _glowAnimation.value * 0.3),
                   );
                 },
               ),
@@ -687,7 +775,9 @@ class _NotificationIconState extends State<NotificationIcon>
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary, // Change color to theme of context primary color
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary, // Change color to theme of context primary color
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: Colors.white,
