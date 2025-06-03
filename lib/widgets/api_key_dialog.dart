@@ -19,13 +19,11 @@ Future<String?> getApiKey() async {
 void showApiKeyDialog(BuildContext context) {
   TextEditingController apiKeyController = TextEditingController();
   ValueNotifier<bool> obscureText = ValueNotifier<bool>(true);
-  String? initialApiKey;
 
   // Fetch the API key when the dialog is first shown
   getApiKey().then((key) {
-    initialApiKey = key;
     if (key != null && key.isNotEmpty) {
-      apiKeyController.text = '••••••••••••••••'; // Mask the key
+      apiKeyController.text = key; // Show the actual key
     }
   });
 
@@ -146,15 +144,7 @@ void showApiKeyDialog(BuildContext context) {
                       keyboardType: TextInputType.text,
                       obscureText: isObscure,
                       onChanged: (text) {
-                        // If the user starts typing over the masked text, clear it
-                        if (text.length == 1 &&
-                            initialApiKey != null &&
-                            apiKeyController.text == '••••••••••••••••') {
-                          apiKeyController.text = text;
-                          apiKeyController.selection =
-                              TextSelection.fromPosition(TextPosition(
-                                  offset: apiKeyController.text.length));
-                        }
+                        // No masking, so no special handling needed for initial text
                       },
                     ),
                   );
@@ -192,11 +182,7 @@ void showApiKeyDialog(BuildContext context) {
                   ElevatedButton(
                     onPressed: () async {
                       String apiKey = apiKeyController.text.trim();
-                      // If the masked text is still there, use the initial API key if it exists
-                      if (apiKey == '••••••••••••••••' &&
-                          initialApiKey != null) {
-                        apiKey = initialApiKey!;
-                      }
+                      // No masking, so the text in the controller is always the actual key
 
                       if (apiKey.isNotEmpty) {
                         await saveApiKey(apiKey);
