@@ -430,7 +430,7 @@ class _MainScreenState extends State<MainScreen> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
-            height: 75,
+            height: MediaQuery.of(context).size.height * 0.09,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
@@ -537,7 +537,8 @@ class _MainScreenState extends State<MainScreen> {
                   color: Colors.white.withOpacity(0.05),
                 ),
                 padding: EdgeInsets.only(
-                  bottom: 75.0 + MediaQuery.of(context).padding.bottom,
+                  bottom: MediaQuery.of(context).size.height * 0.09 +
+                      MediaQuery.of(context).padding.bottom,
                 ),
                 child: _pages[_page],
               ),
