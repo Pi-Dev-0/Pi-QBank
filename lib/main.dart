@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:curved_navigation_bar/curved_navigation_bar.dart';
+import 'dart:ui';
 import 'pages/home_page.dart';
 import 'pages/online_class_page.dart';
 import 'pages/ai_page.dart';
@@ -351,51 +351,200 @@ class _MainScreenState extends State<MainScreen> {
     const AIPage(),
   ];
 
-  Widget _buildNavItem(IconData icon, String label, bool isSelected) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          icon,
-          size: 30,
-          color: isSelected ? Colors.white : Colors.black54,
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: isSelected ? Colors.white : Colors.black87,
+  // Define gradient colors for each navigation item
+  final List<List<Color>> _navGradients = [
+    [
+      const Color(0xFF6C5CE7),
+      const Color(0xFFA29BFE)
+    ], // Purple gradient for Online Class
+    [
+      const Color(0xFF00B894),
+      const Color(0xFF00CEC9)
+    ], // Teal gradient for Blog
+    [
+      const Color(0xFFE17055),
+      const Color(0xFFE84393)
+    ], // Orange-Pink gradient for Home
+    [
+      const Color(0xFF0984E3),
+      const Color(0xFF74B9FF)
+    ], // Blue gradient for Tools
+    [
+      const Color(0xFFE84393),
+      const Color(0xFFAD7BFF)
+    ], // Pink-Purple gradient for AI
+  ];
+
+  Widget _buildNavItem(IconData icon, String label, bool isSelected,
+      List<Color> gradientColors) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      decoration: isSelected
+          ? BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: gradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: gradientColors[0].withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            )
+          : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 26,
+            color:
+                isSelected ? Colors.white : gradientColors[0].withOpacity(0.8),
           ),
-        ),
-      ],
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              color: isSelected
+                  ? Colors.white
+                  : gradientColors[0].withOpacity(0.9),
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      bottomNavigationBar: CurvedNavigationBar(
-        index: _page,
-        height: 55.0,
-        items: [
-          _buildNavItem(Icons.ondemand_video, 'Online Class', _page == 0),
-          _buildNavItem(Icons.article_outlined, 'Blog', _page == 1),
-          _buildNavItem(Icons.home, 'Home', _page == 2),
-          _buildNavItem(Icons.build_circle_outlined, 'Tools', _page == 3),
-          _buildNavItem(Icons.psychology, 'AI', _page == 4),
-        ],
-        color: Theme.of(context).colorScheme.inversePrimary,
-        buttonBackgroundColor: Theme.of(context).colorScheme.primary,
-        backgroundColor: Colors.white,
-        animationCurve: Curves.easeInOut,
-        animationDuration: const Duration(milliseconds: 300),
-        onTap: (index) {
-          setState(() {
-            _page = index;
-          });
-        },
+      extendBody: true,
+      bottomNavigationBar: ClipRRect(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: 75,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _page = 0),
+                    child: _buildNavItem(Icons.ondemand_video, 'Online Class',
+                        _page == 0, _navGradients[0]),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _page = 1),
+                    child: _buildNavItem(Icons.article_outlined, 'Blog',
+                        _page == 1, _navGradients[1]),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _page = 2),
+                    child: _buildNavItem(
+                        Icons.home, 'Home', _page == 2, _navGradients[2]),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _page = 3),
+                    child: _buildNavItem(Icons.build_circle_outlined, 'Tools',
+                        _page == 3, _navGradients[3]),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _page = 4),
+                    child: _buildNavItem(
+                        Icons.psychology, 'AI', _page == 4, _navGradients[4]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      body: _pages[_page],
+      body: Stack(
+        children: [
+          // Animated background blur circles
+          Positioned(
+            top: -50,
+            right: -50,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.1),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -80,
+            left: -80,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 100,
+            left: -30,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.06),
+              ),
+            ),
+          ),
+          // Main content with subtle blur overlay
+          ClipRRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 0.5, sigmaY: 0.5),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                ),
+                padding: EdgeInsets.only(
+                  bottom: 75.0 + MediaQuery.of(context).padding.bottom,
+                ),
+                child: _pages[_page],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
