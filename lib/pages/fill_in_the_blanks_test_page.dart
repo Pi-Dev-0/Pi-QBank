@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:pi_qbank/pages/tools_page.dart';
 
 class FillInTheBlanksTestPage extends StatefulWidget {
   final int numberOfQuestions;
@@ -597,7 +598,13 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
           }),
           const SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const ToolsPage()),
+                (Route<dynamic> route) => false,
+              );
+            },
             icon: const Icon(Icons.check_circle),
             label: const Text('Finish Test'),
             style: ElevatedButton.styleFrom(

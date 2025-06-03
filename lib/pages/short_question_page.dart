@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
+import 'package:pi_qbank/pages/tools_page.dart';
 
 class ShortQuestionPage extends StatefulWidget {
   final int numberOfQuestions;
@@ -574,7 +575,13 @@ class _ShortQuestionPageState extends State<ShortQuestionPage> {
           }),
           const SizedBox(height: 20),
           ElevatedButton.icon(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const ToolsPage()),
+                (Route<dynamic> route) => false,
+              );
+            },
             icon: const Icon(Icons.check_circle),
             label: Text(
               widget.language == 'বাংলা' ? 'পরীক্ষা শেষ করুন' : 'Finish Test',

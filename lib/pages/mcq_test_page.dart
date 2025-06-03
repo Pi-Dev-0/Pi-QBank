@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:async';
+import 'package:pi_qbank/pages/tools_page.dart';
 
 class MCQTestPage extends StatefulWidget {
   final int numberOfQuestions;
@@ -902,7 +903,13 @@ class _MCQTestPageState extends State<MCQTestPage>
                   ],
                 ),
                 child: ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ToolsPage()),
+                      (Route<dynamic> route) => false,
+                    );
+                  },
                   icon: const Icon(Icons.home_rounded, color: Colors.white),
                   label: const Text(
                     'Back to Home',
