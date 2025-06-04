@@ -21,7 +21,8 @@ class FillInTheBlanksTestPage extends StatefulWidget {
       _FillInTheBlanksTestPageState();
 }
 
-class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
+class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
+    with TickerProviderStateMixin {
   final List<Map<String, String>> _fillInTheBlanksQuestions = [];
   final Map<int, TextEditingController> _answerControllers = {};
   bool _testSubmitted = false;
@@ -29,19 +30,65 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
   late Timer _timer;
   late int _remainingSeconds;
   bool _timeIsLow = false;
+  late AnimationController _timerAnimationController;
+  late AnimationController _submitButtonController;
+  late Animation<double> _timerPulseAnimation;
+  late Animation<double> _submitButtonAnimation;
+
+  // Beautiful color scheme
+  static const Color primaryBlue = Color(0xFF2196F3);
+  static const Color primaryPurple = Color(0xFF9C27B0);
+  static const Color accentTeal = Color(0xFF00BCD4);
+  static const Color successGreen = Color(0xFF4CAF50);
+  static const Color warningOrange = Color(0xFFFF9800);
+  static const Color errorRed = Color(0xFFF44336);
+  static const Color backgroundLight = Color(0xFFF8F9FA);
+  static const Color cardWhite = Color(0xFFFFFFFF);
 
   @override
   void initState() {
     super.initState();
     _parseFillInTheBlanksQuestions();
     _initializeTimer();
+    _initializeAnimations();
   }
 
   @override
   void dispose() {
     _timer.cancel();
+    _timerAnimationController.dispose();
+    _submitButtonController.dispose();
     _answerControllers.forEach((key, controller) => controller.dispose());
     super.dispose();
+  }
+
+  void _initializeAnimations() {
+    _timerAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _submitButtonController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    _timerPulseAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(
+      parent: _timerAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    _submitButtonAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(
+      parent: _submitButtonController,
+      curve: Curves.easeInOut,
+    ));
+
+    _timerAnimationController.repeat(reverse: true);
   }
 
   void _initializeTimer() {
@@ -51,6 +98,9 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
         if (_remainingSeconds > 0) {
           _remainingSeconds--;
           _timeIsLow = _remainingSeconds < 60;
+          if (_timeIsLow && !_timerAnimationController.isAnimating) {
+            _timerAnimationController.repeat(reverse: true);
+          }
         } else {
           _submitTest();
           _timer.cancel();
@@ -73,19 +123,15 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
     String currentAnswer = '';
     bool isReadingQuestion = false;
 
-    // Regex pattern to match Bengali numbers followed by dot
     final bengaliNumberPattern = RegExp(r'[১২৩৪৫৬৭৮৯০]+\.');
 
     for (var i = 0; i < lines.length; i++) {
       String line = lines[i].trim();
       if (line.isEmpty) continue;
 
-      // Skip the introduction line
-      if (line.contains('শূন্যস্থান পূরণ করার প্রশ্ন')) continue;
+      if (line.contains(' শূন্যস্থান পূরণ করার প্রশ্ন')) continue;
 
-      // Check for question start using regex
       if (bengaliNumberPattern.hasMatch(line)) {
-        // Save previous question if exists
         if (currentQuestion.isNotEmpty && currentAnswer.isNotEmpty) {
           _fillInTheBlanksQuestions.add({
             'question': currentQuestion,
@@ -98,19 +144,14 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
         currentQuestion = line;
         currentAnswer = '';
         isReadingQuestion = true;
-      }
-      // Check for answer line
-      else if (line.startsWith('উত্তর:')) {
+      } else if (line.startsWith('উত্তর:')) {
         currentAnswer = line.replaceFirst('উত্তর:', '').trim();
         isReadingQuestion = false;
-      }
-      // Handle multi-line questions
-      else if (isReadingQuestion) {
+      } else if (isReadingQuestion) {
         currentQuestion = '$currentQuestion $line';
       }
     }
 
-    // Add the last question-answer pair
     if (currentQuestion.isNotEmpty && currentAnswer.isNotEmpty) {
       _fillInTheBlanksQuestions.add({
         'question': currentQuestion,
@@ -120,7 +161,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
           TextEditingController();
     }
 
-    setState(() {}); // Trigger rebuild
+    setState(() {});
   }
 
   void _submitTest() {
@@ -147,32 +188,80 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: _testSubmitted
-            ? Text(widget.language)
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
+      backgroundColor: backgroundLight,
+      appBar: _buildAppBar(),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              backgroundLight,
+              cardWhite,
+            ],
+          ),
+        ),
+        child: _testSubmitted ? _buildResultsView() : _buildTestView(),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [primaryBlue, primaryPurple],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+      ),
+      title: _testSubmitted
+          ? ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [Colors.white, Colors.white70],
+              ).createShader(bounds),
+              child: Text(
+                widget.language,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            )
+          : AnimatedBuilder(
+              animation: _timerAnimationController,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _timeIsLow
+                      ? 1.0 + (_timerPulseAnimation.value * 0.1)
+                      : 1.0,
+                  child: Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: _timeIsLow
-                          ? Colors.red.shade100.withOpacity(0.9)
-                          : Colors.white.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _timeIsLow ? Colors.red.shade300 : Colors.white,
-                        width: 1.5,
+                      gradient: LinearGradient(
+                        colors: _timeIsLow
+                            ? [errorRed, errorRed.withOpacity(0.7)]
+                            : [
+                                Colors.white.withOpacity(0.9),
+                                Colors.white.withOpacity(0.7)
+                              ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
+                      borderRadius: BorderRadius.circular(25),
                       boxShadow: [
                         BoxShadow(
                           color: _timeIsLow
-                              ? Colors.red.withOpacity(0.3)
-                              : Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
+                              ? errorRed.withOpacity(0.2)
+                              : Colors.black.withOpacity(0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
@@ -180,64 +269,53 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.timer_outlined,
+                          Icons.access_time,
                           size: 20,
-                          color: _timeIsLow
-                              ? Colors.red
-                              : Theme.of(context).primaryColor,
+                          color: _timeIsLow ? Colors.white : primaryBlue,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           _formatTime(_remainingSeconds),
                           style: TextStyle(
                             fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: _timeIsLow
-                                ? Colors.red
-                                : Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.bold,
+                            color: _timeIsLow ? Colors.white : primaryBlue,
                             letterSpacing: 1.2,
                           ),
                         ),
-                        if (_timeIsLow) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.red.withOpacity(0.5),
-                                  blurRadius: 4,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
-                ],
-              ),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+                );
+              },
+            ),
+      centerTitle: true,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+        onPressed: () => Navigator.of(context).pop(),
       ),
-      body: _testSubmitted ? _buildResultsView() : _buildTestView(),
     );
   }
 
   Widget _buildTestView() {
     if (_fillInTheBlanksQuestions.isEmpty) {
-      return const Center(child: Text('No questions available'));
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'No questions available',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsetsDirectional.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -245,32 +323,42 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).primaryColor.withOpacity(0.1),
-                  Theme.of(context).primaryColor.withOpacity(0.05),
-                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
+                colors: [
+                  cardWhite,
+                  backgroundLight,
+                ],
               ),
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildInfoCard(
-                  'Questions',
+                  'Total',
                   '${_fillInTheBlanksQuestions.length}',
                   Icons.quiz_outlined,
+                  primaryBlue,
                 ),
                 _buildInfoCard(
                   'Answered',
                   '${_answerControllers.values.where((c) => c.text.isNotEmpty).length}',
                   Icons.check_circle_outline,
+                  successGreen,
                 ),
                 _buildInfoCard(
                   'Remaining',
                   '${_fillInTheBlanksQuestions.length - _answerControllers.values.where((c) => c.text.isNotEmpty).length}',
                   Icons.pending_outlined,
+                  warningOrange,
                 ),
               ],
             ),
@@ -281,160 +369,49 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _fillInTheBlanksQuestions.length,
             itemBuilder: (context, index) {
-              final question = _fillInTheBlanksQuestions[index];
-              final isAnswered =
-                  _answerControllers[index]?.text.isNotEmpty ?? false;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 5,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    side: BorderSide(
-                      color: isAnswered
-                          ? Theme.of(context).primaryColor.withOpacity(0.3)
-                          : Colors.grey.withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color:
-                              Theme.of(context).primaryColor.withOpacity(0.05),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(15),
-                            topRight: Radius.circular(15),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: isAnswered
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey,
-                              child: Text(
-                                '${index + 1}',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                question['question']!,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: TextField(
-                          controller: _answerControllers[index],
-                          decoration: InputDecoration(
-                            labelText: 'Your Answer',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12.0),
-                            ),
-                            prefixIcon: const Icon(Icons.edit),
-                          ),
-                          onChanged: (value) {
-                            setState(() {
-                              // Trigger rebuild to update answered count
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+              return _buildQuestionCard(index);
             },
           ),
           const SizedBox(height: 20),
-          Container(
-            decoration: BoxDecoration(
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).primaryColor.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: _submitTest,
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: Theme.of(context).primaryColor,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.check_circle_outline, size: 24),
-                  SizedBox(width: 8),
-                  Text(
-                    'Submit Test',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildSubmitButton(),
         ],
       ),
     );
   }
 
-  Widget _buildInfoCard(String title, String value, IconData icon) {
+  Widget _buildInfoCard(
+      String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: cardWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
-          Icon(icon, color: Theme.of(context).primaryColor),
-          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(height: 12),
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Theme.of(context).primaryColor,
+              color: color,
             ),
           ),
           Text(
@@ -442,10 +419,211 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildQuestionCard(int index) {
+    final question = _fillInTheBlanksQuestions[index];
+    final isAnswered = _answerControllers[index]?.text.isNotEmpty ?? false;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            cardWhite,
+            Colors.grey.shade50,
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        border: Border.all(
+          color: isAnswered
+              ? primaryBlue.withOpacity(0.3)
+              : Colors.grey.withOpacity(0.1),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isAnswered
+                    ? [
+                        primaryBlue.withOpacity(0.1),
+                        primaryPurple.withOpacity(0.05)
+                      ]
+                    : [Colors.grey.shade100, Colors.grey.shade50],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isAnswered
+                          ? [primaryBlue, primaryPurple]
+                          : [Colors.grey.shade400, Colors.grey.shade500],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isAnswered ? primaryBlue : Colors.grey)
+                            .withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    question['question']!,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F2937), // Dark grey text
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _answerControllers[index],
+              decoration: InputDecoration(
+                labelText: 'আপনার উত্তর লিখুন',
+                labelStyle: TextStyle(color: Colors.grey.shade600),
+                hintText: 'এখানে টাইপ করুন...',
+                hintStyle: TextStyle(color: Colors.grey.shade400),
+                prefixIcon: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [primaryBlue, accentTeal],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.edit_rounded, color: Colors.white),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide(color: primaryBlue, width: 2),
+                ),
+              ),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF374151), // Darker text for input
+              ),
+              onChanged: (value) {
+                setState(() {});
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return AnimatedBuilder(
+      animation: _submitButtonAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _submitButtonAnimation.value,
+          child: GestureDetector(
+            onTapDown: (_) => _submitButtonController.forward(),
+            onTapUp: (_) => _submitButtonController.reverse(),
+            onTapCancel: () => _submitButtonController.reverse(),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(15),
+                gradient: const LinearGradient(
+                  colors: [primaryBlue, primaryPurple],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryBlue.withOpacity(0.4),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: _submitTest,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.send_rounded, size: 24, color: Colors.white),
+                    SizedBox(width: 12),
+                    Text(
+                      'Submit Test',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -461,190 +639,329 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
     final incorrect = total - score - notAnswered;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [cardWhite, backgroundLight],
+                ),
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 25,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
               child: Column(
                 children: [
-                  const Text(
-                    'Test Results',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: _getScoreColor(double.parse(percentage)),
-                    child: Text(
-                      '$percentage%',
-                      style: const TextStyle(
-                        fontSize: 30,
+                  ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      colors: [primaryBlue, primaryPurple],
+                    ).createShader(bounds),
+                    child: const Text(
+                      '🎉 Test Results',
+                      style: TextStyle(
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  _buildStatisticRow(
-                      'Total Questions', total.toString(), Icons.quiz),
-                  _buildStatisticRow(
-                      'Correct Answers', score.toString(), Icons.check_circle,
-                      color: Colors.green),
-                  _buildStatisticRow(
-                      'Incorrect Answers', incorrect.toString(), Icons.cancel,
-                      color: Colors.red),
-                  _buildStatisticRow(
-                      'Not Answered', notAnswered.toString(), Icons.help,
-                      color: Colors.orange),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Detailed Analysis',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ..._fillInTheBlanksResults.asMap().entries.map((entry) {
-            final index = entry.key;
-            final result = entry.value;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: BorderSide(
-                  color: result['is_correct']
-                      ? Colors.green.shade200
-                      : Colors.red.shade200,
-                  width: 1,
-                ),
-              ),
-              child: ExpansionTile(
-                leading: CircleAvatar(
-                  backgroundColor: (result['user_answer'] as String).isEmpty
-                      ? Colors.orange
-                      : result['is_correct']
-                          ? Colors.green
-                          : Colors.red,
-                  child: Icon(
-                    (result['user_answer'] as String).isEmpty
-                        ? Icons.help_outline
-                        : result['is_correct']
-                            ? Icons.check
-                            : Icons.close,
-                    color: Colors.white,
-                  ),
-                ),
-                title: Text(
-                  'Question ${index + 1}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  result['question'],
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          result['question'],
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildAnswerRow(
-                          'Your Answer:',
-                          result['user_answer'],
-                          (result['user_answer'] as String).isEmpty
-                              ? Colors.orange
-                              : result['is_correct']
-                                  ? Colors.green
-                                  : Colors.red,
-                        ),
-                        if (!result['is_correct'] ||
-                            (result['user_answer'] as String).isEmpty) ...[
-                          const SizedBox(height: 8),
-                          _buildAnswerRow(
-                            'Correct Answer:',
-                            result['correct_answer'],
-                            Colors.green,
-                          ),
+                  const SizedBox(height: 30),
+                  Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          _getScoreColor(double.parse(percentage)),
+                          _getScoreColor(double.parse(percentage))
+                              .withOpacity(0.7),
                         ],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _getScoreColor(double.parse(percentage))
+                              .withOpacity(0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
                       ],
                     ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$percentage%',
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            _getGradeText(double.parse(percentage)),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _buildStatisticCard(total.toString(), 'Total',
+                              Icons.quiz_outlined, primaryBlue)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: _buildStatisticCard(
+                              score.toString(),
+                              'Correct',
+                              Icons.check_circle_outline,
+                              successGreen)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: _buildStatisticCard(incorrect.toString(),
+                              'Wrong', Icons.cancel, errorRed)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: _buildStatisticCard(notAnswered.toString(),
+                              'Skipped', Icons.help, warningOrange)),
+                    ],
                   ),
                 ],
               ),
-            );
-          }),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const ToolsPage()),
-                (Route<dynamic> route) => false,
-              );
-            },
-            icon: const Icon(Icons.check_circle),
-            label: const Text('Finish Test'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 15),
             ),
-          ),
-        ],
-      ),
-    );
+            const SizedBox(height: 30),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cardWhite,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: const Text(
+                '📊 Detailed Analysis',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ..._fillInTheBlanksResults.asMap().entries.map((entry) {
+              final index = entry.key;
+              final result = entry.value;
+              final isEmpty = (result['user_answer'] as String).isEmpty;
+              final isCorrect = result['is_correct'];
+
+              if (isEmpty) {
+              } else if (isCorrect) {
+              } else {}
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [cardWhite, Colors.grey.shade50],
+                  ),
+                  border: Border.all(
+                    color: isCorrect
+                        ? successGreen.withOpacity(0.3)
+                        : isEmpty
+                            ? warningOrange.withOpacity(0.3)
+                            : errorRed.withOpacity(0.3),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    leading: Container(
+                      width: 45,
+                      height: 45,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isCorrect
+                              ? [successGreen, successGreen.withOpacity(0.8)]
+                              : isEmpty
+                                  ? [
+                                      warningOrange,
+                                      warningOrange.withOpacity(0.8)
+                                    ]
+                                  : [errorRed, errorRed.withOpacity(0.8)],
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isCorrect
+                                    ? successGreen
+                                    : isEmpty
+                                        ? warningOrange
+                                        : errorRed)
+                                .withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        isCorrect
+                            ? Icons.check_rounded
+                            : isEmpty
+                                ? Icons.help_outline_rounded
+                                : Icons.close_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      'Question ${index + 1}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    subtitle: Text(
+                      result['question'],
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        height: 1.3,
+                      ),
+                    ),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(14),
+                            bottomRight: Radius.circular(14),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              result['question'],
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF1F2937),
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildAnswerCard(
+                              'Your Answer',
+                              result['user_answer'],
+                              isEmpty
+                                  ? 'Question was skipped'
+                                  : result['user_answer'],
+                              isEmpty
+                                  ? warningOrange
+                                  : (isCorrect ? successGreen : errorRed),
+                              isEmpty
+                                  ? Icons.help_outline
+                                  : (isCorrect
+                                      ? Icons.check_circle
+                                      : Icons.cancel),
+                            ),
+                            if (!isCorrect || isEmpty) ...[
+                              const SizedBox(height: 12),
+                              _buildAnswerCard(
+                                'Correct Answer',
+                                result['correct_answer'],
+                                result['correct_answer'],
+                                successGreen,
+                                Icons.lightbulb_outline,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 30),
+            _buildFinishButton(),
+          ],
+        ));
   }
 
-  Widget _buildStatisticRow(String label, String value, IconData icon,
-      {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildStatisticCard(
+      String value, String label, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color ?? Colors.black87),
+              Icon(icon, color: color, size: 20),
               const SizedBox(width: 8),
               Text(
-                label,
-                style: const TextStyle(fontSize: 16),
+                value,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
           Text(
-            value,
+            label,
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color ?? Colors.black87,
+              fontSize: 14,
+              color: color.withOpacity(0.8),
             ),
           ),
         ],
@@ -652,29 +969,114 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage> {
     );
   }
 
-  Widget _buildAnswerRow(String label, String answer, Color color) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+  Widget _buildAnswerCard(String title, String value, String explanation,
+      Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value.isEmpty ? 'Not answered' : value,
+            style: TextStyle(
+              fontSize: 16,
+              color: value.isEmpty ? Colors.grey : color,
+              fontStyle: value.isEmpty ? FontStyle.italic : FontStyle.normal,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            explanation,
+            style: TextStyle(
+              fontSize: 14,
+              color: color.withOpacity(0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinishButton() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(15),
+        gradient: const LinearGradient(
+          colors: [primaryBlue, primaryPurple],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            answer,
-            style: TextStyle(color: color),
+        boxShadow: [
+          BoxShadow(
+            color: primaryBlue.withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const ToolsPage()),
+            (Route<dynamic> route) => false,
+          );
+        },
+        icon: const Icon(Icons.home_rounded, color: Colors.white),
+        label: const Text(
+          'Back to Home',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
-      ],
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          minimumSize: const Size(double.infinity, 55),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      ),
     );
   }
 
   Color _getScoreColor(double percentage) {
-    if (percentage >= 80) return Colors.green;
-    if (percentage >= 60) return Colors.blue;
-    if (percentage >= 40) return Colors.orange;
-    return Colors.red;
+    if (percentage >= 80) return successGreen;
+    if (percentage >= 60) return primaryBlue;
+    if (percentage >= 40) return warningOrange;
+    return errorRed;
+  }
+
+  String _getGradeText(double percentage) {
+    if (percentage >= 90) return 'A+';
+    if (percentage >= 80) return 'A';
+    if (percentage >= 70) return 'B';
+    if (percentage >= 60) return 'C';
+    if (percentage >= 50) return 'D';
+    return 'F';
   }
 }

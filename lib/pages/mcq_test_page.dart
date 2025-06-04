@@ -769,6 +769,8 @@ class _MCQTestPageState extends State<MCQTestPage>
                       ),
                     ],
                   ),
+                  child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
                     leading: Container(
                       width: 45,
@@ -885,6 +887,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                       ),
                     ],
                   ),
+                ),
                 );
               }),
               const SizedBox(height: 30),
