@@ -892,29 +892,29 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                               ),
                             ),
                             const SizedBox(height: 16),
-                            _buildAnswerCard(
-                              'Your Answer',
-                              result['user_answer'],
-                              isEmpty ? 'Question was skipped' : '',
-                              isEmpty
-                                  ? warningOrange
-                                  : (isCorrect ? successGreen : errorRed),
-                              isEmpty
-                                  ? Icons.help_outline
-                                  : (isCorrect
-                                      ? Icons.check_circle
-                                      : Icons.cancel),
-                            ),
-                            if (!isCorrect || isEmpty) ...[
-                              const SizedBox(height: 12),
                               _buildAnswerCard(
-                                'Correct Answer',
-                                result['correct_answer'],
-                                '',
-                                successGreen,
-                                Icons.lightbulb_outline,
+                                'Your Answer',
+                                result['user_answer'],
+                                isEmpty ? 'Question was skipped' : '', // Explanation for skipped
+                                isEmpty
+                                    ? warningOrange
+                                    : (isCorrect ? successGreen : errorRed),
+                                isEmpty
+                                    ? Icons.help_outline
+                                    : (isCorrect
+                                        ? Icons.check_circle
+                                        : Icons.cancel),
                               ),
-                            ],
+                              if (!isCorrect || isEmpty) ...[
+                                const SizedBox(height: 12),
+                                _buildAnswerCard(
+                                  'Correct Answer',
+                                  result['correct_answer'],
+                                  '', // No explanation for correct answer
+                                  successGreen,
+                                  Icons.lightbulb_outline,
+                                ),
+                              ],
                           ],
                         ),
                       ),
@@ -1006,13 +1006,6 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
             ),
           ),
           // Removed SizedBox(height: 4) here as explanation is often empty
-          Text(
-            explanation,
-            style: TextStyle(
-              fontSize: 14,
-              color: color.withOpacity(0.7),
-            ),
-          ),
         ],
       ),
     );
