@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'dart:math'; // Import for Random color generation
+import 'dart:math'; // Import for Random
+import '../constants/app_colors.dart';
 import 'notification_icon.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -15,22 +16,45 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.actions,
   });
 
+  // Define a list of beautiful colors from AppColors
+  static const List<Color> _beautifulColors = [
+    AppColors.deepPurple,
+    AppColors.tealAccent,
+    AppColors.coralSunset,
+    AppColors.forestGreen,
+    AppColors.vibrantIndigo,
+    AppColors.royalBlue,
+    AppColors.amethyst,
+    AppColors.turquoise,
+    AppColors.richCrimson,
+    AppColors.goldenrodYellow,
+    AppColors.deepSeaTeal,
+    AppColors.roseQuartz,
+  ];
+
+  // Create a single Random instance
+  static final Random _random = Random();
+
   @override
   Widget build(BuildContext context) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
     final double appBarHeight = isLandscape ? 45 : kToolbarHeight;
-    final Color randomTitleColor = Color((Random().nextDouble() * 0xFFFFFF).toInt()).withOpacity(1.0); // Generate random color once
+
+    // Select a random color from the predefined list
+    final Color selectedColor = _beautifulColors[_random.nextInt(_beautifulColors.length)];
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
         bottom: Radius.circular(30), // Increased radius for stylish look
       ),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), // Frosted glass effect
+        filter:
+            ImageFilter.blur(sigmaX: 10, sigmaY: 10), // Frosted glass effect
         child: Container(
-          height: appBarHeight + MediaQuery.of(context).padding.top, // Account for status bar
+          height: appBarHeight +
+              MediaQuery.of(context).padding.top, // Account for status bar
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.15), // Subtle transparent background
           ),
@@ -38,25 +62,31 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             title: Text(
               title,
               style: TextStyle(
-                color: randomTitleColor, // Use the stored random color
+                color: selectedColor, // Use the selected random color
                 shadows: [
                   Shadow(
-                    color: randomTitleColor.withOpacity(0.5), // Shadow color, slightly transparent
+                    color: selectedColor
+                        .withOpacity(0.5), // Shadow color, slightly transparent
                     offset: const Offset(0, 1), // X, Y offset
                     blurRadius: 8, // Blur radius
                   ),
                 ],
               ),
             ),
-            backgroundColor: Colors.transparent, // Make AppBar background transparent
-            elevation: 0.5, // Remove default shadow
+            backgroundColor:
+                Colors.transparent, // Make AppBar background transparent //blur this background
+            shadowColor: Colors.white.withOpacity(0.01), // Remove default shadow color
+            elevation: 0, // Remove default shadow
             centerTitle: centerTitle,
             actions: [
-              NotificationIcon(iconColor: randomTitleColor), // Pass the random color to NotificationIcon
+              NotificationIcon(
+                  iconColor: selectedColor), // Pass the selected random color to NotificationIcon
               ...(actions ?? []),
             ],
             toolbarHeight: appBarHeight,
-            iconTheme: IconThemeData(color: randomTitleColor), // Ensure icons match random title color
+            iconTheme: IconThemeData(
+                color:
+                    selectedColor), // Ensure icons match selected random title color
           ),
         ),
       ),
