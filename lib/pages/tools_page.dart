@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/pages/prepare_short_test_page.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
+import '../widgets/app_drawer.dart'; // Import AppDrawer
 
 class ToolsPage extends StatelessWidget {
   const ToolsPage({super.key});
@@ -13,6 +14,7 @@ class ToolsPage extends StatelessWidget {
       appBar: CustomAppBar(
         title: 'Tools',
       ),
+      drawer: const AppDrawer(), // Add AppDrawer to ToolsPage Scaffold
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(

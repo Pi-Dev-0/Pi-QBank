@@ -4,7 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/notification_service.dart';
 
 class NotificationIcon extends StatefulWidget {
-  const NotificationIcon({super.key});
+  final Color? iconColor; // New parameter for icon color
+  const NotificationIcon({super.key, this.iconColor});
 
   @override
   State<NotificationIcon> createState() => _NotificationIconState();
@@ -749,12 +750,12 @@ class _NotificationIconState extends State<NotificationIcon>
                   return Icon(
                     Icons.notifications_rounded,
                     size: 28,
-                    color: _hasUnseenNotifications
+                    color: widget.iconColor ?? (_hasUnseenNotifications
                         ? Theme.of(context).colorScheme.primary
                         : Theme.of(context)
                             .colorScheme
                             .onSurface
-                            .withOpacity(0.7 + _glowAnimation.value * 0.3),
+                            .withOpacity(0.7 + _glowAnimation.value * 0.3)),
                   );
                 },
               ),
@@ -775,9 +776,7 @@ class _NotificationIconState extends State<NotificationIcon>
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary, // Change color to theme of context primary color
+                          color: widget.iconColor ?? Theme.of(context).colorScheme.primary, // Use passed color or fallback
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: Colors.white,

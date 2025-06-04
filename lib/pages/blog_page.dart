@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pi_qbank/services/blog_service.dart';
 import 'package:pi_qbank/pages/view_post_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
+import '../widgets/app_drawer.dart'; // Import AppDrawer
 
 class BlogPage extends StatefulWidget {
   const BlogPage({super.key});
@@ -40,6 +41,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
       appBar: const CustomAppBar(
         title: 'Pi-QBank Blog',
       ),
+      drawer: const AppDrawer(), // Add AppDrawer to BlogPage Scaffold
       body: FutureBuilder<List<BlogPost>>(
         future: _blogPostsFuture,
         builder: (context, snapshot) {
