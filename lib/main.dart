@@ -424,7 +424,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true,
+      extendBody: false, // Set to false to make the body end where the bottom navigation begins
       bottomNavigationBar: ClipRRect(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         child: BackdropFilter(
@@ -536,10 +536,7 @@ class _MainScreenState extends State<MainScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.05),
                 ),
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).size.height * 0.09 +
-                      MediaQuery.of(context).padding.bottom,
-                ),
+                // Removed explicit bottom padding as extendBody is false
                 child: _pages[_page],
               ),
             ),
