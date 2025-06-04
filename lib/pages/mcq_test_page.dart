@@ -872,7 +872,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                                       ? Icons.cancel
                                       : Icons.help_outline,
                             ),
-                            if (!isCorrect && wasAnswered) ...[
+                            if (!isCorrect || !wasAnswered) ...[
                               const SizedBox(height: 12),
                               _buildAnswerCard(
                                 'Correct Answer',
