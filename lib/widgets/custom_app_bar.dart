@@ -4,7 +4,7 @@ import 'dart:math'; // Import for Random
 import '../constants/app_colors.dart';
 import 'notification_icon.dart';
 
-class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
   final bool centerTitle;
   final List<Widget>? actions;
@@ -16,7 +16,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.actions,
   });
 
-  // Define a list of beautiful colors from AppColors
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  State<CustomAppBar> createState() => _CustomAppBarState();
+}
+
+class _CustomAppBarState extends State<CustomAppBar> {
   static const List<Color> _beautifulColors = [
     AppColors.deepPurple,
     AppColors.tealAccent,
@@ -32,73 +39,59 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     AppColors.roseQuartz,
   ];
 
-  // Create a single Random instance
   static final Random _random = Random();
+  late final Color selectedColor;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedColor = _beautifulColors[_random.nextInt(_beautifulColors.length)];
+  }
 
   @override
   Widget build(BuildContext context) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
-
     final double appBarHeight = isLandscape ? 45 : kToolbarHeight;
-
-    // Select a random color from the predefined list
-    final Color selectedColor = _beautifulColors[_random.nextInt(_beautifulColors.length)];
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(
-        bottom: Radius.circular(30), // Increased radius for stylish look
+        bottom: Radius.circular(30),
       ),
       child: BackdropFilter(
-        filter:
-            ImageFilter.blur(sigmaX: 10, sigmaY: 10), // Frosted glass effect
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          height: appBarHeight +
-              MediaQuery.of(context).padding.top, // Account for status bar
+          height: appBarHeight + MediaQuery.of(context).padding.top,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15), // Subtle transparent background
+            color: Colors.white.withOpacity(0.15),
           ),
           child: AppBar(
             title: Text(
-              title,
+              widget.title,
               style: TextStyle(
-                color: selectedColor, // Use the selected random color
+                color: selectedColor,
                 shadows: [
                   Shadow(
-                    color: selectedColor
-                        .withOpacity(0.5), // Shadow color, slightly transparent
-                    offset: const Offset(0, 1), // X, Y offset
-                    blurRadius: 8, // Blur radius
+                    color: selectedColor.withOpacity(0.5),
+                    offset: const Offset(0, 1),
+                    blurRadius: 8,
                   ),
                 ],
               ),
             ),
-            backgroundColor:
-                Colors.transparent, // Make AppBar background transparent //blur this background
-            shadowColor: Colors.white.withOpacity(0.01), // Remove default shadow color
-            elevation: 0, // Remove default shadow
-            centerTitle: centerTitle,
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            centerTitle: widget.centerTitle,
             actions: [
-              NotificationIcon(
-                  iconColor: selectedColor), // Pass the selected random color to NotificationIcon
-              ...(actions ?? []),
+              NotificationIcon(iconColor: selectedColor),
+              ...(widget.actions ?? []),
             ],
             toolbarHeight: appBarHeight,
-            iconTheme: IconThemeData(
-                color:
-                    selectedColor), // Ensure icons match selected random title color
+            iconTheme: IconThemeData(color: selectedColor),
           ),
         ),
       ),
     );
-  }
-
-  @override
-  Size get preferredSize {
-    // ignore: deprecated_member_use
-    final isLandscape = WidgetsBinding.instance.window.physicalSize.width >
-        // ignore: deprecated_member_use
-        WidgetsBinding.instance.window.physicalSize.height;
-    return Size.fromHeight(isLandscape ? 45 : kToolbarHeight);
   }
 }
