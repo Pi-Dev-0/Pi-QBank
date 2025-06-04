@@ -39,10 +39,17 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               title,
               style: TextStyle(
                 color: randomTitleColor, // Use the stored random color
+                shadows: [
+                  Shadow(
+                    color: randomTitleColor.withOpacity(0.5), // Shadow color, slightly transparent
+                    offset: const Offset(0, 1), // X, Y offset
+                    blurRadius: 8, // Blur radius
+                  ),
+                ],
               ),
             ),
             backgroundColor: Colors.transparent, // Make AppBar background transparent
-            elevation: 0, // Remove default shadow
+            elevation: 0.5, // Remove default shadow
             centerTitle: centerTitle,
             actions: [
               NotificationIcon(iconColor: randomTitleColor), // Pass the random color to NotificationIcon
