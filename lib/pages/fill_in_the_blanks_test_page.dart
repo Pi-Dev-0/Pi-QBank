@@ -811,7 +811,8 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                   ],
                 ),
                 child: Theme(
-                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  data: Theme.of(context)
+                      .copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
                     leading: Container(
                       width: 45,
@@ -894,9 +895,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                             _buildAnswerCard(
                               'Your Answer',
                               result['user_answer'],
-                              isEmpty
-                                  ? 'Question was skipped'
-                                  : result['user_answer'],
+                              isEmpty ? 'Question was skipped' : '',
                               isEmpty
                                   ? warningOrange
                                   : (isCorrect ? successGreen : errorRed),
@@ -911,7 +910,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                               _buildAnswerCard(
                                 'Correct Answer',
                                 result['correct_answer'],
-                                result['correct_answer'],
+                                '',
                                 successGreen,
                                 Icons.lightbulb_outline,
                               ),
@@ -972,7 +971,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
   Widget _buildAnswerCard(String title, String value, String explanation,
       Color color, IconData icon) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
@@ -997,7 +996,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             value.isEmpty ? 'Not answered' : value,
             style: TextStyle(
@@ -1006,7 +1005,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
               fontStyle: value.isEmpty ? FontStyle.italic : FontStyle.normal,
             ),
           ),
-          const SizedBox(height: 4),
+          // Removed SizedBox(height: 4) here as explanation is often empty
           Text(
             explanation,
             style: TextStyle(

@@ -143,7 +143,6 @@ class _MCQTestPageState extends State<MCQTestPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -270,7 +269,7 @@ class _MCQTestPageState extends State<MCQTestPage>
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 100, 20, 20),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -596,7 +595,7 @@ class _MCQTestPageState extends State<MCQTestPage>
       child: SlideTransition(
         position: _slideAnimation,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 120, 20, 20),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
