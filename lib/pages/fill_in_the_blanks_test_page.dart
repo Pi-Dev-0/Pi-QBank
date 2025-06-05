@@ -117,48 +117,109 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
 
   void _parseFillInTheBlanksQuestions() {
     _fillInTheBlanksQuestions.clear();
+    _answerControllers.forEach((key, controller) => controller.dispose());
+    _answerControllers.clear();
 
     final lines = widget.aiResponse.split('\n');
     String currentQuestion = '';
     String currentAnswer = '';
-    bool isReadingQuestion = false;
 
-    final bengaliNumberPattern = RegExp(r'[১২৩৪৫৬৭৮৯০]+\.');
+    // Regex to match both English and Bengali numbers followed by a dot and space
+    final questionNumberPattern = RegExp(r'^\s*(\d+|[১২৩৪৫৬৭৮৯০]+)\.\s*(.*)');
 
     for (var i = 0; i < lines.length; i++) {
       String line = lines[i].trim();
       if (line.isEmpty) continue;
 
-      if (line.contains(' শূন্যস্থান পূরণ করার প্রশ্ন')) continue;
+      // Skip specific instruction lines if they appear in the response
+      if (line.contains('শূন্যস্থান পূরণ করার প্রশ্ন') || line.contains('fill-in-the-blank questions')) {
+        continue;
+      }
 
-      if (bengaliNumberPattern.hasMatch(line)) {
+      Match? questionMatch = questionNumberPattern.firstMatch(line);
+      if (questionMatch != null) {
+        // If we have a complete question and answer from previous iteration, add it
         if (currentQuestion.isNotEmpty && currentAnswer.isNotEmpty) {
           _fillInTheBlanksQuestions.add({
             'question': currentQuestion,
             'answer': currentAnswer,
           });
-          _answerControllers[_fillInTheBlanksQuestions.length - 1] =
-              TextEditingController();
+          _answerControllers[_fillInTheBlanksQuestions.length - 1] = TextEditingController();
         }
 
-        currentQuestion = line;
-        currentAnswer = '';
-        isReadingQuestion = true;
-      } else if (line.startsWith('উত্তর:')) {
-        currentAnswer = line.replaceFirst('উত্তর:', '').trim();
-        isReadingQuestion = false;
-      } else if (isReadingQuestion) {
-        currentQuestion = '$currentQuestion $line';
+        String content = questionMatch.group(2)!.trim();
+        int blankIndex = content.indexOf('_____');
+
+        if (blankIndex != -1) {
+          // Question and potentially answer are on the same line
+          currentQuestion = content.substring(0, blankIndex + 5).trim();
+          String remainingContent = content.substring(blankIndex + 5).trim();
+
+          if (remainingContent.isNotEmpty) {
+            // Answer is on the same line
+            currentAnswer = remainingContent;
+          } else {
+            // Blank is at the end of the line, answer might be on the next line
+            if (i + 1 < lines.length) {
+              String nextLine = lines[i + 1].trim();
+              // Check if the next line is not another question number
+              if (!questionNumberPattern.hasMatch(nextLine)) {
+                currentAnswer = nextLine;
+                i++; // Consume the next line as the answer
+              } else {
+                // Next line is a new question, so no answer found for current question
+                currentAnswer = '';
+              }
+            } else {
+              // Last line, no answer found
+              currentAnswer = '';
+            }
+          }
+        } else {
+          // This line is numbered but doesn't contain a blank.
+          // This is a malformed question for fill-in-the-blanks based on the prompt.
+          // We will still capture it as a question, but it won't have an answer.
+          currentQuestion = content;
+          currentAnswer = '';
+        }
+      } else {
+        // This line is not a new question number.
+        // If we are currently building a question (currentQuestion is not empty)
+        // and we haven't found an answer yet (currentAnswer is empty),
+        // this line might be a continuation of the question or the answer.
+        if (currentQuestion.isNotEmpty && currentAnswer.isEmpty) {
+          // Check if this line contains the blank, if the previous line didn't
+          int blankIndex = line.indexOf('_____');
+          if (blankIndex != -1) {
+            currentQuestion = '$currentQuestion ${line.substring(0, blankIndex + 5)}'.trim();
+            String remainingContent = line.substring(blankIndex + 5).trim();
+            if (remainingContent.isNotEmpty) {
+              currentAnswer = remainingContent;
+            } else {
+              // Blank at end of this line, check next line for answer
+              if (i + 1 < lines.length) {
+                String nextLine = lines[i + 1].trim();
+                if (!questionNumberPattern.hasMatch(nextLine)) {
+                  currentAnswer = nextLine;
+                  i++; // Consume the next line as the answer
+                }
+              }
+            }
+          } else {
+            // If no blank, and not a new question, it's just a continuation of the question text
+            currentQuestion = '$currentQuestion $line'.trim();
+          }
+        }
       }
     }
 
+    // Add the last question if it exists
     if (currentQuestion.isNotEmpty && currentAnswer.isNotEmpty) {
       _fillInTheBlanksQuestions.add({
         'question': currentQuestion,
         'answer': currentAnswer,
       });
-      _answerControllers[_fillInTheBlanksQuestions.length - 1] =
-          TextEditingController();
+      _answerControllers[_fillInTheBlanksQuestions.length - 1] = TextEditingController();
     }
 
     setState(() {});
