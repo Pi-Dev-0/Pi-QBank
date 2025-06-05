@@ -192,10 +192,32 @@ Respond in the following JSON format:
       String prompt = _getAIInstructions(_selectedTestType!);
       parts.add({"text": prompt});
 
-      List<Map<String, dynamic>> contents = [
-        {"role": "user", "parts": parts}
-      ];
+      List<Map<String, dynamic>> contents = [];
 
+      // Add a simple introductory exchange to set context, similar to ai_page.dart
+      contents.add({
+        "role": "user",
+        "parts": [
+          {"text": "Analyze the provided image and generate questions based on it."}
+        ]
+      });
+      contents.add({
+        "role": "model",
+        "parts": [
+          {"text": "Understood. I will analyze the image and prepare questions."}
+        ]
+      });
+
+      // Add the current image and prompt
+      List<Map<String, dynamic>> currentParts = [];
+      currentParts.add({
+        "inline_data": {
+          "mime_type": _selectedImageMimeType ?? 'image/jpeg',
+          "data": base64Image
+        }
+      });
+      currentParts.add({"text": prompt});
+      contents.add({"role": "user", "parts": currentParts});
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
