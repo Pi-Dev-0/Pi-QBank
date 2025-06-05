@@ -96,8 +96,8 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
   String _getAIInstructions(String testType) {
     final int questionsCount = _numberOfQuestions ?? 4;
     final String languageInstruction = _selectedLanguage == 'বাংলা'
-        ? 'Generate questions in Bengali (Bangla) language. '
-        : '';
+        ? 'Generate questions and answers strictly in Bengali (Bangla) language. '
+        : 'Generate questions and answers strictly in English language. ';
 
     switch (testType) {
       case 'MCQ Test':
@@ -122,7 +122,10 @@ Respond in the following JSON format:
 }
 ''';
       case 'Short Question':
-        return '${languageInstruction}Generate $questionsCount short answer questions about this image that require brief explanations. Each answer should be 1-3 words.';
+        if (_selectedLanguage == 'বাংলা') {
+          return '$languageInstruction এই ছবি সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
+        }
+        return '${languageInstruction}Generate $questionsCount short answer questions about this image that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
       case 'Fill In the Blanks':
         return '${languageInstruction}Generate $questionsCount fill-in-the-blank questions about this image. Format: Question with _____ for blanks, followed by the correct answer.';
       default:

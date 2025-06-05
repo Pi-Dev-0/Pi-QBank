@@ -82,24 +82,32 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
         if (RegExp(r'^\d+\.|^[\u09E6-\u09EF]+\.').hasMatch(line)) {
           if (currentQuestion.isNotEmpty) {
             questions.add({
-              'question': currentQuestion.trim(),
-              'answer': currentAnswer.trim(),
+              'question': _stripMarkdown(currentQuestion.trim()),
+              'answer': _stripMarkdown(currentAnswer.trim()),
             });
             if (questions.length >= widget.numberOfQuestions) break;
           }
           currentQuestion = line;
           currentAnswer = '';
-          insideQuestion = true;
+          insideQuestion = true; // We are now inside a question block
         } else if (line.toLowerCase().contains('উত্তর:') ||
             line.toLowerCase().contains('answer:') ||
             line.startsWith('উঃ')) {
+          // If an answer is detected, stop adding to currentQuestion
           insideQuestion = false;
           currentAnswer = line
               .replaceFirst(
                   RegExp(r'^(উত্তর:|answer:|উঃ)', caseSensitive: false), '')
               .trim();
-        } else if (insideQuestion) {
-          currentQuestion = '$currentQuestion $line';
+        } else {
+          // If not a new question and not an answer line,
+          // append to currentQuestion if still inside question block,
+          // otherwise append to currentAnswer (for multi-line answers)
+          if (insideQuestion) {
+            currentQuestion = '$currentQuestion $line';
+          } else {
+            currentAnswer = '$currentAnswer $line';
+          }
         }
       }
 
@@ -107,8 +115,8 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
       if (currentQuestion.isNotEmpty &&
           questions.length < widget.numberOfQuestions) {
         questions.add({
-          'question': currentQuestion.trim(),
-          'answer': currentAnswer.trim(),
+          'question': _stripMarkdown(currentQuestion.trim()),
+          'answer': _stripMarkdown(currentAnswer.trim()),
         });
       }
 
@@ -894,6 +902,16 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
     int minutes = seconds ~/ 60;
     int remainingSeconds = seconds % 60;
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  String _stripMarkdown(String text) {
+    // Remove bold (**text**) and italics (*text*)
+    String strippedText = text.replaceAll(RegExp(r'\*\*([^\*]+)\*\*'), r'\1'); // bold
+    strippedText = strippedText.replaceAll(RegExp(r'\*([^\*]+)\*'), r'\1');   // italics
+    // Remove any remaining single asterisks that might be part of the text but not markdown
+    strippedText = strippedText.replaceAll(RegExp(r'\*'), '');
+    // Remove leading/trailing spaces
+    return strippedText.trim();
   }
 
   @override
