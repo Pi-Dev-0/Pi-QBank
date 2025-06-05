@@ -152,28 +152,23 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
 
         if (blankIndex != -1) {
           // Question and potentially answer are on the same line
-          currentQuestion = content.substring(0, blankIndex + 5).trim();
-          String remainingContent = content.substring(blankIndex + 5).trim();
+          // The entire content of the line is the question, including text after the blank
+          currentQuestion = content;
 
-          if (remainingContent.isNotEmpty) {
-            // Answer is on the same line
-            currentAnswer = remainingContent;
-          } else {
-            // Blank is at the end of the line, answer might be on the next line
-            if (i + 1 < lines.length) {
-              String nextLine = lines[i + 1].trim();
-              // Check if the next line is not another question number
-              if (!questionNumberPattern.hasMatch(nextLine)) {
-                currentAnswer = nextLine;
-                i++; // Consume the next line as the answer
-              } else {
-                // Next line is a new question, so no answer found for current question
-                currentAnswer = '';
-              }
+          // Now, try to find the answer on the next line
+          if (i + 1 < lines.length) {
+            String nextLine = lines[i + 1].trim();
+            // Check if the next line is not another question number
+            if (!questionNumberPattern.hasMatch(nextLine)) {
+              currentAnswer = nextLine;
+              i++; // Consume the next line as the answer
             } else {
-              // Last line, no answer found
+              // Next line is a new question, so no answer found for current question
               currentAnswer = '';
             }
+          } else {
+            // Last line, no answer found
+            currentAnswer = '';
           }
         } else {
           // This line is numbered but doesn't contain a blank.
@@ -191,18 +186,14 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
           // Check if this line contains the blank, if the previous line didn't
           int blankIndex = line.indexOf('_____');
           if (blankIndex != -1) {
-            currentQuestion = '$currentQuestion ${line.substring(0, blankIndex + 5)}'.trim();
-            String remainingContent = line.substring(blankIndex + 5).trim();
-            if (remainingContent.isNotEmpty) {
-              currentAnswer = remainingContent;
-            } else {
-              // Blank at end of this line, check next line for answer
-              if (i + 1 < lines.length) {
-                String nextLine = lines[i + 1].trim();
-                if (!questionNumberPattern.hasMatch(nextLine)) {
-                  currentAnswer = nextLine;
-                  i++; // Consume the next line as the answer
-                }
+            // If a blank is found in a continuation line, treat the entire line as part of the question
+            currentQuestion = '$currentQuestion $line'.trim();
+            // Then, try to find the answer on the next line
+            if (i + 1 < lines.length) {
+              String nextLine = lines[i + 1].trim();
+              if (!questionNumberPattern.hasMatch(nextLine)) {
+                currentAnswer = nextLine;
+                i++; // Consume the next line as the answer
               }
             }
           } else {
