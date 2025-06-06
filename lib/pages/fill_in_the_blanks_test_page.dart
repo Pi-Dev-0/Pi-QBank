@@ -121,8 +121,9 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
     _answerControllers.clear();
 
     final lines = widget.aiResponse.split('\n');
-    String currentQuestion = '';
-    String currentAnswer = '';
+    String? currentQuestion; // Use nullable to indicate no question is pending
+    String? currentAnswer;
+    bool expectingAnswer = false; // Flag to indicate we just found a question and are looking for its answer
 
     // Regex to match "Answer:" or "উত্তর:" (Bengali) at the start of a line
     final answerPattern = RegExp(r'^(Answer:|উত্তর:)\s*(.*)', caseSensitive: false);
@@ -137,10 +138,22 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
         continue;
       }
 
+      // If we were expecting an answer and this line is not a new question
+      if (expectingAnswer && !line.contains('_____')) {
+        Match? answerMatch = answerPattern.firstMatch(line);
+        if (answerMatch != null) {
+          currentAnswer = answerMatch.group(2)!.trim();
+        } else {
+          // If no explicit "Answer:" prefix, assume this is the answer if we just found a question
+          currentAnswer = line;
+        }
+        expectingAnswer = false; // Answer found, stop expecting
+      }
+
       // Check if the line contains the blank, indicating a question
       if (line.contains('_____')) {
         // If we have a complete question and answer from previous iteration, add it
-        if (currentQuestion.isNotEmpty && currentAnswer.isNotEmpty) {
+        if (currentQuestion != null && currentAnswer != null) {
           _fillInTheBlanksQuestions.add({
             'question': currentQuestion,
             'answer': currentAnswer,
@@ -149,37 +162,13 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
               TextEditingController();
         }
         currentQuestion = line; // This is the new question
-        currentAnswer = ''; // Reset answer for new question
-      } else {
-        // Check if this line is an answer to the current question
-        Match? answerMatch = answerPattern.firstMatch(line);
-        if (answerMatch != null) {
-          currentAnswer = answerMatch.group(2)!.trim(); // Extract text after "Answer:"
-          // If we have a question and now an answer, add the pair
-          if (currentQuestion.isNotEmpty) {
-            _fillInTheBlanksQuestions.add({
-              'question': currentQuestion,
-              'answer': currentAnswer,
-            });
-            _answerControllers[_fillInTheBlanksQuestions.length - 1] =
-                TextEditingController();
-            currentQuestion = ''; // Reset for next question
-            currentAnswer = ''; // Reset for next answer
-          }
-        } else {
-          // If it's not a question line and not an answer line,
-          // it might be a continuation of the current question if a question is being built.
-          // For the given example, this 'else' block might not be hit for question continuations.
-          // It's safer to assume questions are single-line with a blank for now,
-          // or if multi-line, the blank is on the first line.
-          // If it's not a question or answer, and no question is being built, just skip.
-        }
+        currentAnswer = null; // Reset answer for new question
+        expectingAnswer = true; // Now we are expecting an answer for this question
       }
     }
 
     // Add the last question if it exists and was not added in the loop
-    // This handles cases where the last question-answer pair is at the very end of the response
-    if (currentQuestion.isNotEmpty && currentAnswer.isNotEmpty) {
+    if (currentQuestion != null && currentAnswer != null) {
       _fillInTheBlanksQuestions.add({
         'question': currentQuestion,
         'answer': currentAnswer,
@@ -193,27 +182,48 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
 
   // Helper function to normalize answers for robust comparison, handling both English and Bengali.
   String _normalizeAnswer(String answer) {
-    // Convert to lowercase (for English, less impactful for Bengali but ensures consistency)
     String normalized = answer.toLowerCase();
-    // Remove specific Bengali and English punctuation.
-    normalized = normalized.replaceAll(RegExp(r'[।,.]'), '');
-    // Trim leading/trailing spaces.
-    normalized = normalized.trim();
+
+    // Remove common punctuation: periods, commas, question marks, exclamation marks,
+    // colons, semicolons, single quotes, double quotes, parentheses,
+    // square brackets, curly braces, angle brackets, backticks, tildes,
+    // at symbols, hash, dollar, percent, caret, ampersand, asterisk, plus, equals,
+    // pipe, backslash, forward slash, hyphen, em dash, and Bengali punctuation.
+    // Using a triple-quoted raw string for the regex to handle quotes easily.
+    // The hyphen '-' is at the end of the character set to be literal.
+    // The backslash '\' is escaped as '\\'.
+    normalized = normalized.replaceAll(RegExp(r'''[.,!?;:—'"()\[\]{}<>`~@#$%^&*+=|\\/-]+'''), '');
+
+    // Replace multiple spaces with a single space and trim
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+
     return normalized;
   }
 
   void _submitTest() {
     _fillInTheBlanksResults.clear();
+
+    // Very aggressive regex to remove ALL occurrences of "Answer:" or "উত্তর:"
+    // anywhere in the string, with optional spaces.
+    final superAggressiveAnswerPrefixPattern = RegExp(r'(Answer|উত্তর):\s*', caseSensitive: false);
+
     for (int i = 0; i < _fillInTheBlanksQuestions.length; i++) {
       final questionData = _fillInTheBlanksQuestions[i];
       final userAnswer = _answerControllers[i]?.text.trim() ?? '';
-      final correctAnswer = questionData['answer']?.trim() ?? '';
-      final isCorrect = _normalizeAnswer(userAnswer) == _normalizeAnswer(correctAnswer);
+      String correctAnswerRaw = questionData['answer']?.trim() ?? '';
+
+      // Aggressively trim and remove non-printable ASCII characters from correctAnswerRaw
+      correctAnswerRaw = correctAnswerRaw.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '').trim();
+
+      // Clean the correct answer by removing ALL occurrences of the prefix
+      String cleanedCorrectAnswer = correctAnswerRaw.replaceAll(superAggressiveAnswerPrefixPattern, '').trim();
+
+      final isCorrect = _normalizeAnswer(userAnswer) == _normalizeAnswer(cleanedCorrectAnswer);
 
       _fillInTheBlanksResults.add({
         'question': questionData['question'],
         'user_answer': userAnswer,
-        'correct_answer': correctAnswer,
+        'correct_answer': cleanedCorrectAnswer, // Store the cleaned version
         'is_correct': isCorrect,
       });
     }
@@ -469,6 +479,14 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
     final question = _fillInTheBlanksQuestions[index];
     final isAnswered = _answerControllers[index]?.text.isNotEmpty ?? false;
 
+    // Determine language-specific text
+    final String labelText = widget.language == 'English'
+        ? 'Write your answer'
+        : 'আপনার উত্তর লিখুন';
+    final String hintText = widget.language == 'English'
+        ? 'Type here...'
+        : 'এখানে টাইপ করুন...';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -567,9 +585,9 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
             child: TextField(
               controller: _answerControllers[index],
               decoration: InputDecoration(
-                labelText: 'আপনার উত্তর লিখুন',
+                labelText: labelText, // Use dynamic text
                 labelStyle: TextStyle(color: Colors.grey.shade600),
-                hintText: 'এখানে টাইপ করুন...',
+                hintText: hintText, // Use dynamic text
                 hintStyle: TextStyle(color: Colors.grey.shade400),
                 prefixIcon: Container(
                   margin: const EdgeInsets.all(8),
