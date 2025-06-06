@@ -124,96 +124,82 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
     String currentQuestion = '';
     String currentAnswer = '';
 
-    // Regex to match both English and Bengali numbers followed by a dot and space
-    final questionNumberPattern = RegExp(r'^\s*(\d+|[১২৩৪৫৬৭৮৯০]+)\.\s*(.*)');
+    // Regex to match "Answer:" or "উত্তর:" (Bengali) at the start of a line
+    final answerPattern = RegExp(r'^(Answer:|উত্তর:)\s*(.*)', caseSensitive: false);
 
     for (var i = 0; i < lines.length; i++) {
       String line = lines[i].trim();
       if (line.isEmpty) continue;
 
       // Skip specific instruction lines if they appear in the response
-      if (line.contains('শূন্যস্থান পূরণ করার প্রশ্ন') || line.contains('fill-in-the-blank questions')) {
+      if (line.contains('শূন্যস্থান পূরণ করার প্রশ্ন') ||
+          line.contains('fill-in-the-blank questions')) {
         continue;
       }
 
-      Match? questionMatch = questionNumberPattern.firstMatch(line);
-      if (questionMatch != null) {
+      // Check if the line contains the blank, indicating a question
+      if (line.contains('_____')) {
         // If we have a complete question and answer from previous iteration, add it
         if (currentQuestion.isNotEmpty && currentAnswer.isNotEmpty) {
           _fillInTheBlanksQuestions.add({
             'question': currentQuestion,
             'answer': currentAnswer,
           });
-          _answerControllers[_fillInTheBlanksQuestions.length - 1] = TextEditingController();
+          _answerControllers[_fillInTheBlanksQuestions.length - 1] =
+              TextEditingController();
         }
-
-        String content = questionMatch.group(2)!.trim();
-        int blankIndex = content.indexOf('_____');
-
-        if (blankIndex != -1) {
-          // Question and potentially answer are on the same line
-          // The entire content of the line is the question, including text after the blank
-          currentQuestion = content;
-
-          // Now, try to find the answer on the next line
-          if (i + 1 < lines.length) {
-            String nextLine = lines[i + 1].trim();
-            // Check if the next line is not another question number
-            if (!questionNumberPattern.hasMatch(nextLine)) {
-              currentAnswer = nextLine;
-              i++; // Consume the next line as the answer
-            } else {
-              // Next line is a new question, so no answer found for current question
-              currentAnswer = '';
-            }
-          } else {
-            // Last line, no answer found
-            currentAnswer = '';
+        currentQuestion = line; // This is the new question
+        currentAnswer = ''; // Reset answer for new question
+      } else {
+        // Check if this line is an answer to the current question
+        Match? answerMatch = answerPattern.firstMatch(line);
+        if (answerMatch != null) {
+          currentAnswer = answerMatch.group(2)!.trim(); // Extract text after "Answer:"
+          // If we have a question and now an answer, add the pair
+          if (currentQuestion.isNotEmpty) {
+            _fillInTheBlanksQuestions.add({
+              'question': currentQuestion,
+              'answer': currentAnswer,
+            });
+            _answerControllers[_fillInTheBlanksQuestions.length - 1] =
+                TextEditingController();
+            currentQuestion = ''; // Reset for next question
+            currentAnswer = ''; // Reset for next answer
           }
         } else {
-          // This line is numbered but doesn't contain a blank.
-          // This is a malformed question for fill-in-the-blanks based on the prompt.
-          // We will still capture it as a question, but it won't have an answer.
-          currentQuestion = content;
-          currentAnswer = '';
-        }
-      } else {
-        // This line is not a new question number.
-        // If we are currently building a question (currentQuestion is not empty)
-        // and we haven't found an answer yet (currentAnswer is empty),
-        // this line might be a continuation of the question or the answer.
-        if (currentQuestion.isNotEmpty && currentAnswer.isEmpty) {
-          // Check if this line contains the blank, if the previous line didn't
-          int blankIndex = line.indexOf('_____');
-          if (blankIndex != -1) {
-            // If a blank is found in a continuation line, treat the entire line as part of the question
-            currentQuestion = '$currentQuestion $line'.trim();
-            // Then, try to find the answer on the next line
-            if (i + 1 < lines.length) {
-              String nextLine = lines[i + 1].trim();
-              if (!questionNumberPattern.hasMatch(nextLine)) {
-                currentAnswer = nextLine;
-                i++; // Consume the next line as the answer
-              }
-            }
-          } else {
-            // If no blank, and not a new question, it's just a continuation of the question text
-            currentQuestion = '$currentQuestion $line'.trim();
-          }
+          // If it's not a question line and not an answer line,
+          // it might be a continuation of the current question if a question is being built.
+          // For the given example, this 'else' block might not be hit for question continuations.
+          // It's safer to assume questions are single-line with a blank for now,
+          // or if multi-line, the blank is on the first line.
+          // If it's not a question or answer, and no question is being built, just skip.
         }
       }
     }
 
-    // Add the last question if it exists
+    // Add the last question if it exists and was not added in the loop
+    // This handles cases where the last question-answer pair is at the very end of the response
     if (currentQuestion.isNotEmpty && currentAnswer.isNotEmpty) {
       _fillInTheBlanksQuestions.add({
         'question': currentQuestion,
         'answer': currentAnswer,
       });
-      _answerControllers[_fillInTheBlanksQuestions.length - 1] = TextEditingController();
+      _answerControllers[_fillInTheBlanksQuestions.length - 1] =
+          TextEditingController();
     }
 
     setState(() {});
+  }
+
+  // Helper function to normalize answers for robust comparison, handling both English and Bengali.
+  String _normalizeAnswer(String answer) {
+    // Convert to lowercase (for English, less impactful for Bengali but ensures consistency)
+    String normalized = answer.toLowerCase();
+    // Remove specific Bengali and English punctuation.
+    normalized = normalized.replaceAll(RegExp(r'[।,.]'), '');
+    // Trim leading/trailing spaces.
+    normalized = normalized.trim();
+    return normalized;
   }
 
   void _submitTest() {
@@ -222,7 +208,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
       final questionData = _fillInTheBlanksQuestions[i];
       final userAnswer = _answerControllers[i]?.text.trim() ?? '';
       final correctAnswer = questionData['answer']?.trim() ?? '';
-      final isCorrect = userAnswer.toLowerCase() == correctAnswer.toLowerCase();
+      final isCorrect = _normalizeAnswer(userAnswer) == _normalizeAnswer(correctAnswer);
 
       _fillInTheBlanksResults.add({
         'question': questionData['question'],
@@ -944,29 +930,31 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                               ),
                             ),
                             const SizedBox(height: 16),
+                            _buildAnswerCard(
+                              'Your Answer',
+                              result['user_answer'],
+                              isEmpty
+                                  ? 'Question was skipped'
+                                  : '', // Explanation for skipped
+                              isEmpty
+                                  ? warningOrange
+                                  : (isCorrect ? successGreen : errorRed),
+                              isEmpty
+                                  ? Icons.help_outline
+                                  : (isCorrect
+                                      ? Icons.check_circle
+                                      : Icons.cancel),
+                            ),
+                            if (!isCorrect || isEmpty) ...[
+                              const SizedBox(height: 12),
                               _buildAnswerCard(
-                                'Your Answer',
-                                result['user_answer'],
-                                isEmpty ? 'Question was skipped' : '', // Explanation for skipped
-                                isEmpty
-                                    ? warningOrange
-                                    : (isCorrect ? successGreen : errorRed),
-                                isEmpty
-                                    ? Icons.help_outline
-                                    : (isCorrect
-                                        ? Icons.check_circle
-                                        : Icons.cancel),
+                                'Correct Answer',
+                                result['correct_answer'],
+                                '', // No explanation for correct answer
+                                successGreen,
+                                Icons.lightbulb_outline,
                               ),
-                              if (!isCorrect || isEmpty) ...[
-                                const SizedBox(height: 12),
-                                _buildAnswerCard(
-                                  'Correct Answer',
-                                  result['correct_answer'],
-                                  '', // No explanation for correct answer
-                                  successGreen,
-                                  Icons.lightbulb_outline,
-                                ),
-                              ],
+                            ],
                           ],
                         ),
                       ),
