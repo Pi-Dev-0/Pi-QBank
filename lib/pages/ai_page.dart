@@ -4,14 +4,14 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
+import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
-import '../widgets/api_key_dialog.dart'; // Import the API key dialog
+import '../widgets/api_key_dialog.dart';
 import 'personal_tone_setting_page.dart';
 import '../widgets/image_generation_loader.dart';
-import 'full_screen_image_page.dart'; // Import the new page
+import 'full_screen_image_page.dart';
 
 class AIPage extends StatefulWidget {
   const AIPage({super.key});
@@ -124,9 +124,11 @@ class _AIPageState extends State<AIPage> {
           : _selectedModel; // Use selected model for text chat
 
       // Use custom API key if provided, otherwise fall back to default
-      final String? savedApiKey = await getApiKey(); // Get API key from dialog's shared preferences
-      final String apiKey =
-          savedApiKey != null && savedApiKey.isNotEmpty ? savedApiKey : AppConfig.geminiApiKey;
+      final String? savedApiKey =
+          await getApiKey(); // Get API key from dialog's shared preferences
+      final String apiKey = savedApiKey != null && savedApiKey.isNotEmpty
+          ? savedApiKey
+          : AppConfig.geminiApiKey;
 
       final url = Uri.parse(
           'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
@@ -264,9 +266,11 @@ class _AIPageState extends State<AIPage> {
     _scrollToBottom(); // Add scroll after showing loader
 
     try {
-      final String? savedApiKey = await getApiKey(); // Get API key from dialog's shared preferences
-      final String apiKey =
-          savedApiKey != null && savedApiKey.isNotEmpty ? savedApiKey : AppConfig.geminiApiKey;
+      final String? savedApiKey =
+          await getApiKey(); // Get API key from dialog's shared preferences
+      final String apiKey = savedApiKey != null && savedApiKey.isNotEmpty
+          ? savedApiKey
+          : AppConfig.geminiApiKey;
       final url = Uri.parse(
           'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=$apiKey');
 
