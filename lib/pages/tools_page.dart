@@ -140,12 +140,12 @@ class ToolsPage extends StatelessWidget {
                 ),
                 _buildToolCard(
                   context,
-                  Icons.image_search_outlined,
-                  'Image to Text',
-                  'Extract text from images',
+                  Icons.assignment_outlined,
+                  'Exam Paper Builder',
+                  'Create custom question papers & tests',
                   Colors.orange,
                   () {
-                    // Navigate to Image to Text page
+                    // Navigate to Exam Paper Builder page
                   },
                 ),
               ],
