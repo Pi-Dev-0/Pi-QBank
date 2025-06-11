@@ -886,20 +886,19 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     List<String> lines = _aiResponse.split('\n');
     String currentQuestion = '';
     String currentAnswer = '';
-    bool expectingAnswer = false;
-    bool foundFirstQuestion = false; // New flag
+    bool inQuestion = false; // True if we are currently accumulating question text
+    bool inAnswer = false;   // True if we are currently accumulating answer text
     int startIndex = 0;
 
-    // Try to extract topic from the first few lines
+    // Topic extraction logic remains the same
     for (int i = 0; i < lines.length; i++) {
       String line = lines[i].trim();
       if (line.toLowerCase().startsWith('topic:') ||
           line.toLowerCase().startsWith('বিষয়:')) {
         _generatedTopic = line.substring(line.indexOf(':') + 1).trim();
-        startIndex = i + 1; // Start parsing questions from the next line
+        startIndex = i + 1;
         break;
       }
-      // If a question is found before a topic, start parsing from here
       if (RegExp(r'^\d+\.|^[\u09E6-\u09EF]+\.').hasMatch(line)) {
         startIndex = i;
         break;
@@ -907,46 +906,40 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     }
 
     for (int i = startIndex; i < lines.length; i++) {
-      String line = lines[i].trim();
+      String line = _normalizeString(lines[i]); // Apply normalization
       if (line.isEmpty) continue;
 
-      // Check for question start (number followed by dot, or Bengali number followed by dot)
-      if (RegExp(r'^\d+\.|^[\u09E6-\u09EF]+\.').hasMatch(line)) {
+      // Check for question start
+      final questionMatch = RegExp(r'^(?:(?:\d+|[\u09E6-\u09EF]+)\. ?|প্রশ্ন(?:ঃ)? ?\d*[:]? ?|Question: ?\d*[:]? ?)', caseSensitive: false).firstMatch(line);
+      final answerMatch = RegExp(r'^(?:উত্তর:|answer:|উঃ) ?', caseSensitive: false).firstMatch(line);
+
+      if (questionMatch != null) {
+        // Found a new question
         if (currentQuestion.isNotEmpty) {
           _generatedQuestions.add({
             'question': _stripMarkdown(currentQuestion.trim()),
             'answer': _stripMarkdown(currentAnswer.trim()),
           });
         }
-        // Strip the leading number and dot from the question
-        currentQuestion = line
-            .replaceFirst(RegExp(r'^\d+\. ?|^[\u09E6-\u09EF]+\. ?'), '')
-            .trim();
+        currentQuestion = line.substring(questionMatch.end).trim();
         currentAnswer = '';
-        expectingAnswer = true;
-        foundFirstQuestion = true; // Set flag when first question is found
-      } else if (foundFirstQuestion &&
-          expectingAnswer && // Only process answers if we've found a question
-          (line.toLowerCase().contains('উত্তর:') ||
-              line.toLowerCase().contains('answer:') ||
-              line.startsWith('উঃ'))) {
-        // This is the start of an answer for the current question
-        currentAnswer = line
-            .replaceFirst(
-                RegExp(r'^(উত্তর:|answer:|উঃ)', caseSensitive: false), '')
-            .trim();
-        expectingAnswer = false;
-      } else if (foundFirstQuestion) {
-        // Only append to question/answer if we've found a question
-        // If we have a question and are not expecting a new answer, append to current answer
-        // Otherwise, append to current question (for multi-line questions)
-        if (currentQuestion.isNotEmpty && !expectingAnswer) {
+        inQuestion = true;
+        inAnswer = false;
+      } else if (answerMatch != null) {
+        // Found an answer start
+        currentAnswer = line.substring(answerMatch.end).trim();
+        inAnswer = true;
+        inQuestion = false; // Should not be in question accumulation if answer starts
+      } else {
+        // Continue accumulating based on current state
+        if (inAnswer) {
           currentAnswer = '$currentAnswer $line';
-        } else {
+        } else if (inQuestion) {
           currentQuestion = '$currentQuestion $line';
         }
+        // If neither inQuestion nor inAnswer, and not a start, ignore or consider as part of previous line if applicable.
+        // For now, if not in a recognized section, it's ignored.
       }
-      // If not foundFirstQuestion, and not a question line, and not an answer line, just ignore it.
     }
 
     // Add the last question if exists
@@ -956,6 +949,14 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
         'answer': _stripMarkdown(currentAnswer.trim()),
       });
     }
+  }
+
+  String _normalizeString(String text) {
+    // Replace various whitespace characters with a standard space
+    String normalized = text.replaceAll(RegExp(r'\s+'), ' ');
+    // Remove zero-width spaces and other common invisible characters
+    normalized = normalized.replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '');
+    return normalized.trim();
   }
 
   String _stripMarkdown(String text) {
