@@ -206,18 +206,9 @@ class _NotificationIconState extends State<NotificationIcon>
       barrierDismissible: true,
       barrierLabel: '',
       barrierColor: Colors.black.withOpacity(0.6),
-      transitionDuration: const Duration(milliseconds: 400),
+      transitionDuration: Duration.zero,
       transitionBuilder: (context, a1, a2, widget) {
-        return Transform.scale(
-          scale: a1.value,
-          child: Transform.rotate(
-            angle: (1 - a1.value) * 0.3,
-            child: Opacity(
-              opacity: a1.value,
-              child: widget,
-            ),
-          ),
-        );
+        return widget;
       },
       pageBuilder: (context, animation1, animation2) {
         return AnimatedBuilder(
