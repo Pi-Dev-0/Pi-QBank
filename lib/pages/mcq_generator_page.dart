@@ -692,7 +692,9 @@ Respond in the following JSON format:
             icon: Icons.numbers,
             keyboardType: TextInputType.number,
             onChanged: (value) {
-              _numberOfMcqs = int.tryParse(value);
+              setState(() {
+                _numberOfMcqs = int.tryParse(value);
+              });
             },
           ),
         ],
