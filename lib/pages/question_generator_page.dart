@@ -986,7 +986,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
       children: [
         Container(
           // This container holds the "Generated Questions" title
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
@@ -1094,10 +1094,10 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                       ),
                     ),
                   ),
-                  title: const SizedBox.shrink(), // Remove the "Question X" text
+                  title: const SizedBox.shrink(),
                   subtitle: Text(
                     question['question'] ?? '',
-                    maxLines: 2,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: Colors.black,
@@ -1124,17 +1124,17 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                                   ? 'উত্তর:'
                                   : 'Answer:',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.green.shade700,
                               ),
                             ),
-                            const SizedBox(width: 8), // Add horizontal space between label and answer
-                            Expanded( // Allow the answer text to take remaining space
+                            const SizedBox(width: 8), 
+                            Expanded( 
                               child: Text(
                                 question['answer'] ?? '',
                                 style: TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 16,
                                   color: Colors.green.shade800,
                                   fontWeight: FontWeight.w500,
                                 ),
