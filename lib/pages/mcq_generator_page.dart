@@ -94,7 +94,8 @@ class _MCQGeneratorPageState extends State<MCQGeneratorPage>
 
   String _getAIInstructions() {
     final int mcqCount = _numberOfMcqs ?? 5; // Default to 5 if not set
-    final String languageInstruction = 'Generate questions and answers strictly in Bengali (Bangla) language. ';
+    final String languageInstruction =
+        'Generate questions and answers strictly in Bengali (Bangla) language. ';
     return '''
 ${languageInstruction}Generate $mcqCount multiple choice questions about this image with 4 options each. 
 Each question must also include the correct answer.
@@ -266,7 +267,8 @@ Respond in the following JSON format:
       String cleanedResponse =
           response.replaceAll('```json\n', '').replaceAll('```', '').trim();
       final Map<String, dynamic> decodedResponse = json.decode(cleanedResponse);
-      _mcqTopic = decodedResponse['topic'] ?? 'Generated MCQs'; // Parse the topic
+      _mcqTopic =
+          decodedResponse['topic'] ?? 'Generated MCQs'; // Parse the topic
       _generatedMcqs =
           List<Map<String, dynamic>>.from(decodedResponse['questions'] ?? []);
       for (int i = 0; i < _generatedMcqs.length; i++) {
@@ -315,7 +317,9 @@ Respond in the following JSON format:
                       const SizedBox(height: 32),
                       _buildActionButtonsSection(),
                       const SizedBox(height: 24),
-                      if (_aiResponse.isNotEmpty && _generatedMcqs.isEmpty && !_isProcessingImage)
+                      if (_aiResponse.isNotEmpty &&
+                          _generatedMcqs.isEmpty &&
+                          !_isProcessingImage)
                         _buildErrorDisplay(),
                     ] else ...[
                       _buildGeneratedMcqSection(),
