@@ -887,6 +887,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     String currentQuestion = '';
     String currentAnswer = '';
     bool expectingAnswer = false;
+    bool foundFirstQuestion = false; // New flag
     int startIndex = 0;
 
     // Try to extract topic from the first few lines
@@ -917,10 +918,12 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             'answer': _stripMarkdown(currentAnswer.trim()),
           });
         }
-        currentQuestion = line;
+        // Strip the leading number and dot from the question
+        currentQuestion = line.replaceFirst(RegExp(r'^\d+\. ?|^[\u09E6-\u09EF]+\. ?'), '').trim();
         currentAnswer = '';
-        expectingAnswer = true; // After a question, we expect an answer
-      } else if (expectingAnswer &&
+        expectingAnswer = true;
+        foundFirstQuestion = true; // Set flag when first question is found
+      } else if (foundFirstQuestion && expectingAnswer && // Only process answers if we've found a question
           (line.toLowerCase().contains('উত্তর:') ||
               line.toLowerCase().contains('answer:') ||
               line.startsWith('উঃ'))) {
@@ -929,9 +932,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             .replaceFirst(
                 RegExp(r'^(উত্তর:|answer:|উঃ)', caseSensitive: false), '')
             .trim();
-        expectingAnswer =
-            false; // No longer expecting an answer, now collecting its content
-      } else {
+        expectingAnswer = false;
+      } else if (foundFirstQuestion) { // Only append to question/answer if we've found a question
         // If we have a question and are not expecting a new answer, append to current answer
         // Otherwise, append to current question (for multi-line questions)
         if (currentQuestion.isNotEmpty && !expectingAnswer) {
@@ -940,6 +942,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
           currentQuestion = '$currentQuestion $line';
         }
       }
+      // If not foundFirstQuestion, and not a question line, and not an answer line, just ignore it.
     }
 
     // Add the last question if exists
