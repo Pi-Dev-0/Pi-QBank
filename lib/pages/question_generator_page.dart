@@ -919,11 +919,14 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
           });
         }
         // Strip the leading number and dot from the question
-        currentQuestion = line.replaceFirst(RegExp(r'^\d+\. ?|^[\u09E6-\u09EF]+\. ?'), '').trim();
+        currentQuestion = line
+            .replaceFirst(RegExp(r'^\d+\. ?|^[\u09E6-\u09EF]+\. ?'), '')
+            .trim();
         currentAnswer = '';
         expectingAnswer = true;
         foundFirstQuestion = true; // Set flag when first question is found
-      } else if (foundFirstQuestion && expectingAnswer && // Only process answers if we've found a question
+      } else if (foundFirstQuestion &&
+          expectingAnswer && // Only process answers if we've found a question
           (line.toLowerCase().contains('উত্তর:') ||
               line.toLowerCase().contains('answer:') ||
               line.startsWith('উঃ'))) {
@@ -933,7 +936,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                 RegExp(r'^(উত্তর:|answer:|উঃ)', caseSensitive: false), '')
             .trim();
         expectingAnswer = false;
-      } else if (foundFirstQuestion) { // Only append to question/answer if we've found a question
+      } else if (foundFirstQuestion) {
+        // Only append to question/answer if we've found a question
         // If we have a question and are not expecting a new answer, append to current answer
         // Otherwise, append to current question (for multi-line questions)
         if (currentQuestion.isNotEmpty && !expectingAnswer) {
@@ -1090,22 +1094,15 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                       ),
                     ),
                   ),
-                  title: Text(
-                    _selectedLanguage == 'বাংলা'
-                        ? 'প্রশ্ন ${_convertToBengaliNumber(index + 1)}'
-                        : 'Question ${index + 1}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
+                  title: const SizedBox.shrink(), // Remove the "Question X" text
                   subtitle: Text(
                     question['question'] ?? '',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.grey[600],
+                      color: Colors.black,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
                       height: 1.3,
                     ),
                   ),
@@ -1119,8 +1116,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.green.shade200),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row( // Changed from Column to Row
+                          crossAxisAlignment: CrossAxisAlignment.start, // Align content at the top
                           children: [
                             Text(
                               _selectedLanguage == 'বাংলা'
@@ -1132,13 +1129,17 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                                 color: Colors.green.shade700,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              question['answer'] ?? '',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.green.shade800,
-                                fontWeight: FontWeight.w500,
+                            const SizedBox(width: 8), // Add horizontal space between label and answer
+                            Expanded( // Allow the answer text to take remaining space
+                              child: Text(
+                                question['answer'] ?? '',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.green.shade800,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: _selectedQuestionType == 'Short Question' ? 1 : null,
+                                overflow: _selectedQuestionType == 'Short Question' ? TextOverflow.ellipsis : null,
                               ),
                             ),
                           ],
