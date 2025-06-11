@@ -1024,6 +1024,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                     fontWeight: FontWeight.bold,
                     color: Colors.grey.shade800,
                   ),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
