@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Key for storing the API key in SharedPreferences
-const String _apiKeyPrefKey = 'openai_api_key';
+const String _apiKeyPrefKey = 'gemini_api_key';
 
 // Function to save the API key
 Future<void> saveApiKey(String apiKey) async {

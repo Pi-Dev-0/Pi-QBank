@@ -7,32 +7,18 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/app_config.dart';
+import 'package:pi_qbank/widgets/api_key_dialog.dart';
 
 
-class ExamPaperBuilderPage extends StatelessWidget {
+class ExamPaperBuilderPage extends StatefulWidget {
   const ExamPaperBuilderPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Exam Paper Builder',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        fontFamily: 'Kalpurush', // Bengali font
-      ),
-      home: ExamPaperBuilder(),
-    );
-  }
+  State<ExamPaperBuilderPage> createState() => _ExamPaperBuilderPageState();
 }
 
-class ExamPaperBuilder extends StatefulWidget {
-  const ExamPaperBuilder({super.key});
-
-  @override
-  _ExamPaperBuilderState createState() => _ExamPaperBuilderState();
-}
-
-class _ExamPaperBuilderState extends State<ExamPaperBuilder> {
+class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
   
@@ -106,11 +92,17 @@ class _ExamPaperBuilderState extends State<ExamPaperBuilder> {
   }
 
   Future<List<String>> _generateQuestionsFromImages(List<File> images, String questionType) async {
-    if (_apiKeyController.text.isEmpty) {
-      throw Exception('Gemini API Key is required');
+    String? apiKey = await getApiKey(); // Try to get API key from SharedPreferences
+
+    if (apiKey == null || apiKey.isEmpty) {
+      // If not found in SharedPreferences, use the default from AppConfig
+      apiKey = AppConfig.geminiApiKey;
+    }
+
+    if (apiKey.isEmpty) {
+      throw Exception('API Key not set. Please enter your API key.');
     }
     
-    final String apiKey = _apiKeyController.text;
     final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
     
     List<String> questions = [];
@@ -128,7 +120,7 @@ class _ExamPaperBuilderState extends State<ExamPaperBuilder> {
 প্রশ্নটি সম্পূর্ণ বাংলায় লিখুন।''';
         break;
       case 'short':
-        prompt = '''এই ছবি থেকে বাংলায় সংক্ষিপ্ত প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত। প্রশ্নগুলো বাংলায় লিখুন।''';
+        prompt = '''এই ছবি থেকে বাংলায় সংক্ষিপ্ত প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত। প্রশ্নগুলো বাংলায় লিখুন.''';
         break;
       case 'mcq':
         prompt = '''এই ছবি থেকে বাংলায় বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
@@ -346,21 +338,21 @@ class _ExamPaperBuilderState extends State<ExamPaperBuilder> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Gemini API Key
-              TextFormField(
-                controller: _apiKeyController,
-                decoration: InputDecoration(
-                  labelText: 'Gemini API Key *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.key),
-                ),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Gemini API Key প্রয়োজন';
-                  }
-                  return null;
+              // Gemini API Key Button
+              ElevatedButton.icon(
+                onPressed: () {
+                  showApiKeyDialog(context);
                 },
+                icon: Icon(Icons.key),
+                label: Text('Gemini API Key সেট করুন'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[600],
+                  foregroundColor: Colors.white,
+                  minimumSize: Size(double.infinity, 50), // full width button
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ),
               SizedBox(height: 16),
               
@@ -808,6 +800,20 @@ class _ExamPaperBuilderState extends State<ExamPaperBuilder> {
                 ],
                 if (_mcqQuestions.isNotEmpty) ...[
                   Text('বহুনির্বাচনি প্রশ্ন:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 16),
+                ],
+                if (_shortSangkhiptoQuestions.isNotEmpty) ...[
+                  Text('সংক্ষিপ্ত প্রশ্ন:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...List.generate(_shortSangkhiptoQuestions.length, (index) =>
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                ],
+                if (_mcqQuestions.isNotEmpty) ...[
+                  Text('বহুনির্বাচনি প্রশ্ন:', style: TextStyle(fontWeight: FontWeight.bold)),
                   ...List.generate(_mcqQuestions.length, (index) =>
                     Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
@@ -1021,7 +1027,6 @@ class _ExamPaperBuilderState extends State<ExamPaperBuilder> {
     _instituteController.dispose();
     _totalMarksController.dispose();
     _directionsController.dispose();
-    _apiKeyController.dispose();
     super.dispose();
   }
 }
