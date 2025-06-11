@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
+import '../widgets/custom_app_bar.dart';
 
 
 class ExamPaperBuilderPage extends StatefulWidget {
@@ -320,15 +321,13 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('পরীক্ষার প্রশ্নপত্র তৈরি করুন'),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
+      appBar: const CustomAppBar(
+        title: 'পরীক্ষার প্রশ্নপত্র তৈরি করুন',
       ),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -337,35 +336,35 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                 onPressed: () {
                   showApiKeyDialog(context);
                 },
-                icon: Icon(Icons.key),
-                label: Text('Gemini API Key সেট করুন'),
+                icon: const Icon(Icons.key),
+                label: const Text('Gemini API Key সেট করুন'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue[600],
                   foregroundColor: Colors.white,
-                  minimumSize: Size(double.infinity, 50), // full width button
+                  minimumSize: const Size(double.infinity, 50), // full width button
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               
               // Basic Information
               Card(
                 child: Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'মৌলিক তথ্য',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       
                       TextFormField(
                         controller: _instituteController,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'স্কুল/কলেজ/কোচিং/প্রতিষ্ঠানের নাম *',
                           border: OutlineInputBorder(),
                         ),
@@ -376,14 +375,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                           return null;
                         },
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       
                       Row(
                         children: [
                           Expanded(
                             child: TextFormField(
                               controller: _subjectController,
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 labelText: 'বিষয়ের নাম *',
                                 border: OutlineInputBorder(),
                               ),
@@ -395,11 +394,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                               },
                             ),
                           ),
-                          SizedBox(width: 16),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: TextFormField(
                               controller: _examTimeController,
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 labelText: 'পরীক্ষার সময়',
                                 border: OutlineInputBorder(),
                               ),
@@ -407,11 +406,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                           ),
                         ],
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       
                       TextFormField(
                         controller: _totalMarksController,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'মোট নম্বর *',
                           border: OutlineInputBorder(),
                         ),
@@ -423,11 +422,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                           return null;
                         },
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       
                       TextFormField(
                         controller: _directionsController,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'পরীক্ষার্থীদের জন্য নির্দেশনা',
                           border: OutlineInputBorder(),
                         ),
@@ -437,24 +436,24 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                   ),
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               
               // Question Types
               Card(
                 child: Padding(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'প্রশ্নের ধরন নির্বাচন করুন',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       
                       // Creative Questions
                       CheckboxListTile(
-                        title: Text('সৃজনশীল প্রশ্ন'),
+                        title: const Text('সৃজনশীল প্রশ্ন'),
                         value: _creativeSrojonshil,
                         onChanged: (value) {
                           setState(() {
@@ -464,16 +463,16 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                       ),
                       if (_creativeSrojonshil) ...[
                         Padding(
-                          padding: EdgeInsets.only(left: 32),
+                          padding: const EdgeInsets.only(left: 32),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               ElevatedButton.icon(
                                 onPressed: () => _pickImages('creative'),
-                                icon: Icon(Icons.add_photo_alternate),
-                                label: Text('ছবি যোগ করুন'),
+                                icon: const Icon(Icons.add_photo_alternate),
+                                label: const Text('ছবি যোগ করুন'),
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               if (_creativeSrojonshilImages.isNotEmpty)
                                 SizedBox(
                                   height: 100,
@@ -482,7 +481,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                     itemCount: _creativeSrojonshilImages.length,
                                     itemBuilder: (context, index) {
                                       return Container(
-                                        margin: EdgeInsets.only(right: 8),
+                                        margin: const EdgeInsets.only(right: 8),
                                         child: Stack(
                                           children: [
                                             Image.file(
@@ -497,11 +496,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                               child: GestureDetector(
                                                 onTap: () => _removeImage('creative', index),
                                                 child: Container(
-                                                  decoration: BoxDecoration(
+                                                  decoration: const BoxDecoration(
                                                     color: Colors.red,
                                                     shape: BoxShape.circle,
                                                   ),
-                                                  child: Icon(
+                                                  child: const Icon(
                                                     Icons.close,
                                                     color: Colors.white,
                                                     size: 16,
@@ -522,7 +521,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                       
                       // Short Questions
                       CheckboxListTile(
-                        title: Text('সংক্ষিপ্ত প্রশ্ন'),
+                        title: const Text('সংক্ষিপ্ত প্রশ্ন'),
                         value: _shortSangkhipto,
                         onChanged: (value) {
                           setState(() {
@@ -532,16 +531,16 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                       ),
                       if (_shortSangkhipto) ...[
                         Padding(
-                          padding: EdgeInsets.only(left: 32),
+                          padding: const EdgeInsets.only(left: 32),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               ElevatedButton.icon(
                                 onPressed: () => _pickImages('short'),
-                                icon: Icon(Icons.add_photo_alternate),
-                                label: Text('ছবি যোগ করুন'),
+                                icon: const Icon(Icons.add_photo_alternate),
+                                label: const Text('ছবি যোগ করুন'),
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               if (_shortSangkhiptoImages.isNotEmpty)
                                 SizedBox(
                                   height: 100,
@@ -550,7 +549,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                     itemCount: _shortSangkhiptoImages.length,
                                     itemBuilder: (context, index) {
                                       return Container(
-                                        margin: EdgeInsets.only(right: 8),
+                                        margin: const EdgeInsets.only(right: 8),
                                         child: Stack(
                                           children: [
                                             Image.file(
@@ -565,11 +564,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                               child: GestureDetector(
                                                 onTap: () => _removeImage('short', index),
                                                 child: Container(
-                                                  decoration: BoxDecoration(
+                                                  decoration: const BoxDecoration(
                                                     color: Colors.red,
                                                     shape: BoxShape.circle,
                                                   ),
-                                                  child: Icon(
+                                                  child: const Icon(
                                                     Icons.close,
                                                     color: Colors.white,
                                                     size: 16,
@@ -590,7 +589,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                       
                       // MCQ Questions
                       CheckboxListTile(
-                        title: Text('বহুনির্বাচনি প্রশ্ন (MCQ)'),
+                        title: const Text('বহুনির্বাচনি প্রশ্ন (MCQ)'),
                         value: _mcqMultipleChoice,
                         onChanged: (value) {
                           setState(() {
@@ -600,16 +599,16 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                       ),
                       if (_mcqMultipleChoice) ...[
                         Padding(
-                          padding: EdgeInsets.only(left: 32),
+                          padding: const EdgeInsets.only(left: 32),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               ElevatedButton.icon(
                                 onPressed: () => _pickImages('mcq'),
-                                icon: Icon(Icons.add_photo_alternate),
-                                label: Text('ছবি যোগ করুন'),
+                                icon: const Icon(Icons.add_photo_alternate),
+                                label: const Text('ছবি যোগ করুন'),
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               if (_mcqImages.isNotEmpty)
                                 SizedBox(
                                   height: 100,
@@ -618,7 +617,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                     itemCount: _mcqImages.length,
                                     itemBuilder: (context, index) {
                                       return Container(
-                                        margin: EdgeInsets.only(right: 8),
+                                        margin: const EdgeInsets.only(right: 8),
                                         child: Stack(
                                           children: [
                                             Image.file(
@@ -633,11 +632,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                               child: GestureDetector(
                                                 onTap: () => _removeImage('mcq', index),
                                                 child: Container(
-                                                  decoration: BoxDecoration(
+                                                  decoration: const BoxDecoration(
                                                     color: Colors.red,
                                                     shape: BoxShape.circle,
                                                   ),
-                                                  child: Icon(
+                                                  child: const Icon(
                                                     Icons.close,
                                                     color: Colors.white,
                                                     size: 16,
@@ -659,7 +658,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                   ),
                 ),
               ),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               
               // Action Buttons
               Column(
@@ -674,10 +673,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           child: _isGenerating
-                              ? Row(
+                              ? const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     SizedBox(
@@ -692,10 +691,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                     Text('প্রশ্ন তৈরি হচ্ছে...'),
                                   ],
                                 )
-                              : Text('প্রশ্ন তৈরি করুন'),
+                              : const Text('প্রশ্ন তৈরি করুন'),
                         ),
                       ),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton(
                           onPressed: (_hasGeneratedQuestions() && _formKey.currentState?.validate() == true)
@@ -704,35 +703,35 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
-                          child: Text('PDF তৈরি করুন'),
+                          child: const Text('PDF তৈরি করুন'),
                         ),
                       ),
                     ],
                   ),
                   if (_hasGeneratedQuestions()) ...[
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _showGeneratedQuestions,
-                            icon: Icon(Icons.preview),
-                            label: Text('প্রশ্ন দেখুন'),
+                            icon: const Icon(Icons.preview),
+                            label: const Text('প্রশ্ন দেখুন'),
                             style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
                         ),
-                        SizedBox(width: 16),
+                        const SizedBox(width: 16),
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _saveTemplate,
-                            icon: Icon(Icons.save),
-                            label: Text('টেমপ্লেট সংরক্ষণ'),
+                            icon: const Icon(Icons.save),
+                            label: const Text('টেমপ্লেট সংরক্ষণ'),
                             style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
                         ),
