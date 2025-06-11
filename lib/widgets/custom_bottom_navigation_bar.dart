@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 
-class CustomBottomNavigationBar extends StatelessWidget {
+class CustomBottomNavigationBar extends StatefulWidget {
   final int currentPageIndex;
   final ValueChanged<int> onPageSelected;
   final List<List<Color>> navGradients;
@@ -13,49 +13,133 @@ class CustomBottomNavigationBar extends StatelessWidget {
     required this.navGradients,
   });
 
+  @override
+  State<CustomBottomNavigationBar> createState() => _CustomBottomNavigationBarState();
+}
+
+class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar>
+    with TickerProviderStateMixin {
+  late AnimationController _animationController;
+  late AnimationController _scaleController;
+  late Animation<double> _curveAnimation;
+  late Animation<double> _scaleAnimation;
+  
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    _curveAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.elasticOut,
+    );
+    
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.2,
+    ).animate(CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves.elasticOut,
+    ));
+  }
+
+  @override
+  void didUpdateWidget(CustomBottomNavigationBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentPageIndex != widget.currentPageIndex) {
+      _animationController.forward(from: 0);
+      _scaleController.forward().then((_) {
+        _scaleController.reverse();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _scaleController.dispose();
+    super.dispose();
+  }
+
   Widget _buildNavItem(IconData icon, String label, bool isSelected,
-      List<Color> gradientColors) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      decoration: isSelected
-          ? BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                colors: gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+      List<Color> gradientColors, int index) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_curveAnimation, _scaleAnimation]),
+      builder: (context, child) {
+        double scale = isSelected ? _scaleAnimation.value : 1.0;
+        double curveOffset = 0.0;
+        
+        if (isSelected && _animationController.isAnimating) {
+          curveOffset = 15 * _curveAnimation.value * (1 - _curveAnimation.value) * 4;
+        }
+
+        return Transform.scale(
+          scale: scale,
+          child: Transform.translate(
+            offset: Offset(0, -curveOffset),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16), // Adjusted padding
+              decoration: isSelected
+                  ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      gradient: LinearGradient(
+                        colors: gradientColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: gradientColors[0].withOpacity(0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    )
+                  : null,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: Icon(
+                      icon,
+                      size: isSelected ? 28 : 22, // Adjusted icon size
+                      color: isSelected 
+                          ? Colors.white 
+                          : gradientColors[0].withOpacity(0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    style: TextStyle(
+                      fontSize: isSelected ? 10 : 8, // Adjusted font size
+                      color: isSelected
+                          ? Colors.white
+                          : gradientColors[0].withOpacity(0.8),
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    child: Text(label),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: gradientColors[0].withOpacity(0.3),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            )
-          : null,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 26,
-            color:
-                isSelected ? Colors.white : gradientColors[0].withOpacity(0.8),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 9,
-              color: isSelected
-                  ? Colors.white
-                  : gradientColors[0].withOpacity(0.9),
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -83,41 +167,100 @@ class CustomBottomNavigationBar extends StatelessWidget {
             ],
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
+              // Online Class
               Expanded(
-                child: GestureDetector(
-                  onTap: () => onPageSelected(0),
-                  child: _buildNavItem(Icons.ondemand_video, 'Online Class',
-                      currentPageIndex == 0, navGradients[0]),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(30),
+                    onTap: () => widget.onPageSelected(0),
+                    child: Center(
+                      child: _buildNavItem(
+                        Icons.ondemand_video, 
+                        'Classes',
+                        widget.currentPageIndex == 0, 
+                        widget.navGradients[0],
+                        0,
+                      ),
+                    ),
+                  ),
                 ),
               ),
+              // Blog
               Expanded(
-                child: GestureDetector(
-                  onTap: () => onPageSelected(1),
-                  child: _buildNavItem(Icons.article_outlined, 'Blog',
-                      currentPageIndex == 1, navGradients[1]),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(30),
+                    onTap: () => widget.onPageSelected(1),
+                    child: Center(
+                      child: _buildNavItem(
+                        Icons.article_outlined, 
+                        'Blog',
+                        widget.currentPageIndex == 1, 
+                        widget.navGradients[1],
+                        1,
+                      ),
+                    ),
+                  ),
                 ),
               ),
+              // Home
               Expanded(
-                child: GestureDetector(
-                  onTap: () => onPageSelected(2),
-                  child: _buildNavItem(
-                      Icons.home, 'Home', currentPageIndex == 2, navGradients[2]),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(30),
+                    onTap: () => widget.onPageSelected(2),
+                    child: Center(
+                      child: _buildNavItem(
+                        Icons.home, 
+                        'Home',
+                        widget.currentPageIndex == 2, 
+                        widget.navGradients[2],
+                        2,
+                      ),
+                    ),
+                  ),
                 ),
               ),
+              // Tools
               Expanded(
-                child: GestureDetector(
-                  onTap: () => onPageSelected(3),
-                  child: _buildNavItem(Icons.build_circle_outlined, 'Tools',
-                      currentPageIndex == 3, navGradients[3]),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(30),
+                    onTap: () => widget.onPageSelected(3),
+                    child: Center(
+                      child: _buildNavItem(
+                        Icons.build_circle_outlined, 
+                        'Tools',
+                        widget.currentPageIndex == 3, 
+                        widget.navGradients[3],
+                        3,
+                      ),
+                    ),
+                  ),
                 ),
               ),
+              // AI
               Expanded(
-                child: GestureDetector(
-                  onTap: () => onPageSelected(4),
-                  child: _buildNavItem(
-                      Icons.psychology, 'AI', currentPageIndex == 4, navGradients[4]),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(30),
+                    onTap: () => widget.onPageSelected(4),
+                    child: Center(
+                      child: _buildNavItem(
+                        Icons.psychology, 
+                        'AI',
+                        widget.currentPageIndex == 4, 
+                        widget.navGradients[4],
+                        4,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
