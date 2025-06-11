@@ -25,6 +25,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
   String _selectedLanguage = 'English';
   final List<Map<String, String>> _generatedQuestions = [];
   String _generatedTopic = ''; // New state for the generated topic
+  late ScrollController _scrollController; // Declare ScrollController
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -33,6 +34,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController(); // Initialize ScrollController
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -52,6 +54,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
   @override
   void dispose() {
     _animationController.dispose();
+    _scrollController.dispose(); // Dispose ScrollController
     super.dispose();
   }
 
@@ -226,6 +229,12 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             _aiResponse = reply;
             _parseGeneratedQuestions(); // Call parsing after response is set
           });
+          // Scroll to top after questions are generated
+          _scrollController.animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
         } else {
           throw Exception('Invalid response format or empty candidates');
         }
@@ -270,6 +279,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             child: SlideTransition(
               position: _slideAnimation,
               child: SingleChildScrollView(
+                controller: _scrollController, // Assign ScrollController
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -886,8 +896,9 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     List<String> lines = _aiResponse.split('\n');
     String currentQuestion = '';
     String currentAnswer = '';
-    bool inQuestion = false; // True if we are currently accumulating question text
-    bool inAnswer = false;   // True if we are currently accumulating answer text
+    bool inQuestion =
+        false; // True if we are currently accumulating question text
+    bool inAnswer = false; // True if we are currently accumulating answer text
     int startIndex = 0;
 
     // Topic extraction logic remains the same
@@ -910,8 +921,13 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
       if (line.isEmpty) continue;
 
       // Check for question start
-      final questionMatch = RegExp(r'^(?:(?:\d+|[\u09E6-\u09EF]+)\. ?|প্রশ্ন(?:ঃ)? ?\d*[:]? ?|Question: ?\d*[:]? ?)', caseSensitive: false).firstMatch(line);
-      final answerMatch = RegExp(r'^(?:উত্তর:|answer:|উঃ) ?', caseSensitive: false).firstMatch(line);
+      final questionMatch = RegExp(
+              r'^(?:(?:\d+|[\u09E6-\u09EF]+)\. ?|প্রশ্ন(?:ঃ)? ?\d*[:]? ?|Question: ?\d*[:]? ?)',
+              caseSensitive: false)
+          .firstMatch(line);
+      final answerMatch =
+          RegExp(r'^(?:উত্তর:|answer:|উঃ) ?', caseSensitive: false)
+              .firstMatch(line);
 
       if (questionMatch != null) {
         // Found a new question
@@ -929,7 +945,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
         // Found an answer start
         currentAnswer = line.substring(answerMatch.end).trim();
         inAnswer = true;
-        inQuestion = false; // Should not be in question accumulation if answer starts
+        inQuestion =
+            false; // Should not be in question accumulation if answer starts
       } else {
         // Continue accumulating based on current state
         if (inAnswer) {
@@ -1118,8 +1135,10 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.green.shade200),
                         ),
-                        child: Row( // Changed from Column to Row
-                          crossAxisAlignment: CrossAxisAlignment.start, // Align content at the top
+                        child: Row(
+                          // Changed from Column to Row
+                          crossAxisAlignment: CrossAxisAlignment
+                              .start, // Align content at the top
                           children: [
                             Text(
                               _selectedLanguage == 'বাংলা'
@@ -1131,8 +1150,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                                 color: Colors.green.shade700,
                               ),
                             ),
-                            const SizedBox(width: 8), 
-                            Expanded( 
+                            const SizedBox(width: 8),
+                            Expanded(
                               child: Text(
                                 question['answer'] ?? '',
                                 style: TextStyle(
@@ -1140,8 +1159,14 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                                   color: Colors.green.shade800,
                                   fontWeight: FontWeight.w500,
                                 ),
-                                maxLines: _selectedQuestionType == 'Short Question' ? 1 : null,
-                                overflow: _selectedQuestionType == 'Short Question' ? TextOverflow.ellipsis : null,
+                                maxLines:
+                                    _selectedQuestionType == 'Short Question'
+                                        ? 1
+                                        : null,
+                                overflow:
+                                    _selectedQuestionType == 'Short Question'
+                                        ? TextOverflow.ellipsis
+                                        : null,
                               ),
                             ),
                           ],
