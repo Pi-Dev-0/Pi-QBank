@@ -4,7 +4,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
@@ -28,7 +27,6 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
   final TextEditingController _instituteController = TextEditingController();
   final TextEditingController _totalMarksController = TextEditingController();
   final TextEditingController _directionsController = TextEditingController();
-  final TextEditingController _apiKeyController = TextEditingController();
   
   // Question type checkboxes
   bool _creativeSrojonshil = false;
@@ -158,14 +156,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
               jsonResponse['candidates'].isNotEmpty) {
             final reply = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
             questions.add(reply);
-          } else {
-            print('Invalid response format or empty candidates');
-          }
-        } else {
-          print('Failed to get AI understanding. Status: ${response.statusCode}, Body: ${response.body}');
+          } 
         }
       } catch (e) {
-        print('Error generating question from image: $e');
+        Text('Error generating question from image: $e');
       }
     }
     
