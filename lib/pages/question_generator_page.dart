@@ -23,7 +23,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
   String _aiResponse = '';
   bool _isProcessingImage = false;
   String _selectedLanguage = 'English';
-  bool _showAnswers = false; // New state to control answer visibility
+  final List<Map<String, String>> _generatedQuestions = [];
+  String _generatedTopic = ''; // New state for the generated topic
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -71,7 +72,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             _selectedImage = image;
             _selectedImageMimeType = image.mimeType;
             _aiResponse = '';
-            _showAnswers = false; // Reset show answers when new image is picked
+            _generatedTopic = ''; // Reset topic
           });
         } else {
           throw Exception('Selected image file does not exist');
@@ -97,19 +98,23 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
         ? 'Generate questions and answers strictly in Bengali (Bangla) language. '
         : 'Generate questions and answers strictly in English language. ';
 
+    String topicInstruction = _selectedLanguage == 'বাংলা'
+        ? 'এই ছবির উপর ভিত্তি করে একটি উপযুক্ত বিষয় বা শিরোনাম তৈরি করুন এবং আপনার প্রতিক্রিয়ার শুরুতে "বিষয়:" দিয়ে শুরু করুন। তারপর, '
+        : 'Generate a suitable topic or title based on this image and start your response with "Topic: [Your Topic]". Then, ';
+
     switch (questionType) {
       case 'Short Question':
         if (_selectedLanguage == 'বাংলা') {
-          return '$languageInstruction এই ছবি সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ বাক্যের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
+          return '$topicInstruction$languageInstructionএই ছবি সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
         }
-        return '${languageInstruction}Generate $questionsCount short answer questions about this image that require brief explanations. Each answer should be 1-3 sentences. Each answer must start on a new line with "Answer:".';
+        return '$topicInstruction${languageInstruction}Generate $questionsCount short answer questions about this image that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
       case 'Broad Question':
         if (_selectedLanguage == 'বাংলা') {
-          return '$languageInstruction এই ছবি সম্পর্কে $questionsCount টি বিস্তারিত উত্তর প্রশ্ন তৈরি করুন যার জন্য বিস্তারিত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
+          return '$topicInstruction$languageInstructionএই ছবি সম্পর্কে $questionsCount টি বিস্তারিত উত্তর প্রশ্ন তৈরি করুন যার জন্য বিস্তারিত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ৫-২০ বাক্যের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
         }
-        return '${languageInstruction}Generate $questionsCount broad answer questions about this image that require detailed explanations. Each answer must start on a new line with "Answer:".';
+        return '$topicInstruction${languageInstruction}Generate $questionsCount broad answer questions about this image that require detailed explanations. Each answer should be 5-20 sentences. Each answer must start on a new line with "Answer:".';
       default:
-        return '${languageInstruction}Generate questions about this image.';
+        return '$topicInstruction${languageInstruction}Generate questions about this image.';
     }
   }
 
@@ -119,7 +124,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     setState(() {
       _isProcessingImage = true;
       _aiResponse = 'Processing image...';
-      _showAnswers = false; // Hide answers during processing
+      _generatedTopic = ''; // Clear topic on new generation
     });
 
     try {
@@ -180,13 +185,19 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
       contents.add({
         "role": "user",
         "parts": [
-          {"text": "Analyze the provided image and generate questions based on it."}
+          {
+            "text":
+                "Analyze the provided image and generate questions based on it."
+          }
         ]
       });
       contents.add({
         "role": "model",
         "parts": [
-          {"text": "Understood. I will analyze the image and prepare questions."}
+          {
+            "text":
+                "Understood. I will analyze the image and prepare questions."
+          }
         ]
       });
 
@@ -213,6 +224,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
               jsonResponse['candidates'][0]['content']['parts'][0]['text'];
           setState(() {
             _aiResponse = reply;
+            _parseGeneratedQuestions(); // Call parsing after response is set
           });
         } else {
           throw Exception('Invalid response format or empty candidates');
@@ -262,7 +274,9 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    if (_aiResponse.isEmpty || _isProcessingImage || _aiResponse.contains('Error')) ...[
+                    if (_aiResponse.isEmpty ||
+                        _isProcessingImage ||
+                        _aiResponse.contains('Error')) ...[
                       // Header Section
                       _buildHeaderSection(),
                       const SizedBox(height: 24),
@@ -604,7 +618,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                 Text(
                   isError
                       ? 'Please try again with a different image'
-                      : 'Questions are ready! Click "Show Answers" to reveal.',
+                      : 'Questions are ready! Expand each question to reveal its answer.',
                   style: TextStyle(
                     fontSize: 14,
                     color: statusColor.withOpacity(0.6),
@@ -706,7 +720,9 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     return Column(
       children: [
         // Generate Button
-        if (_aiResponse.isEmpty || _isProcessingImage || _aiResponse.contains('Error')) ...[
+        if (_aiResponse.isEmpty ||
+            _isProcessingImage ||
+            _aiResponse.contains('Error')) ...[
           Container(
             width: double.infinity,
             height: 56,
@@ -743,7 +759,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                   : const Icon(Icons.auto_awesome, size: 24),
               label: Text(
                 _isProcessingImage ? 'Generating...' : 'Generate Questions',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
@@ -757,49 +774,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
           ),
         ],
 
-        // Show Answers Button
-        if (_aiResponse.isNotEmpty &&
-            !_isProcessingImage &&
-            !_aiResponse.contains('Error')) ...[
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            height: 56,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.green.shade600, Colors.green.shade800],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: ElevatedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _showAnswers = !_showAnswers;
-                });
-              },
-              icon: Icon(_showAnswers ? Icons.visibility_off : Icons.visibility, size: 24),
-              label: Text(
-                _showAnswers ? 'Hide Answers' : 'Show Answers',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                shadowColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-        ],
+        // No global "Show Answers" button needed with ExpansionTile
       ],
     );
   }
@@ -889,7 +864,6 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                         setState(() {
                           _selectedImage = null;
                           _aiResponse = '';
-                          _showAnswers = false; // Reset show answers
                         });
                       },
                       style: IconButton.styleFrom(
@@ -906,65 +880,118 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     );
   }
 
-  Widget _buildAIResponseSection() {
-    // Split the AI response into questions and answers
-    final List<String> lines = _aiResponse.split('\n');
-    final List<Widget> widgets = [];
+  void _parseGeneratedQuestions() {
+    _generatedQuestions.clear();
+    _generatedTopic = ''; // Clear topic before parsing
+    List<String> lines = _aiResponse.split('\n');
+    String currentQuestion = '';
+    String currentAnswer = '';
+    bool expectingAnswer = false;
+    int startIndex = 0;
 
+    // Try to extract topic from the first few lines
     for (int i = 0; i < lines.length; i++) {
       String line = lines[i].trim();
-      if (line.isEmpty) continue;
-
-      if (line.startsWith('Answer:')) {
-        if (_showAnswers) {
-          widgets.add(
-            Padding(
-              padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
-              child: Text(
-                line,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.green.shade700,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        }
-      } else {
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4.0),
-            child: Text(
-              line,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade800,
-              ),
-            ),
-          ),
-        );
+      if (line.toLowerCase().startsWith('topic:') ||
+          line.toLowerCase().startsWith('বিষয়:')) {
+        _generatedTopic = line.substring(line.indexOf(':') + 1).trim();
+        startIndex = i + 1; // Start parsing questions from the next line
+        break;
+      }
+      // If a question is found before a topic, start parsing from here
+      if (RegExp(r'^\d+\.|^[\u09E6-\u09EF]+\.').hasMatch(line)) {
+        startIndex = i;
+        break;
       }
     }
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+    for (int i = startIndex; i < lines.length; i++) {
+      String line = lines[i].trim();
+      if (line.isEmpty) continue;
+
+      // Check for question start (number followed by dot, or Bengali number followed by dot)
+      if (RegExp(r'^\d+\.|^[\u09E6-\u09EF]+\.').hasMatch(line)) {
+        if (currentQuestion.isNotEmpty) {
+          _generatedQuestions.add({
+            'question': _stripMarkdown(currentQuestion.trim()),
+            'answer': _stripMarkdown(currentAnswer.trim()),
+          });
+        }
+        currentQuestion = line;
+        currentAnswer = '';
+        expectingAnswer = true; // After a question, we expect an answer
+      } else if (expectingAnswer &&
+          (line.toLowerCase().contains('উত্তর:') ||
+              line.toLowerCase().contains('answer:') ||
+              line.startsWith('উঃ'))) {
+        // This is the start of an answer for the current question
+        currentAnswer = line
+            .replaceFirst(
+                RegExp(r'^(উত্তর:|answer:|উঃ)', caseSensitive: false), '')
+            .trim();
+        expectingAnswer =
+            false; // No longer expecting an answer, now collecting its content
+      } else {
+        // If we have a question and are not expecting a new answer, append to current answer
+        // Otherwise, append to current question (for multi-line questions)
+        if (currentQuestion.isNotEmpty && !expectingAnswer) {
+          currentAnswer = '$currentAnswer $line';
+        } else {
+          currentQuestion = '$currentQuestion $line';
+        }
+      }
+    }
+
+    // Add the last question if exists
+    if (currentQuestion.isNotEmpty) {
+      _generatedQuestions.add({
+        'question': _stripMarkdown(currentQuestion.trim()),
+        'answer': _stripMarkdown(currentAnswer.trim()),
+      });
+    }
+  }
+
+  String _stripMarkdown(String text) {
+    // Remove bold (**text**) and italics (*text*)
+    String strippedText =
+        text.replaceAll(RegExp(r'\*\*([^\*]+)\*\*'), r'\1'); // bold
+    strippedText =
+        strippedText.replaceAll(RegExp(r'\*([^\*]+)\*'), r'\1'); // italics
+    // Remove any remaining single asterisks that might be part of the text but not markdown
+    strippedText = strippedText.replaceAll(RegExp(r'\*'), '');
+    // Remove leading/trailing spaces
+    return strippedText.trim();
+  }
+
+  String _convertToBengaliNumber(int number) {
+    const english = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    const bengali = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    String strNum = number.toString();
+    for (int i = 0; i < english.length; i++) {
+      strNum = strNum.replaceAll(english[i], bengali[i]);
+    }
+    return strNum;
+  }
+
+  Widget _buildAIResponseSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          // This container holds the "Generated Questions" title
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
@@ -979,20 +1006,149 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                 ),
               ),
               const SizedBox(width: 16),
-              Text(
-                'Generated Questions',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade800,
+              Expanded(
+                child: Text(
+                  _generatedTopic.isNotEmpty
+                      ? _generatedTopic
+                      : 'Generated Questions',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          ...widgets,
-        ],
-      ),
+        ),
+        const SizedBox(
+            height: 20), // Space between title container and questions list
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _generatedQuestions.length,
+          itemBuilder: (context, index) {
+            final question = _generatedQuestions[index];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white,
+                    Colors.grey.shade50,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.grey.withOpacity(0.1),
+                  width: 2,
+                ),
+              ),
+              child: Theme(
+                data: Theme.of(context)
+                    .copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  leading: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blue.shade400, Colors.blue.shade600],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        _selectedLanguage == 'বাংলা'
+                            ? _convertToBengaliNumber(index + 1)
+                            : '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    _selectedLanguage == 'বাংলা'
+                        ? 'প্রশ্ন ${_convertToBengaliNumber(index + 1)}'
+                        : 'Question ${index + 1}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  subtitle: Text(
+                    question['question'] ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      height: 1.3,
+                    ),
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedLanguage == 'বাংলা'
+                                  ? 'উত্তর:'
+                                  : 'Answer:',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              question['answer'] ?? '',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.green.shade800,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }
