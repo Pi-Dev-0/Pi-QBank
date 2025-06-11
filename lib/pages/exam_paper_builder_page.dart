@@ -185,10 +185,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
         _mcqQuestions = await _generateQuestionsFromImages(_mcqImages, 'mcq');
       }
       
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('প্রশ্ন সফলভাবে তৈরি হয়েছে!')),
+        const SnackBar(content: Text('প্রশ্ন সফলভাবে তৈরি হয়েছে!')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('ত্রুটি: $e')),
       );
