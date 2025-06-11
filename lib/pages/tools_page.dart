@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/pages/prepare_short_test_page.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
+import 'package:pi_qbank/pages/mcq_generator_page.dart'; // Import MCQGeneratorPage
 import '../widgets/app_drawer.dart'; // Import AppDrawer
 
 class ToolsPage extends StatelessWidget {
@@ -119,7 +120,12 @@ class ToolsPage extends StatelessWidget {
                   'Generate multiple choice questions',
                   Colors.green,
                   () {
-                    // Navigate to MCQ Generator page
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MCQGeneratorPage(),
+                      ),
+                    );
                   },
                 ),
                 _buildToolCard(
