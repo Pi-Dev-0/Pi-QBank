@@ -10,7 +10,6 @@ import '../config/app_config.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import '../widgets/custom_app_bar.dart';
 
-
 class ExamPaperBuilderPage extends StatefulWidget {
   const ExamPaperBuilderPage({super.key});
 
@@ -18,47 +17,86 @@ class ExamPaperBuilderPage extends StatefulWidget {
   State<ExamPaperBuilderPage> createState() => _ExamPaperBuilderPageState();
 }
 
-class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
+class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
-  
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
   // Form controllers
   final TextEditingController _examTimeController = TextEditingController();
   final TextEditingController _subjectController = TextEditingController();
   final TextEditingController _instituteController = TextEditingController();
   final TextEditingController _totalMarksController = TextEditingController();
   final TextEditingController _directionsController = TextEditingController();
-  
+
+  // Question count controllers
+  final TextEditingController _creativeSrojonshilCountController =
+      TextEditingController();
+  final TextEditingController _shortSangkhiptoCountController =
+      TextEditingController();
+  final TextEditingController _mcqCountController = TextEditingController();
+
   // Question type checkboxes
   bool _creativeSrojonshil = false;
   bool _shortSangkhipto = false;
   bool _mcqMultipleChoice = false;
-  
+
   // Image lists for each question type
   final List<File> _creativeSrojonshilImages = [];
   final List<File> _shortSangkhiptoImages = [];
   final List<File> _mcqImages = [];
-  
+
   // Generated questions
   List<String> _creativeSrojonshilQuestions = [];
   List<String> _shortSangkhiptoQuestions = [];
   List<String> _mcqQuestions = [];
-  
+
   bool _isGenerating = false;
-  
+
+  // Color scheme
+  static const Color primaryColor = Color(0xFF6C63FF);
+  static const Color secondaryColor = Color(0xFF4ECDC4);
+  static const Color accentColor = Color(0xFFFF6B6B);
+  static const Color successColor = Color(0xFF4ECDC4);
+  static const Color warningColor = Color(0xFFFFE66D);
+  static const Color backgroundColor = Color(0xFFF8F9FA);
+  static const Color cardColor = Colors.white;
+
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+    _animationController.forward();
+
     // Set default values
     _examTimeController.text = '৩ ঘন্টা';
-    _directionsController.text = 'নির্দেশনা: সব প্রশ্নের উত্তর দিতে হবে। প্রতিটি প্রশ্নের উত্তর আলাদা খাতায় লিখতে হবে।';
+    _directionsController.text =
+        'নির্দেশনা: সব প্রশ্নের উত্তর দিতে হবে। প্রতিটি প্রশ্নের উত্তর আলাদা খাতায় লিখতে হবে।';
+
+    // Set default question counts
+    _creativeSrojonshilCountController.text = '1';
+    _shortSangkhiptoCountController.text = '1';
+    _mcqCountController.text = '1';
   }
 
   Future<void> _pickImages(String questionType) async {
     final List<XFile> images = await _picker.pickMultiImage();
     if (images.isNotEmpty) {
       setState(() {
-        List<File> imageFiles = images.map((image) => File(image.path)).toList();
+        List<File> imageFiles =
+            images.map((image) => File(image.path)).toList();
         switch (questionType) {
           case 'creative':
             _creativeSrojonshilImages.addAll(imageFiles);
@@ -90,8 +128,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
     });
   }
 
-  Future<List<String>> _generateQuestionsFromImages(List<File> images, String questionType) async {
-    String? apiKey = await getApiKey(); // Try to get API key from SharedPreferences
+  Future<List<String>> _generateQuestionsFromImages(
+      List<File> images, String questionType) async {
+    String? apiKey =
+        await getApiKey(); // Try to get API key from SharedPreferences
 
     if (apiKey == null || apiKey.isEmpty) {
       // If not found in SharedPreferences, use the default from AppConfig
@@ -101,15 +141,17 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
     if (apiKey.isEmpty) {
       throw Exception('API Key not set. Please enter your API key.');
     }
-    
-    final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
-    
+
+    final url = Uri.parse(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
+
     List<String> questions = [];
-    
+
     String prompt = '';
     switch (questionType) {
       case 'creative':
-        prompt = '''এই ছবি থেকে বাংলায় সৃজনশীল প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্নে থাকবে:
+        prompt =
+            '''এই ছবি থেকে বাংলায় সৃজনশীল প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্নে থাকবে:
 ১. উদ্দীপক (একটি ছোট অনুচ্ছেদ বা তথ্য)
 ২. ক) জ্ঞানমূলক প্রশ্ন (১ নম্বর)
 ৩. খ) অনুধাবনমূলক প্রশ্ন (২ নম্বর)
@@ -119,10 +161,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
 প্রশ্নটি সম্পূর্ণ বাংলায় লিখুন।''';
         break;
       case 'short':
-        prompt = '''এই ছবি থেকে বাংলায় সংক্ষিপ্ত প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত। প্রশ্নগুলো বাংলায় লিখুন.''';
+        prompt =
+            '''এই ছবি থেকে বাংলায় সংক্ষিপ্ত প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত। প্রশ্নগুলো বাংলায় লিখুন.''';
         break;
       case 'mcq':
-        prompt = '''এই ছবি থেকে বাংলায় বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
+        prompt =
+            '''এই ছবি থেকে বাংলায় বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
 ১. প্রশ্ন
 ২. চারটি অপশন (ক, খ, গ, ঘ)
 ৩. সঠিক উত্তর নির্দেশ করুন
@@ -130,17 +174,19 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
 প্রশ্ন ও অপশন সব বাংলায় লিখুন।''';
         break;
     }
-    
+
     for (File image in images) {
       try {
         final imageBytes = await image.readAsBytes();
         final base64Image = base64Encode(imageBytes);
-        
+
         List<Map<String, dynamic>> contents = [];
         contents.add({
           "role": "user",
           "parts": [
-            {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}},
+            {
+              "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
+            },
             {"text": prompt}
           ]
         });
@@ -155,15 +201,16 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
           final jsonResponse = json.decode(response.body);
           if (jsonResponse['candidates'] != null &&
               jsonResponse['candidates'].isNotEmpty) {
-            final reply = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+            final reply =
+                jsonResponse['candidates'][0]['content']['parts'][0]['text'];
             questions.add(reply);
-          } 
+          }
         }
       } catch (e) {
-        Text('Error generating question from image: $e');
+        debugPrint('Error generating question from image: $e');
       }
     }
-    
+
     return questions;
   }
 
@@ -171,29 +218,27 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
     setState(() {
       _isGenerating = true;
     });
-    
+
     try {
       if (_creativeSrojonshil && _creativeSrojonshilImages.isNotEmpty) {
-        _creativeSrojonshilQuestions = await _generateQuestionsFromImages(_creativeSrojonshilImages, 'creative');
+        _creativeSrojonshilQuestions = await _generateQuestionsFromImages(
+            _creativeSrojonshilImages, 'creative');
       }
-      
+
       if (_shortSangkhipto && _shortSangkhiptoImages.isNotEmpty) {
-        _shortSangkhiptoQuestions = await _generateQuestionsFromImages(_shortSangkhiptoImages, 'short');
+        _shortSangkhiptoQuestions =
+            await _generateQuestionsFromImages(_shortSangkhiptoImages, 'short');
       }
-      
+
       if (_mcqMultipleChoice && _mcqImages.isNotEmpty) {
         _mcqQuestions = await _generateQuestionsFromImages(_mcqImages, 'mcq');
       }
-      
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('প্রশ্ন সফলভাবে তৈরি হয়েছে!')),
-      );
+      _showSuccessSnackBar('প্রশ্ন সফলভাবে তৈরি হয়েছে!');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ত্রুটি: $e')),
-      );
+      _showErrorSnackBar('ত্রুটি: $e');
     } finally {
       setState(() {
         _isGenerating = false;
@@ -203,11 +248,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
 
   Future<void> _generatePDF() async {
     final pdf = pw.Document();
-    
-    // Load Bengali font (you'll need to add this to your assets)
+
     final font = await PdfGoogleFonts.notoSansBengaliRegular();
     final boldFont = await PdfGoogleFonts.notoSansBengaliBold();
-    
+
     pdf.addPage(
       pw.MultiPage(
         theme: pw.ThemeData.withFont(
@@ -222,12 +266,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                 children: [
                   pw.Text(
                     _instituteController.text,
-                    style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(
+                        fontSize: 18, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.SizedBox(height: 10),
                   pw.Text(
                     'বিষয়: ${_subjectController.text}',
-                    style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                    style: pw.TextStyle(
+                        fontSize: 16, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.SizedBox(height: 5),
                   pw.Row(
@@ -241,25 +287,29 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                 ],
               ),
             ),
-            
+
             // Directions
             if (_directionsController.text.isNotEmpty) ...[
               pw.Text(
                 _directionsController.text,
-                style: pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic),
+                style:
+                    pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic),
               ),
               pw.SizedBox(height: 20),
             ],
-            
+
             // Creative Questions
-            if (_creativeSrojonshil && _creativeSrojonshilQuestions.isNotEmpty) ...[
+            if (_creativeSrojonshil &&
+                _creativeSrojonshilQuestions.isNotEmpty) ...[
               pw.Text(
                 'সৃজনশীল প্রশ্ন',
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
               ),
               pw.SizedBox(height: 10),
-              ...List.generate(_creativeSrojonshilQuestions.length, (index) => 
-                pw.Container(
+              ...List.generate(
+                _creativeSrojonshilQuestions.length,
+                (index) => pw.Container(
                   margin: pw.EdgeInsets.only(bottom: 20),
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -273,16 +323,18 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                 ),
               ),
             ],
-            
+
             // Short Questions
             if (_shortSangkhipto && _shortSangkhiptoQuestions.isNotEmpty) ...[
               pw.Text(
                 'সংক্ষিপ্ত প্রশ্ন',
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
               ),
               pw.SizedBox(height: 10),
-              ...List.generate(_shortSangkhiptoQuestions.length, (index) => 
-                pw.Container(
+              ...List.generate(
+                _shortSangkhiptoQuestions.length,
+                (index) => pw.Container(
                   margin: pw.EdgeInsets.only(bottom: 15),
                   child: pw.Text(
                     '${index + 1}. ${_shortSangkhiptoQuestions[index]}',
@@ -291,16 +343,18 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                 ),
               ),
             ],
-            
+
             // MCQ Questions
             if (_mcqMultipleChoice && _mcqQuestions.isNotEmpty) ...[
               pw.Text(
                 'বহুনির্বাচনি প্রশ্ন',
-                style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
               ),
               pw.SizedBox(height: 10),
-              ...List.generate(_mcqQuestions.length, (index) => 
-                pw.Container(
+              ...List.generate(
+                _mcqQuestions.length,
+                (index) => pw.Container(
                   margin: pw.EdgeInsets.only(bottom: 15),
                   child: pw.Text(
                     '${index + 1}. ${_mcqQuestions[index]}',
@@ -313,436 +367,615 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
         },
       ),
     );
-    
-    // Show PDF preview and print
+
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: successColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: accentColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Widget _buildGradientCard({required Widget child, List<Color>? colors}) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors ?? [cardColor, cardColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildCustomTextField({
+    required TextEditingController controller,
+    required String labelText,
+    required IconData icon,
+    String? Function(String?)? validator,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    bool required = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: labelText + (required ? ' *' : ''),
+          prefixIcon: Icon(icon, color: primaryColor),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: const BorderSide(color: primaryColor, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: const BorderSide(color: accentColor, width: 2),
+          ),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          labelStyle: TextStyle(color: Colors.grey.shade700),
+        ),
+        validator: validator,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+      ),
+    );
+  }
+
+  Widget _buildQuestionTypeCard({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required Function(bool?) onChanged,
+    required String questionType,
+    required List<File> images,
+    required IconData icon,
+    required Color color,
+    required TextEditingController countController,
+  }) {
+    return _buildGradientCard(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Transform.scale(
+                  scale: 1.2,
+                  child: Checkbox(
+                    value: value,
+                    onChanged: onChanged,
+                    activeColor: color,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (value) ...[
+              const SizedBox(height: 20),
+              _buildCustomTextField(
+                controller: countController,
+                labelText: 'প্রশ্নের সংখ্যা',
+                icon: Icons.numbers,
+                keyboardType: TextInputType.number,
+                required: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'প্রশ্নের সংখ্যা প্রয়োজন';
+                  }
+                  if (int.tryParse(value) == null || int.parse(value) <= 0) {
+                    return 'একটি বৈধ সংখ্যা লিখুন';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _pickImages(questionType),
+                  icon: const Icon(Icons.add_photo_alternate),
+                  label: const Text('ছবি যোগ করুন'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: color,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (images.isNotEmpty)
+                SizedBox(
+                  height: 120,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: images.length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                image: DecorationImage(
+                                  image: FileImage(images[index]),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: -8,
+                              right: -8,
+                              child: GestureDetector(
+                                onTap: () => _removeImage(questionType, index),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: accentColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedButton({
+    required String text,
+    required VoidCallback? onPressed,
+    required Color backgroundColor,
+    required IconData icon,
+    bool isLoading = false,
+    double width = double.infinity,
+  }) {
+    return SizedBox(
+      width: width,
+      height: 56,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: isLoading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : Icon(icon),
+        label: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+          shadowColor: backgroundColor.withOpacity(0.3),
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: const CustomAppBar(
         title: 'পরীক্ষার প্রশ্নপত্র তৈরি করুন',
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Gemini API Key Button
-              ElevatedButton.icon(
-                onPressed: () {
-                  showApiKeyDialog(context);
-                },
-                icon: const Icon(Icons.key),
-                label: const Text('Gemini API Key সেট করুন'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[600],
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50), // full width button
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Basic Information
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'মৌলিক তথ্য',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      TextFormField(
-                        controller: _instituteController,
-                        decoration: const InputDecoration(
-                          labelText: 'স্কুল/কলেজ/কোচিং/প্রতিষ্ঠানের নাম *',
-                          border: OutlineInputBorder(),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // API Key Section
+                _buildGradientCard(
+                  colors: [
+                    primaryColor.withOpacity(0.1),
+                    secondaryColor.withOpacity(0.1)
+                  ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.vpn_key,
+                              color: primaryColor, size: 24),
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'প্রতিষ্ঠানের নাম প্রয়োজন';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _subjectController,
-                              decoration: const InputDecoration(
-                                labelText: 'বিষয়ের নাম *',
-                                border: OutlineInputBorder(),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'API Key সেটআপ',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'বিষয়ের নাম প্রয়োজন';
-                                }
-                                return null;
-                              },
+                              Text(
+                                'Gemini API key সেট করুন প্রশ্ন তৈরির জন্য',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => showApiKeyDialog(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _examTimeController,
-                              decoration: const InputDecoration(
+                          child: const Text('সেট করুন'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Basic Information
+                _buildGradientCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.info_outline,
+                                  color: primaryColor),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'মৌলিক তথ্য',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        _buildCustomTextField(
+                          controller: _instituteController,
+                          labelText: 'প্রতিষ্ঠানের নাম',
+                          icon: Icons.school,
+                          required: true,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'প্রতিষ্ঠানের নাম প্রয়োজন';
+                            }
+                            return null;
+                          },
+                        ),
+                        _buildCustomTextField(
+                          controller: _subjectController,
+                          labelText: 'বিষয়ের নাম',
+                          icon: Icons.subject,
+                          required: true,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'বিষয়ের নাম প্রয়োজন';
+                            }
+                            return null;
+                          },
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildCustomTextField(
+                                controller: _totalMarksController,
+                                labelText: 'মোট নম্বর',
+                                icon: Icons.grade,
+                                keyboardType: TextInputType.number,
+                                required: true,
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'মোট নম্বর প্রয়োজন';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildCustomTextField(
+                                controller: _examTimeController,
                                 labelText: 'পরীক্ষার সময়',
-                                border: OutlineInputBorder(),
+                                icon: Icons.access_time,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      TextFormField(
-                        controller: _totalMarksController,
-                        decoration: const InputDecoration(
-                          labelText: 'মোট নম্বর *',
-                          border: OutlineInputBorder(),
+                          ],
                         ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'মোট নম্বর প্রয়োজন';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      TextFormField(
-                        controller: _directionsController,
-                        decoration: const InputDecoration(
+                        _buildCustomTextField(
+                          controller: _directionsController,
                           labelText: 'পরীক্ষার্থীদের জন্য নির্দেশনা',
-                          border: OutlineInputBorder(),
+                          icon: Icons.description,
+                          maxLines: 3,
                         ),
-                        maxLines: 3,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Question Types
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'প্রশ্নের ধরন নির্বাচন করুন',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                const SizedBox(height: 24),
+
+                // Question Types Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: secondaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 16),
-                      
-                      // Creative Questions
-                      CheckboxListTile(
-                        title: const Text('সৃজনশীল প্রশ্ন'),
-                        value: _creativeSrojonshil,
-                        onChanged: (value) {
-                          setState(() {
-                            _creativeSrojonshil = value!;
-                          });
-                        },
+                      child: const Icon(Icons.quiz, color: secondaryColor),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'প্রশ্নের ধরন নির্বাচন করুন',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
-                      if (_creativeSrojonshil) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ElevatedButton.icon(
-                                onPressed: () => _pickImages('creative'),
-                                icon: const Icon(Icons.add_photo_alternate),
-                                label: const Text('ছবি যোগ করুন'),
-                              ),
-                              const SizedBox(height: 8),
-                              if (_creativeSrojonshilImages.isNotEmpty)
-                                SizedBox(
-                                  height: 100,
-                                  child: ListView.builder(
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: _creativeSrojonshilImages.length,
-                                    itemBuilder: (context, index) {
-                                      return Container(
-                                        margin: const EdgeInsets.only(right: 8),
-                                        child: Stack(
-                                          children: [
-                                            Image.file(
-                                              _creativeSrojonshilImages[index],
-                                              width: 80,
-                                              height: 80,
-                                              fit: BoxFit.cover,
-                                            ),
-                                            Positioned(
-                                              top: 0,
-                                              right: 0,
-                                              child: GestureDetector(
-                                                onTap: () => _removeImage('creative', index),
-                                                child: Container(
-                                                  decoration: const BoxDecoration(
-                                                    color: Colors.red,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.close,
-                                                    color: Colors.white,
-                                                    size: 16,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      
-                      // Short Questions
-                      CheckboxListTile(
-                        title: const Text('সংক্ষিপ্ত প্রশ্ন'),
-                        value: _shortSangkhipto,
-                        onChanged: (value) {
-                          setState(() {
-                            _shortSangkhipto = value!;
-                          });
-                        },
-                      ),
-                      if (_shortSangkhipto) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ElevatedButton.icon(
-                                onPressed: () => _pickImages('short'),
-                                icon: const Icon(Icons.add_photo_alternate),
-                                label: const Text('ছবি যোগ করুন'),
-                              ),
-                              const SizedBox(height: 8),
-                              if (_shortSangkhiptoImages.isNotEmpty)
-                                SizedBox(
-                                  height: 100,
-                                  child: ListView.builder(
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: _shortSangkhiptoImages.length,
-                                    itemBuilder: (context, index) {
-                                      return Container(
-                                        margin: const EdgeInsets.only(right: 8),
-                                        child: Stack(
-                                          children: [
-                                            Image.file(
-                                              _shortSangkhiptoImages[index],
-                                              width: 80,
-                                              height: 80,
-                                              fit: BoxFit.cover,
-                                            ),
-                                            Positioned(
-                                              top: 0,
-                                              right: 0,
-                                              child: GestureDetector(
-                                                onTap: () => _removeImage('short', index),
-                                                child: Container(
-                                                  decoration: const BoxDecoration(
-                                                    color: Colors.red,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.close,
-                                                    color: Colors.white,
-                                                    size: 16,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      
-                      // MCQ Questions
-                      CheckboxListTile(
-                        title: const Text('বহুনির্বাচনি প্রশ্ন (MCQ)'),
-                        value: _mcqMultipleChoice,
-                        onChanged: (value) {
-                          setState(() {
-                            _mcqMultipleChoice = value!;
-                          });
-                        },
-                      ),
-                      if (_mcqMultipleChoice) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(left: 32),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ElevatedButton.icon(
-                                onPressed: () => _pickImages('mcq'),
-                                icon: const Icon(Icons.add_photo_alternate),
-                                label: const Text('ছবি যোগ করুন'),
-                              ),
-                              const SizedBox(height: 8),
-                              if (_mcqImages.isNotEmpty)
-                                SizedBox(
-                                  height: 100,
-                                  child: ListView.builder(
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: _mcqImages.length,
-                                    itemBuilder: (context, index) {
-                                      return Container(
-                                        margin: const EdgeInsets.only(right: 8),
-                                        child: Stack(
-                                          children: [
-                                            Image.file(
-                                              _mcqImages[index],
-                                              width: 80,
-                                              height: 80,
-                                              fit: BoxFit.cover,
-                                            ),
-                                            Positioned(
-                                              top: 0,
-                                              right: 0,
-                                              child: GestureDetector(
-                                                onTap: () => _removeImage('mcq', index),
-                                                child: Container(
-                                                  decoration: const BoxDecoration(
-                                                    color: Colors.red,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.close,
-                                                    color: Colors.white,
-                                                    size: 16,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Action Buttons
-              Column(
-                children: [
+                const SizedBox(height: 16),
+
+                // Question Types
+                _buildQuestionTypeCard(
+                  title: 'সৃজনশীল প্রশ্ন',
+                  subtitle: 'উদ্দীপক সহ ৪ ধাপের প্রশ্ন',
+                  value: _creativeSrojonshil,
+                  onChanged: (value) {
+                    setState(() {
+                      _creativeSrojonshil = value!;
+                    });
+                  },
+                  questionType: 'creative',
+                  images: _creativeSrojonshilImages,
+                  icon: Icons.create,
+                  color: primaryColor,
+                  countController: _creativeSrojonshilCountController,
+                ),
+                const SizedBox(height: 16),
+
+                _buildQuestionTypeCard(
+                  title: 'সংক্ষিপ্ত প্রশ্ন',
+                  subtitle: '২-৫ নম্বরের সংক্ষিপ্ত প্রশ্ন',
+                  value: _shortSangkhipto,
+                  onChanged: (value) {
+                    setState(() {
+                      _shortSangkhipto = value!;
+                    });
+                  },
+                  questionType: 'short',
+                  images: _shortSangkhiptoImages,
+                  icon: Icons.short_text,
+                  color: secondaryColor,
+                  countController: _shortSangkhiptoCountController,
+                ),
+                const SizedBox(height: 16),
+
+                _buildQuestionTypeCard(
+                  title: 'বহুনির্বাচনি প্রশ্ন (MCQ)',
+                  subtitle: '৪টি অপশন সহ MCQ প্রশ্ন',
+                  value: _mcqMultipleChoice,
+                  onChanged: (value) {
+                    setState(() {
+                      _mcqMultipleChoice = value!;
+                    });
+                  },
+                  questionType: 'mcq',
+                  images: _mcqImages,
+                  icon: Icons.radio_button_checked,
+                  color: accentColor,
+                  countController: _mcqCountController,
+                ),
+                const SizedBox(height: 24),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildAnimatedButton(
+                        text: 'প্রশ্ন তৈরি করুন',
+                        onPressed:
+                            (_isGenerating || !_hasSelectedTypeWithImages())
+                                ? null
+                                : _generateQuestions,
+                        backgroundColor: primaryColor,
+                        icon: Icons.auto_awesome,
+                        isLoading: _isGenerating,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildAnimatedButton(
+                        text: 'PDF তৈরি করুন',
+                        onPressed: (_hasGeneratedQuestions() &&
+                                _formKey.currentState?.validate() == true)
+                            ? _generatePDF
+                            : null,
+                        backgroundColor: secondaryColor,
+                        icon: Icons.picture_as_pdf,
+                      ),
+                    ),
+                  ],
+                ),
+                if (_hasGeneratedQuestions()) ...[
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: (_isGenerating || !_hasSelectedTypeWithImages()) 
-                              ? null 
-                              : _generateQuestions,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: OutlinedButton.icon(
+                          onPressed: _showGeneratedQuestions,
+                          icon: const Icon(Icons.preview),
+                          label: const Text('প্রশ্ন দেখুন'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: primaryColor,
+                            side: const BorderSide(color: primaryColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                          child: _isGenerating
-                              ? const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text('প্রশ্ন তৈরি হচ্ছে...'),
-                                  ],
-                                )
-                              : const Text('প্রশ্ন তৈরি করুন'),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: (_hasGeneratedQuestions() && _formKey.currentState?.validate() == true)
-                              ? _generatePDF
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: OutlinedButton.icon(
+                          onPressed: _saveTemplate,
+                          icon: const Icon(Icons.save),
+                          label: const Text('টেমপ্লেট সংরক্ষণ'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: secondaryColor,
+                            side: const BorderSide(color: secondaryColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                          child: const Text('PDF তৈরি করুন'),
                         ),
                       ),
                     ],
                   ),
-                  if (_hasGeneratedQuestions()) ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _showGeneratedQuestions,
-                            icon: const Icon(Icons.preview),
-                            label: const Text('প্রশ্ন দেখুন'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _saveTemplate,
-                            icon: const Icon(Icons.save),
-                            label: const Text('টেমপ্লেট সংরক্ষণ'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -751,14 +984,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
 
   bool _hasSelectedTypeWithImages() {
     return (_creativeSrojonshil && _creativeSrojonshilImages.isNotEmpty) ||
-           (_shortSangkhipto && _shortSangkhiptoImages.isNotEmpty) ||
-           (_mcqMultipleChoice && _mcqImages.isNotEmpty);
+        (_shortSangkhipto && _shortSangkhiptoImages.isNotEmpty) ||
+        (_mcqMultipleChoice && _mcqImages.isNotEmpty);
   }
 
   bool _hasGeneratedQuestions() {
     return _creativeSrojonshilQuestions.isNotEmpty ||
-           _shortSangkhiptoQuestions.isNotEmpty ||
-           _mcqQuestions.isNotEmpty;
+        _shortSangkhiptoQuestions.isNotEmpty ||
+        _mcqQuestions.isNotEmpty;
   }
 
   void _showGeneratedQuestions() {
@@ -774,43 +1007,55 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_creativeSrojonshilQuestions.isNotEmpty) ...[
-                  Text('সৃজনশীল প্রশ্ন:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...List.generate(_creativeSrojonshilQuestions.length, (index) =>
-                    Padding(
+                  Text('সৃজনশীল প্রশ্ন:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...List.generate(
+                    _creativeSrojonshilQuestions.length,
+                    (index) => Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('${index + 1}. ${_creativeSrojonshilQuestions[index]}'),
+                      child: Text(
+                          '${index + 1}. ${_creativeSrojonshilQuestions[index]}'),
                     ),
                   ),
                   SizedBox(height: 16),
                 ],
                 if (_shortSangkhiptoQuestions.isNotEmpty) ...[
-                  Text('সংক্ষিপ্ত প্রশ্ন:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...List.generate(_shortSangkhiptoQuestions.length, (index) =>
-                    Padding(
+                  Text('সংক্ষিপ্ত প্রশ্ন:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...List.generate(
+                    _shortSangkhiptoQuestions.length,
+                    (index) => Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
+                      child: Text(
+                          '${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
                     ),
                   ),
                   SizedBox(height: 16),
                 ],
                 if (_mcqQuestions.isNotEmpty) ...[
-                  Text('বহুনির্বাচনি প্রশ্ন:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('বহুনির্বাচনি প্রশ্ন:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   SizedBox(height: 16),
                 ],
                 if (_shortSangkhiptoQuestions.isNotEmpty) ...[
-                  Text('সংক্ষিপ্ত প্রশ্ন:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...List.generate(_shortSangkhiptoQuestions.length, (index) =>
-                    Padding(
+                  Text('সংক্ষিপ্ত প্রশ্ন:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...List.generate(
+                    _shortSangkhiptoQuestions.length,
+                    (index) => Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text('${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
+                      child: Text(
+                          '${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
                     ),
                   ),
                   SizedBox(height: 16),
                 ],
                 if (_mcqQuestions.isNotEmpty) ...[
-                  Text('বহুনির্বাচনি প্রশ্ন:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...List.generate(_mcqQuestions.length, (index) =>
-                    Padding(
+                  Text('বহুনির্বাচনি প্রশ্ন:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...List.generate(
+                    _mcqQuestions.length,
+                    (index) => Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
                       child: Text('${index + 1}. ${_mcqQuestions[index]}'),
                     ),
@@ -869,20 +1114,24 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                               child: Column(
                                 children: [
                                   TextFormField(
-                                    initialValue: _creativeSrojonshilQuestions[index],
+                                    initialValue:
+                                        _creativeSrojonshilQuestions[index],
                                     maxLines: 5,
                                     onChanged: (value) {
-                                      _creativeSrojonshilQuestions[index] = value;
+                                      _creativeSrojonshilQuestions[index] =
+                                          value;
                                     },
                                   ),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
                                       IconButton(
-                                        icon: Icon(Icons.delete, color: Colors.red),
+                                        icon: Icon(Icons.delete,
+                                            color: Colors.red),
                                         onPressed: () {
                                           setState(() {
-                                            _creativeSrojonshilQuestions.removeAt(index);
+                                            _creativeSrojonshilQuestions
+                                                .removeAt(index);
                                           });
                                         },
                                       ),
@@ -902,7 +1151,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                               child: Column(
                                 children: [
                                   TextFormField(
-                                    initialValue: _shortSangkhiptoQuestions[index],
+                                    initialValue:
+                                        _shortSangkhiptoQuestions[index],
                                     maxLines: 3,
                                     onChanged: (value) {
                                       _shortSangkhiptoQuestions[index] = value;
@@ -912,10 +1162,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
                                       IconButton(
-                                        icon: Icon(Icons.delete, color: Colors.red),
+                                        icon: Icon(Icons.delete,
+                                            color: Colors.red),
                                         onPressed: () {
                                           setState(() {
-                                            _shortSangkhiptoQuestions.removeAt(index);
+                                            _shortSangkhiptoQuestions
+                                                .removeAt(index);
                                           });
                                         },
                                       ),
@@ -945,7 +1197,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
                                       IconButton(
-                                        icon: Icon(Icons.delete, color: Colors.red),
+                                        icon: Icon(Icons.delete,
+                                            color: Colors.red),
                                         onPressed: () {
                                           setState(() {
                                             _mcqQuestions.removeAt(index);
@@ -1017,11 +1270,15 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage> {
 
   @override
   void dispose() {
+    _animationController.dispose();
     _examTimeController.dispose();
     _subjectController.dispose();
     _instituteController.dispose();
     _totalMarksController.dispose();
     _directionsController.dispose();
+    _creativeSrojonshilCountController.dispose();
+    _shortSangkhiptoCountController.dispose();
+    _mcqCountController.dispose();
     super.dispose();
   }
 }
