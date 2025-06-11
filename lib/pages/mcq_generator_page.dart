@@ -25,6 +25,7 @@ class _MCQGeneratorPageState extends State<MCQGeneratorPage>
   final Map<int, bool> _answerVisibility = {};
   String _mcqTopic = 'Generated MCQs'; // New state variable for the topic
 
+  late ScrollController _scrollController; // Add ScrollController
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -32,6 +33,7 @@ class _MCQGeneratorPageState extends State<MCQGeneratorPage>
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController(); // Initialize ScrollController
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -51,6 +53,7 @@ class _MCQGeneratorPageState extends State<MCQGeneratorPage>
   @override
   void dispose() {
     _animationController.dispose();
+    _scrollController.dispose(); // Dispose ScrollController
     super.dispose();
   }
 
@@ -234,6 +237,12 @@ Respond in the following JSON format:
             _aiResponse = reply;
             _parseGeneratedMcqs(reply);
           });
+          // Scroll to top after MCQs are generated
+          _scrollController.animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOut,
+          );
         } else {
           throw Exception('Invalid response format or empty candidates');
         }
@@ -304,6 +313,7 @@ Respond in the following JSON format:
             child: SlideTransition(
               position: _slideAnimation,
               child: SingleChildScrollView(
+                controller: _scrollController, // Attach the controller
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
