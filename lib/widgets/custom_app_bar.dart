@@ -74,7 +74,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                   Shadow(
                     color: selectedColor.withOpacity(0.5),
                     offset: const Offset(0, 1),
-                    blurRadius: 8,
+                    blurRadius: 30,
                   ),
                 ],
               ),
