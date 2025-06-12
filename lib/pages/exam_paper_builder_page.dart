@@ -139,7 +139,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   }
 
   Future<Map<String, List<String>>> _generateQuestionsAndAnswersFromImages(
-      List<File> images, String questionType) async {
+      List<File> images, String questionType, int count) async { // Added count parameter
     String? apiKey =
         await getApiKey(); // Try to get API key from SharedPreferences
 
@@ -162,27 +162,27 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     switch (questionType) {
       case 'creative':
         prompt =
-            '''এই ছবি থেকে বাংলায় সৃজনশীল প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্নে থাকবে:
+            '''এই ছবি থেকে বাংলায় $countটি সৃজনশীল প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্নে থাকবে:
 ১. উদ্দীপক (একটি ছোট অনুচ্ছেদ বা তথ্য)
 ২. ক) জ্ঞানমূলক প্রশ্ন (১ নম্বর)
 ৩. খ) অনুধাবনমূলক প্রশ্ন (২ নম্বর)
 ৪. গ) প্রয়োগমূলক প্রশ্ন (৩ নম্বর)
 ৫. ঘ) উচ্চতর দক্ষতামূলক প্রশ্ন (৪ নম্বর)
 
-প্রশ্নটি সম্পূর্ণ বাংলায় লিখুন।''';
+প্রতিটি প্রশ্ন আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন, ২. প্রশ্ন)। প্রশ্নটি সম্পূর্ণ বাংলায় লিখুন।''';
         break;
       case 'short':
         prompt =
-            '''এই ছবি থেকে বাংলায় সংক্ষিপ্ত প্রশ্ন এবং তার উত্তর তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত।
+            '''এই ছবি থেকে বাংলায় $countটি সংক্ষিপ্ত প্রশ্ন এবং তার উত্তর তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত।
 ফরম্যাট:
 প্রশ্ন: [প্রশ্ন]
 উত্তর: [উত্তর]
 
-প্রশ্ন ও উত্তর বাংলায় লিখুন।''';
+প্রতিটি প্রশ্ন ও উত্তর আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর], ২. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর])। প্রশ্ন ও উত্তর বাংলায় লিখুন।''';
         break;
       case 'mcq':
         prompt =
-            '''এই ছবি থেকে বাংলায় বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
+            '''এই ছবি থেকে বাংলায় $countটি বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
 ১. প্রশ্ন
 ২. চারটি অপশন (ক, খ, গ, ঘ)
 ৩. সঠিক উত্তর নির্দেশ করুন
@@ -195,7 +195,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 ঘ) [অপশন ঘ]
 সঠিক উত্তর: [সঠিক অপশন, যেমন ক)]
 
-প্রশ্ন, অপশন এবং সঠিক উত্তর সব বাংলায় লিখুন।''';
+প্রতিটি প্রশ্ন আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন: [প্রশ্ন]..., ২. প্রশ্ন: [প্রশ্ন]...)। প্রশ্ন, অপশন এবং সঠিক উত্তর সব বাংলায় লিখুন।''';
         break;
     }
 
@@ -228,31 +228,50 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             final reply =
                 jsonResponse['candidates'][0]['content']['parts'][0]['text'];
 
-            if (questionType == 'short') {
-              final questionMatch =
-                  RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
-                      .firstMatch(reply);
-              if (questionMatch != null) {
-                questions.add(questionMatch.group(1)!.trim());
-                answers.add(questionMatch.group(2)!.trim());
-              } else {
-                questions.add(reply); // Add full reply if parsing fails
-                answers.add('উত্তর পাওয়া যায়নি');
+            // Split the reply into individual questions based on numbering
+            List<String> rawQuestions = [];
+            if (questionType == 'creative' || questionType == 'mcq') {
+              rawQuestions = reply.split(RegExp(r'\n\d+\.\s*')).where((s) => s.trim().isNotEmpty).toList();
+              if (rawQuestions.isNotEmpty && !rawQuestions[0].startsWith('1.')) {
+                // If the first item doesn't start with '1.', it means the split removed it.
+                // Re-add the first question with '1.' if it was implicitly there.
+                rawQuestions[0] = '1. ${rawQuestions[0]}';
               }
-            } else if (questionType == 'mcq') {
-              final questionMatch =
-                  RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true)
-                      .firstMatch(reply);
-              if (questionMatch != null) {
-                questions.add(
-                    '${questionMatch.group(1)!.trim()}\n${questionMatch.group(2)!.trim()}');
-                answers.add(questionMatch.group(3)!.trim());
-              } else {
-                questions.add(reply); // Add full reply if parsing fails
-                answers.add('সঠিক উত্তর পাওয়া যায়নি');
+            } else if (questionType == 'short') {
+              rawQuestions = reply.split(RegExp(r'\n\d+\.\s*প্রশ্ন:\s*')).where((s) => s.trim().isNotEmpty).toList();
+              if (rawQuestions.isNotEmpty && !rawQuestions[0].startsWith('1. প্রশ্ন:')) {
+                rawQuestions[0] = '1. প্রশ্ন: ${rawQuestions[0]}';
               }
-            } else {
-              questions.add(reply);
+            }
+
+
+            for (String qText in rawQuestions) {
+              if (questionType == 'short') {
+                final questionMatch =
+                    RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
+                        .firstMatch(qText);
+                if (questionMatch != null) {
+                  questions.add(questionMatch.group(1)!.trim());
+                  answers.add(questionMatch.group(2)!.trim());
+                } else {
+                  questions.add(qText); // Add full reply if parsing fails
+                  answers.add('উত্তর পাওয়া যায়নি');
+                }
+              } else if (questionType == 'mcq') {
+                final questionMatch =
+                    RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true)
+                        .firstMatch(qText);
+                if (questionMatch != null) {
+                  questions.add(
+                      '${questionMatch.group(1)!.trim()}\n${questionMatch.group(2)!.trim()}');
+                  answers.add(questionMatch.group(3)!.trim());
+                } else {
+                  questions.add(qText); // Add full reply if parsing fails
+                  answers.add('সঠিক উত্তর পাওয়া যায়নি');
+                }
+              } else {
+                questions.add(qText);
+              }
             }
           }
         }
@@ -271,16 +290,18 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
     try {
       if (_creativeSrojonshil && _creativeSrojonshilImages.isNotEmpty) {
+        final int count = int.tryParse(_creativeSrojonshilCountController.text) ?? 1;
         final result = await _generateQuestionsAndAnswersFromImages(
-            _creativeSrojonshilImages, 'creative');
+            _creativeSrojonshilImages, 'creative', count); // Pass count
         _creativeSrojonshilQuestions = result['questions']!;
       } else {
         _creativeSrojonshilQuestions = [];
       }
 
       if (_shortSangkhipto && _shortSangkhiptoImages.isNotEmpty) {
+        final int count = int.tryParse(_shortSangkhiptoCountController.text) ?? 1;
         final result = await _generateQuestionsAndAnswersFromImages(
-            _shortSangkhiptoImages, 'short');
+            _shortSangkhiptoImages, 'short', count); // Pass count
         _shortSangkhiptoQuestions = result['questions']!;
         _shortSangkhiptoAnswers = result['answers']!;
       } else {
@@ -289,8 +310,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       }
 
       if (_mcqMultipleChoice && _mcqImages.isNotEmpty) {
+        final int count = int.tryParse(_mcqCountController.text) ?? 1;
         final result = await _generateQuestionsAndAnswersFromImages(
-            _mcqImages, 'mcq');
+            _mcqImages, 'mcq', count); // Pass count
         _mcqQuestions = result['questions']!;
         _mcqAnswers = result['answers']!;
       } else {
@@ -614,7 +636,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       child: TextFormField(
         controller: controller,
         decoration: InputDecoration(
-          labelText: labelText + (required ? ' *' : ''),
+          labelText: '$labelText${required ? ' *' : ''}',
           prefixIcon: Icon(icon, color: primaryColor),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
