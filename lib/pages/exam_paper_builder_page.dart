@@ -227,6 +227,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               jsonResponse['candidates'].isNotEmpty) {
             final reply =
                 jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+            debugPrint('Raw API Reply: $reply');
 
             // Split the reply into individual questions based on numbering
             List<String> rawQuestions = [];
