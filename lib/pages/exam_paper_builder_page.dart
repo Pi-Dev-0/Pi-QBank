@@ -227,24 +227,33 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               jsonResponse['candidates'].isNotEmpty) {
             final reply =
                 jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-            debugPrint('Raw API Reply: $reply');
-
-            // Split the reply into individual questions based on numbering
+            debugPrint('Raw API Reply (Diagnostic): $reply'); // Re-adding for diagnostic
+            // Extract individual questions based on starting markers
             List<String> rawQuestions = [];
-            if (questionType == 'creative' || questionType == 'mcq') {
-              rawQuestions = reply.split(RegExp(r'\n\d+\.\s*')).where((String s) => s.trim().isNotEmpty).toList();
-              if (rawQuestions.isNotEmpty && !rawQuestions[0].startsWith('1.')) {
-                // If the first item doesn't start with '1.', it means the split removed it.
-                // Re-add the first question with '1.' if it was implicitly there.
-                rawQuestions[0] = '1. ${rawQuestions[0]}';
-              }
-            } else if (questionType == 'short') {
-              rawQuestions = reply.split(RegExp(r'\n\d+\.\s*প্রশ্ন:\s*')).where((String s) => s.trim().isNotEmpty).toList();
-              if (rawQuestions.isNotEmpty && !rawQuestions[0].startsWith('1. প্রশ্ন:')) {
-                rawQuestions[0] = '1. প্রশ্ন: ${rawQuestions[0]}';
-              }
+            // Fix: Use Bengali numerals in regex
+            final questionStartRegex = RegExp(r'[০-৯]+\.', dotAll: true);
+
+            final startMatches = questionStartRegex.allMatches(reply).toList();
+
+            debugPrint('Diagnostic: Number of question start matches: ${startMatches.length}');
+
+            if (startMatches.isEmpty) {
+              debugPrint('No question start matches found in reply with diagnostic regex.');
+              return {'questions': [], 'answers': []};
             }
 
+            for (int i = 0; i < startMatches.length; i++) {
+              final start = startMatches[i].start;
+              int end;
+              if (i + 1 < startMatches.length) {
+                end = startMatches[i + 1].start;
+              } else {
+                end = reply.length; // Last question goes to the end of the reply
+              }
+              String qText = reply.substring(start, end).trim();
+              debugPrint('Diagnostic: Extracted $questionType qText: $qText');
+              rawQuestions.add(qText);
+            }
 
             for (String qText in rawQuestions) {
               if (questionType == 'short') {
@@ -260,7 +269,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 }
               } else if (questionType == 'mcq') {
                 final questionMatch =
-                    RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true)
+                    RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true) // Fixed typo here
                         .firstMatch(qText);
                 if (questionMatch != null) {
                   questions.add(
@@ -322,7 +331,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       }
 
       if (!mounted) return;
-      _showSuccessSnackBar('প্রশ্ন সফলভাবে তৈরি হয়েছে!');
+      if (_hasGeneratedQuestions()) {
+        _showSuccessSnackBar('প্রশ্ন সফলভাবে তৈরি হয়েছে!');
+      } else {
+        _showErrorSnackBar('প্রশ্ন তৈরি করা যায়নি।');
+      }
       debugPrint('Creative Questions: ${_creativeSrojonshilQuestions.length}');
       debugPrint('Short Questions: ${_shortSangkhiptoQuestions.length}');
       debugPrint('MCQ Questions: ${_mcqQuestions.length}');
