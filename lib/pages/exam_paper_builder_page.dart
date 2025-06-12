@@ -4,6 +4,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'dart:io';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
@@ -249,8 +250,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   Future<void> _generatePDF() async {
     final pdf = pw.Document();
 
-    final font = await PdfGoogleFonts.notoSansBengaliRegular();
-    final boldFont = await PdfGoogleFonts.notoSansBengaliBold();
+    final fontData = await rootBundle.load('assets/fonts/NotoSansBengali-Regular.ttf');
+    final font = pw.Font.ttf(fontData);
+
+    final boldFontData = await rootBundle.load('assets/fonts/NotoSansBengali-Bold.ttf');
+    final boldFont = pw.Font.ttf(boldFontData);
 
     pdf.addPage(
       pw.MultiPage(
@@ -267,20 +271,22 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                   pw.Text(
                     _instituteController.text,
                     style: pw.TextStyle(
-                        fontSize: 18, fontWeight: pw.FontWeight.bold),
+                        fontSize: 18, fontWeight: pw.FontWeight.bold, font: boldFont),
+                    textDirection: pw.TextDirection.ltr,
                   ),
                   pw.SizedBox(height: 10),
                   pw.Text(
                     'বিষয়: ${_subjectController.text}',
                     style: pw.TextStyle(
-                        fontSize: 16, fontWeight: pw.FontWeight.bold),
+                        fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                    textDirection: pw.TextDirection.ltr,
                   ),
                   pw.SizedBox(height: 5),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('সময়: ${_examTimeController.text}'),
-                      pw.Text('পূর্ণমান: ${_totalMarksController.text}'),
+                      pw.Text('সময়: ${_examTimeController.text}', style: pw.TextStyle(font: font), textDirection: pw.TextDirection.ltr),
+                      pw.Text('পূর্ণমান: ${_totalMarksController.text}', style: pw.TextStyle(font: font), textDirection: pw.TextDirection.ltr),
                     ],
                   ),
                   pw.SizedBox(height: 20),
@@ -293,7 +299,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Text(
                 _directionsController.text,
                 style:
-                    pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic),
+                    pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic, font: font),
+                textDirection: pw.TextDirection.ltr,
               ),
               pw.SizedBox(height: 20),
             ],
@@ -304,7 +311,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Text(
                 'সৃজনশীল প্রশ্ন',
                 style:
-                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                textDirection: pw.TextDirection.ltr,
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -316,7 +324,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     children: [
                       pw.Text(
                         '${index + 1}. ${_creativeSrojonshilQuestions[index]}',
-                        style: pw.TextStyle(fontSize: 12),
+                        style: pw.TextStyle(fontSize: 12, font: font),
+                        textDirection: pw.TextDirection.ltr,
                       ),
                     ],
                   ),
@@ -329,7 +338,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Text(
                 'সংক্ষিপ্ত প্রশ্ন',
                 style:
-                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                textDirection: pw.TextDirection.ltr,
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -338,7 +348,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                   margin: pw.EdgeInsets.only(bottom: 15),
                   child: pw.Text(
                     '${index + 1}. ${_shortSangkhiptoQuestions[index]}',
-                    style: pw.TextStyle(fontSize: 12),
+                    style: pw.TextStyle(fontSize: 12, font: font),
+                    textDirection: pw.TextDirection.ltr,
                   ),
                 ),
               ),
@@ -349,7 +360,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Text(
                 'বহুনির্বাচনি প্রশ্ন',
                 style:
-                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                textDirection: pw.TextDirection.ltr,
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -358,7 +370,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                   margin: pw.EdgeInsets.only(bottom: 15),
                   child: pw.Text(
                     '${index + 1}. ${_mcqQuestions[index]}',
-                    style: pw.TextStyle(fontSize: 12),
+                    style: pw.TextStyle(fontSize: 12, font: font),
+                    textDirection: pw.TextDirection.ltr,
                   ),
                 ),
               ),

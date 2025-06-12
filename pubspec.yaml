@@ -112,6 +112,14 @@ flutter:
     - assets/gifs/
     - assets/images/hero.jpg
     - assets/images/launcher.png
+    - assets/fonts/
+
+  fonts:
+    - family: NotoSansBengali
+      fonts:
+        - asset: assets/fonts/NotoSansBengali-Regular.ttf
+        - asset: assets/fonts/NotoSansBengali-Bold.ttf
+          weight: 700
 
   # Add flutter_launcher_icons configuration
 flutter_icons:
