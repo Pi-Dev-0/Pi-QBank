@@ -397,10 +397,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
             // Directions
             if (_directionsController.text.isNotEmpty) ...[
-              pw.Text(
-                unicodeToBijoy(_directionsController.text),
-                style:
-                    pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic, font: font),
+              pw.Center(
+                child: pw.Text(
+                  unicodeToBijoy(_directionsController.text),
+                  style:
+                      pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic, font: font),
+                ),
               ),
               pw.SizedBox(height: 20),
             ],
@@ -408,10 +410,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             // Creative Questions
             if (_creativeSrojonshil &&
                 _creativeSrojonshilQuestions.isNotEmpty) ...[
-              pw.Text(
-                unicodeToBijoy('সৃজনশীল প্রশ্ন'),
-                style:
-                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+              pw.Center(
+                child: pw.Text(
+                  unicodeToBijoy('সৃজনশীল প্রশ্ন'),
+                  style:
+                      pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                ),
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -433,10 +437,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
             // Short Questions
             if (_shortSangkhipto && _shortSangkhiptoQuestions.isNotEmpty) ...[
-              pw.Text(
-                unicodeToBijoy('সংক্ষিপ্ত প্রশ্ন'),
-                style:
-                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+              pw.Center(
+                child: pw.Text(
+                  unicodeToBijoy('সংক্ষিপ্ত প্রশ্ন'),
+                  style:
+                      pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                ),
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -453,10 +459,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
             // MCQ Questions
             if (_mcqMultipleChoice && _mcqQuestions.isNotEmpty) ...[
-              pw.Text(
-                unicodeToBijoy('বহুনির্বাচনি প্রশ্ন'),
-                style:
-                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+              pw.Center(
+                child: pw.Text(
+                  unicodeToBijoy('বহুনির্বাচনি প্রশ্ন'),
+                  style:
+                      pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                ),
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -521,10 +529,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               ),
             ),
             if (_shortSangkhipto && _shortSangkhiptoAnswers.isNotEmpty) ...[
-              pw.Text(
-                unicodeToBijoy('সংক্ষিপ্ত প্রশ্নের উত্তর'),
-                style:
-                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+              pw.Center(
+                child: pw.Text(
+                  unicodeToBijoy('সংক্ষিপ্ত প্রশ্নের উত্তর'),
+                  style:
+                      pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                ),
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
