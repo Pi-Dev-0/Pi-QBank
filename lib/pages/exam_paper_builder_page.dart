@@ -55,6 +55,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   List<String> _shortSangkhiptoQuestions = [];
   List<String> _mcqQuestions = [];
 
+  // Generated answers
+  List<String> _shortSangkhiptoAnswers = [];
+  List<String> _mcqAnswers = [];
+
   bool _isGenerating = false;
 
   // Helper function for Bijoy conversion
@@ -63,11 +67,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   }
 
   // Color scheme
-  static const Color primaryColor = Color(0xFF6C63FF);
-  static const Color secondaryColor = Color(0xFF4ECDC4);
-  static const Color accentColor = Color(0xFFFF6B6B);
-  static const Color successColor = Color(0xFF4ECDC4);
-  static const Color warningColor = Color(0xFFFFE66D);
+  static const Color primaryColor = Color(0xFF4285F4); // Google Blue
+  static const Color secondaryColor = Color(0xFF0F9D58); // Google Green
+  static const Color accentColor = Color(0xFFDB4437); // Google Red
+  static const Color successColor = Color(0xFF0F9D58); // Google Green
   static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color cardColor = Colors.white;
 
@@ -135,7 +138,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     });
   }
 
-  Future<List<String>> _generateQuestionsFromImages(
+  Future<Map<String, List<String>>> _generateQuestionsAndAnswersFromImages(
       List<File> images, String questionType) async {
     String? apiKey =
         await getApiKey(); // Try to get API key from SharedPreferences
@@ -153,6 +156,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
 
     List<String> questions = [];
+    List<String> answers = [];
 
     String prompt = '';
     switch (questionType) {
@@ -169,7 +173,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
         break;
       case 'short':
         prompt =
-            '''এই ছবি থেকে বাংলায় সংক্ষিপ্ত প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত। প্রশ্নগুলো বাংলায় লিখুন.''';
+            '''এই ছবি থেকে বাংলায় সংক্ষিপ্ত প্রশ্ন এবং তার উত্তর তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত।
+ফরম্যাট:
+প্রশ্ন: [প্রশ্ন]
+উত্তর: [উত্তর]
+
+প্রশ্ন ও উত্তর বাংলায় লিখুন।''';
         break;
       case 'mcq':
         prompt =
@@ -178,7 +187,15 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 ২. চারটি অপশন (ক, খ, গ, ঘ)
 ৩. সঠিক উত্তর নির্দেশ করুন
 
-প্রশ্ন ও অপশন সব বাংলায় লিখুন।''';
+ফরম্যাট:
+প্রশ্ন: [প্রশ্ন]
+ক) [অপশন ক]
+খ) [অপশন খ]
+গ) [অপশন গ]
+ঘ) [অপশন ঘ]
+সঠিক উত্তর: [সঠিক অপশন, যেমন ক)]
+
+প্রশ্ন, অপশন এবং সঠিক উত্তর সব বাংলায় লিখুন।''';
         break;
     }
 
@@ -210,7 +227,33 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               jsonResponse['candidates'].isNotEmpty) {
             final reply =
                 jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-            questions.add(reply);
+
+            if (questionType == 'short') {
+              final questionMatch =
+                  RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
+                      .firstMatch(reply);
+              if (questionMatch != null) {
+                questions.add(questionMatch.group(1)!.trim());
+                answers.add(questionMatch.group(2)!.trim());
+              } else {
+                questions.add(reply); // Add full reply if parsing fails
+                answers.add('উত্তর পাওয়া যায়নি');
+              }
+            } else if (questionType == 'mcq') {
+              final questionMatch =
+                  RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true)
+                      .firstMatch(reply);
+              if (questionMatch != null) {
+                questions.add(
+                    '${questionMatch.group(1)!.trim()}\n${questionMatch.group(2)!.trim()}');
+                answers.add(questionMatch.group(3)!.trim());
+              } else {
+                questions.add(reply); // Add full reply if parsing fails
+                answers.add('সঠিক উত্তর পাওয়া যায়নি');
+              }
+            } else {
+              questions.add(reply);
+            }
           }
         }
       } catch (e) {
@@ -218,7 +261,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       }
     }
 
-    return questions;
+    return {'questions': questions, 'answers': answers};
   }
 
   Future<void> _generateQuestions() async {
@@ -228,17 +271,31 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
     try {
       if (_creativeSrojonshil && _creativeSrojonshilImages.isNotEmpty) {
-        _creativeSrojonshilQuestions = await _generateQuestionsFromImages(
+        final result = await _generateQuestionsAndAnswersFromImages(
             _creativeSrojonshilImages, 'creative');
+        _creativeSrojonshilQuestions = result['questions']!;
+      } else {
+        _creativeSrojonshilQuestions = [];
       }
 
       if (_shortSangkhipto && _shortSangkhiptoImages.isNotEmpty) {
-        _shortSangkhiptoQuestions =
-            await _generateQuestionsFromImages(_shortSangkhiptoImages, 'short');
+        final result = await _generateQuestionsAndAnswersFromImages(
+            _shortSangkhiptoImages, 'short');
+        _shortSangkhiptoQuestions = result['questions']!;
+        _shortSangkhiptoAnswers = result['answers']!;
+      } else {
+        _shortSangkhiptoQuestions = [];
+        _shortSangkhiptoAnswers = [];
       }
 
       if (_mcqMultipleChoice && _mcqImages.isNotEmpty) {
-        _mcqQuestions = await _generateQuestionsFromImages(_mcqImages, 'mcq');
+        final result = await _generateQuestionsAndAnswersFromImages(
+            _mcqImages, 'mcq');
+        _mcqQuestions = result['questions']!;
+        _mcqAnswers = result['answers']!;
+      } else {
+        _mcqQuestions = [];
+        _mcqAnswers = [];
       }
 
       if (!mounted) return;
@@ -253,17 +310,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     }
   }
 
-  Future<void> _generatePDF() async {
+
+  Future<void> _generateQuestionPDF() async {
     final pdf = pw.Document();
 
     // Load SutonnyMJ font
     final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
     final font = pw.Font.ttf(fontData);
-
-    // Since SutonnyMJ Regular.ttf is used for both regular and bold,
-    // we can use the same font for bold text or load a separate bold variant if available.
-    // For now, we'll use the same font for bold.
-    final boldFont = font; // Or load a specific bold font if 'SutonnyMJ Bold.ttf' exists
+    final boldFont = font;
 
     pdf.addPage(
       pw.MultiPage(
@@ -281,7 +335,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     unicodeToBijoy(_instituteController.text),
                     style: pw.TextStyle(
                         fontSize: 18, fontWeight: pw.FontWeight.bold, font: boldFont),
-                    ),
+                  ),
                   pw.SizedBox(height: 10),
                   pw.Text(
                     unicodeToBijoy('বিষয়: ${_subjectController.text}'),
@@ -383,6 +437,111 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
+    );
+  }
+
+  Future<void> _generateAnswerPDF() async {
+    final answersPdf = pw.Document();
+
+    // Load SutonnyMJ font
+    final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
+    final font = pw.Font.ttf(fontData);
+    final boldFont = font;
+
+    answersPdf.addPage(
+      pw.MultiPage(
+        theme: pw.ThemeData.withFont(
+          base: font,
+          bold: boldFont,
+        ),
+        build: (pw.Context context) {
+          return [
+            pw.Center(
+              child: pw.Column(
+                children: [
+                  pw.Text(
+                    unicodeToBijoy(_instituteController.text),
+                    style: pw.TextStyle(
+                        fontSize: 18, fontWeight: pw.FontWeight.bold, font: boldFont),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Text(
+                    unicodeToBijoy('বিষয়: ${_subjectController.text}'),
+                    style: pw.TextStyle(
+                        fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                  ),
+                  pw.SizedBox(height: 20),
+                  pw.Text(
+                    unicodeToBijoy('উত্তরপত্র'),
+                    style: pw.TextStyle(
+                        fontSize: 20, fontWeight: pw.FontWeight.bold, font: boldFont),
+                  ),
+                  pw.SizedBox(height: 20),
+                ],
+              ),
+            ),
+            if (_shortSangkhipto && _shortSangkhiptoAnswers.isNotEmpty) ...[
+              pw.Text(
+                unicodeToBijoy('সংক্ষিপ্ত প্রশ্নের উত্তর'),
+                style:
+                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+              ),
+              pw.SizedBox(height: 10),
+              ...List.generate(
+                _shortSangkhiptoAnswers.length,
+                (index) => pw.Container(
+                  margin: pw.EdgeInsets.only(bottom: 15),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        unicodeToBijoy('প্রশ্ন ${index + 1}.'),
+                        style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, font: font),
+                      ),
+                      pw.Text(
+                        unicodeToBijoy(_shortSangkhiptoAnswers[index]),
+                        style: pw.TextStyle(fontSize: 12, font: font),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (_mcqMultipleChoice && _mcqAnswers.isNotEmpty) ...[
+              pw.SizedBox(height: 20),
+              pw.Text(
+                unicodeToBijoy('বহুনির্বাচনি প্রশ্নের উত্তর'),
+                style:
+                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+              ),
+              pw.SizedBox(height: 10),
+              ...List.generate(
+                _mcqAnswers.length,
+                (index) => pw.Container(
+                  margin: pw.EdgeInsets.only(bottom: 15),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        unicodeToBijoy('প্রশ্ন ${index + 1}.'),
+                        style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, font: font),
+                      ),
+                      pw.Text(
+                        unicodeToBijoy(_mcqAnswers[index]),
+                        style: pw.TextStyle(fontSize: 12, font: font),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ];
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => answersPdf.save(),
     );
   }
 
@@ -921,35 +1080,37 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 const SizedBox(height: 24),
 
                 // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildAnimatedButton(
-                        text: 'প্রশ্ন তৈরি করুন',
-                        onPressed:
-                            (_isGenerating || !_hasSelectedTypeWithImages())
-                                ? null
-                                : _generateQuestions,
-                        backgroundColor: primaryColor,
-                        icon: Icons.auto_awesome,
-                        isLoading: _isGenerating,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildAnimatedButton(
-                        text: 'PDF তৈরি করুন',
-                        onPressed: (_hasGeneratedQuestions() &&
-                                _formKey.currentState?.validate() == true)
-                            ? _generatePDF
-                            : null,
-                        backgroundColor: secondaryColor,
-                        icon: Icons.picture_as_pdf,
-                      ),
-                    ),
-                  ],
+                _buildAnimatedButton(
+                  text: 'প্রশ্ন তৈরি করুন',
+                  onPressed: (_isGenerating || !_hasSelectedTypeWithImages())
+                      ? null
+                      : _generateQuestions,
+                  backgroundColor: Color(0xFF6C63FF), //set color to violet
+                  icon: Icons.auto_awesome,
+                  isLoading: _isGenerating,
                 ),
                 if (_hasGeneratedQuestions()) ...[
+                  const SizedBox(height: 16),
+                  _buildAnimatedButton(
+                    text: 'প্রশ্নপত্র PDF তৈরি করুন',
+                    onPressed: (_hasGeneratedQuestions() &&
+                            _formKey.currentState?.validate() == true)
+                        ? _generateQuestionPDF
+                        : null,
+                    backgroundColor: primaryColor,
+                    icon: Icons.picture_as_pdf,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildAnimatedButton(
+                    text: 'উত্তরপত্র PDF তৈরি করুন',
+                    onPressed: (_hasGeneratedQuestions() &&
+                            _formKey.currentState?.validate() == true &&
+                            (_shortSangkhiptoAnswers.isNotEmpty || _mcqAnswers.isNotEmpty))
+                        ? _generateAnswerPDF
+                        : null,
+                    backgroundColor: secondaryColor,
+                    icon: Icons.assignment_turned_in,
+                  ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -960,8 +1121,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                           label: const Text('প্রশ্ন দেখুন'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            foregroundColor: primaryColor,
-                            side: const BorderSide(color: primaryColor),
+                            foregroundColor: Color(0xFF6C63FF),
+                            side: const BorderSide(color: Color(0xFF6C63FF)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -976,8 +1137,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                           label: const Text('টেমপ্লেট সংরক্ষণ'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            foregroundColor: secondaryColor,
-                            side: const BorderSide(color: secondaryColor),
+                            foregroundColor: Color(0xFF6C63FF),
+                            side: const BorderSide(color: Color(0xFF6C63FF)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
