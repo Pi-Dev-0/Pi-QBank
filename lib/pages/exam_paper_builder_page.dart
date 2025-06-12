@@ -231,14 +231,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             // Split the reply into individual questions based on numbering
             List<String> rawQuestions = [];
             if (questionType == 'creative' || questionType == 'mcq') {
-              rawQuestions = reply.split(RegExp(r'\n\d+\.\s*')).where((s) => s.trim().isNotEmpty).toList();
+              rawQuestions = reply.split(RegExp(r'\n\d+\.\s*')).where((String s) => s.trim().isNotEmpty).toList();
               if (rawQuestions.isNotEmpty && !rawQuestions[0].startsWith('1.')) {
                 // If the first item doesn't start with '1.', it means the split removed it.
                 // Re-add the first question with '1.' if it was implicitly there.
                 rawQuestions[0] = '1. ${rawQuestions[0]}';
               }
             } else if (questionType == 'short') {
-              rawQuestions = reply.split(RegExp(r'\n\d+\.\s*প্রশ্ন:\s*')).where((s) => s.trim().isNotEmpty).toList();
+              rawQuestions = reply.split(RegExp(r'\n\d+\.\s*প্রশ্ন:\s*')).where((String s) => s.trim().isNotEmpty).toList();
               if (rawQuestions.isNotEmpty && !rawQuestions[0].startsWith('1. প্রশ্ন:')) {
                 rawQuestions[0] = '1. প্রশ্ন: ${rawQuestions[0]}';
               }
@@ -322,6 +322,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
       if (!mounted) return;
       _showSuccessSnackBar('প্রশ্ন সফলভাবে তৈরি হয়েছে!');
+      debugPrint('Creative Questions: ${_creativeSrojonshilQuestions.length}');
+      debugPrint('Short Questions: ${_shortSangkhiptoQuestions.length}');
+      debugPrint('MCQ Questions: ${_mcqQuestions.length}');
+      debugPrint('Has Generated Questions: ${_hasGeneratedQuestions()}');
     } catch (e) {
       if (!mounted) return;
       _showErrorSnackBar('ত্রুটি: $e');
@@ -1213,24 +1217,6 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                           '${index + 1}. ${_creativeSrojonshilQuestions[index]}'),
                     ),
                   ),
-                  SizedBox(height: 16),
-                ],
-                if (_shortSangkhiptoQuestions.isNotEmpty) ...[
-                  Text('সংক্ষিপ্ত প্রশ্ন:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...List.generate(
-                    _shortSangkhiptoQuestions.length,
-                    (index) => Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                          '${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                ],
-                if (_mcqQuestions.isNotEmpty) ...[
-                  Text('বহুনির্বাচনি প্রশ্ন:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
                   SizedBox(height: 16),
                 ],
                 if (_shortSangkhiptoQuestions.isNotEmpty) ...[
