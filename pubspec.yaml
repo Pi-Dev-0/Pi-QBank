@@ -53,6 +53,7 @@ dependencies:
   characters: ^1.3.0
   pdf: ^3.10.4
   printing: ^5.11.0
+  bijoy_helper: ^1.0.0 # Added for Bengali text conversion
 
 dev_dependencies:
   flutter_test:
@@ -115,11 +116,9 @@ flutter:
     - assets/fonts/
 
   fonts:
-    - family: NotoSansBengali
+    - family: SutonnyMJ
       fonts:
-        - asset: assets/fonts/NotoSansBengali-Regular.ttf
-        - asset: assets/fonts/NotoSansBengali-Bold.ttf
-          weight: 700
+        - asset: assets/fonts/SutonnyMJ Regular.ttf # Assuming this file will be added by the user
 
   # Add flutter_launcher_icons configuration
 flutter_icons:

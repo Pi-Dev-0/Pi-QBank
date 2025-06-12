@@ -41,6 +41,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.13"
+  bijoy_helper:
+    dependency: "direct main"
+    description:
+      name: bijoy_helper
+      sha256: f45ba66e9e8a9418513d0ca1b1f2dd1fa3499934931e34ee90bc5b44e7986dd4
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   boolean_selector:
     dependency: transitive
     description:

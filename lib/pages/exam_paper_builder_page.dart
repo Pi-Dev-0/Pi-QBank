@@ -10,6 +10,7 @@ import 'dart:convert';
 import '../config/app_config.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import '../widgets/custom_app_bar.dart';
+import 'package:bijoy_helper/bijoy_helper.dart' as bh; // Added for Bijoy conversion
 
 class ExamPaperBuilderPage extends StatefulWidget {
   const ExamPaperBuilderPage({super.key});
@@ -55,6 +56,11 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   List<String> _mcqQuestions = [];
 
   bool _isGenerating = false;
+
+  // Helper function for Bijoy conversion
+  String unicodeToBijoy(String unicodeText) {
+    return bh.unicodeToBijoy(unicodeText);
+  }
 
   // Color scheme
   static const Color primaryColor = Color(0xFF6C63FF);
@@ -250,11 +256,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   Future<void> _generatePDF() async {
     final pdf = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/NotoSansBengali-Regular.ttf');
+    // Load SutonnyMJ font
+    final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
-    final boldFontData = await rootBundle.load('assets/fonts/NotoSansBengali-Bold.ttf');
-    final boldFont = pw.Font.ttf(boldFontData);
+    // Since SutonnyMJ Regular.ttf is used for both regular and bold,
+    // we can use the same font for bold text or load a separate bold variant if available.
+    // For now, we'll use the same font for bold.
+    final boldFont = font; // Or load a specific bold font if 'SutonnyMJ Bold.ttf' exists
 
     pdf.addPage(
       pw.MultiPage(
@@ -269,24 +278,22 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               child: pw.Column(
                 children: [
                   pw.Text(
-                    _instituteController.text,
+                    unicodeToBijoy(_instituteController.text),
                     style: pw.TextStyle(
                         fontSize: 18, fontWeight: pw.FontWeight.bold, font: boldFont),
-                    textDirection: pw.TextDirection.ltr,
-                  ),
+                    ),
                   pw.SizedBox(height: 10),
                   pw.Text(
-                    'বিষয়: ${_subjectController.text}',
+                    unicodeToBijoy('বিষয়: ${_subjectController.text}'),
                     style: pw.TextStyle(
                         fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
-                    textDirection: pw.TextDirection.ltr,
                   ),
                   pw.SizedBox(height: 5),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('সময়: ${_examTimeController.text}', style: pw.TextStyle(font: font), textDirection: pw.TextDirection.ltr),
-                      pw.Text('পূর্ণমান: ${_totalMarksController.text}', style: pw.TextStyle(font: font), textDirection: pw.TextDirection.ltr),
+                      pw.Text(unicodeToBijoy('সময়: ${_examTimeController.text}'), style: pw.TextStyle(font: font)),
+                      pw.Text(unicodeToBijoy('পূর্ণমান: ${_totalMarksController.text}'), style: pw.TextStyle(font: font)),
                     ],
                   ),
                   pw.SizedBox(height: 20),
@@ -297,10 +304,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             // Directions
             if (_directionsController.text.isNotEmpty) ...[
               pw.Text(
-                _directionsController.text,
+                unicodeToBijoy(_directionsController.text),
                 style:
                     pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic, font: font),
-                textDirection: pw.TextDirection.ltr,
               ),
               pw.SizedBox(height: 20),
             ],
@@ -309,10 +315,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             if (_creativeSrojonshil &&
                 _creativeSrojonshilQuestions.isNotEmpty) ...[
               pw.Text(
-                'সৃজনশীল প্রশ্ন',
+                unicodeToBijoy('সৃজনশীল প্রশ্ন'),
                 style:
                     pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
-                textDirection: pw.TextDirection.ltr,
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -323,9 +328,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       pw.Text(
-                        '${index + 1}. ${_creativeSrojonshilQuestions[index]}',
+                        unicodeToBijoy('${index + 1}. ${_creativeSrojonshilQuestions[index]}'),
                         style: pw.TextStyle(fontSize: 12, font: font),
-                        textDirection: pw.TextDirection.ltr,
                       ),
                     ],
                   ),
@@ -336,10 +340,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             // Short Questions
             if (_shortSangkhipto && _shortSangkhiptoQuestions.isNotEmpty) ...[
               pw.Text(
-                'সংক্ষিপ্ত প্রশ্ন',
+                unicodeToBijoy('সংক্ষিপ্ত প্রশ্ন'),
                 style:
                     pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
-                textDirection: pw.TextDirection.ltr,
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -347,9 +350,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 (index) => pw.Container(
                   margin: pw.EdgeInsets.only(bottom: 15),
                   child: pw.Text(
-                    '${index + 1}. ${_shortSangkhiptoQuestions[index]}',
+                    unicodeToBijoy('${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
                     style: pw.TextStyle(fontSize: 12, font: font),
-                    textDirection: pw.TextDirection.ltr,
                   ),
                 ),
               ),
@@ -358,10 +360,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             // MCQ Questions
             if (_mcqMultipleChoice && _mcqQuestions.isNotEmpty) ...[
               pw.Text(
-                'বহুনির্বাচনি প্রশ্ন',
+                unicodeToBijoy('বহুনির্বাচনি প্রশ্ন'),
                 style:
                     pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
-                textDirection: pw.TextDirection.ltr,
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -369,9 +370,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 (index) => pw.Container(
                   margin: pw.EdgeInsets.only(bottom: 15),
                   child: pw.Text(
-                    '${index + 1}. ${_mcqQuestions[index]}',
+                    unicodeToBijoy('${index + 1}. ${_mcqQuestions[index]}'),
                     style: pw.TextStyle(fontSize: 12, font: font),
-                    textDirection: pw.TextDirection.ltr,
                   ),
                 ),
               ),
