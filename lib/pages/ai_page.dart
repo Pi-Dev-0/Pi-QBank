@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
@@ -25,7 +26,9 @@ class _AIPageState extends State<AIPage> {
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
+  late FlutterTts flutterTts;
   XFile? _selectedImage; // New state variable for selected image
+  int? _speakingMessageIndex; // To track which message is speaking
 
   // Personal Tone Settings
   String _toneName = '';
@@ -44,6 +47,55 @@ class _AIPageState extends State<AIPage> {
   void initState() {
     super.initState();
     _loadPersonalToneSettings(); // Load settings on init
+    flutterTts = FlutterTts();
+    _initTts();
+  }
+
+  void _initTts() async {
+    // Set default language based on _toneLanguage, or fallback to English
+    String languageCode = _toneLanguage.isNotEmpty ? _getLanguageCode(_toneLanguage) : "en-US";
+    bool isLanguageAvailable = await flutterTts.isLanguageAvailable(languageCode);
+
+    if (isLanguageAvailable) {
+      await flutterTts.setLanguage(languageCode);
+    } else {
+      await flutterTts.setLanguage("en-US"); // Fallback to English
+    }
+
+    await flutterTts.setSpeechRate(0.5); // Set speech rate
+    await flutterTts.setVolume(1.0); // Set volume
+    await flutterTts.setPitch(1.0); // Set pitch
+  }
+
+  String _getLanguageCode(String languageName) {
+    switch (languageName.toLowerCase()) {
+      case 'bengali':
+        return 'bn-BD'; // Or 'bn-IN' for Indian Bengali
+      case 'english':
+        return 'en-US';
+      // Add more cases as needed
+      default:
+        return 'en-US'; // Default to English if not recognized
+    }
+  }
+
+  Future _speak(String text) async {
+    // No need to call _stop() here, it's handled by the button logic
+    if (text.isNotEmpty) {
+      await flutterTts.speak(text);
+    }
+    flutterTts.setCompletionHandler(() {
+      setState(() {
+        _speakingMessageIndex = null;
+      });
+    });
+  }
+
+  Future _stop() async {
+    await flutterTts.stop();
+    setState(() {
+      _speakingMessageIndex = null;
+    });
   }
 
   Future<void> _loadPersonalToneSettings() async {
@@ -73,6 +125,7 @@ class _AIPageState extends State<AIPage> {
   void dispose() {
     _scrollController.dispose();
     _controller.dispose();
+    _stop(); // Stop TTS when disposing
     super.dispose();
   }
 
@@ -105,13 +158,16 @@ class _AIPageState extends State<AIPage> {
     _controller.clear();
     setState(() {
       if (_selectedImage != null) {
-        _messages.add(ChatMessage(
-            text: 'Image attached',
-            isUser: true,
-            imagePath: _selectedImage!.path));
+            _messages.add(ChatMessage(
+                text: 'Image attached',
+                isUser: true,
+                imagePath: _selectedImage!.path,
+                onSpeak: (text) => _speak(text), // Pass text only
+                onStop: _stop,
+                isSpeaking: false));
       }
       if (messageText.isNotEmpty) {
-        _messages.add(ChatMessage(text: messageText, isUser: true));
+        _messages.add(ChatMessage(text: messageText, isUser: true, onSpeak: (text) => _speak(text), onStop: _stop, isSpeaking: false));
       }
       _isLoading = true;
     });
@@ -231,7 +287,7 @@ class _AIPageState extends State<AIPage> {
           final reply =
               jsonResponse['candidates'][0]['content']['parts'][0]['text'];
           setState(() {
-            _messages.add(ChatMessage(text: reply, isUser: false));
+            _messages.add(ChatMessage(text: reply, isUser: false, onSpeak: (text) => _speak(text), onStop: _stop, isSpeaking: false));
           });
         } else {
           throw Exception('Invalid response format or empty candidates');
@@ -321,6 +377,9 @@ class _AIPageState extends State<AIPage> {
             text: generatedText.isNotEmpty ? generatedText : "Generated image:",
             isUser: false,
             base64Image: base64Image,
+            onSpeak: (text) => _speak(text),
+            onStop: _stop,
+            isSpeaking: false,
           ));
           _scrollToBottom(); // Add scroll after adding generated image
         });
@@ -334,7 +393,10 @@ class _AIPageState extends State<AIPage> {
         // Then add the error message
         _messages.add(ChatMessage(
             text: 'Failed to generate image. Consider using your own API Key.',
-            isUser: false));
+            isUser: false,
+            onSpeak: (text) => _speak(text),
+            onStop: _stop,
+            isSpeaking: false));
         _scrollToBottom();
       });
     } finally {
@@ -375,7 +437,33 @@ class _AIPageState extends State<AIPage> {
               controller: _scrollController,
               itemCount: _messages.length,
               padding: const EdgeInsets.all(12.0),
-              itemBuilder: (context, index) => _messages[index],
+              itemBuilder: (context, index) {
+                final message = _messages[index];
+                return ChatMessage(
+                  key: ValueKey(message.hashCode), // Add a unique key
+                  text: message.text,
+                  isUser: message.isUser,
+                  imagePath: message.imagePath,
+                  generatedImageUrls: message.generatedImageUrls,
+                  base64Image: message.base64Image,
+                  showLoader: message.showLoader,
+                  onSpeak: (text) async {
+                    if (_speakingMessageIndex == index) {
+                      // If this message is already speaking, stop it
+                      await _stop();
+                    } else {
+                      // If another message is speaking or nothing is speaking, start this one
+                      await _stop(); // Stop any other ongoing speech
+                      setState(() {
+                        _speakingMessageIndex = index;
+                      });
+                      await _speak(text);
+                    }
+                  },
+                  onStop: _stop,
+                  isSpeaking: _speakingMessageIndex == index,
+                );
+              },
             ),
           ),
           if (_isLoading)
@@ -502,7 +590,10 @@ class ChatMessage extends StatelessWidget {
   final String? imagePath;
   final List<String>? generatedImageUrls;
   final String? base64Image;
-  final bool showLoader; // Add this line
+  final bool showLoader;
+  final Function(String text)? onSpeak;
+  final Function()? onStop;
+  final bool isSpeaking;
 
   const ChatMessage({
     super.key,
@@ -511,7 +602,10 @@ class ChatMessage extends StatelessWidget {
     this.imagePath,
     this.generatedImageUrls,
     this.base64Image,
-    this.showLoader = false, // Add this line with default value
+    this.showLoader = false,
+    this.onSpeak,
+    this.onStop,
+    this.isSpeaking = false,
   });
 
   List<TextSpan> _formatText(String text, BuildContext context) {
@@ -769,12 +863,34 @@ class ChatMessage extends StatelessWidget {
                         ))
                     .toList(),
               ),
-            isUser
-                ? Text(text, style: const TextStyle(color: Colors.white))
-                : SelectableText.rich(
-                    TextSpan(children: _formatText(text, context)),
-                    onTap: () {},
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                isUser
+                    ? Text(text, style: const TextStyle(color: Colors.white))
+                    : SelectableText.rich(
+                        TextSpan(children: _formatText(text, context)),
+                        onTap: () {},
+                      ),
+                if (!isUser && !showLoader && text.isNotEmpty)
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: IconButton(
+                      icon: Icon(
+                        isSpeaking ? Icons.volume_off : Icons.volume_up,
+                        color: isUser ? Colors.white : Colors.black,
+                      ),
+                      onPressed: () {
+                        if (isSpeaking) {
+                          onStop?.call();
+                        } else {
+                          onSpeak?.call(text);
+                        }
+                      },
+                    ),
                   ),
+              ],
+            ),
           ],
         ),
       ),

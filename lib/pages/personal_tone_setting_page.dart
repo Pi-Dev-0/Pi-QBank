@@ -68,7 +68,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'gradient': [Colors.blue.shade300, Colors.blue.shade600],
     },
     {
-      'name': 'Teacher/Professor',
+      'name': 'Teacher',
       'gender': 'Neutral',
       'relationship': 'Educator',
       'language': 'English',
@@ -331,8 +331,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: Colors.white.withOpacity(0.3), width: 1.5),
+            border:
+                Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: Colors.deepPurple.withOpacity(0.8),
@@ -436,8 +436,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                  color: Colors.white.withOpacity(0.3), width: 1.5),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
               boxShadow: [
                 BoxShadow(
                   color: (preset['color'] ?? Colors.grey).withOpacity(0.8),
@@ -464,16 +464,19 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    preset['name'],
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13, // Reduced font size to help with overflow
+                  Expanded(
+                    // Wrap Text with Expanded
+                    child: Text(
+                      preset['name'],
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13, // Reduced font size to help with overflow
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -564,8 +567,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: Colors.white.withOpacity(0.3), width: 1.5),
+            border:
+                Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
             boxShadow: [
               BoxShadow(
                 color: Colors.indigo.withOpacity(0.8),
@@ -611,8 +614,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             textTheme,
           ),
           const SizedBox(height: 20),
-          _buildEnhancedTextField(_nameController, 'Name', 'e.g., Rashid Sahriar',
-              Icons.person, Colors.green),
+          _buildEnhancedTextField(_nameController, 'Name',
+              'e.g., Rashid Sahriar', Icons.person, Colors.green),
           _buildEnhancedTextField(_genderController, 'Gender',
               'e.g., Male, Female, Non-binary', Icons.transgender, Colors.pink),
           _buildEnhancedTextField(_relationshipController, 'Relationship',
@@ -797,8 +800,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: Colors.white.withOpacity(0.3), width: 1.5),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
               boxShadow: [
                 BoxShadow(
                   color: Colors.teal.withOpacity(0.8),
@@ -821,7 +824,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -845,8 +849,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                  color: Colors.white.withOpacity(0.3), width: 1.5),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
               boxShadow: [
                 BoxShadow(
                   color: Colors.deepPurple,
