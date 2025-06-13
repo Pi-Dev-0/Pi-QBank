@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:ui'; // Import for ImageFilter
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
@@ -430,15 +431,17 @@ class _AIPageState extends State<AIPage> {
         ],
       ),
       drawer: const AppDrawer(),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: _messages.length,
-              padding: const EdgeInsets.all(12.0),
-              itemBuilder: (context, index) {
-                final message = _messages[index];
+          Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: _messages.length,
+                  padding: const EdgeInsets.all(12.0),
+                  itemBuilder: (context, index) {
+                    final message = _messages[index];
                 return ChatMessage(
                   key: ValueKey(message.hashCode), // Add a unique key
                   text: message.text,
@@ -578,6 +581,108 @@ class _AIPageState extends State<AIPage> {
               ],
             ),
           ),
+        ],
+      ),
+          if (_selectedImage != null)
+            Positioned(
+              bottom: 80.0, // Adjust this value to position above the input field
+              left: 12.0,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end, // Align buttons to the bottom
+                  crossAxisAlignment: CrossAxisAlignment.start, // Align buttons to the left
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(25.0), // Rounded corners for the glass effect
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0), // Blurry effect
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.green,
+                                blurRadius: 15,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: TextButton.icon(
+                            onPressed: () {
+                              _controller.text = 'Extract text from image';
+                              _sendMessage();
+                            },
+                            icon: const Icon(Icons.text_fields, color: Colors.white), // White icon for contrast
+                            label: const Text('Extract text', style: TextStyle(color: Colors.white)), // White text for contrast
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8), // Use height for vertical spacing
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(25),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.deepPurpleAccent,
+                                blurRadius: 15,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: TextButton.icon(
+                            onPressed: () {
+                              _controller.text = 'Summarize this image';
+                              _sendMessage();
+                            },
+                            icon: const Icon(Icons.summarize, color: Colors.white),
+                            label: const Text('Summarize', style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8), // Use height for vertical spacing
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(25),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.blue,
+                                blurRadius: 15,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: TextButton.icon(
+                            onPressed: () {
+                              _controller.text = 'Describe this image';
+                              _sendMessage();
+                            },
+                            icon: const Icon(Icons.description, color: Colors.white),
+                            label: const Text('Describe', style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
