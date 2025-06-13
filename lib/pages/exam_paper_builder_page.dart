@@ -464,41 +464,98 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 ),
               ),
               pw.SizedBox(height: 10),
-              ...List.generate(
-                _creativeSrojonshilQuestions.length,
-                (index) {
-                  final question = _creativeSrojonshilQuestions[index];
-                  return pw.Container(
-                    margin: pw.EdgeInsets.only(bottom: 20),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(
-                          unicodeToBijoy('${question.questionNumber}. ${question.stem}'),
-                          style: pw.TextStyle(fontSize: 12, font: boldFont), // Bold for stem
-                        ),
-                        pw.SizedBox(height: 5), // Small gap after stem
-                        ...question.subQuestions.map(
-                          (subQ) => pw.Row(
-                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                            children: [
-                              pw.Expanded(
-                                child: pw.Text(
-                                  unicodeToBijoy('${subQ.label}) ${subQ.text}'),
-                                  style: pw.TextStyle(fontSize: 12, font: font),
+              pw.Column(
+                children: [
+                  pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: List.generate(
+                            (_creativeSrojonshilQuestions.length / 2).ceil(),
+                            (index) {
+                              final question = _creativeSrojonshilQuestions[index];
+                              return pw.Container(
+                                margin: pw.EdgeInsets.only(bottom: 20),
+                                child: pw.Column(
+                                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                  children: [
+                                    pw.Text(
+                                      unicodeToBijoy('${question.questionNumber}. ${question.stem}'),
+                                      style: pw.TextStyle(fontSize: 12, font: boldFont),
+                                    ),
+                                    pw.SizedBox(height: 5),
+                                    ...question.subQuestions.map(
+                                      (subQ) => pw.Row(
+                                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          pw.Expanded(
+                                            child: pw.Text(
+                                              unicodeToBijoy('${subQ.label}) ${subQ.text}'),
+                                              style: pw.TextStyle(fontSize: 12, font: font),
+                                            ),
+                                          ),
+                                          pw.Text(
+                                            unicodeToBijoy('(${subQ.marks})'),
+                                            style: pw.TextStyle(fontSize: 12, font: font),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              pw.Text(
-                                unicodeToBijoy('(${subQ.marks})'), // Just marks, no "নম্বর"
-                                style: pw.TextStyle(fontSize: 12, font: font),
-                              ),
-                            ],
+                              );
+                            },
                           ),
                         ),
-                      ],
-                    ),
-                  );
-                },
+                      ),
+                      pw.SizedBox(width: 20), // Space between columns
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: List.generate(
+                            _creativeSrojonshilQuestions.length ~/ 2,
+                            (index) {
+                              final actualIndex = (_creativeSrojonshilQuestions.length / 2).ceil() + index;
+                              final question = _creativeSrojonshilQuestions[actualIndex];
+                              return pw.Container(
+                                margin: pw.EdgeInsets.only(bottom: 20),
+                                child: pw.Column(
+                                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                  children: [
+                                    pw.Text(
+                                      unicodeToBijoy('${question.questionNumber}. ${question.stem}'),
+                                      style: pw.TextStyle(fontSize: 12, font: boldFont),
+                                    ),
+                                    pw.SizedBox(height: 5),
+                                    ...question.subQuestions.map(
+                                      (subQ) => pw.Row(
+                                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          pw.Expanded(
+                                            child: pw.Text(
+                                              unicodeToBijoy('${subQ.label}) ${subQ.text}'),
+                                              style: pw.TextStyle(fontSize: 12, font: font),
+                                            ),
+                                          ),
+                                          pw.Text(
+                                            unicodeToBijoy('(${subQ.marks})'),
+                                            style: pw.TextStyle(fontSize: 12, font: font),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
 
@@ -534,15 +591,48 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 ),
               ),
               pw.SizedBox(height: 10),
-              ...List.generate(
-                _mcqQuestions.length,
-                (index) => pw.Container(
-                  margin: pw.EdgeInsets.only(bottom: 15),
-                  child: pw.Text(
-                    unicodeToBijoy('${index + 1}. ${_mcqQuestions[index]}'),
-                    style: pw.TextStyle(fontSize: 12, font: font),
+              pw.Column(
+                children: [
+                  pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: List.generate(
+                            (_mcqQuestions.length / 2).ceil(),
+                            (index) => pw.Container(
+                              margin: pw.EdgeInsets.only(bottom: 15),
+                              child: pw.Text(
+                                unicodeToBijoy('${index + 1}. ${_mcqQuestions[index]}'),
+                                style: pw.TextStyle(fontSize: 12, font: font),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      pw.SizedBox(width: 20), // Space between columns
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: List.generate(
+                            _mcqQuestions.length ~/ 2,
+                            (index) {
+                              final actualIndex = (_mcqQuestions.length / 2).ceil() + index;
+                              return pw.Container(
+                                margin: pw.EdgeInsets.only(bottom: 15),
+                                child: pw.Text(
+                                  unicodeToBijoy('${actualIndex + 1}. ${_mcqQuestions[actualIndex]}'),
+                                  style: pw.TextStyle(fontSize: 12, font: font),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                ],
               ),
             ],
           ];
