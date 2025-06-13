@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'dart:ui'; // Import for ImageFilter
 import '../widgets/custom_app_bar.dart';
-import '../widgets/api_key_dialog.dart'; // Import the API key dialog
+import '../widgets/api_key_dialog.dart';
 
 class PersonalToneSettingPage extends StatefulWidget {
   const PersonalToneSettingPage({super.key});
@@ -12,7 +13,8 @@ class PersonalToneSettingPage extends StatefulWidget {
       _PersonalToneSettingPageState();
 }
 
-class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
+class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
+    with TickerProviderStateMixin {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _genderController = TextEditingController();
   final TextEditingController _relationshipController = TextEditingController();
@@ -20,6 +22,10 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
   final TextEditingController _purposeController = TextEditingController();
   final List<Map<String, String>> _customTraits = [];
   String? _selectedModel;
+
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   final List<String> _availableModels = [
     'gemma-3-27b-it',
@@ -41,10 +47,13 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
       'language': '',
       'purpose': '',
       'customTraits': [],
-      'isCustom': true, // Add a flag to identify custom tone
+      'isCustom': true,
+      'icon': Icons.palette,
+      'color': Colors.purple,
+      'gradient': [Colors.purple.shade300, Colors.purple.shade600],
     },
     {
-      'name': 'Personal AI Assistant',
+      'name': 'AI Assistant',
       'gender': 'Neutral',
       'relationship': 'Assistant',
       'language': 'English',
@@ -54,6 +63,9 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         {'trait': 'Empathy', 'value': 'High'},
         {'trait': 'Conciseness', 'value': 'High'},
       ],
+      'icon': Icons.smart_toy,
+      'color': Colors.blue,
+      'gradient': [Colors.blue.shade300, Colors.blue.shade600],
     },
     {
       'name': 'Teacher/Professor',
@@ -66,6 +78,9 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         {'trait': 'Authority', 'value': 'High'},
         {'trait': 'Clarity', 'value': 'High'},
       ],
+      'icon': Icons.school,
+      'color': Colors.green,
+      'gradient': [Colors.green.shade300, Colors.green.shade600],
     },
     {
       'name': 'Friend',
@@ -78,13 +93,32 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         {'trait': 'Humor', 'value': 'Moderate'},
         {'trait': 'Empathy', 'value': 'High'},
       ],
+      'icon': Icons.favorite,
+      'color': Colors.orange,
+      'gradient': [Colors.orange.shade300, Colors.orange.shade600],
     },
   ];
 
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutBack,
+    ));
+
     _loadSettings();
+    _animationController.forward();
   }
 
   Future<void> _loadSettings() async {
@@ -125,14 +159,26 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Settings Saved Successfully!',
-            style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 10),
+              Text(
+                'Settings Saved Successfully!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-          backgroundColor: Theme.of(context).colorScheme.primary,
+          backgroundColor: Colors.green.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
+          elevation: 8,
+          duration: const Duration(seconds: 3),
         ),
       );
     }
@@ -165,7 +211,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         }
       }
 
-      // Clear fields if 'Custom Tone' is selected
       if (preset['isCustom'] == true) {
         _nameController.clear();
         _genderController.clear();
@@ -175,22 +220,34 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         _customTraits.clear();
       }
     });
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          'Preset "${preset['name']}" Applied!',
-          style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+        content: Row(
+          children: [
+            Icon(preset['icon'], color: Colors.white),
+            const SizedBox(width: 10),
+            Text(
+              'Preset "${preset['name']}" Applied!',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-        backgroundColor: Theme.of(context).colorScheme.secondary,
+        backgroundColor: preset['color'],
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
+        elevation: 8,
       ),
     );
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
     _nameController.dispose();
     _genderController.dispose();
     _relationshipController.dispose();
@@ -205,346 +262,724 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       appBar: CustomAppBar(
         title: 'Personal Tone Settings',
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0), // Increased padding
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(
-              elevation: 6,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              margin: const EdgeInsets.only(bottom: 25),
-              child: Padding(
+      body: Stack(
+        children: [
+          // Background with gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  colorScheme.surface,
+                  colorScheme.surfaceContainerLowest,
+                ],
+              ),
+            ),
+          ),
+          // Blur effect
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+            child: Container(
+              color: Colors.white.withOpacity(0.1), // Semi-transparent overlay
+            ),
+          ),
+          // Original content with fade and slide animations
+          FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Preset Tones',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.primary,
-                      ),
-                    ),
+                    _buildWelcomeCard(textTheme, colorScheme),
                     const SizedBox(height: 20),
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      decoration: InputDecoration(
-                        labelText: 'Select a Preset Tone',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0)),
-                        filled: true,
-                        fillColor: colorScheme.surfaceContainerLowest,
-                        prefixIcon: Icon(Icons.palette,
-                            color: colorScheme.onSurfaceVariant),
-                        contentPadding: const EdgeInsets.symmetric(
-                            vertical: 15, horizontal: 12),
-                      ),
-                      items: _presetTones.map((preset) {
-                        return DropdownMenuItem<Map<String, dynamic>>(
-                          value: preset,
-                          child: Text(preset['name']),
-                        );
-                      }).toList(),
-                      onChanged: (selectedPreset) {
-                        if (selectedPreset != null) {
-                          _applyPreset(selectedPreset);
-                        }
-                      },
-                      hint: Text('Choose a preset'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Card(
-              elevation: 6,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              margin: const EdgeInsets.only(bottom: 25),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Model Settings',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.primary,
-                      ),
-                    ),
+                    _buildPresetTonesCard(textTheme, colorScheme),
                     const SizedBox(height: 20),
-                    SizedBox(
-                      // Wrap with SizedBox to force full width
-                      width: double.infinity,
-                      child: DropdownButtonFormField<String>(
-                        isExpanded: true, // Add this to prevent overflow
-                        decoration: InputDecoration(
-                          labelText: 'Select AI Model',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8.0)),
-                          filled: true,
-                          fillColor: colorScheme.surfaceContainerLowest,
-                          prefixIcon: Icon(Icons.memory,
-                              color: colorScheme.onSurfaceVariant),
-                          contentPadding: const EdgeInsets.symmetric(
-                              vertical: 15, horizontal: 12),
-                        ),
-                        value: _selectedModel,
-                        items: _availableModels.map((model) {
-                          return DropdownMenuItem<String>(
-                            value: model,
-                            child: Text(
-                              model,
-                              overflow: TextOverflow
-                                  .ellipsis, // Add this to handle text overflow
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (selectedModel) {
-                          setState(() {
-                            _selectedModel = selectedModel;
-                          });
-                        },
-                        hint: Text('Choose a model'),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20.0),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          showApiKeyDialog(context);
-                        },
-                        icon: Icon(Icons.vpn_key, color: colorScheme.onPrimary),
-                        label: Text(
-                          'Manage API Key',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onPrimary,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.primary,
-                          foregroundColor: colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 4,
-                        ),
-                      ),
-                    ),
+                    _buildModelSettingsCard(textTheme, colorScheme),
+                    const SizedBox(height: 20),
+                    _buildBasicInfoCard(textTheme, colorScheme),
+                    const SizedBox(height: 20),
+                    _buildCustomTraitsCard(textTheme, colorScheme),
+                    const SizedBox(height: 30),
+                    _buildSaveButton(textTheme, colorScheme),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
             ),
-            Card(
-              elevation: 6, // Increased elevation
-              shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(16)), // Slightly more rounded
-              margin: const EdgeInsets.only(bottom: 25), // Increased margin
-              child: Padding(
-                padding: const EdgeInsets.all(20.0), // Increased padding
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWelcomeCard(TextTheme textTheme, ColorScheme colorScheme) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+                color: Colors.white.withOpacity(0.3), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.deepPurple.withOpacity(0.8),
+                blurRadius: 15,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      'Basic Information',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600, // Semi-bold
-                        color: colorScheme.primary,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        color: Colors.white,
+                        size: 28,
                       ),
                     ),
-                    const SizedBox(height: 20), // Increased spacing
-                    _buildTextField(_nameController, 'Name', 'e.g., John Doe',
-                        Icons.person),
-                    _buildTextField(_genderController, 'Gender',
-                        'e.g., Male, Female, Non-binary', Icons.transgender),
-                    _buildTextField(_relationshipController, 'Relationship',
-                        'e.g., Friend, Colleague, Family', Icons.people),
-                    _buildTextField(_languageController, 'Language',
-                        'e.g., English, Spanish, Bengali', Icons.language),
-                    _buildTextField(
-                        _purposeController,
-                        'Purpose',
-                        'e.g., Education, Entertainment, Business',
-                        Icons.lightbulb_outline),
-                  ],
-                ),
-              ),
-            ),
-            Card(
-              elevation: 6, // Increased elevation
-              shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(16)), // Slightly more rounded
-              margin: const EdgeInsets.only(bottom: 25), // Increased margin
-              child: Padding(
-                padding: const EdgeInsets.all(20.0), // Increased padding
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Custom Traits',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600, // Semi-bold
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 20), // Increased spacing
-                    if (_customTraits.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 15.0), // Increased padding
-                        child: Text(
-                          'No custom traits added yet. Click "Add Custom Trait" to add one.',
-                          style: textTheme.bodyLarge?.copyWith(
-                            // Changed to bodyLarge
-                            color: colorScheme.onSurfaceVariant,
-                            fontStyle: FontStyle.italic,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Personalize Your AI',
+                            style: textTheme.headlineSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ..._customTraits.asMap().entries.map((entry) {
-                      int index = entry.key;
-                      Map<String, String> trait = entry.value;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 15.0),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                decoration: InputDecoration(
-                                  labelText: 'Trait ${index + 1}',
-                                  hintText: 'e.g., Favorite Color',
-                                  border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(
-                                          8.0)), // Less rounded
-                                  filled: true,
-                                  fillColor: colorScheme.surfaceContainerLowest,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      vertical: 15,
-                                      horizontal: 12), // Adjusted padding
-                                ),
-                                onChanged: (value) => trait['trait'] = value,
-                                controller:
-                                    TextEditingController(text: trait['trait']),
-                              ),
+                          Text(
+                            'Create the perfect tone for your conversations',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: Colors.white.withOpacity(0.9),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextFormField(
-                                decoration: InputDecoration(
-                                  labelText: 'Value ${index + 1}',
-                                  hintText: 'e.g., Blue',
-                                  border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(
-                                          8.0)), // Less rounded
-                                  filled: true,
-                                  fillColor: colorScheme.surfaceContainerLowest,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      vertical: 15,
-                                      horizontal: 12), // Adjusted padding
-                                ),
-                                onChanged: (value) => trait['value'] = value,
-                                controller:
-                                    TextEditingController(text: trait['value']),
-                              ),
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.delete_outline,
-                                  color: colorScheme.error), // Changed icon
-                              onPressed: () => _removeCustomTrait(index),
-                              tooltip: 'Remove Trait',
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 15), // Adjusted spacing
-                    Center(
-                      child: TextButton.icon(
-                        // Changed to TextButton.icon
-                        onPressed: _addCustomTrait,
-                        icon: Icon(Icons.add_circle_outline,
-                            color:
-                                colorScheme.primary), // Icon with primary color
-                        label: Text(
-                          'Add Custom Trait',
-                          style: textTheme.bodyLarge?.copyWith(
-                              color: colorScheme
-                                  .primary), // Text with primary color
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 15, vertical: 10),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(
-                                color: colorScheme.primary
-                                    .withOpacity(0.5)), // Subtle border
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 30), // Increased spacing before save button
-            Center(
-              child: ElevatedButton(
-                onPressed: _saveSettings, // Call _saveSettings
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      colorScheme.primary, // Primary color for save button
-                  foregroundColor: colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 50, vertical: 18), // Larger padding
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12), // More rounded
-                  ),
-                  textStyle: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold), // Larger and bolder text
-                  elevation: 8, // More elevation for save button
-                ),
-                child: const Text('Save Settings'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label,
-      String hintText, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18.0), // Adjusted padding
+  Widget _buildPresetTonesCard(TextTheme textTheme, ColorScheme colorScheme) {
+    return _buildAnimatedCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Preset Tones',
+            Icons.palette,
+            Colors.purple,
+            textTheme,
+          ),
+          const SizedBox(height: 20),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.2, // Increased further to fix overflow
+            ),
+            itemCount: _presetTones.length,
+            itemBuilder: (context, index) {
+              final preset = _presetTones[index];
+              return _buildPresetCard(preset, colorScheme);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPresetCard(
+      Map<String, dynamic> preset, ColorScheme colorScheme) {
+    return GestureDetector(
+      onTap: () => _applyPreset(preset),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                  color: Colors.white.withOpacity(0.3), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: (preset['color'] ?? Colors.grey).withOpacity(0.8),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      preset['icon'] ?? Icons.star,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    preset['name'],
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13, // Reduced font size to help with overflow
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelSettingsCard(TextTheme textTheme, ColorScheme colorScheme) {
+    return _buildAnimatedCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Model Settings',
+            Icons.memory,
+            Colors.blue,
+            textTheme,
+          ),
+          const SizedBox(height: 20),
+          _buildEnhancedDropdown(),
+          const SizedBox(height: 20),
+          _buildApiKeyButton(textTheme, colorScheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnhancedDropdown() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade50, Colors.blue.shade100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: DropdownButtonFormField<String>(
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: 'Select AI Model',
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.transparent,
+          prefixIcon: Icon(Icons.smart_toy, color: Colors.blue.shade600),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        ),
+        value: _selectedModel,
+        items: _availableModels.map((model) {
+          return DropdownMenuItem<String>(
+            value: model,
+            child: Text(
+              model,
+              style: TextStyle(
+                color: Colors.blue.shade800,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
+        }).toList(),
+        onChanged: (selectedModel) {
+          setState(() {
+            _selectedModel = selectedModel;
+          });
+        },
+        hint: Text('Choose a model'),
+        dropdownColor: Colors.blue.shade50,
+      ),
+    );
+  }
+
+  Widget _buildApiKeyButton(TextTheme textTheme, ColorScheme colorScheme) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: Colors.white.withOpacity(0.3), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.indigo.withOpacity(0.8),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: ElevatedButton.icon(
+            onPressed: () => showApiKeyDialog(context),
+            icon: Icon(Icons.vpn_key, color: Colors.white),
+            label: Text(
+              'Manage API Key',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBasicInfoCard(TextTheme textTheme, ColorScheme colorScheme) {
+    return _buildAnimatedCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Basic Information',
+            Icons.person,
+            Colors.green,
+            textTheme,
+          ),
+          const SizedBox(height: 20),
+          _buildEnhancedTextField(_nameController, 'Name', 'e.g., Rashid Sahriar',
+              Icons.person, Colors.green),
+          _buildEnhancedTextField(_genderController, 'Gender',
+              'e.g., Male, Female, Non-binary', Icons.transgender, Colors.pink),
+          _buildEnhancedTextField(_relationshipController, 'Relationship',
+              'e.g., Friend, Colleague, Family', Icons.people, Colors.orange),
+          _buildEnhancedTextField(_languageController, 'Language',
+              'e.g., English, Spanish, Bengali', Icons.language, Colors.blue),
+          _buildEnhancedTextField(
+              _purposeController,
+              'Purpose',
+              'e.g., Education, Entertainment, Business',
+              Icons.lightbulb_outline,
+              Colors.purple),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomTraitsCard(TextTheme textTheme, ColorScheme colorScheme) {
+    return _buildAnimatedCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader(
+            'Custom Traits',
+            Icons.tune,
+            Colors.orange,
+            textTheme,
+          ),
+          const SizedBox(height: 20),
+          if (_customTraits.isEmpty)
+            _buildEmptyTraitsMessage(textTheme, colorScheme)
+          else
+            ..._customTraits.asMap().entries.map((entry) {
+              int index = entry.key;
+              Map<String, String> trait = entry.value;
+              return _buildCustomTraitRow(index, trait, colorScheme);
+            }),
+          const SizedBox(height: 20),
+          _buildAddTraitButton(colorScheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyTraitsMessage(
+      TextTheme textTheme, ColorScheme colorScheme) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.orange.shade50, Colors.orange.shade100],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange.shade200, width: 2),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.add_circle_outline,
+            size: 48,
+            color: Colors.orange.shade400,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No custom traits added yet',
+            style: textTheme.titleMedium?.copyWith(
+              color: Colors.orange.shade700,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Click "Add Custom Trait" to personalize your AI further',
+            style: textTheme.bodyMedium?.copyWith(
+              color: Colors.orange.shade600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomTraitRow(
+      int index, Map<String, String> trait, ColorScheme colorScheme) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.teal.shade50, Colors.teal.shade100],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.teal.shade200),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade600,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Custom Trait ${index + 1}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal.shade700,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                onPressed: () => _removeCustomTrait(index),
+                tooltip: 'Remove Trait',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  decoration: InputDecoration(
+                    labelText: 'Trait Name',
+                    hintText: 'e.g., Favorite Color',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: Icon(Icons.label, color: Colors.teal.shade600),
+                  ),
+                  onChanged: (value) => trait['trait'] = value,
+                  controller: TextEditingController(text: trait['trait']),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  decoration: InputDecoration(
+                    labelText: 'Trait Value',
+                    hintText: 'e.g., Blue',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: Icon(Icons.star, color: Colors.teal.shade600),
+                  ),
+                  onChanged: (value) => trait['value'] = value,
+                  controller: TextEditingController(text: trait['value']),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddTraitButton(ColorScheme colorScheme) {
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: Colors.white.withOpacity(0.3), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.teal.withOpacity(0.8),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _addCustomTrait,
+              icon: Icon(Icons.add_circle, color: Colors.white),
+              label: Text(
+                'Add Custom Trait',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton(TextTheme textTheme, ColorScheme colorScheme) {
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+          child: Container(
+            width: double.infinity,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                  color: Colors.white.withOpacity(0.3), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.deepPurple,
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _saveSettings,
+              icon: Icon(Icons.save, color: Colors.white, size: 24),
+              label: Text(
+                'Save Settings',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedCard({required Widget child}) {
+    return ClipRRect(
+      // Clip for rounded corners with blur
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+            sigmaX: 10.0, sigmaY: 10.0), // Blur behind the card
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2), // Translucent white
+            borderRadius: BorderRadius.circular(
+                20), // Redundant with ClipRRect but good for consistency
+            border: Border.all(
+                color: Colors.white.withOpacity(0.3),
+                width: 1.5), // Subtle border
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+      String title, IconData icon, MaterialColor color, TextTheme textTheme) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [color.shade400, color.shade600],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Icon(icon, color: Colors.white, size: 24),
+        ),
+        const SizedBox(width: 16),
+        Text(
+          title,
+          style: textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: color.shade700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEnhancedTextField(
+    TextEditingController controller,
+    String label,
+    String hintText,
+    IconData icon,
+    MaterialColor color,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.shade50, color.shade100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.shade200),
+      ),
       child: TextFormField(
         controller: controller,
         decoration: InputDecoration(
           labelText: label,
           hintText: hintText,
           border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8.0)), // Less rounded
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
           filled: true,
-          fillColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-          prefixIcon: Icon(icon,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurfaceVariant), // Added prefix icon
-          contentPadding: const EdgeInsets.symmetric(
-              vertical: 15, horizontal: 12), // Adjusted padding
+          fillColor: Colors.transparent,
+          prefixIcon: Icon(icon, color: color.shade600),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
+        style: TextStyle(color: color.shade800, fontWeight: FontWeight.w500),
       ),
     );
   }
