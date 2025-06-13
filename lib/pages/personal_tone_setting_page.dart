@@ -79,30 +79,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage> {
         {'trait': 'Empathy', 'value': 'High'},
       ],
     },
-    {
-      'name': 'Professional',
-      'gender': 'Neutral',
-      'relationship': 'Colleague',
-      'language': 'English',
-      'purpose': 'Business communication, formal discussions, networking',
-      'customTraits': [
-        {'trait': 'Formality', 'value': 'Professional'},
-        {'trait': 'Directness', 'value': 'High'},
-        {'trait': 'Conciseness', 'value': 'High'},
-      ],
-    },
-    {
-      'name': 'Creative Writer',
-      'gender': 'Neutral',
-      'relationship': 'Collaborator',
-      'language': 'English',
-      'purpose': 'Brainstorming, story development, idea generation',
-      'customTraits': [
-        {'trait': 'Formality', 'value': 'Flexible'},
-        {'trait': 'Imagination', 'value': 'High'},
-        {'trait': 'Descriptiveness', 'value': 'High'},
-      ],
-    },
   ];
 
   @override
