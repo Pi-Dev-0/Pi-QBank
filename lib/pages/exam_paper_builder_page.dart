@@ -11,6 +11,7 @@ import '../config/app_config.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import '../widgets/custom_app_bar.dart';
 import 'package:bijoy_helper/bijoy_helper.dart' as bh; // Added for Bijoy conversion
+import '../models/srojonshil_question.dart';
 
 class ExamPaperBuilderPage extends StatefulWidget {
   const ExamPaperBuilderPage({super.key});
@@ -51,7 +52,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   final List<File> _mcqImages = [];
 
   // Generated questions
-  List<String> _creativeSrojonshilQuestions = [];
+  List<SrojonshilQuestion> _creativeSrojonshilQuestions = [];
   List<String> _shortSangkhiptoQuestions = [];
   List<String> _mcqQuestions = [];
 
@@ -138,7 +139,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     });
   }
 
-  Future<Map<String, List<String>>> _generateQuestionsAndAnswersFromImages(
+  Future<Map<String, dynamic>> _generateQuestionsAndAnswersFromImages(
       List<File> images, String questionType, int count) async { // Added count parameter
     String? apiKey =
         await getApiKey(); // Try to get API key from SharedPreferences
@@ -162,14 +163,36 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     switch (questionType) {
       case 'creative':
         prompt =
-            '''এই ছবি থেকে বাংলায় $countটি সৃজনশীল প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্নে থাকবে:
-১. উদ্দীপক (একটি ছোট অনুচ্ছেদ বা তথ্য)
-২. ক) জ্ঞানমূলক প্রশ্ন (১ নম্বর)
-৩. খ) অনুধাবনমূলক প্রশ্ন (২ নম্বর)
-৪. গ) প্রয়োগমূলক প্রশ্ন (৩ নম্বর)
-৫. ঘ) উচ্চতর দক্ষতামূলক প্রশ্ন (৪ নম্বর)
-
-প্রতিটি প্রশ্ন আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন, ২. প্রশ্ন)। প্রশ্নটি সম্পূর্ণ বাংলায় লিখুন।''';
+            '''এই ছবি থেকে বাংলায় $countটি সৃজনশীল প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্ন নিম্নলিখিত JSON ফরম্যাটে হবে:
+[
+  {
+    "question_number": 1,
+    "stem": "(একটি ছোট অনুচ্ছেদ বা তথ্য)",
+    "sub_questions": [
+      {
+        "label": "ক",
+        "text": "জ্ঞানমূলক প্রশ্ন",
+        "marks": 1
+      },
+      {
+        "label": "খ",
+        "text": "অনুধাবনমূলক প্রশ্ন",
+        "marks": 2
+      },
+      {
+        "label": "গ",
+        "text": "প্রয়োগমূলক প্রশ্ন",
+        "marks": 3
+      },
+      {
+        "label": "ঘ",
+        "text": "উচ্চতর দক্ষতামূলক প্রশ্ন",
+        "marks": 4
+      }
+    ]
+  }
+]
+শুধুমাত্র JSON অ্যারে আউটপুট করুন, অন্য কোন টেক্সট বা ব্যাখ্যা নয়।''';
         break;
       case 'short':
         prompt =
@@ -225,62 +248,85 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
           final jsonResponse = json.decode(response.body);
           if (jsonResponse['candidates'] != null &&
               jsonResponse['candidates'].isNotEmpty) {
-            final reply =
-                jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-            debugPrint('Raw API Reply (Diagnostic): $reply'); // Re-adding for diagnostic
-            // Extract individual questions based on starting markers
-            List<String> rawQuestions = [];
-            // Fix: Use Bengali numerals in regex
-            final questionStartRegex = RegExp(r'[০-৯]+\.', dotAll: true);
+            final reply = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+            debugPrint('Raw API Reply (Diagnostic): $reply');
 
-            final startMatches = questionStartRegex.allMatches(reply).toList();
+            if (questionType == 'creative') {
+              try {
+                String jsonString = reply.trim();
+                debugPrint('Diagnostic: JSON string before markdown removal: $jsonString');
+                // Remove markdown code block fences if present
+                if (jsonString.startsWith('```json') && jsonString.endsWith('```')) {
+                  jsonString = jsonString.substring(7, jsonString.length - 3).trim();
+                  debugPrint('Diagnostic: JSON string after markdown removal: $jsonString');
+                } else {
+                  debugPrint('Diagnostic: No markdown fences found.');
+                }
 
-            debugPrint('Diagnostic: Number of question start matches: ${startMatches.length}');
-
-            if (startMatches.isEmpty) {
-              debugPrint('No question start matches found in reply with diagnostic regex.');
-              return {'questions': [], 'answers': []};
-            }
-
-            for (int i = 0; i < startMatches.length; i++) {
-              final start = startMatches[i].start;
-              int end;
-              if (i + 1 < startMatches.length) {
-                end = startMatches[i + 1].start;
-              } else {
-                end = reply.length; // Last question goes to the end of the reply
+                // Attempt to parse the JSON
+                final List<dynamic> jsonList = json.decode(jsonString);
+                _creativeSrojonshilQuestions = jsonList.map((e) => SrojonshilQuestion.fromJson(e)).toList();
+                debugPrint('Diagnostic: Successfully parsed ${_creativeSrojonshilQuestions.length} creative questions.');
+                return {'questions': [], 'answers': []}; // Creative questions are handled directly
+              } catch (e) {
+                debugPrint('Error parsing creative questions JSON: $e');
+                debugPrint('Diagnostic: Failed JSON string: $reply'); // Print the problematic reply
+                _creativeSrojonshilQuestions = []; // Clear on error
+                return {'questions': [], 'answers': []};
               }
-              String qText = reply.substring(start, end).trim();
-              debugPrint('Diagnostic: Extracted $questionType qText: $qText');
-              rawQuestions.add(qText);
-            }
+            } else {
+              // This block handles 'short' and 'mcq' question types
+              List<String> rawQuestions = [];
+              // Use Bengali numerals in regex
+              final questionStartRegex = RegExp(r'[০-৯]+\.', dotAll: true);
 
-            for (String qText in rawQuestions) {
-              if (questionType == 'short') {
-                final questionMatch =
-                    RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
-                        .firstMatch(qText);
-                if (questionMatch != null) {
-                  questions.add(questionMatch.group(1)!.trim());
-                  answers.add(questionMatch.group(2)!.trim());
+              final startMatches = questionStartRegex.allMatches(reply).toList();
+
+              debugPrint('Diagnostic: Number of question start matches: ${startMatches.length}');
+
+              if (startMatches.isEmpty) {
+                debugPrint('No question start matches found in reply with diagnostic regex.');
+                return {'questions': [], 'answers': []};
+              }
+
+              for (int i = 0; i < startMatches.length; i++) {
+                final start = startMatches[i].start;
+                int end;
+                if (i + 1 < startMatches.length) {
+                  end = startMatches[i + 1].start;
                 } else {
-                  questions.add(qText); // Add full reply if parsing fails
-                  answers.add('উত্তর পাওয়া যায়নি');
+                  end = reply.length; // Last question goes to the end of the reply
                 }
-              } else if (questionType == 'mcq') {
-                final questionMatch =
-                    RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true) // Fixed typo here
-                        .firstMatch(qText);
-                if (questionMatch != null) {
-                  questions.add(
-                      '${questionMatch.group(1)!.trim()}\n${questionMatch.group(2)!.trim()}');
-                  answers.add(questionMatch.group(3)!.trim());
-                } else {
-                  questions.add(qText); // Add full reply if parsing fails
-                  answers.add('সঠিক উত্তর পাওয়া যায়নি');
+                String qText = reply.substring(start, end).trim();
+                debugPrint('Diagnostic: Extracted $questionType qText: $qText');
+                rawQuestions.add(qText);
+              }
+
+              for (String qText in rawQuestions) {
+                if (questionType == 'short') {
+                  final questionMatch =
+                      RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
+                          .firstMatch(qText);
+                  if (questionMatch != null) {
+                    questions.add(questionMatch.group(1)!.trim());
+                    answers.add(questionMatch.group(2)!.trim());
+                  } else {
+                    questions.add(qText);
+                    answers.add('উত্তর পাওয়া যায়নি');
+                  }
+                } else if (questionType == 'mcq') {
+                  final questionMatch =
+                      RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true)
+                          .firstMatch(qText);
+                  if (questionMatch != null) {
+                    questions.add(
+                        '${questionMatch.group(1)!.trim()}\n${questionMatch.group(2)!.trim()}');
+                    answers.add(questionMatch.group(3)!.trim());
+                  } else {
+                    questions.add(qText);
+                    answers.add('সঠিক উত্তর পাওয়া যায়নি');
+                  }
                 }
-              } else {
-                questions.add(qText);
               }
             }
           }
@@ -301,9 +347,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     try {
       if (_creativeSrojonshil && _creativeSrojonshilImages.isNotEmpty) {
         final int count = int.tryParse(_creativeSrojonshilCountController.text) ?? 1;
-        final result = await _generateQuestionsAndAnswersFromImages(
+        // _creativeSrojonshilQuestions is populated directly within _generateQuestionsAndAnswersFromImages
+        await _generateQuestionsAndAnswersFromImages(
             _creativeSrojonshilImages, 'creative', count); // Pass count
-        _creativeSrojonshilQuestions = result['questions']!;
       } else {
         _creativeSrojonshilQuestions = [];
       }
@@ -420,18 +466,39 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.SizedBox(height: 10),
               ...List.generate(
                 _creativeSrojonshilQuestions.length,
-                (index) => pw.Container(
-                  margin: pw.EdgeInsets.only(bottom: 20),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        unicodeToBijoy('${index + 1}. ${_creativeSrojonshilQuestions[index]}'),
-                        style: pw.TextStyle(fontSize: 12, font: font),
-                      ),
-                    ],
-                  ),
-                ),
+                (index) {
+                  final question = _creativeSrojonshilQuestions[index];
+                  return pw.Container(
+                    margin: pw.EdgeInsets.only(bottom: 20),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          unicodeToBijoy('${question.questionNumber}. ${question.stem}'),
+                          style: pw.TextStyle(fontSize: 12, font: boldFont), // Bold for stem
+                        ),
+                        pw.SizedBox(height: 5), // Small gap after stem
+                        ...question.subQuestions.map(
+                          (subQ) => pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              pw.Expanded(
+                                child: pw.Text(
+                                  unicodeToBijoy('${subQ.label}) ${subQ.text}'),
+                                  style: pw.TextStyle(fontSize: 12, font: font),
+                                ),
+                              ),
+                              pw.Text(
+                                unicodeToBijoy('(${subQ.marks})'), // Just marks, no "নম্বর"
+                                style: pw.TextStyle(fontSize: 12, font: font),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
 
@@ -1235,11 +1302,37 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                       style: TextStyle(fontWeight: FontWeight.bold)),
                   ...List.generate(
                     _creativeSrojonshilQuestions.length,
-                    (index) => Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                          '${index + 1}. ${_creativeSrojonshilQuestions[index]}'),
-                    ),
+                    (index) {
+                      final question = _creativeSrojonshilQuestions[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${question.questionNumber}. ${question.stem}',
+                              style: const TextStyle(fontWeight: FontWeight.bold), // Bold for stem
+                            ),
+                            const SizedBox(height: 4), // Small gap after stem
+                            ...question.subQuestions.map(
+                              (subQ) => Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${subQ.label}) ${subQ.text}',
+                                    ),
+                                  ),
+                                  Text(
+                                    '(${subQ.marks})', // Just marks, no "নম্বর"
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                   SizedBox(height: 16),
                 ],
@@ -1320,13 +1413,17 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                               child: Column(
                                 children: [
                                   TextFormField(
-                                    initialValue:
-                                        _creativeSrojonshilQuestions[index],
+                                    initialValue: _creativeSrojonshilQuestions[index].toDisplayString(),
                                     maxLines: 5,
-                                    onChanged: (value) {
-                                      _creativeSrojonshilQuestions[index] =
-                                          value;
-                                    },
+                                    readOnly: true, // Make it read-only for now
+                                    decoration: const InputDecoration(
+                                      labelText: 'সৃজনশীল প্রশ্ন (সম্পাদনা বর্তমানে সমর্থিত নয়)',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    // onChanged: (value) {
+                                    //   // Direct modification of SrojonshilQuestion object from string is complex
+                                    //   // A more robust UI would be needed for editing structured data
+                                    // },
                                   ),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.end,
