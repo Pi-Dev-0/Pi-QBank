@@ -159,13 +159,18 @@ class _AIPageState extends State<AIPage> {
     _controller.clear();
     setState(() {
       if (_selectedImage != null) {
-            _messages.add(ChatMessage(
-                text: 'Image attached',
-                isUser: true,
-                imagePath: _selectedImage!.path,
-                onSpeak: (text) => _speak(text), // Pass text only
-                onStop: _stop,
-                isSpeaking: false));
+        // Encode image once here
+        final bytes = File(_selectedImage!.path).readAsBytesSync(); // Synchronous read for immediate use
+        final base64EncodedImage = base64Encode(bytes);
+
+        _messages.add(ChatMessage(
+            text: 'Image attached',
+            isUser: true,
+            imagePath: _selectedImage!.path, // Keep for display
+            userImageBase64: base64EncodedImage, // Store base64 here
+            onSpeak: (text) => _speak(text),
+            onStop: _stop,
+            isSpeaking: false));
       }
       if (messageText.isNotEmpty) {
         _messages.add(ChatMessage(text: messageText, isUser: true, onSpeak: (text) => _speak(text), onStop: _stop, isSpeaking: false));
@@ -245,12 +250,16 @@ class _AIPageState extends State<AIPage> {
         ]
       });
 
-      // Add previous messages to the conversation history
+      // Add all messages to the conversation history, including the current user message
       for (var msg in _messages) {
         List<Map<String, dynamic>> msgParts = [];
         msgParts.add({"text": msg.text});
 
-        if (msg.imagePath != null) {
+        if (msg.userImageBase64 != null) { // Use pre-encoded base64 if available
+          msgParts.add({
+            "inline_data": {"mime_type": "image/jpeg", "data": msg.userImageBase64}
+          });
+        } else if (msg.imagePath != null) { // Fallback for older messages or if userImageBase64 wasn't set
           final bytes = await File(msg.imagePath!).readAsBytes();
           final base64Image = base64Encode(bytes);
           msgParts.add({
@@ -260,20 +269,6 @@ class _AIPageState extends State<AIPage> {
         contents
             .add({"role": msg.isUser ? "user" : "model", "parts": msgParts});
       }
-
-      // Add the current message
-      List<Map<String, dynamic>> currentParts = [];
-      if (messageText.isNotEmpty) {
-        currentParts.add({"text": messageText});
-      }
-      if (_selectedImage != null) {
-        final bytes = await _selectedImage!.readAsBytes();
-        final base64Image = base64Encode(bytes);
-        currentParts.add({
-          "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
-        });
-      }
-      contents.add({"role": "user", "parts": currentParts});
 
       final response = await http.post(
         url,
@@ -699,6 +694,7 @@ class ChatMessage extends StatelessWidget {
   final Function(String text)? onSpeak;
   final Function()? onStop;
   final bool isSpeaking;
+  final String? userImageBase64; // New field for user's base64 image
 
   const ChatMessage({
     super.key,
@@ -711,6 +707,7 @@ class ChatMessage extends StatelessWidget {
     this.onSpeak,
     this.onStop,
     this.isSpeaking = false,
+    this.userImageBase64, // Initialize new field
   });
 
   List<TextSpan> _formatText(String text, BuildContext context) {
