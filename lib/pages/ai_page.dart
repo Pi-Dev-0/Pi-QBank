@@ -510,7 +510,8 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
                   animation: _colorAnimation,
                   builder: (context, child) {
                     return LinearProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color?>(_colorAnimation.value),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color?>(_colorAnimation.value),
                       backgroundColor: colorScheme.surfaceContainerHighest,
                     );
                   },
@@ -697,7 +698,8 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
                           ),
                           child: TextButton.icon(
                             onPressed: () {
-                              _controller.text = 'Summarize this image';
+                              _controller.text =
+                                  'Summarize this image in its language';
                               _sendMessage();
                             },
                             icon: const Icon(Icons.summarize,
@@ -731,7 +733,8 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
                           ),
                           child: TextButton.icon(
                             onPressed: () {
-                              _controller.text = 'Describe this image';
+                              _controller.text =
+                                  'Describe this image in its language';
                               _sendMessage();
                             },
                             icon: const Icon(Icons.description,
