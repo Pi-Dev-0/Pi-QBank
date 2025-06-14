@@ -22,7 +22,7 @@ class AIPage extends StatefulWidget {
   State<AIPage> createState() => _AIPageState();
 }
 
-class _AIPageState extends State<AIPage> {
+class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
@@ -30,6 +30,8 @@ class _AIPageState extends State<AIPage> {
   late FlutterTts flutterTts;
   XFile? _selectedImage; // New state variable for selected image
   int? _speakingMessageIndex; // To track which message is speaking
+  late AnimationController _animationController;
+  late Animation<Color?> _colorAnimation;
 
   // Personal Tone Settings
   String _toneName = '';
@@ -50,12 +52,34 @@ class _AIPageState extends State<AIPage> {
     _loadPersonalToneSettings(); // Load settings on init
     flutterTts = FlutterTts();
     _initTts();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3), // Duration for one full cycle
+    )..repeat(reverse: true); // Repeat the animation
+
+    _colorAnimation = TweenSequence<Color?>(
+      [
+        TweenSequenceItem(
+            tween: ColorTween(begin: Colors.blue, end: Colors.red), weight: 1),
+        TweenSequenceItem(
+            tween: ColorTween(begin: Colors.red, end: Colors.green), weight: 1),
+        TweenSequenceItem(
+            tween: ColorTween(begin: Colors.green, end: Colors.purple),
+            weight: 1),
+        TweenSequenceItem(
+            tween: ColorTween(begin: Colors.purple, end: Colors.blue),
+            weight: 1),
+      ],
+    ).animate(_animationController);
   }
 
   void _initTts() async {
     // Set default language based on _toneLanguage, or fallback to English
-    String languageCode = _toneLanguage.isNotEmpty ? _getLanguageCode(_toneLanguage) : "en-US";
-    bool isLanguageAvailable = await flutterTts.isLanguageAvailable(languageCode);
+    String languageCode =
+        _toneLanguage.isNotEmpty ? _getLanguageCode(_toneLanguage) : "en-US";
+    bool isLanguageAvailable =
+        await flutterTts.isLanguageAvailable(languageCode);
 
     if (isLanguageAvailable) {
       await flutterTts.setLanguage(languageCode);
@@ -127,6 +151,7 @@ class _AIPageState extends State<AIPage> {
     _scrollController.dispose();
     _controller.dispose();
     _stop(); // Stop TTS when disposing
+    _animationController.dispose(); // Dispose the animation controller
     super.dispose();
   }
 
@@ -160,7 +185,8 @@ class _AIPageState extends State<AIPage> {
     setState(() {
       if (_selectedImage != null) {
         // Encode image once here
-        final bytes = File(_selectedImage!.path).readAsBytesSync(); // Synchronous read for immediate use
+        final bytes = File(_selectedImage!.path)
+            .readAsBytesSync(); // Synchronous read for immediate use
         final base64EncodedImage = base64Encode(bytes);
 
         _messages.add(ChatMessage(
@@ -173,7 +199,12 @@ class _AIPageState extends State<AIPage> {
             isSpeaking: false));
       }
       if (messageText.isNotEmpty) {
-        _messages.add(ChatMessage(text: messageText, isUser: true, onSpeak: (text) => _speak(text), onStop: _stop, isSpeaking: false));
+        _messages.add(ChatMessage(
+            text: messageText,
+            isUser: true,
+            onSpeak: (text) => _speak(text),
+            onStop: _stop,
+            isSpeaking: false));
       }
       _isLoading = true;
     });
@@ -255,11 +286,16 @@ class _AIPageState extends State<AIPage> {
         List<Map<String, dynamic>> msgParts = [];
         msgParts.add({"text": msg.text});
 
-        if (msg.userImageBase64 != null) { // Use pre-encoded base64 if available
+        if (msg.userImageBase64 != null) {
+          // Use pre-encoded base64 if available
           msgParts.add({
-            "inline_data": {"mime_type": "image/jpeg", "data": msg.userImageBase64}
+            "inline_data": {
+              "mime_type": "image/jpeg",
+              "data": msg.userImageBase64
+            }
           });
-        } else if (msg.imagePath != null) { // Fallback for older messages or if userImageBase64 wasn't set
+        } else if (msg.imagePath != null) {
+          // Fallback for older messages or if userImageBase64 wasn't set
           final bytes = await File(msg.imagePath!).readAsBytes();
           final base64Image = base64Encode(bytes);
           msgParts.add({
@@ -283,7 +319,12 @@ class _AIPageState extends State<AIPage> {
           final reply =
               jsonResponse['candidates'][0]['content']['parts'][0]['text'];
           setState(() {
-            _messages.add(ChatMessage(text: reply, isUser: false, onSpeak: (text) => _speak(text), onStop: _stop, isSpeaking: false));
+            _messages.add(ChatMessage(
+                text: reply,
+                isUser: false,
+                onSpeak: (text) => _speak(text),
+                onStop: _stop,
+                isSpeaking: false));
           });
         } else {
           throw Exception('Invalid response format or empty candidates');
@@ -437,166 +478,179 @@ class _AIPageState extends State<AIPage> {
                   padding: const EdgeInsets.all(12.0),
                   itemBuilder: (context, index) {
                     final message = _messages[index];
-                return ChatMessage(
-                  key: ValueKey(message.hashCode), // Add a unique key
-                  text: message.text,
-                  isUser: message.isUser,
-                  imagePath: message.imagePath,
-                  generatedImageUrls: message.generatedImageUrls,
-                  base64Image: message.base64Image,
-                  showLoader: message.showLoader,
-                  onSpeak: (text) async {
-                    if (_speakingMessageIndex == index) {
-                      // If this message is already speaking, stop it
-                      await _stop();
-                    } else {
-                      // If another message is speaking or nothing is speaking, start this one
-                      await _stop(); // Stop any other ongoing speech
-                      setState(() {
-                        _speakingMessageIndex = index;
-                      });
-                      await _speak(text);
-                    }
+                    return ChatMessage(
+                      key: ValueKey(message.hashCode), // Add a unique key
+                      text: message.text,
+                      isUser: message.isUser,
+                      imagePath: message.imagePath,
+                      generatedImageUrls: message.generatedImageUrls,
+                      base64Image: message.base64Image,
+                      showLoader: message.showLoader,
+                      onSpeak: (text) async {
+                        if (_speakingMessageIndex == index) {
+                          // If this message is already speaking, stop it
+                          await _stop();
+                        } else {
+                          // If another message is speaking or nothing is speaking, start this one
+                          await _stop(); // Stop any other ongoing speech
+                          setState(() {
+                            _speakingMessageIndex = index;
+                          });
+                          await _speak(text);
+                        }
+                      },
+                      onStop: _stop,
+                      isSpeaking: _speakingMessageIndex == index,
+                    );
                   },
-                  onStop: _stop,
-                  isSpeaking: _speakingMessageIndex == index,
-                );
-              },
-            ),
-          ),
-          if (_isLoading)
-            LinearProgressIndicator(
-              color: colorScheme.primary,
-              backgroundColor: colorScheme.surfaceContainerHighest,
-            ),
-          Container(
-            padding: const EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(25),
-                      color: colorScheme.surfaceContainerHighest,
+              ),
+              if (_isLoading)
+                AnimatedBuilder(
+                  animation: _colorAnimation,
+                  builder: (context, child) {
+                    return LinearProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color?>(_colorAnimation.value),
+                      backgroundColor: colorScheme.surfaceContainerHighest,
+                    );
+                  },
+                ),
+              Container(
+                padding: const EdgeInsets.all(12.0),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
                     ),
-                    child: TextField(
-                      controller: _controller,
-                      maxLines: 3, // Allow up to 3 lines
-                      minLines: 1, // Start with at least 1 line
-                      decoration: InputDecoration(
-                        hintText: 'Type your message...',
-                        border: OutlineInputBorder(
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(25),
-                          borderSide: BorderSide.none,
+                          color: colorScheme.surfaceContainerHighest,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                        prefixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_selectedImage != null)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 8.0),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircleAvatar(
-                                      backgroundImage:
-                                          FileImage(File(_selectedImage!.path)),
-                                      radius: 18,
+                        child: TextField(
+                          controller: _controller,
+                          maxLines: 3, // Allow up to 3 lines
+                          minLines: 1, // Start with at least 1 line
+                          decoration: InputDecoration(
+                            hintText: 'Type your message...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(25),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
+                            prefixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_selectedImage != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8.0),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundImage: FileImage(
+                                              File(_selectedImage!.path)),
+                                          radius: 18,
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.close),
+                                          onPressed: () {
+                                            setState(() {
+                                              _selectedImage = null;
+                                            });
+                                          },
+                                        ),
+                                      ],
                                     ),
-                                    IconButton(
-                                      icon: const Icon(Icons.close),
-                                      onPressed: () {
-                                        setState(() {
-                                          _selectedImage = null;
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              )
-                            else
-                              IconButton(
-                                icon: const Icon(Icons.image),
-                                onPressed: _isLoading ? null : _pickImage,
-                              ),
-                            if (_selectedImage ==
-                                null) // Only show auto_awesome when no image is selected
-                              IconButton(
-                                icon: const Icon(Icons.auto_awesome),
-                                onPressed: _isLoading || _isGeneratingImage
-                                    ? null
-                                    : _generateImage,
-                                tooltip: 'Generate Image',
-                              ),
-                          ],
-                        ),
-                      ),
-                      onSubmitted: (_) => _sendMessage(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: colorScheme.primary,
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _isLoading
-                          ? null
-                          : _sendMessage, // Call _sendMessage without image parameter
-                      customBorder: const CircleBorder(),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Icon(
-                          Icons.send_rounded,
-                          color: colorScheme.onPrimary,
-                          size: 24,
+                                  )
+                                else
+                                  IconButton(
+                                    icon: const Icon(Icons.image),
+                                    onPressed: _isLoading ? null : _pickImage,
+                                  ),
+                                if (_selectedImage ==
+                                    null) // Only show auto_awesome when no image is selected
+                                  IconButton(
+                                    icon: const Icon(Icons.auto_awesome),
+                                    onPressed: _isLoading || _isGeneratingImage
+                                        ? null
+                                        : _generateImage,
+                                    tooltip: 'Generate Image',
+                                  ),
+                              ],
+                            ),
+                          ),
+                          onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: colorScheme.primary,
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _isLoading
+                              ? null
+                              : _sendMessage, // Call _sendMessage without image parameter
+                          customBorder: const CircleBorder(),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Icon(
+                              Icons.send_rounded,
+                              color: colorScheme.onPrimary,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
           if (_selectedImage != null)
             Positioned(
-              bottom: 80.0, // Adjust this value to position above the input field
+              bottom:
+                  80.0, // Adjust this value to position above the input field
               left: 12.0,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end, // Align buttons to the bottom
-                  crossAxisAlignment: CrossAxisAlignment.start, // Align buttons to the left
+                  mainAxisAlignment:
+                      MainAxisAlignment.end, // Align buttons to the bottom
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start, // Align buttons to the left
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(25.0), // Rounded corners for the glass effect
+                      borderRadius: BorderRadius.circular(
+                          25.0), // Rounded corners for the glass effect
                       child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0), // Blurry effect
+                        filter: ImageFilter.blur(
+                            sigmaX: 10.0, sigmaY: 10.0), // Blurry effect
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(25),
-                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 1.5),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.green,
@@ -610,13 +664,18 @@ class _AIPageState extends State<AIPage> {
                               _controller.text = 'Extract text from image';
                               _sendMessage();
                             },
-                            icon: const Icon(Icons.text_fields, color: Colors.white), // White icon for contrast
-                            label: const Text('Extract text', style: TextStyle(color: Colors.white)), // White text for contrast
+                            icon: const Icon(Icons.text_fields,
+                                color: Colors.white), // White icon for contrast
+                            label: const Text('Extract text',
+                                style: TextStyle(
+                                    color: Colors
+                                        .white)), // White text for contrast
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8), // Use height for vertical spacing
+                    const SizedBox(
+                        height: 8), // Use height for vertical spacing
                     ClipRRect(
                       borderRadius: BorderRadius.circular(25),
                       child: BackdropFilter(
@@ -625,7 +684,9 @@ class _AIPageState extends State<AIPage> {
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(25),
-                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 1.5),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.deepPurpleAccent,
@@ -639,13 +700,16 @@ class _AIPageState extends State<AIPage> {
                               _controller.text = 'Summarize this image';
                               _sendMessage();
                             },
-                            icon: const Icon(Icons.summarize, color: Colors.white),
-                            label: const Text('Summarize', style: TextStyle(color: Colors.white)),
+                            icon: const Icon(Icons.summarize,
+                                color: Colors.white),
+                            label: const Text('Summarize',
+                                style: TextStyle(color: Colors.white)),
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8), // Use height for vertical spacing
+                    const SizedBox(
+                        height: 8), // Use height for vertical spacing
                     ClipRRect(
                       borderRadius: BorderRadius.circular(25),
                       child: BackdropFilter(
@@ -654,7 +718,9 @@ class _AIPageState extends State<AIPage> {
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(25),
-                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 1.5),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.blue,
@@ -668,8 +734,10 @@ class _AIPageState extends State<AIPage> {
                               _controller.text = 'Describe this image';
                               _sendMessage();
                             },
-                            icon: const Icon(Icons.description, color: Colors.white),
-                            label: const Text('Describe', style: TextStyle(color: Colors.white)),
+                            icon: const Icon(Icons.description,
+                                color: Colors.white),
+                            label: const Text('Describe',
+                                style: TextStyle(color: Colors.white)),
                           ),
                         ),
                       ),
