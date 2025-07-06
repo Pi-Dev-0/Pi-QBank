@@ -79,27 +79,46 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
     availableClasses = videos.map((video) => video.className).toSet().toList()
       ..sort();
 
-    // Populate subjects based on selected class
+    // Populate subjects based on selected class, department, and year (conditionally)
     if (selectedClass != null) {
-      availableSubjects = videos
-          .where((video) => video.className == selectedClass!)
-          .map((video) => video.subjectName)
-          .toSet()
-          .toList()
+      availableSubjects = videos.where((video) {
+        bool classMatch = video.className == selectedClass!;
+        bool departmentMatch = true;
+        bool yearMatch = true;
+
+        if (_showAdvancedFields) {
+          if (_selectedDepartment != null) {
+            departmentMatch = video.department == _selectedDepartment!;
+          }
+          if (_selectedYear != null) {
+            yearMatch = video.year == _selectedYear!;
+          }
+        }
+        return classMatch && departmentMatch && yearMatch;
+      }).map((video) => video.subjectName).toSet().toList()
         ..sort();
     } else {
       availableSubjects = [];
     }
 
-    // Populate chapters based on selected class and subject
+    // Populate chapters based on selected class, subject, department, and year (conditionally)
     if (selectedClass != null && selectedSubject != null) {
-      availableChapters = videos
-          .where((video) =>
-              video.className == selectedClass! &&
-              video.subjectName == selectedSubject!)
-          .map((video) => video.chapterName)
-          .toSet()
-          .toList()
+      availableChapters = videos.where((video) {
+        bool classMatch = video.className == selectedClass!;
+        bool subjectMatch = video.subjectName == selectedSubject!;
+        bool departmentMatch = true;
+        bool yearMatch = true;
+
+        if (_showAdvancedFields) {
+          if (_selectedDepartment != null) {
+            departmentMatch = video.department == _selectedDepartment!;
+          }
+          if (_selectedYear != null) {
+            yearMatch = video.year == _selectedYear!;
+          }
+        }
+        return classMatch && subjectMatch && departmentMatch && yearMatch;
+      }).map((video) => video.chapterName).toSet().toList()
         ..sort();
     } else {
       availableChapters = [];
@@ -236,6 +255,7 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                       onChanged: (String? newValue) {
                         setState(() {
                           _selectedYear = newValue;
+                          _populateDropdowns(); // Repopulate subjects and chapters based on new year
                           _applyFilters();
                         });
                       },
