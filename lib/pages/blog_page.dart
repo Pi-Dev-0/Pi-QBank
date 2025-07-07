@@ -68,55 +68,122 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Scaffold(
       backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
       appBar: _isSearching
-          ? AppBar(
-              backgroundColor: Colors.transparent, // Make AppBar background transparent
-              elevation: 0, // Remove shadow
-              flexibleSpace: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(30),
+          ? PreferredSize(
+              preferredSize: Size.fromHeight(kToolbarHeight + 18),
+              child: Container(
+                decoration: BoxDecoration(
+                  // Subtle shadow for floating effect
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.07),
+                      blurRadius: 16,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: (isDark ? Colors.grey[800]! : Colors.white).withOpacity(0.15), // Semi-transparent background
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(25),
+                  ),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      padding: EdgeInsets.only(
+                        top: MediaQuery.of(context).padding.top,
+                        left: 16,
+                        right: 16,
+                        bottom: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (isDark ? Colors.grey[850] : Colors.white)
+                            ?.withOpacity(0.65),
+                        borderRadius: const BorderRadius.vertical(
+                          bottom: Radius.circular(25),
+                        ),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: (isDark ? Colors.white24 : Colors.black12),
+                            width: 0.7,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            color: isDark ? Colors.white : Colors.black87,
+                            onPressed: () {
+                              setState(() {
+                                _isSearching = false;
+                                _searchController.clear();
+                                _filterBlogPosts();
+                              });
+                            },
+                          ),
+                          Expanded(
+                            child: Container(
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color:
+                                    (isDark ? Colors.grey[800] : Colors.white)
+                                        ?.withOpacity(0.85),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color:
+                                      isDark ? Colors.white12 : Colors.black12,
+                                  width: 1,
+                                ),
+                              ),
+                              child: TextField(
+                                controller: _searchController,
+                                decoration: InputDecoration(
+                                  prefixIcon: Icon(Icons.search,
+                                      color: isDark
+                                          ? Colors.white54
+                                          : Colors.grey[600],
+                                      size: 22),
+                                  hintText: 'Search blog posts...',
+                                  border: InputBorder.none,
+                                  hintStyle: TextStyle(
+                                    color: isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600],
+                                    fontSize: 15,
+                                  ),
+                                  contentPadding:
+                                      EdgeInsets.symmetric(vertical: 10),
+                                ),
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : Colors.black,
+                                  fontSize: 16,
+                                ),
+                                autofocus: true,
+                              ),
+                            ),
+                          ),
+                          AnimatedOpacity(
+                            opacity:
+                                _searchController.text.isNotEmpty ? 1.0 : 0.0,
+                            duration: Duration(milliseconds: 200),
+                            child: IconButton(
+                              icon: const Icon(Icons.clear),
+                              color: isDark ? Colors.white : Colors.black54,
+                              onPressed: () {
+                                _searchController.clear();
+                                _filterBlogPosts();
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  setState(() {
-                    _isSearching = false;
-                    _searchController.clear();
-                    _filterBlogPosts();
-                  });
-                },
-              ),
-              title: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search blog posts...',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]),
-                ),
-                style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                autofocus: true,
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    _filterBlogPosts();
-                  },
-                ),
-              ],
             )
           : CustomAppBar(
               title: 'Pi-QBank Blog',
@@ -139,158 +206,160 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
               future: _blogPostsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      theme.primaryColor,
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            theme.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Loading amazing content...',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading amazing content...',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.red[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Oops! Something went wrong',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Unable to load blog posts',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          } else if (!snapshot.hasData || _allBlogPosts.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.article_outlined,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Stories Yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Check back soon for new content!',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          } else if (_filteredBlogPosts.isEmpty && _searchQuery.isNotEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.search_off,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No results found for "$_searchQuery"',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Try a different search term.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          } else {
-            return RefreshIndicator(
-              onRefresh: () async {
-                await BlogService().fetchBlogPosts().then((posts) {
-                  setState(() {
-                    _allBlogPosts = posts;
-                    _filterBlogPosts();
-                  });
-                });
-              },
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16.0),
-                itemCount: _filteredBlogPosts.length,
-                itemBuilder: (context, index) {
-                  final post = _filteredBlogPosts[index];
-                  return AnimatedBuilder(
-                    animation: _animationController,
-                    builder: (context, child) {
-                      return TweenAnimationBuilder(
-                        duration: Duration(milliseconds: 300 + (index * 100)),
-                        tween: Tween<double>(begin: 0, end: 1),
-                        builder: (context, double value, child) {
-                          return Transform.translate(
-                            offset: Offset(0, 50 * (1 - value)),
-                            child: Opacity(
-                              opacity: value,
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: _buildBlogCard(post, context, isDark),
-                      );
-                    },
                   );
-                },
-              ),
-            );
-          }
-        },
-      ),
+                } else if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Oops! Something went wrong',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Unable to load blog posts',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (!snapshot.hasData || _allBlogPosts.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.article_outlined,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No Stories Yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Check back soon for new content!',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (_filteredBlogPosts.isEmpty &&
+                    _searchQuery.isNotEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No results found for "$_searchQuery"',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[800],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Try a different search term.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      await BlogService().fetchBlogPosts().then((posts) {
+                        setState(() {
+                          _allBlogPosts = posts;
+                          _filterBlogPosts();
+                        });
+                      });
+                    },
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: _filteredBlogPosts.length,
+                      itemBuilder: (context, index) {
+                        final post = _filteredBlogPosts[index];
+                        return AnimatedBuilder(
+                          animation: _animationController,
+                          builder: (context, child) {
+                            return TweenAnimationBuilder(
+                              duration:
+                                  Duration(milliseconds: 300 + (index * 100)),
+                              tween: Tween<double>(begin: 0, end: 1),
+                              builder: (context, double value, child) {
+                                return Transform.translate(
+                                  offset: Offset(0, 50 * (1 - value)),
+                                  child: Opacity(
+                                    opacity: value,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: _buildBlogCard(post, context, isDark),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  );
+                }
+              },
+            ),
           ),
         ],
       ),
@@ -322,7 +391,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: isDark 
+                color: isDark
                     ? Colors.black.withOpacity(0.3)
                     : Colors.grey.withOpacity(0.1),
                 spreadRadius: 0,
@@ -330,7 +399,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                 offset: const Offset(0, 8),
               ),
               BoxShadow(
-                color: isDark 
+                color: isDark
                     ? Colors.black.withOpacity(0.1)
                     : Colors.white.withOpacity(0.8),
                 spreadRadius: 0,
@@ -339,7 +408,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
               ),
             ],
             border: Border.all(
-              color: isDark 
+              color: isDark
                   ? Colors.grey[700]!.withOpacity(0.3)
                   : Colors.grey[200]!.withOpacity(0.5),
               width: 1,
@@ -355,7 +424,8 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                     title: post.title,
                     content: post.content,
                   ),
-                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
                     const begin = Offset(1.0, 0.0);
                     const end = Offset.zero;
                     const curve = Curves.easeInOutCubic;
@@ -425,7 +495,6 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                         ),
                       ),
                     ),
-                  
                   Text(
                     post.title,
                     style: TextStyle(
@@ -437,9 +506,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  
                   const SizedBox(height: 12),
-                  
                   Row(
                     children: [
                       Container(
@@ -448,7 +515,8 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
@@ -471,9 +539,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                           ],
                         ),
                       ),
-                      
                       const SizedBox(width: 8),
-                      
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -505,9 +571,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                       ),
                     ],
                   ),
-                  
                   const SizedBox(height: 12),
-                  
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -539,8 +603,18 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
     try {
       final date = DateTime.parse(dateString);
       final months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec'
       ];
       return '${months[date.month - 1]} ${date.day}, ${date.year}';
     } catch (e) {
