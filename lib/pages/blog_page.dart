@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui'; // Import for ImageFilter
 import 'package:pi_qbank/services/blog_service.dart';
 import 'package:pi_qbank/pages/view_post_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
@@ -18,6 +19,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
   String _searchQuery = '';
   List<BlogPost> _allBlogPosts = [];
   List<BlogPost> _filteredBlogPosts = [];
+  bool _isSearching = false; // New state variable for search mode
 
   @override
   void initState() {
@@ -69,29 +71,69 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
     
     return Scaffold(
       backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
-      appBar: const CustomAppBar(
-        title: 'Pi-QBank Blog',
-      ),
+      appBar: _isSearching
+          ? AppBar(
+              backgroundColor: Colors.transparent, // Make AppBar background transparent
+              elevation: 0, // Remove shadow
+              flexibleSpace: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(30),
+                ),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: (isDark ? Colors.grey[800]! : Colors.white).withOpacity(0.15), // Semi-transparent background
+                    ),
+                  ),
+                ),
+              ),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  setState(() {
+                    _isSearching = false;
+                    _searchController.clear();
+                    _filterBlogPosts();
+                  });
+                },
+              ),
+              title: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search blog posts...',
+                  border: InputBorder.none,
+                  hintStyle: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                ),
+                style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                autofocus: true,
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    _filterBlogPosts();
+                  },
+                ),
+              ],
+            )
+          : CustomAppBar(
+              title: 'Pi-QBank Blog',
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: () {
+                    setState(() {
+                      _isSearching = true;
+                    });
+                  },
+                ),
+              ],
+            ),
       drawer: const AppDrawer(), // Add AppDrawer to BlogPage Scaffold
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search blog posts...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: isDark ? Colors.grey[800] : Colors.grey[200],
-              ),
-              style: TextStyle(color: isDark ? Colors.white : Colors.black),
-            ),
-          ),
           Expanded(
             child: FutureBuilder<List<BlogPost>>(
               future: _blogPostsFuture,
