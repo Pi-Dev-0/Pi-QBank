@@ -81,21 +81,25 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
 
     // Populate subjects based on selected class, department, and year (conditionally)
     if (selectedClass != null) {
-      availableSubjects = videos.where((video) {
-        bool classMatch = video.className == selectedClass!;
-        bool departmentMatch = true;
-        bool yearMatch = true;
+      availableSubjects = videos
+          .where((video) {
+            bool classMatch = video.className == selectedClass!;
+            bool departmentMatch = true;
+            bool yearMatch = true;
 
-        if (_showAdvancedFields) {
-          if (_selectedDepartment != null) {
-            departmentMatch = video.department == _selectedDepartment!;
-          }
-          if (_selectedYear != null) {
-            yearMatch = video.year == _selectedYear!;
-          }
-        }
-        return classMatch && departmentMatch && yearMatch;
-      }).map((video) => video.subjectName).toSet().toList()
+            if (_showAdvancedFields) {
+              if (_selectedDepartment != null) {
+                departmentMatch = video.department == _selectedDepartment!;
+              }
+              if (_selectedYear != null) {
+                yearMatch = video.year == _selectedYear!;
+              }
+            }
+            return classMatch && departmentMatch && yearMatch;
+          })
+          .map((video) => video.subjectName)
+          .toSet()
+          .toList()
         ..sort();
     } else {
       availableSubjects = [];
@@ -103,22 +107,26 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
 
     // Populate chapters based on selected class, subject, department, and year (conditionally)
     if (selectedClass != null && selectedSubject != null) {
-      availableChapters = videos.where((video) {
-        bool classMatch = video.className == selectedClass!;
-        bool subjectMatch = video.subjectName == selectedSubject!;
-        bool departmentMatch = true;
-        bool yearMatch = true;
+      availableChapters = videos
+          .where((video) {
+            bool classMatch = video.className == selectedClass!;
+            bool subjectMatch = video.subjectName == selectedSubject!;
+            bool departmentMatch = true;
+            bool yearMatch = true;
 
-        if (_showAdvancedFields) {
-          if (_selectedDepartment != null) {
-            departmentMatch = video.department == _selectedDepartment!;
-          }
-          if (_selectedYear != null) {
-            yearMatch = video.year == _selectedYear!;
-          }
-        }
-        return classMatch && subjectMatch && departmentMatch && yearMatch;
-      }).map((video) => video.chapterName).toSet().toList()
+            if (_showAdvancedFields) {
+              if (_selectedDepartment != null) {
+                departmentMatch = video.department == _selectedDepartment!;
+              }
+              if (_selectedYear != null) {
+                yearMatch = video.year == _selectedYear!;
+              }
+            }
+            return classMatch && subjectMatch && departmentMatch && yearMatch;
+          })
+          .map((video) => video.chapterName)
+          .toSet()
+          .toList()
         ..sort();
     } else {
       availableChapters = [];
@@ -441,95 +449,116 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
       onTap: () {
         showDialog(
           context: context,
-          builder: (BuildContext context) {
-            return Dialog(
+          barrierDismissible: true,
+          builder: (BuildContext dialogContext) {
+            final double dialogWidth = MediaQuery.of(context).size.width * 0.7;
+            final double dialogMaxHeight =
+                MediaQuery.of(context).size.height * 0.6;
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              elevation: 8,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width - 32,
-                  maxHeight: MediaQuery.of(context).size.height * 0.7,
-                ),
+              titlePadding: EdgeInsets.zero,
+              contentPadding: EdgeInsets.zero,
+              title: Container(
+                width: dialogWidth,
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  color: Colors.blue.shade50,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(20),
-                          topRight: Radius.circular(20),
+                    Center(
+                      child: Text(
+                        'Select $labelText',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
                         ),
                       ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Center(
-                            child: Text(
-                              'Select $labelText',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            right: 0,
-                            child: IconButton(
-                              icon: Icon(
-                                Icons.close_rounded,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-                    Flexible(
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: items.length,
-                        itemBuilder: (context, index) {
-                          final isSelected = items[index] == value;
-                          return ListTile(
-                            title: Text(
-                              items[index],
-                              style: TextStyle(
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isSelected
-                                    ? Theme.of(context).primaryColor
-                                    : null,
-                              ),
-                            ),
-                            leading: Icon(
-                              isSelected
-                                  ? Icons.radio_button_checked_rounded
-                                  : Icons.radio_button_off_rounded,
-                              color: isSelected
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey,
-                            ),
-                            selected: isSelected,
-                            selectedColor: Theme.of(context).primaryColor,
-                            onTap: () {
-                              onChanged(items[index]);
-                              Navigator.pop(context);
-                            },
-                          );
-                        },
+                    Positioned(
+                      right: 0,
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.blue,
+                        ),
+                        onPressed: () => Navigator.pop(dialogContext),
                       ),
                     ),
                   ],
+                ),
+              ),
+              content: SizedBox(
+                width: dialogWidth,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: dialogMaxHeight,
+                  ),
+                  child: SingleChildScrollView(
+                    child: ListBody(
+                      children: items.map((item) {
+                        final isSelected = item == value;
+                        return GestureDetector(
+                          onTap: () {
+                            onChanged(item);
+                            Navigator.of(dialogContext).maybePop();
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(
+                                vertical: 6, horizontal: 8),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 10, horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.blue.shade100
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.blue
+                                    : Colors.grey.shade300,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                // Removed the icon
+                                // const SizedBox(width: 10), // Optionally remove this if you want tighter spacing
+                                Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      item,
+                                      style: TextStyle(
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: isSelected
+                                            ? Colors.blue.shade900
+                                            : Colors.black87,
+                                        fontSize: 15,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ),
               ),
             );
