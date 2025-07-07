@@ -233,6 +233,7 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                         _applyFilters();
                       });
                     },
+                    enabled: true,
                   ),
                 ),
                 if (_showAdvancedFields)
@@ -251,6 +252,7 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                           _applyFilters();
                         });
                       },
+                      enabled: selectedClass != null,
                     ),
                   ),
                 if (_showAdvancedFields)
@@ -267,6 +269,8 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                           _applyFilters();
                         });
                       },
+                      enabled:
+                          selectedClass != null && _selectedDepartment != null,
                     ),
                   ),
                 SizedBox(
@@ -283,6 +287,11 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                         _applyFilters();
                       });
                     },
+                    enabled: _showAdvancedFields
+                        ? (selectedClass != null &&
+                            _selectedDepartment != null &&
+                            _selectedYear != null)
+                        : (selectedClass != null),
                   ),
                 ),
                 SizedBox(
@@ -297,6 +306,12 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                         _applyFilters();
                       });
                     },
+                    enabled: _showAdvancedFields
+                        ? (selectedClass != null &&
+                            _selectedDepartment != null &&
+                            _selectedYear != null &&
+                            selectedSubject != null)
+                        : (selectedClass != null && selectedSubject != null),
                   ),
                 ),
               ],
@@ -444,156 +459,166 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
     required String? value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
+    bool enabled = true,
   }) {
-    return InkWell(
-      onTap: () {
-        showDialog(
-          context: context,
-          barrierDismissible: true,
-          builder: (BuildContext dialogContext) {
-            final double dialogWidth = MediaQuery.of(context).size.width * 0.7;
-            final double dialogMaxHeight =
-                MediaQuery.of(context).size.height * 0.6;
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              elevation: 8,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              titlePadding: EdgeInsets.zero,
-              contentPadding: EdgeInsets.zero,
-              title: Container(
-                width: dialogWidth,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Center(
-                      child: Text(
-                        'Select $labelText',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
+    return AbsorbPointer(
+      absorbing: !enabled,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.5,
+        child: InkWell(
+          onTap: enabled
+              ? () {
+                  showDialog(
+                    context: context,
+                    barrierDismissible: true,
+                    builder: (BuildContext dialogContext) {
+                      final double dialogWidth =
+                          MediaQuery.of(context).size.width * 0.7;
+                      final double dialogMaxHeight =
+                          MediaQuery.of(context).size.height * 0.6;
+                      return AlertDialog(
+                        backgroundColor: Colors.white,
+                        elevation: 8,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      right: 0,
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: Colors.blue,
-                        ),
-                        onPressed: () => Navigator.pop(dialogContext),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              content: SizedBox(
-                width: dialogWidth,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: dialogMaxHeight,
-                  ),
-                  child: SingleChildScrollView(
-                    child: ListBody(
-                      children: items.map((item) {
-                        final isSelected = item == value;
-                        return GestureDetector(
-                          onTap: () {
-                            onChanged(item);
-                            Navigator.of(dialogContext).maybePop();
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(
-                                vertical: 6, horizontal: 8),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 10, horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Colors.blue.shade100
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: isSelected
-                                    ? Colors.blue
-                                    : Colors.grey.shade300,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                // Removed the icon
-                                // const SizedBox(width: 10), // Optionally remove this if you want tighter spacing
-                                Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      item,
-                                      style: TextStyle(
-                                        fontWeight: isSelected
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                        color: isSelected
-                                            ? Colors.blue.shade900
-                                            : Colors.black87,
-                                        fontSize: 15,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                        titlePadding: EdgeInsets.zero,
+                        contentPadding: EdgeInsets.zero,
+                        title: Container(
+                          width: dialogWidth,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(20),
+                              topRight: Radius.circular(20),
                             ),
                           ),
-                        );
-                      }).toList(),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Center(
+                                child: Text(
+                                  'Select $labelText',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    color: Colors.blue,
+                                  ),
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        content: SizedBox(
+                          width: dialogWidth,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: dialogMaxHeight,
+                            ),
+                            child: SingleChildScrollView(
+                              child: ListBody(
+                                children: items.map((item) {
+                                  final isSelected = item == value;
+                                  return GestureDetector(
+                                    onTap: () {
+                                      onChanged(item);
+                                      Navigator.of(dialogContext).maybePop();
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.symmetric(
+                                          vertical: 6, horizontal: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10, horizontal: 14),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.blue.shade100
+                                            : Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? Colors.blue
+                                              : Colors.grey.shade300,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Center(
+                                              child: Text(
+                                                item,
+                                                style: TextStyle(
+                                                  fontWeight: isSelected
+                                                      ? FontWeight.bold
+                                                      : FontWeight.normal,
+                                                  color: isSelected
+                                                      ? Colors.blue.shade900
+                                                      : Colors.black87,
+                                                  fontSize: 15,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                }
+              : null,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: labelText,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      value?.isNotEmpty == true ? value! : 'Select',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: enabled
+                            ? (value?.isNotEmpty == true
+                                ? Colors.black
+                                : Colors.grey[500])
+                            : Colors.grey[400],
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        );
-      },
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: labelText,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Center(
-                child: Text(
-                  value?.isNotEmpty == true ? value! : 'Select',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: value?.isNotEmpty == true
-                        ? Colors.black
-                        : Colors.grey[500],
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
+                const Icon(Icons.arrow_drop_down, size: 20),
+              ],
             ),
-            const Icon(Icons.arrow_drop_down, size: 20),
-          ],
+          ),
         ),
       ),
     );
