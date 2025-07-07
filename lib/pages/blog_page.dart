@@ -14,20 +14,51 @@ class BlogPage extends StatefulWidget {
 class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
   late Future<List<BlogPost>> _blogPostsFuture;
   late AnimationController _animationController;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  List<BlogPost> _allBlogPosts = [];
+  List<BlogPost> _filteredBlogPosts = [];
 
   @override
   void initState() {
     super.initState();
     _blogPostsFuture = BlogService().fetchBlogPosts();
+    _blogPostsFuture.then((posts) {
+      setState(() {
+        _allBlogPosts = posts;
+        _filteredBlogPosts = posts;
+      });
+    });
+
+    _searchController.addListener(_onSearchChanged);
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
   }
 
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text;
+      _filterBlogPosts();
+    });
+  }
+
+  void _filterBlogPosts() {
+    if (_searchQuery.isEmpty) {
+      _filteredBlogPosts = _allBlogPosts;
+    } else {
+      _filteredBlogPosts = _allBlogPosts
+          .where((post) =>
+              post.title.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
+    }
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -42,10 +73,30 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
         title: 'Pi-QBank Blog',
       ),
       drawer: const AppDrawer(), // Add AppDrawer to BlogPage Scaffold
-      body: FutureBuilder<List<BlogPost>>(
-        future: _blogPostsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search blog posts...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: isDark ? Colors.grey[800] : Colors.grey[200],
+              ),
+              style: TextStyle(color: isDark ? Colors.white : Colors.black),
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<BlogPost>>(
+              future: _blogPostsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -97,7 +148,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                 ],
               ),
             );
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          } else if (!snapshot.hasData || _allBlogPosts.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -127,19 +178,52 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                 ],
               ),
             );
+          } else if (_filteredBlogPosts.isEmpty && _searchQuery.isNotEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.search_off,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No results found for "$_searchQuery"',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Try a different search term.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            );
           } else {
             return RefreshIndicator(
               onRefresh: () async {
-                setState(() {
-                  _blogPostsFuture = BlogService().fetchBlogPosts();
+                await BlogService().fetchBlogPosts().then((posts) {
+                  setState(() {
+                    _allBlogPosts = posts;
+                    _filterBlogPosts();
+                  });
                 });
-                await _blogPostsFuture;
               },
               child: ListView.builder(
                 padding: const EdgeInsets.all(16.0),
-                itemCount: snapshot.data!.length,
+                itemCount: _filteredBlogPosts.length,
                 itemBuilder: (context, index) {
-                  final post = snapshot.data![index];
+                  final post = _filteredBlogPosts[index];
                   return AnimatedBuilder(
                     animation: _animationController,
                     builder: (context, child) {
@@ -164,6 +248,9 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
             );
           }
         },
+      ),
+          ),
+        ],
       ),
     );
   }
