@@ -25,6 +25,28 @@ class _BooksPageState extends State<BooksPage> {
 
   Map<String, List<Map<String, dynamic>>> classSubjects = {};
 
+  // Hardcoded encryption key for Books API
+  static const String _encryptionKey =
+      "BOOKS_SECRET_KEY"; // New hardcoded key for this page
+
+  // XOR encryption/decryption logic with Base64 encoding
+  String _xorEncryptDecrypt(String inputBase64, String key) {
+    try {
+      // Decode Base64 string to bytes
+      final encryptedBytes = base64.decode(inputBase64);
+      final keyBytes = utf8.encode(key);
+      final decryptedBytes = <int>[];
+
+      for (int i = 0; i < encryptedBytes.length; i++) {
+        decryptedBytes.add(encryptedBytes[i] ^ keyBytes[i % keyBytes.length]);
+      }
+      // Decode bytes to UTF-8 string
+      return utf8.decode(decryptedBytes);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<bool> _checkIfFileExists(String title, String classItem) async {
     // Sanitize title and class for file naming
     final sanitizedTitle =
@@ -149,7 +171,7 @@ class _BooksPageState extends State<BooksPage> {
         subjects = newSubjects;
       });
     } catch (e) {
-      debugPrint('Error updating selected class: $e');
+      // Error updating selected class
     }
   }
 
@@ -167,8 +189,7 @@ class _BooksPageState extends State<BooksPage> {
       });
       _fetchBooksData();
     } else {
-      // Remove the debug print statement
-      // debugPrint('Showing offline dialog');
+      // Showing offline dialog
     }
   }
 
@@ -193,7 +214,9 @@ class _BooksPageState extends State<BooksPage> {
       );
 
       if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
+        // Decrypt the response body (which is Base64 encoded)
+        final decryptedBody = _xorEncryptDecrypt(response.body, _encryptionKey);
+        List<dynamic> data = json.decode(decryptedBody);
 
         setState(() {
           classSubjects.clear(); // Clear previous data
