@@ -26,6 +26,27 @@ class _SevecCollegeMathematicsPageState extends State<SevecCollegeMathematicsPag
   String _selectedExamYear = '';
   final _cacheService = DataCacheService();
 
+  // Hardcoded encryption key for 7 College Math API
+  static const String _encryptionKey = "SEVEN_COLLEGE_MATH_SECRET_KEY";
+
+  // XOR encryption/decryption logic with Base64 encoding
+  String _xorEncryptDecrypt(String inputBase64, String key) {
+    try {
+      // Decode Base64 string to bytes
+      final encryptedBytes = base64.decode(inputBase64);
+      final keyBytes = utf8.encode(key);
+      final decryptedBytes = <int>[];
+
+      for (int i = 0; i < encryptedBytes.length; i++) {
+        decryptedBytes.add(encryptedBytes[i] ^ keyBytes[i % keyBytes.length]);
+      }
+      // Decode bytes to UTF-8 string
+      return utf8.decode(decryptedBytes);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   final List<String> examYears = List.generate(
     DateTime.now().year - 2015 + 1,
     (index) => (DateTime.now().year - index).toString(),
@@ -54,10 +75,17 @@ class _SevecCollegeMathematicsPageState extends State<SevecCollegeMathematicsPag
         scriptUrl,
         cacheKey,
         () async {
-          final response = await http.get(Uri.parse(scriptUrl));
+          final response = await http.get(
+            Uri.parse(scriptUrl),
+            headers: {
+              'Authorization': 'Bearer ${AppConfig.apiKey}',
+            },
+          );
 
           if (response.statusCode == 200) {
-            final List<dynamic> data = json.decode(response.body);
+            // Decrypt the response body (which is Base64 encoded)
+            final decryptedBody = _xorEncryptDecrypt(response.body, _encryptionKey);
+            final List<dynamic> data = json.decode(decryptedBody);
             return data.map((item) => Map<String, dynamic>.from(item)).toList();
           }
           throw Exception('Failed to load data');
