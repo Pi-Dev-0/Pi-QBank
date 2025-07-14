@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'dart:io';
@@ -89,14 +88,8 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
           _isFileDownloaded = true;
           _downloadedFilePath = filePath;
         });
-        Logger().d(
-            'Found valid downloaded file for: ${widget.title} (${widget.examYear})');
-      } else {
-        Logger()
-            .d('No valid file found for: ${widget.title} (${widget.examYear})');
       }
     } catch (e) {
-      Logger().e('Error checking existing file: $e');
       if (!mounted) return;
       setState(() {
         _isFileDownloaded = false;
@@ -112,8 +105,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       final paperDir = Directory('$baseDir/$uniqueFolder');
 
       if (!await paperDir.exists()) {
-        Logger().d(
-            'Directory does not exist for: ${widget.title} (${widget.examYear})');
         return null;
       }
 
@@ -121,22 +112,16 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       final file = File(filePath);
 
       if (!await file.exists()) {
-        Logger().d('[_findExistingFile] File does not exist: $filePath');
         await paperDir.delete(recursive: true);
         return null;
       }
 
       if (!await _isValidPDF(filePath)) {
-        Logger().d('[_findExistingFile] Invalid PDF file: $filePath');
         await paperDir.delete(recursive: true);
         return null;
       }
-
-      Logger().d(
-          'Found valid PDF: $filePath for ${widget.title} (${widget.examYear})');
       return filePath;
     } catch (e) {
-      Logger().e('Error in _findExistingFile: $e');
       return null;
     }
   }
@@ -164,7 +149,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
         if (!await appDir.exists()) {
           await appDir.create(recursive: true);
         }
-        Logger().d('Using external storage directory: ${appDir.path}');
         return appDir.path;
       }
     }
@@ -173,45 +157,36 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
   }
 
   Future<bool> _isValidPDF(String filePath) async {
-    Logger().d('[_isValidPDF] Checking file: $filePath');
     try {
       final file = File(filePath);
       final fileExists = await file.exists();
-      Logger().d('[_isValidPDF] File exists: $fileExists');
       if (!fileExists) return false;
 
       // Check if file size is too small
       final fileSize = await file.length();
-      Logger().d('[_isValidPDF] File size: $fileSize bytes');
       if (fileSize < 100) {
         await file.delete();
-        Logger().d('[_isValidPDF] File too small (<100 bytes), deleting: $filePath');
         return false;
       }
 
       // Read first few bytes to check PDF signature
       final bytes = await file.openRead(0, 4).first;
       final signature = String.fromCharCodes(bytes);
-      Logger().d('[_isValidPDF] PDF signature: "$signature"');
 
       if (signature != '%PDF') {
         await file.delete();
-        Logger().d('[_isValidPDF] Invalid PDF signature, deleting: $filePath');
         return false;
       }
 
-      Logger().d('[_isValidPDF] Valid PDF found: $filePath');
       return true;
     } catch (e) {
-      Logger().e('[_isValidPDF] Error validating PDF: $e');
       try {
         final file = File(filePath);
         if (await file.exists()) {
           await file.delete();
-          Logger().d('[_isValidPDF] Deleted invalid file after error: $filePath');
         }
       } catch (deleteError) {
-        Logger().e('[_isValidPDF] Error deleting invalid file: $deleteError');
+        // Error deleting invalid file, silently ignore
       }
       return false;
     }
@@ -242,7 +217,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
         }
       }
     } catch (e) {
-      Logger().e('Error opening PDF: $e');
       if (!mounted) return;
       scaffoldMessenger.showSnackBar(
         // Use captured scaffoldMessenger
@@ -327,11 +301,9 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       );
 
       if (downloadedFilePath != null && mounted) {
-        Logger().d('[_startDownload] Downloaded temp file to: $downloadedFilePath');
         final downloadedFile = File(downloadedFilePath);
         await downloadedFile.copy(fullPath);
         await downloadedFile.delete();
-        Logger().d('[_startDownload] Copied to final path: $fullPath');
 
         final downloadedPaper = DownloadedPaper(
           title: widget.title,
@@ -366,7 +338,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
         );
       }
     } catch (e) {
-      Logger().e('Download error: $e');
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
@@ -505,7 +476,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       if (!context.mounted) return;
       _downloadFile(context);
     } catch (e) {
-      Logger().e('Error redownloading file: $e');
       if (!context.mounted) return;
       scaffoldMessenger.showSnackBar(
         SnackBar(
