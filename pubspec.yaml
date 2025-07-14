@@ -55,6 +55,7 @@ dependencies:
   printing: ^5.11.0
   bijoy_helper: ^1.0.0 # Added for Bengali text conversion
   flutter_tts: ^4.0.0
+  encrypt: ^5.0.3
 
 dev_dependencies:
   flutter_test:
