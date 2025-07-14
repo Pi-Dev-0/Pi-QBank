@@ -25,7 +25,7 @@ class _SevenCollegePageState extends State<SevenCollegePage> {
       {
         'name': 'Mathematics',
         'icon': Icons.functions,
-        'route': '/question_bank'
+        'route': '/seven_college_mathematics'
       },
       {'name': 'Physics', 'icon': Icons.science, 'route': '/sc_physics'},
       {

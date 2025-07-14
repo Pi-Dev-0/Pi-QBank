@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
-import '../config/app_config.dart';
+import '../../config/app_config.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../widgets/year_selector.dart';
-import '../widgets/question_paper_card.dart';
-import '../widgets/app_drawer.dart';
-import '../widgets/custom_app_bar.dart';
-import '../widgets/exam_year_selector.dart';
-import '../services/data_cache_service.dart';
-import '../widgets/connectivity_wrapper.dart';
+import '../../widgets/year_selector.dart';
+import '../../widgets/question_paper_card.dart';
+import '../../widgets/app_drawer.dart';
+import '../../widgets/custom_app_bar.dart';
+import '../../widgets/exam_year_selector.dart';
+import '../../services/data_cache_service.dart';
+import '../../widgets/connectivity_wrapper.dart';
 
-class QuestionBankPage extends StatefulWidget {
-  const QuestionBankPage({super.key});
+class SevecCollegeMathematicsPage extends StatefulWidget {
+  const SevecCollegeMathematicsPage({super.key});
 
   @override
-  State<QuestionBankPage> createState() => _QuestionBankPageState();
+  State<SevecCollegeMathematicsPage> createState() => _SevecCollegeMathematicsPageState();
 }
 
-class _QuestionBankPageState extends State<QuestionBankPage> {
+class _SevecCollegeMathematicsPageState extends State<SevecCollegeMathematicsPage> {
   List<Map<String, dynamic>> questionPapers = [];
   bool isLoading = true;
   bool hasError = false;

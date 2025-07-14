@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'pages/home_page.dart';
 import 'pages/online_class_page.dart';
 import 'pages/ai_page.dart';
-import 'pages/question_bank_page.dart';
+import 'pages/seven_college/sevec_college_mathematics.dart';
 import 'pages/info_page.dart';
 import 'pages/class_pages.dart';
 import 'pages/national_university_page.dart';
@@ -185,7 +185,7 @@ class MyApp extends StatelessWidget {
         '/class8': (context) => const Class8Page(),
         '/ssc': (context) => const SSCPage(),
         '/hsc': (context) => const HSCPage(),
-        '/question_bank': (context) => const QuestionBankPage(),
+        '/seven_college_mathematics': (context) => const SevecCollegeMathematicsPage(),
         '/info': (context) => const InfoPage(),
         '/national_university': (context) => const NationalUniversityPage(),
         '/national_university/mathematics': (context) =>
