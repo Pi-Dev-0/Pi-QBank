@@ -48,6 +48,9 @@ class FormulaService {
   static const Duration _cacheDuration = Duration(days: 7);
   final SharedPreferences _prefs;
 
+  // Hardcoded encryption key for Formula API
+  static const String _encryptionKey = "FORMULA_SECRET_KEY";
+
   FormulaService._({required this.baseUrl, required SharedPreferences prefs}) 
     : _prefs = prefs;
 
@@ -55,6 +58,24 @@ class FormulaService {
     final prefs = await SharedPreferences.getInstance();
     final baseUrl = AppConfig.formulaApi;
     return FormulaService._(baseUrl: baseUrl, prefs: prefs);
+  }
+
+  // XOR encryption/decryption logic with Base64 encoding
+  String _xorEncryptDecrypt(String inputBase64, String key) {
+    try {
+      // Decode Base64 string to bytes
+      final encryptedBytes = base64.decode(inputBase64);
+      final keyBytes = utf8.encode(key);
+      final decryptedBytes = <int>[];
+
+      for (int i = 0; i < encryptedBytes.length; i++) {
+        decryptedBytes.add(encryptedBytes[i] ^ keyBytes[i % keyBytes.length]);
+      }
+      // Decode bytes to UTF-8 string
+      return utf8.decode(decryptedBytes);
+    } catch (e) {
+      rethrow;
+    }
   }
 
   Future<void> _saveToCache(List<Formula> formulas) async {
@@ -97,7 +118,9 @@ class FormulaService {
       final response = await http.get(Uri.parse(baseUrl));
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        // Decrypt the response body (which is Base64 encoded)
+        final decryptedBody = _xorEncryptDecrypt(response.body, _encryptionKey);
+        final data = json.decode(decryptedBody);
         if (data['status'] == 'success' && data['data'] != null) {
           List<Formula> allFormulas = (data['data'] as List)
               .map((item) => Formula.fromJson(item))
