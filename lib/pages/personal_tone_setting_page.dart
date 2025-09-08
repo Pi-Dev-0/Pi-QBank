@@ -50,8 +50,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'purpose': '',
       'customTraits': [],
       'isCustom': true,
-      'icon': Icons.palette,
-      'color': Colors.purple,
+      'iconCodePoint': Icons.palette.codePoint,
+      'colorValue': Colors.purple.value,
     },
     {
       'name': 'AI Assistant',
@@ -64,8 +64,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         {'trait': 'Empathy', 'value': 'High'},
         {'trait': 'Conciseness', 'value': 'High'},
       ],
-      'icon': Icons.smart_toy,
-      'color': Colors.blue,
+      'iconCodePoint': Icons.smart_toy.codePoint,
+      'colorValue': Colors.blue.value,
     },
     {
       'name': 'Teacher',
@@ -78,8 +78,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         {'trait': 'Authority', 'value': 'High'},
         {'trait': 'Clarity', 'value': 'High'},
       ],
-      'icon': Icons.school,
-      'color': Colors.green,
+      'iconCodePoint': Icons.school.codePoint,
+      'colorValue': Colors.green.value,
     },
     {
       'name': 'Friend',
@@ -92,8 +92,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         {'trait': 'Humor', 'value': 'Moderate'},
         {'trait': 'Empathy', 'value': 'High'},
       ],
-      'icon': Icons.favorite,
-      'color': Colors.orange,
+      'iconCodePoint': Icons.favorite.codePoint,
+      'colorValue': Colors.orange.value,
     },
   ];
 
@@ -142,18 +142,39 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       final savedPresetsJson = prefs.getStringList('custom_saved_presets');
       if (savedPresetsJson != null) {
         _customSavedPresets = savedPresetsJson
-            .map((jsonString) => jsonDecode(jsonString) as Map<String, dynamic>)
+            .map((jsonString) {
+              final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
+              // Ensure customTraits are also correctly typed
+              if (decoded['customTraits'] != null) {
+                decoded['customTraits'] = (decoded['customTraits'] as List<dynamic>)
+                    .map((e) => Map<String, String>.from(e))
+                    .toList();
+              }
+              // Reconstruct IconData from code point
+              if (decoded['iconCodePoint'] != null) {
+                decoded['icon'] = IconData(decoded['iconCodePoint'] as int, fontFamily: 'MaterialIcons');
+              } else if (decoded['icon'] is int) { // Handle cases where old data might have icon as int
+                decoded['icon'] = IconData(decoded['icon'] as int, fontFamily: 'MaterialIcons');
+              }
+              // Reconstruct Color from integer value
+              if (decoded['colorValue'] != null) {
+                decoded['color'] = Color(decoded['colorValue'] as int);
+              } else if (decoded['color'] is int) { // Handle cases where old data might have color as int
+                decoded['color'] = Color(decoded['color'] as int);
+              }
+              return decoded;
+            })
             .toList();
       } else {
         _customSavedPresets = []; // Initialize if null
       }
       _updatePresetTonesList();
-    });
+});
   }
 
   void _updatePresetTonesList() {
     _presetTones = [..._defaultPresetTones, ..._customSavedPresets];
-  }
+}
 
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -174,7 +195,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       icon: Icons.check_circle,
       color: Colors.green.shade600,
     );
-  }
+ }
 
   Future<void> _saveCustomPreset(String presetName) async {
     if (presetName.trim().isEmpty) {
@@ -195,8 +216,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'purpose': _purposeController.text,
       'customTraits': _customTraits.map((e) => Map<String, String>.from(e)).toList(), // Deep copy custom traits
       'isCustom': true,
-      'icon': Icons.bookmark, // A distinct icon for user-saved presets
-      'color': Colors.deepPurple,
+      'iconCodePoint': Icons.bookmark.codePoint, // Store icon as its code point
+      'colorValue': Colors.deepPurple.value, // Store color as its integer value
     };
 
     setState(() {
@@ -204,8 +225,13 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       _updatePresetTonesList();
     });
 
-    final savedPresetsJson =
-        _customSavedPresets.map((preset) => jsonEncode(preset)).toList();
+    final savedPresetsJson = _customSavedPresets.map((preset) {
+      // Create a mutable copy to remove non-serializable fields
+      final serializablePreset = Map<String, dynamic>.from(preset);
+      serializablePreset.remove('icon'); // Remove IconData object
+      serializablePreset.remove('color'); // Remove Color object
+      return jsonEncode(serializablePreset);
+    }).toList();
     await prefs.setStringList('custom_saved_presets', savedPresetsJson);
 
     _showSnackBar(
@@ -213,7 +239,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       icon: Icons.bookmark_added,
       color: Colors.deepPurple.shade600,
     );
-  }
+ }
 
   Future<void> _deleteCustomPreset(String presetName) async {
     final prefs = await SharedPreferences.getInstance();
@@ -222,8 +248,13 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       _updatePresetTonesList();
     });
 
-    final savedPresetsJson =
-        _customSavedPresets.map((preset) => jsonEncode(preset)).toList();
+    final savedPresetsJson = _customSavedPresets.map((preset) {
+      // Create a mutable copy to remove non-serializable fields
+      final serializablePreset = Map<String, dynamic>.from(preset);
+      serializablePreset.remove('icon'); // Remove IconData object
+      serializablePreset.remove('color'); // Remove Color object
+      return jsonEncode(serializablePreset);
+    }).toList();
     await prefs.setStringList('custom_saved_presets', savedPresetsJson);
 
     _showSnackBar(
@@ -231,7 +262,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       icon: Icons.delete_forever,
       color: Colors.red.shade600,
     );
-  }
+ }
 
   void _showSnackBar({
     required String content,
@@ -266,6 +297,25 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
     }
   }
 
+  // Helper to get IconData from a preset map
+  IconData _getPresetIcon(Map<String, dynamic> preset) {
+    if (preset.containsKey('iconCodePoint')) {
+      return IconData(preset['iconCodePoint'] as int, fontFamily: 'MaterialIcons');
+    }
+    // Fallback for default presets that might still have 'icon' directly (though we've changed them)
+    // or for safety if 'iconCodePoint' is missing.
+    return preset['icon'] as IconData? ?? Icons.star;
+  }
+
+  // Helper to get Color from a preset map
+  Color _getPresetColor(Map<String, dynamic> preset) {
+    if (preset.containsKey('colorValue')) {
+      return Color(preset['colorValue'] as int);
+    }
+    // Fallback for default presets that might still have 'color' directly
+    return preset['color'] as Color? ?? Colors.grey;
+  }
+
   void _addCustomTrait() {
     setState(() {
       _customTraits.add({'trait': '', 'value': ''});
@@ -293,7 +343,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         }
       }
 
-      if (preset['isCustom'] == true) {
+      // Only clear fields if applying the default "Custom Tone" preset
+      // User-saved custom presets should populate the fields.
+      // Check against the default "Custom Tone" using its serialized properties
+      if (preset['name'] == 'Custom Tone' && preset['isCustom'] == true &&
+          _getPresetIcon(preset) == Icons.palette && // Use helper for comparison
+          _getPresetColor(preset) == Colors.purple) { // Use helper for comparison
         _nameController.clear();
         _genderController.clear();
         _relationshipController.clear();
@@ -305,8 +360,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
 
     _showSnackBar(
       content: 'Preset "${preset['name']}" Applied!',
-      icon: preset['icon'],
-      color: preset['color'],
+      icon: _getPresetIcon(preset), // Use helper to get IconData
+      color: _getPresetColor(preset), // Use helper to get Color
     );
   }
 
@@ -455,9 +510,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             itemCount: _presetTones.length,
             itemBuilder: (context, index) {
               final preset = _presetTones[index];
+              // A preset is considered "custom saved" if it has 'isCustom: true' AND
+              // its iconCodePoint matches Icons.bookmark.codePoint (our indicator for user-saved presets).
+              final bool isUserSavedPreset = preset['isCustom'] == true &&
+                  preset['iconCodePoint'] == Icons.bookmark.codePoint;
               return _buildPresetListItem(preset, colorScheme,
-                  isCustomSaved: preset['isCustom'] == true &&
-                      preset['icon'] == Icons.bookmark);
+                  isCustomSaved: isUserSavedPreset);
             },
           ),
         ],
@@ -467,7 +525,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
 
   Widget _buildPresetListItem(Map<String, dynamic> preset, ColorScheme colorScheme,
       {bool isCustomSaved = false}) {
-    final Color itemColor = (preset['color'] as Color? ?? Colors.grey);
+    final Color itemColor = _getPresetColor(preset); // Use helper to get Color
+    final IconData itemIcon = _getPresetIcon(preset); // Use helper to get IconData
     return GestureDetector(
       onTap: () => _applyPreset(preset),
       child: AnimatedContainer(
@@ -495,7 +554,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
-                preset['icon'] ?? Icons.star,
+                itemIcon, // Use the reconstructed IconData
                 color: Colors.white,
                 size: 22,
               ),
