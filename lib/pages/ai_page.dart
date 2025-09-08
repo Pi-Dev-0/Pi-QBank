@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:pi_qbank/services/chat_history_service.dart';
+import 'package:pi_qbank/models/chat_message_model.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
 import '../config/app_config.dart';
@@ -31,6 +33,9 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
   int? _speakingMessageIndex; // To track which message is speaking
   late AnimationController _animationController;
   late Animation<Color?> _colorAnimation;
+  final ChatHistoryService _chatHistoryService = ChatHistoryService();
+  List<List<ChatMessageModel>> _chatHistory = []; // List of past chats
+  bool _isShowingHistory = false; // To toggle between current chat and history
 
   // Personal Tone Settings
   String _toneName = '';
@@ -49,6 +54,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
   void initState() {
     super.initState();
     _loadPersonalToneSettings(); // Load settings on init
+    _loadChatHistory(); // Load chat history on init
     flutterTts = FlutterTts();
     _initTts();
 
@@ -122,6 +128,56 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
     });
   }
 
+  Future<void> _loadChatHistory() async {
+    _chatHistory = await _chatHistoryService.loadChatHistory();
+    setState(() {});
+  }
+
+  Future<void> _saveCurrentChat() async {
+    if (_messages.isNotEmpty) {
+      final chatMessageModels = _messages.map((msg) => ChatMessageModel(
+        text: msg.text,
+        isUser: msg.isUser,
+        imagePath: msg.imagePath,
+        base64Image: msg.base64Image,
+        userImageBase64: msg.userImageBase64,
+      )).toList();
+      await _chatHistoryService.saveChat(chatMessageModels);
+      await _loadChatHistory(); // Reload history after saving
+    }
+  }
+
+  void _startNewChat() {
+    _saveCurrentChat(); // Save the current chat before starting a new one
+    setState(() {
+      _messages.clear();
+      _selectedImage = null;
+      _isLoading = false;
+      _isGeneratingImage = false;
+      _speakingMessageIndex = null;
+      _isShowingHistory = false; // Ensure we are on the current chat view
+    });
+  }
+
+  void _viewChatHistory(List<ChatMessageModel> chat) {
+    _saveCurrentChat(); // Save current chat before viewing history
+    setState(() {
+      _messages.clear();
+      _messages.addAll(chat.map((model) => ChatMessage(
+        text: model.text,
+        isUser: model.isUser,
+        imagePath: model.imagePath,
+        base64Image: model.base64Image,
+        userImageBase64: model.userImageBase64,
+        onSpeak: (text) => _speak(text),
+        onStop: _stop,
+        isSpeaking: false,
+      )));
+      _isShowingHistory = false; // Switch back to current chat view
+    });
+    _scrollToBottom();
+  }
+
   Future<void> _loadPersonalToneSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -147,6 +203,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    _saveCurrentChat(); // Save current chat when disposing the page
     _scrollController.dispose();
     _controller.dispose();
     _stop(); // Stop TTS when disposing
@@ -452,6 +509,19 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
         title: '${_toneName.isNotEmpty ? _toneName : 'AI Chat'} ',
         actions: [
           IconButton(
+            icon: Icon(_isShowingHistory ? Icons.chat : Icons.history), // Toggle icon based on view
+            onPressed: () {
+              setState(() {
+                _isShowingHistory = !_isShowingHistory;
+                if (!_isShowingHistory) {
+                  // If switching back to current chat, clear messages
+                  _messages.clear();
+                }
+              });
+            },
+            tooltip: _isShowingHistory ? 'Current Chat' : 'Chat History',
+          ),
+          IconButton(
             icon: const Icon(Icons.account_circle), // Changed to avatar icon
             onPressed: () {
               Navigator.push(
@@ -471,38 +541,74 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
           Column(
             children: [
               Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  itemCount: _messages.length,
-                  padding: const EdgeInsets.all(12.0),
-                  itemBuilder: (context, index) {
-                    final message = _messages[index];
-                    return ChatMessage(
-                      key: ValueKey(message.hashCode), // Add a unique key
-                      text: message.text,
-                      isUser: message.isUser,
-                      imagePath: message.imagePath,
-                      generatedImageUrls: message.generatedImageUrls,
-                      base64Image: message.base64Image,
-                      showLoader: message.showLoader,
-                      onSpeak: (text) async {
-                        if (_speakingMessageIndex == index) {
-                          // If this message is already speaking, stop it
-                          await _stop();
-                        } else {
-                          // If another message is speaking or nothing is speaking, start this one
-                          await _stop(); // Stop any other ongoing speech
-                          setState(() {
-                            _speakingMessageIndex = index;
-                          });
-                          await _speak(text);
-                        }
-                      },
-                      onStop: _stop,
-                      isSpeaking: _speakingMessageIndex == index,
-                    );
-                  },
-                ),
+                child: _isShowingHistory
+                    ? ListView.builder(
+                        itemCount: _chatHistory.length + 1, // +1 for New Chat option
+                        padding: const EdgeInsets.all(12.0),
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: ListTile(
+                                leading: const Icon(Icons.add_comment),
+                                title: const Text('New Chat'),
+                                onTap: _startNewChat,
+                              ),
+                            );
+                          }
+                          final chat = _chatHistory[index - 1]; // Adjust index for history list
+                          // Display a summary of the chat
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: ListTile(
+                              title: Text(
+                                  'Chat ${(_chatHistory.length - (index - 1))}: ${chat.first.text.substring(0, chat.first.text.length > 50 ? 50 : chat.first.text.length)}...'),
+                              subtitle: Text(
+                                  '${chat.length} messages'),
+                              onTap: () => _viewChatHistory(chat),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete),
+                                onPressed: () async {
+                                  await _chatHistoryService.deleteChatAtIndex(index - 1); // Adjust index for actual history list
+                                  _loadChatHistory(); // Reload history after deleting
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        itemCount: _messages.length,
+                        padding: const EdgeInsets.all(12.0),
+                        itemBuilder: (context, index) {
+                          final message = _messages[index];
+                          return ChatMessage(
+                            key: ValueKey(message.hashCode), // Add a unique key
+                            text: message.text,
+                            isUser: message.isUser,
+                            imagePath: message.imagePath,
+                            generatedImageUrls: message.generatedImageUrls,
+                            base64Image: message.base64Image,
+                            showLoader: message.showLoader,
+                            onSpeak: (text) async {
+                              if (_speakingMessageIndex == index) {
+                                // If this message is already speaking, stop it
+                                await _stop();
+                              } else {
+                                // If another message is speaking or nothing is speaking, start this one
+                                await _stop(); // Stop any other ongoing speech
+                                setState(() {
+                                  _speakingMessageIndex = index;
+                                });
+                                await _speak(text);
+                              }
+                            },
+                            onStop: _stop,
+                            isSpeaking: _speakingMessageIndex == index,
+                          );
+                        },
+                      ),
               ),
               if (_isLoading)
                 AnimatedBuilder(
@@ -515,113 +621,114 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
                     );
                   },
                 ),
-              Container(
-                padding: const EdgeInsets.all(12.0),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(25),
-                          color: colorScheme.surfaceContainerHighest,
-                        ),
-                        child: TextField(
-                          controller: _controller,
-                          maxLines: 3, // Allow up to 3 lines
-                          minLines: 1, // Start with at least 1 line
-                          decoration: InputDecoration(
-                            hintText: 'Type your message...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(25),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                            prefixIcon: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_selectedImage != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 8.0),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        CircleAvatar(
-                                          backgroundImage: FileImage(
-                                              File(_selectedImage!.path)),
-                                          radius: 18,
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.close),
-                                          onPressed: () {
-                                            setState(() {
-                                              _selectedImage = null;
-                                            });
-                                          },
-                                        ),
-                                      ],
+              if (!_isShowingHistory) // Only show input field if not showing history
+                Container(
+                  padding: const EdgeInsets.all(12.0),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(25),
+                            color: colorScheme.surfaceContainerHighest,
+                          ),
+                          child: TextField(
+                            controller: _controller,
+                            maxLines: 3, // Allow up to 3 lines
+                            minLines: 1, // Start with at least 1 line
+                            decoration: InputDecoration(
+                              hintText: 'Type your message...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(25),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                              prefixIcon: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_selectedImage != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 8.0),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          CircleAvatar(
+                                            backgroundImage: FileImage(
+                                                File(_selectedImage!.path)),
+                                            radius: 18,
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.close),
+                                            onPressed: () {
+                                              setState(() {
+                                                _selectedImage = null;
+                                              });
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    IconButton(
+                                      icon: const Icon(Icons.image),
+                                      onPressed: _isLoading ? null : _pickImage,
                                     ),
-                                  )
-                                else
-                                  IconButton(
-                                    icon: const Icon(Icons.image),
-                                    onPressed: _isLoading ? null : _pickImage,
-                                  ),
-                                if (_selectedImage ==
-                                    null) // Only show auto_awesome when no image is selected
-                                  IconButton(
-                                    icon: const Icon(Icons.auto_awesome),
-                                    onPressed: _isLoading || _isGeneratingImage
-                                        ? null
-                                        : _generateImage,
-                                    tooltip: 'Generate Image',
-                                  ),
-                              ],
+                                  if (_selectedImage ==
+                                      null) // Only show auto_awesome when no image is selected
+                                    IconButton(
+                                      icon: const Icon(Icons.auto_awesome),
+                                      onPressed: _isLoading || _isGeneratingImage
+                                          ? null
+                                          : _generateImage,
+                                      tooltip: 'Generate Image',
+                                    ),
+                                ],
+                              ),
                             ),
+                            onSubmitted: (_) => _sendMessage(),
                           ),
-                          onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: colorScheme.primary,
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _isLoading
-                              ? null
-                              : _sendMessage, // Call _sendMessage without image parameter
-                          customBorder: const CircleBorder(),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Icon(
-                              Icons.send_rounded,
-                              color: colorScheme.onPrimary,
-                              size: 24,
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colorScheme.primary,
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _isLoading
+                                ? null
+                                : _sendMessage, // Call _sendMessage without image parameter
+                            customBorder: const CircleBorder(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Icon(
+                                Icons.send_rounded,
+                                color: colorScheme.onPrimary,
+                                size: 24,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ],
@@ -638,23 +745,23 @@ class ChatMessage extends StatelessWidget {
   final String? base64Image;
   final bool showLoader;
   final Function(String text)? onSpeak;
-  final Function()? onStop;
-  final bool isSpeaking;
-  final String? userImageBase64; // New field for user's base64 image
+    final Function()? onStop;
+    final bool isSpeaking;
+    final String? userImageBase64; // New field for user's base64 image
 
-  const ChatMessage({
-    super.key,
-    required this.text,
-    required this.isUser,
-    this.imagePath,
-    this.generatedImageUrls,
-    this.base64Image,
-    this.showLoader = false,
-    this.onSpeak,
-    this.onStop,
-    this.isSpeaking = false,
-    this.userImageBase64, // Initialize new field
-  });
+    const ChatMessage({
+      super.key,
+      required this.text,
+      required this.isUser,
+      this.imagePath,
+      this.generatedImageUrls,
+      this.base64Image,
+      this.showLoader = false,
+      this.onSpeak,
+      this.onStop,
+      this.isSpeaking = false,
+      this.userImageBase64, // Initialize new field
+    });
 
   List<TextSpan> _formatText(String text, BuildContext context) {
     final List<TextSpan> spans = [];
