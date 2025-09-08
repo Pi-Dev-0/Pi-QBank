@@ -186,9 +186,7 @@ void showApiKeyDialog(BuildContext context) {
 
                       if (apiKey.isNotEmpty) {
                         await saveApiKey(apiKey);
-                        if (!context.mounted) {
-                          return; // Check if the widget is still mounted
-                        }
+                        if (!context.mounted) return;
                         Navigator.of(context).pop();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -197,13 +195,14 @@ void showApiKeyDialog(BuildContext context) {
                           ),
                         );
                       } else {
-                        if (!context.mounted) {
-                          return; // Check if the widget is still mounted
-                        }
+                        // If API key is empty, remove it from SharedPreferences
+                        await saveApiKey('');
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('API Key cannot be empty.'),
-                            backgroundColor: Colors.red,
+                            content: Text('API Key cleared. Using app default.'),
+                            backgroundColor: Colors.orange,
                           ),
                         );
                       }
