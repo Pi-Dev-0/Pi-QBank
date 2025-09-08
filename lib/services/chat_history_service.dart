@@ -29,16 +29,15 @@ class ChatHistoryService {
         history.add(chatMessages);
         validEncryptedHistory.add(encryptedChat); // Add to valid list
       } catch (e) {
-        print("Error decrypting or decoding chat history: $e. Removing corrupted entry.");
-        // If decryption fails, this entry is skipped and not added to validEncryptedHistory
-      }
+        // If decryption or parsing fails, skip this entry
+        continue;}
     }
     // Save only the valid history back to SharedPreferences
     await prefs.setStringList(_historyKey, validEncryptedHistory);
     return history;
   }
 
-  Future<void> saveChat(List<ChatMessageModel> chat) async {
+  Future<int> saveChat(List<ChatMessageModel> chat) async {
     final prefs = await SharedPreferences.getInstance();
     
     // Convert current chat to JSON
@@ -57,6 +56,25 @@ class ChatHistoryService {
     }
 
     await prefs.setStringList(_historyKey, encryptedHistory);
+    return 0; // Return the index of the newly added chat (which is always 0)
+  }
+
+  Future<void> updateChat(int index, List<ChatMessageModel> chat) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> encryptedHistory = prefs.getStringList(_historyKey) ?? [];
+
+    if (index >= 0 && index < encryptedHistory.length) {
+      // Convert updated chat to JSON
+      final chatJson = chat.map((msg) => msg.toJson()).toList();
+      final chatString = json.encode(chatJson);
+
+      // Encrypt the chat string
+      final encrypted = _encrypter.encrypt(chatString, iv: _iv);
+      final encryptedChatString = encrypted.base64;
+
+      encryptedHistory[index] = encryptedChatString; // Update the chat at the specified index
+      await prefs.setStringList(_historyKey, encryptedHistory);
+    }
   }
 
   Future<void> deleteChatAtIndex(int index) async {

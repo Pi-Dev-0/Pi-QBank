@@ -36,6 +36,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
   final ChatHistoryService _chatHistoryService = ChatHistoryService();
   List<List<ChatMessageModel>> _chatHistory = []; // List of past chats
   bool _isShowingHistory = false; // To toggle between current chat and history
+  int? _currentChatIndex; // Null for a new chat, index for an existing chat
 
   // Personal Tone Settings
   String _toneName = '';
@@ -142,13 +143,23 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
         base64Image: msg.base64Image,
         userImageBase64: msg.userImageBase64,
       )).toList();
-      await _chatHistoryService.saveChat(chatMessageModels);
-      await _loadChatHistory(); // Reload history after saving
+
+      if (_currentChatIndex != null) {
+        // Update existing chat
+        await _chatHistoryService.updateChat(_currentChatIndex!, chatMessageModels);
+      } else {
+        // Save as a new chat
+        final newChatIndex = await _chatHistoryService.saveChat(chatMessageModels);
+        setState(() {
+          _currentChatIndex = newChatIndex; // Set the current chat index to the newly saved chat
+        });
+      }
+      await _loadChatHistory(); // Reload history after saving/updating
     }
   }
 
-  void _startNewChat() {
-    _saveCurrentChat(); // Save the current chat before starting a new one
+  void _startNewChat() async {
+    await _saveCurrentChat(); // Save the current chat before starting a new one
     setState(() {
       _messages.clear();
       _selectedImage = null;
@@ -156,14 +167,16 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
       _isGeneratingImage = false;
       _speakingMessageIndex = null;
       _isShowingHistory = false; // Ensure we are on the current chat view
+      _currentChatIndex = null; // Reset to null for a new chat
     });
   }
 
-  void _viewChatHistory(List<ChatMessageModel> chat) {
-    _saveCurrentChat(); // Save current chat before viewing history
+  void _viewChatHistory(int index) async {
+    await _saveCurrentChat(); // Save current chat before viewing history
     setState(() {
+      _currentChatIndex = index; // Set the current chat index
       _messages.clear();
-      _messages.addAll(chat.map((model) => ChatMessage(
+      _messages.addAll(_chatHistory[index].map((model) => ChatMessage(
         text: model.text,
         isUser: model.isUser,
         imagePath: model.imagePath,
@@ -510,13 +523,32 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
         actions: [
           IconButton(
             icon: Icon(_isShowingHistory ? Icons.chat : Icons.history), // Toggle icon based on view
-            onPressed: () {
+            onPressed: () async {
+              if (!_isShowingHistory) {
+                // If switching to show history, save current chat
+                await _saveCurrentChat();
+              } else {
+                // If switching back to current chat view
+                if (_currentChatIndex == null) {
+                  // If no chat was selected from history, start a new empty chat
+                  _messages.clear();
+                } else {
+                  // If a chat was selected, reload it
+                  _messages.clear();
+                  _messages.addAll(_chatHistory[_currentChatIndex!].map((model) => ChatMessage(
+                    text: model.text,
+                    isUser: model.isUser,
+                    imagePath: model.imagePath,
+                    base64Image: model.base64Image,
+                    userImageBase64: model.userImageBase64,
+                    onSpeak: (text) => _speak(text),
+                    onStop: _stop,
+                    isSpeaking: false,
+                  )));
+                }
+              }
               setState(() {
                 _isShowingHistory = !_isShowingHistory;
-                if (!_isShowingHistory) {
-                  // If switching back to current chat, clear messages
-                  _messages.clear();
-                }
               });
             },
             tooltip: _isShowingHistory ? 'Current Chat' : 'Chat History',
@@ -565,7 +597,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
                                   'Chat ${(_chatHistory.length - (index - 1))}: ${chat.first.text.substring(0, chat.first.text.length > 50 ? 50 : chat.first.text.length)}...'),
                               subtitle: Text(
                                   '${chat.length} messages'),
-                              onTap: () => _viewChatHistory(chat),
+                              onTap: () => _viewChatHistory(index - 1), // Pass the actual index
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete),
                                 onPressed: () async {
