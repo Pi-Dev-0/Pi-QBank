@@ -639,7 +639,7 @@ class _FormulaPageState extends State<FormulaPage> {
         ],
       ),
       drawer: const AppDrawer(),
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           _buildSubjectSelector(),
