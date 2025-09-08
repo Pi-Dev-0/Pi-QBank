@@ -3,7 +3,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 class AdsterraService {
   static const String _adUrl =
-      'https://www.profitableratecpm.com/anpzahxh0?key=c1bc8b96c1d495394e6f6f52d9722d62';
+      'https://www.revenuecpmgate.com/kxzpw0tpc?key=c55978c6eeba8026c639e869e28bfcf0';
   static WebViewController? _controller;
 
   static Widget showAd() {
