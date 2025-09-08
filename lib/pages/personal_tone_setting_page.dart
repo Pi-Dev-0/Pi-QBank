@@ -144,6 +144,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         _customSavedPresets = savedPresetsJson
             .map((jsonString) => jsonDecode(jsonString) as Map<String, dynamic>)
             .toList();
+      } else {
+        _customSavedPresets = []; // Initialize if null
       }
       _updatePresetTonesList();
     });
@@ -191,7 +193,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'relationship': _relationshipController.text,
       'language': _languageController.text,
       'purpose': _purposeController.text,
-      'customTraits': _customTraits,
+      'customTraits': _customTraits.map((e) => Map<String, String>.from(e)).toList(), // Deep copy custom traits
       'isCustom': true,
       'icon': Icons.bookmark, // A distinct icon for user-saved presets
       'color': Colors.deepPurple,
@@ -447,19 +449,13 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             textTheme,
           ),
           const SizedBox(height: 20),
-          GridView.builder(
+          ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.2, // Increased further to fix overflow
-            ),
             itemCount: _presetTones.length,
             itemBuilder: (context, index) {
               final preset = _presetTones[index];
-              return _buildPresetCard(preset, colorScheme,
+              return _buildPresetListItem(preset, colorScheme,
                   isCustomSaved: preset['isCustom'] == true &&
                       preset['icon'] == Icons.bookmark);
             },
@@ -469,74 +465,79 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
     );
   }
 
-  Widget _buildPresetCard(Map<String, dynamic> preset, ColorScheme colorScheme,
+  Widget _buildPresetListItem(Map<String, dynamic> preset, ColorScheme colorScheme,
       {bool isCustomSaved = false}) {
-    final Color cardColor = (preset['color'] as Color? ?? Colors.grey);
+    final Color itemColor = (preset['color'] as Color? ?? Colors.grey);
     return GestureDetector(
       onTap: () => _applyPreset(preset),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: cardColor.withOpacity(0.1), // Lighter background
+          color: itemColor.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cardColor.withOpacity(0.3), width: 1),
+          border: Border.all(color: itemColor.withOpacity(0.3), width: 1),
           boxShadow: [
             BoxShadow(
-              color: cardColor.withOpacity(0.2),
+              color: itemColor.withOpacity(0.2),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Stack(
+        child: Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: itemColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                preset['icon'] ?? Icons.star,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(12),
+                  Text(
+                    preset['name'],
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    child: Icon(
-                      preset['icon'] ?? Icons.star,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: Text(
-                      preset['name'],
+                  if (preset['purpose'] != null && preset['purpose'].isNotEmpty)
+                    Text(
+                      preset['purpose'],
                       style: TextStyle(
-                        color: colorScheme.onSurface,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14, // Slightly increased font size
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
                       ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
                 ],
               ),
             ),
             if (isCustomSaved)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: GestureDetector(
-                  onTap: () =>
-                      _showDeletePresetDialog(context, preset['name']),
-                  child: Icon(
-                    Icons.delete,
-                    color: Colors.red.shade400,
-                    size: 20,
-                  ),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_forever,
+                  color: colorScheme.error,
+                  size: 24,
                 ),
+                onPressed: () =>
+                    _showDeletePresetDialog(context, preset['name']),
+                tooltip: 'Delete Preset',
               ),
           ],
         ),
