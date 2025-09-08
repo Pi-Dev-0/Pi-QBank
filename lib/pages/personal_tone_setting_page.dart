@@ -39,7 +39,10 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
     'gemini-2.5-flash-preview-05-20',
   ];
 
-  final List<Map<String, dynamic>> _presetTones = [
+  List<Map<String, dynamic>> _presetTones = [];
+  List<Map<String, dynamic>> _customSavedPresets = [];
+
+  final List<Map<String, dynamic>> _defaultPresetTones = [
     {
       'name': 'Custom Tone',
       'gender': '',
@@ -139,7 +142,20 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       }
       _selectedModel =
           prefs.getString('selected_model') ?? 'gemini-2.5-flash-preview-05-20';
+
+      // Load custom saved presets
+      final savedPresetsJson = prefs.getStringList('custom_saved_presets');
+      if (savedPresetsJson != null) {
+        _customSavedPresets = savedPresetsJson
+            .map((jsonString) => jsonDecode(jsonString) as Map<String, dynamic>)
+            .toList();
+      }
+      _updatePresetTonesList();
     });
+  }
+
+  void _updatePresetTonesList() {
+    _presetTones = [..._defaultPresetTones, ..._customSavedPresets];
   }
 
   Future<void> _saveSettings() async {
@@ -156,15 +172,85 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         _customTraits.map((trait) => jsonEncode(trait)).toList();
     await prefs.setStringList('tone_customTraits', customTraitsJson);
 
+    _showSnackBar(
+      content: 'Settings Saved Successfully!',
+      icon: Icons.check_circle,
+      color: Colors.green.shade600,
+    );
+  }
+
+  Future<void> _saveCustomPreset(String presetName) async {
+    if (presetName.trim().isEmpty) {
+      _showSnackBar(
+        content: 'Preset name cannot be empty!',
+        icon: Icons.error,
+        color: Colors.red.shade600,
+      );
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final newPreset = {
+      'name': presetName,
+      'gender': _genderController.text,
+      'relationship': _relationshipController.text,
+      'language': _languageController.text,
+      'purpose': _purposeController.text,
+      'customTraits': _customTraits,
+      'isCustom': true,
+      'icon': Icons.bookmark, // A distinct icon for user-saved presets
+      'color': Colors.deepPurple,
+      'gradient': [Colors.deepPurple.shade300, Colors.deepPurple.shade600],
+    };
+
+    setState(() {
+      _customSavedPresets.add(newPreset);
+      _updatePresetTonesList();
+    });
+
+    final savedPresetsJson =
+        _customSavedPresets.map((preset) => jsonEncode(preset)).toList();
+    await prefs.setStringList('custom_saved_presets', savedPresetsJson);
+
+    _showSnackBar(
+      content: 'Preset "$presetName" Saved!',
+      icon: Icons.bookmark_added,
+      color: Colors.deepPurple.shade600,
+    );
+  }
+
+  Future<void> _deleteCustomPreset(String presetName) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _customSavedPresets.removeWhere((preset) => preset['name'] == presetName);
+      _updatePresetTonesList();
+    });
+
+    final savedPresetsJson =
+        _customSavedPresets.map((preset) => jsonEncode(preset)).toList();
+    await prefs.setStringList('custom_saved_presets', savedPresetsJson);
+
+    _showSnackBar(
+      content: 'Preset "$presetName" Deleted!',
+      icon: Icons.delete_forever,
+      color: Colors.red.shade600,
+    );
+  }
+
+  void _showSnackBar({
+    required String content,
+    required IconData icon,
+    required Color color,
+  }) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              Icon(Icons.check_circle, color: Colors.white),
+              Icon(icon, color: Colors.white),
               const SizedBox(width: 10),
               Text(
-                'Settings Saved Successfully!',
+                content,
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
@@ -172,7 +258,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
               ),
             ],
           ),
-          backgroundColor: Colors.green.shade600,
+          backgroundColor: color,
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -221,27 +307,10 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       }
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(preset['icon'], color: Colors.white),
-            const SizedBox(width: 10),
-            Text(
-              'Preset "${preset['name']}" Applied!',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: preset['color'],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-        elevation: 8,
-      ),
+    _showSnackBar(
+      content: 'Preset "${preset['name']}" Applied!',
+      icon: preset['icon'],
+      color: preset['color'],
     );
   }
 
@@ -310,6 +379,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                     _buildCustomTraitsCard(textTheme, colorScheme),
                     const SizedBox(height: 30),
                     _buildSaveButton(textTheme, colorScheme),
+                    const SizedBox(height: 20),
+                    _buildSavePresetButton(textTheme, colorScheme),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -415,7 +486,9 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             itemCount: _presetTones.length,
             itemBuilder: (context, index) {
               final preset = _presetTones[index];
-              return _buildPresetCard(preset, colorScheme);
+              return _buildPresetCard(preset, colorScheme,
+                  isCustomSaved: preset['isCustom'] == true &&
+                      preset['icon'] == Icons.bookmark);
             },
           ),
         ],
@@ -423,8 +496,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
     );
   }
 
-  Widget _buildPresetCard(
-      Map<String, dynamic> preset, ColorScheme colorScheme) {
+  Widget _buildPresetCard(Map<String, dynamic> preset, ColorScheme colorScheme,
+      {bool isCustomSaved = false}) {
     return GestureDetector(
       onTap: () => _applyPreset(preset),
       child: ClipRRect(
@@ -446,40 +519,58 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                 ),
               ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      preset['icon'] ?? Icons.star,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    // Wrap Text with Expanded
-                    child: Text(
-                      preset['name'],
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13, // Reduced font size to help with overflow
+            child: Stack(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          preset['icon'] ?? Icons.star,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: Text(
+                          preset['name'],
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize:
+                                13, // Reduced font size to help with overflow
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isCustomSaved)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () =>
+                          _showDeletePresetDialog(context, preset['name']),
+                      child: Icon(
+                        Icons.delete,
+                        color: Colors.red.shade400,
+                        size: 20,
+                      ),
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
@@ -863,7 +954,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
               onPressed: _saveSettings,
               icon: Icon(Icons.save, color: Colors.white, size: 24),
               label: Text(
-                'Save Settings',
+                'Save Current Tone',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -881,6 +972,115 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSavePresetButton(TextTheme textTheme, ColorScheme colorScheme) {
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+          child: Container(
+            width: double.infinity,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.teal,
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: () => _showSavePresetDialog(context),
+              icon: Icon(Icons.bookmark_add, color: Colors.white, size: 24),
+              label: Text(
+                'Save as New Preset',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSavePresetDialog(BuildContext context) {
+    final TextEditingController presetNameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Save Current Tone as Preset'),
+          content: TextField(
+            controller: presetNameController,
+            decoration: const InputDecoration(
+              hintText: 'Enter preset name',
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              child: const Text('Save'),
+              onPressed: () {
+                _saveCustomPreset(presetNameController.text);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeletePresetDialog(BuildContext context, String presetName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Preset'),
+          content: Text('Are you sure you want to delete "$presetName"?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child:
+                  const Text('Delete', style: TextStyle(color: Colors.white)),
+              onPressed: () {
+                _deleteCustomPreset(presetName);
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
