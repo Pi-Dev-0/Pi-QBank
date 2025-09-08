@@ -472,113 +472,71 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                     context: context,
                     barrierDismissible: true,
                     builder: (BuildContext dialogContext) {
-                      final double dialogWidth =
-                          MediaQuery.of(context).size.width * 0.7;
-                      final double dialogMaxHeight =
-                          MediaQuery.of(context).size.height * 0.6;
                       return AlertDialog(
                         backgroundColor: Colors.white,
                         elevation: 8,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        titlePadding: EdgeInsets.zero,
-                        contentPadding: EdgeInsets.zero,
+                            borderRadius: BorderRadius.circular(8)),
                         title: Container(
-                          width: dialogWidth,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                           decoration: BoxDecoration(
                             color: Colors.blue.shade50,
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(20),
-                              topRight: Radius.circular(20),
-                            ),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Center(
-                                child: Text(
-                                  'Select $labelText',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue,
-                                  ),
-                                ),
+                          child: Center(
+                            child: Text(
+                              'Select $labelText',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
                               ),
-                              Positioned(
-                                right: 0,
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    color: Colors.blue,
-                                  ),
-                                  onPressed: () => Navigator.pop(dialogContext),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                        content: SizedBox(
-                          width: dialogWidth,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxHeight: dialogMaxHeight,
-                            ),
-                            child: SingleChildScrollView(
-                              child: ListBody(
-                                children: items.map((item) {
-                                  final isSelected = item == value;
-                                  return GestureDetector(
-                                    onTap: () {
-                                      onChanged(item);
-                                      Navigator.of(dialogContext).maybePop();
-                                    },
-                                    child: Container(
-                                      margin: const EdgeInsets.symmetric(
-                                          vertical: 6, horizontal: 8),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10, horizontal: 14),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? Colors.blue.shade100
-                                            : Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? Colors.blue
-                                              : Colors.grey.shade300,
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Center(
-                                              child: Text(
-                                                item,
-                                                style: TextStyle(
-                                                  fontWeight: isSelected
-                                                      ? FontWeight.bold
-                                                      : FontWeight.normal,
-                                                  color: isSelected
-                                                      ? Colors.blue.shade900
-                                                      : Colors.black87,
-                                                  fontSize: 15,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                        content: SingleChildScrollView(
+                          child: ListBody(
+                            children: items.map((item) {
+                              final isSelected = item == value;
+                              return GestureDetector(
+                                onTap: () {
+                                  onChanged(item);
+                                  Navigator.of(dialogContext).maybePop();
+                                },
+                                child: Container(
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10, horizontal: 14),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? Colors.blue.shade100
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? Colors.blue
+                                          : Colors.grey.shade300,
+                                      width: 1.5,
                                     ),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
+                                  ),
+                                  child: Text(
+                                    item,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: isSelected
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? Colors.blue.shade900
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
                       );
