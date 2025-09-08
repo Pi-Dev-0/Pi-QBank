@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'dart:ui'; // Import for ImageFilter
 import '../widgets/custom_app_bar.dart';
 import '../widgets/api_key_dialog.dart';
 
@@ -53,7 +52,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'isCustom': true,
       'icon': Icons.palette,
       'color': Colors.purple,
-      'gradient': [Colors.purple.shade300, Colors.purple.shade600],
     },
     {
       'name': 'AI Assistant',
@@ -68,7 +66,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       ],
       'icon': Icons.smart_toy,
       'color': Colors.blue,
-      'gradient': [Colors.blue.shade300, Colors.blue.shade600],
     },
     {
       'name': 'Teacher',
@@ -83,7 +80,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       ],
       'icon': Icons.school,
       'color': Colors.green,
-      'gradient': [Colors.green.shade300, Colors.green.shade600],
     },
     {
       'name': 'Friend',
@@ -98,7 +94,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       ],
       'icon': Icons.favorite,
       'color': Colors.orange,
-      'gradient': [Colors.orange.shade300, Colors.orange.shade600],
     },
   ];
 
@@ -200,7 +195,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'isCustom': true,
       'icon': Icons.bookmark, // A distinct icon for user-saved presets
       'color': Colors.deepPurple,
-      'gradient': [Colors.deepPurple.shade300, Colors.deepPurple.shade600],
     };
 
     setState(() {
@@ -336,127 +330,106 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         title: 'Personal Tone Settings',
         centerTitle: true,
       ),
-      body: Stack(
-        children: [
-          // Background with gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  colorScheme.surface,
-                  colorScheme.surfaceContainerLowest,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              colorScheme.surface,
+              colorScheme.surfaceContainerLowest,
+            ],
+          ),
+        ),
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildWelcomeCard(textTheme, colorScheme),
+                  const SizedBox(height: 20),
+                  _buildPresetTonesCard(textTheme, colorScheme),
+                  const SizedBox(height: 20),
+                  _buildModelSettingsCard(textTheme, colorScheme),
+                  const SizedBox(height: 20),
+                  _buildBasicInfoCard(textTheme, colorScheme),
+                  const SizedBox(height: 20),
+                  _buildCustomTraitsCard(textTheme, colorScheme),
+                  const SizedBox(height: 30),
+                  _buildSaveButton(textTheme, colorScheme),
+                  const SizedBox(height: 20),
+                  _buildSavePresetButton(textTheme, colorScheme),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
           ),
-          // Blur effect
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-            child: Container(
-              color: Colors.white.withOpacity(0.1), // Semi-transparent overlay
-            ),
-          ),
-          // Original content with fade and slide animations
-          FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildWelcomeCard(textTheme, colorScheme),
-                    const SizedBox(height: 20),
-                    _buildPresetTonesCard(textTheme, colorScheme),
-                    const SizedBox(height: 20),
-                    _buildModelSettingsCard(textTheme, colorScheme),
-                    const SizedBox(height: 20),
-                    _buildBasicInfoCard(textTheme, colorScheme),
-                    const SizedBox(height: 20),
-                    _buildCustomTraitsCard(textTheme, colorScheme),
-                    const SizedBox(height: 30),
-                    _buildSaveButton(textTheme, colorScheme),
-                    const SizedBox(height: 20),
-                    _buildSavePresetButton(textTheme, colorScheme),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildWelcomeCard(TextTheme textTheme, ColorScheme colorScheme) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(20),
-            border:
-                Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.deepPurple.withOpacity(0.8),
-                blurRadius: 15,
-                offset: const Offset(0, 10),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer, // Use a theme-appropriate color
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: colorScheme.onPrimary,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Personalize Your AI',
+                        style: textTheme.headlineSmall?.copyWith(
+                          color: colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      child: Icon(
-                        Icons.auto_awesome,
-                        color: Colors.white,
-                        size: 28,
+                      Text(
+                        'Create the perfect tone for your conversations',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onPrimaryContainer.withOpacity(0.9),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Personalize Your AI',
-                            style: textTheme.headlineSmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Create the perfect tone for your conversations',
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -498,81 +471,74 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
 
   Widget _buildPresetCard(Map<String, dynamic> preset, ColorScheme colorScheme,
       {bool isCustomSaved = false}) {
+    final Color cardColor = (preset['color'] as Color? ?? Colors.grey);
     return GestureDetector(
       onTap: () => _applyPreset(preset),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-              border:
-                  Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: (preset['color'] ?? Colors.grey).withOpacity(0.8),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: cardColor.withOpacity(0.1), // Lighter background
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cardColor.withOpacity(0.3), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: cardColor.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            child: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          preset['icon'] ?? Icons.star,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: Text(
-                          preset['name'],
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize:
-                                13, // Reduced font size to help with overflow
-                          ),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isCustomSaved)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      onTap: () =>
-                          _showDeletePresetDialog(context, preset['name']),
-                      child: Icon(
-                        Icons.delete,
-                        color: Colors.red.shade400,
-                        size: 20,
-                      ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      preset['icon'] ?? Icons.star,
+                      color: Colors.white,
+                      size: 24,
                     ),
                   ),
-              ],
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: Text(
+                      preset['name'],
+                      style: TextStyle(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14, // Slightly increased font size
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+            if (isCustomSaved)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () =>
+                      _showDeletePresetDialog(context, preset['name']),
+                  child: Icon(
+                    Icons.delete,
+                    color: Colors.red.shade400,
+                    size: 20,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -599,27 +565,25 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   }
 
   Widget _buildEnhancedDropdown() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade50, Colors.blue.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade200),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: DropdownButtonFormField<String>(
         isExpanded: true,
         decoration: InputDecoration(
           labelText: 'Select AI Model',
+          labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
           filled: true,
           fillColor: Colors.transparent,
-          prefixIcon: Icon(Icons.smart_toy, color: Colors.blue.shade600),
+          prefixIcon: Icon(Icons.smart_toy, color: colorScheme.primary),
           contentPadding:
               const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
@@ -630,7 +594,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             child: Text(
               model,
               style: TextStyle(
-                color: Colors.blue.shade800,
+                color: colorScheme.onSurface,
                 fontWeight: FontWeight.w500,
               ),
               overflow: TextOverflow.ellipsis,
@@ -642,51 +606,43 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             _selectedModel = selectedModel;
           });
         },
-        hint: Text('Choose a model'),
-        dropdownColor: Colors.blue.shade50,
+        hint: Text('Choose a model', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+        dropdownColor: colorScheme.surfaceContainerHigh,
       ),
     );
   }
 
   Widget _buildApiKeyButton(TextTheme textTheme, ColorScheme colorScheme) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
-            border:
-                Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.indigo.withOpacity(0.8),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.secondary.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
-          child: ElevatedButton.icon(
-            onPressed: () => showApiKeyDialog(context),
-            icon: Icon(Icons.vpn_key, color: Colors.white),
-            label: Text(
-              'Manage API Key',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-                fontSize: 16,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        onPressed: () => showApiKeyDialog(context),
+        icon: Icon(Icons.vpn_key, color: colorScheme.onSecondaryContainer),
+        label: Text(
+          'Manage API Key',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSecondaryContainer,
+            fontSize: 16,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
@@ -757,24 +713,22 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.orange.shade50, Colors.orange.shade100],
-        ),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.shade200, width: 2),
+        border: Border.all(color: colorScheme.outlineVariant, width: 1),
       ),
       child: Column(
         children: [
           Icon(
             Icons.add_circle_outline,
             size: 48,
-            color: Colors.orange.shade400,
+            color: colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 12),
           Text(
             'No custom traits added yet',
             style: textTheme.titleMedium?.copyWith(
-              color: Colors.orange.shade700,
+              color: colorScheme.onSurface,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -782,7 +736,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           Text(
             'Click "Add Custom Trait" to personalize your AI further',
             style: textTheme.bodyMedium?.copyWith(
-              color: Colors.orange.shade600,
+              color: colorScheme.onSurfaceVariant,
             ),
             textAlign: TextAlign.center,
           ),
@@ -797,11 +751,9 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.teal.shade50, Colors.teal.shade100],
-        ),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.teal.shade200),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(
         children: [
@@ -810,13 +762,13 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.teal.shade600,
+                  color: colorScheme.tertiary,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${index + 1}',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: colorScheme.onTertiary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -827,12 +779,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                   'Custom Trait ${index + 1}',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.teal.shade700,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                icon: Icon(Icons.delete_outline, color: colorScheme.error),
                 onPressed: () => _removeCustomTrait(index),
                 tooltip: 'Remove Trait',
               ),
@@ -850,11 +802,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                       borderRadius: BorderRadius.circular(8),
                     ),
                     filled: true,
-                    fillColor: Colors.white,
-                    prefixIcon: Icon(Icons.label, color: Colors.teal.shade600),
+                    fillColor: colorScheme.surface,
+                    prefixIcon: Icon(Icons.label, color: colorScheme.primary),
                   ),
                   onChanged: (value) => trait['trait'] = value,
                   controller: TextEditingController(text: trait['trait']),
+                  style: TextStyle(color: colorScheme.onSurface),
                 ),
               ),
               const SizedBox(width: 12),
@@ -867,11 +820,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                       borderRadius: BorderRadius.circular(8),
                     ),
                     filled: true,
-                    fillColor: Colors.white,
-                    prefixIcon: Icon(Icons.star, color: Colors.teal.shade600),
+                    fillColor: colorScheme.surface,
+                    prefixIcon: Icon(Icons.star, color: colorScheme.primary),
                   ),
                   onChanged: (value) => trait['value'] = value,
                   controller: TextEditingController(text: trait['value']),
+                  style: TextStyle(color: colorScheme.onSurface),
                 ),
               ),
             ],
@@ -883,44 +837,35 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
 
   Widget _buildAddTraitButton(ColorScheme colorScheme) {
     return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-              border:
-                  Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.teal.withOpacity(0.8),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.tertiaryContainer,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.tertiary.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            child: ElevatedButton.icon(
-              onPressed: _addCustomTrait,
-              icon: Icon(Icons.add_circle, color: Colors.white),
-              label: Text(
-                'Add Custom Trait',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+          ],
+        ),
+        child: ElevatedButton.icon(
+          onPressed: _addCustomTrait,
+          icon: Icon(Icons.add_circle, color: colorScheme.onTertiaryContainer),
+          label: Text(
+            'Add Custom Trait',
+            style: TextStyle(
+              color: colorScheme.onTertiaryContainer,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         ),
@@ -930,44 +875,36 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
 
   Widget _buildSaveButton(TextTheme textTheme, ColorScheme colorScheme) {
     return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-          child: Container(
-            width: double.infinity,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-              border:
-                  Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.deepPurple,
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+      child: Container(
+        width: double.infinity,
+        height: 60,
+        decoration: BoxDecoration(
+          color: colorScheme.primary,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.primary.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            child: ElevatedButton.icon(
-              onPressed: _saveSettings,
-              icon: Icon(Icons.save, color: Colors.white, size: 24),
-              label: Text(
-                'Save Current Tone',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
+          ],
+        ),
+        child: ElevatedButton.icon(
+          onPressed: _saveSettings,
+          icon: Icon(Icons.save, color: colorScheme.onPrimary, size: 24),
+          label: Text(
+            'Save Current Tone',
+            style: TextStyle(
+              color: colorScheme.onPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
         ),
@@ -977,44 +914,36 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
 
   Widget _buildSavePresetButton(TextTheme textTheme, ColorScheme colorScheme) {
     return Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-          child: Container(
-            width: double.infinity,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-              border:
-                  Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.teal,
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+      child: Container(
+        width: double.infinity,
+        height: 60,
+        decoration: BoxDecoration(
+          color: colorScheme.secondary,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.secondary.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            child: ElevatedButton.icon(
-              onPressed: () => _showSavePresetDialog(context),
-              icon: Icon(Icons.bookmark_add, color: Colors.white, size: 24),
-              label: Text(
-                'Save as New Preset',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
+          ],
+        ),
+        child: ElevatedButton.icon(
+          onPressed: () => _showSavePresetDialog(context),
+          icon: Icon(Icons.bookmark_add, color: colorScheme.onSecondary, size: 24),
+          label: Text(
+            'Save as New Preset',
+            style: TextStyle(
+              color: colorScheme.onSecondary,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
           ),
         ),
@@ -1024,30 +953,65 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
 
   void _showSavePresetDialog(BuildContext context) {
     final TextEditingController presetNameController = TextEditingController();
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Save Current Tone as Preset'),
+          backgroundColor: colorScheme.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Save Current Tone as Preset',
+            style: textTheme.titleLarge?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           content: TextField(
             controller: presetNameController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Enter preset name',
+              hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+              filled: true,
+              fillColor: colorScheme.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           actions: <Widget>[
             TextButton(
-              child: const Text('Cancel'),
               onPressed: () {
                 Navigator.of(context).pop();
               },
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
             ),
             ElevatedButton(
-              child: const Text('Save'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
               onPressed: () {
                 _saveCustomPreset(presetNameController.text);
                 Navigator.of(context).pop();
               },
+              child: Text(
+                'Save',
+                style: TextStyle(color: colorScheme.onPrimary, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         );
@@ -1056,27 +1020,56 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   }
 
   void _showDeletePresetDialog(BuildContext context, String presetName) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Delete Preset'),
-          content: Text('Are you sure you want to delete "$presetName"?'),
+          backgroundColor: colorScheme.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Delete Preset',
+            style: textTheme.titleLarge?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to delete "$presetName"?',
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface,
+            ),
+          ),
           actions: <Widget>[
             TextButton(
-              child: const Text('Cancel'),
               onPressed: () {
                 Navigator.of(context).pop();
               },
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child:
-                  const Text('Delete', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
               onPressed: () {
                 _deleteCustomPreset(presetName);
                 Navigator.of(context).pop();
               },
+              child: Text(
+                'Delete',
+                style: TextStyle(color: colorScheme.onError, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         );
@@ -1085,65 +1078,52 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   }
 
   Widget _buildAnimatedCard({required Widget child}) {
-    return ClipRRect(
-      // Clip for rounded corners with blur
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(
-            sigmaX: 10.0, sigmaY: 10.0), // Blur behind the card
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2), // Translucent white
-            borderRadius: BorderRadius.circular(
-                20), // Redundant with ClipRRect but good for consistency
-            border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 1.5), // Subtle border
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor, // Use theme's card color
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: child,
-          ),
-        ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: child,
       ),
     );
   }
 
   Widget _buildSectionHeader(
       String title, IconData icon, MaterialColor color, TextTheme textTheme) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [color.shade400, color.shade600],
-            ),
+            color: colorScheme.primary,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.3),
+                color: colorScheme.primary.withOpacity(0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: Icon(icon, color: Colors.white, size: 24),
+          child: Icon(icon, color: colorScheme.onPrimary, size: 24),
         ),
         const SizedBox(width: 16),
         Text(
           title,
           style: textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.bold,
-            color: color.shade700,
+            color: colorScheme.onSurface,
           ),
         ),
       ],
@@ -1157,33 +1137,31 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
     IconData icon,
     MaterialColor color,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.shade50, color.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.shade200),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: TextFormField(
         controller: controller,
         decoration: InputDecoration(
           labelText: label,
           hintText: hintText,
+          labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
           filled: true,
           fillColor: Colors.transparent,
-          prefixIcon: Icon(icon, color: color.shade600),
+          prefixIcon: Icon(icon, color: colorScheme.primary),
           contentPadding:
               const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
-        style: TextStyle(color: color.shade800, fontWeight: FontWeight.w500),
+        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
       ),
     );
   }
