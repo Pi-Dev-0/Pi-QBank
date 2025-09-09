@@ -41,6 +41,33 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   List<Map<String, dynamic>> _presetTones = [];
   List<Map<String, dynamic>> _customSavedPresets = [];
 
+  static const Map<int, IconData> _iconMap = {
+    0xe484: Icons.palette, // Icons.palette.codePoint
+    0xe58c: Icons.smart_toy, // Icons.smart_toy.codePoint
+    0xe57d: Icons.school, // Icons.school.codePoint
+    0xe25c: Icons.favorite, // Icons.favorite.codePoint
+    0xe06f: Icons.bookmark, // Icons.bookmark.codePoint
+    0xe5ca: Icons.check_circle, // Icons.check_circle.codePoint
+    0xe000: Icons.error, // Icons.error.codePoint
+    0xe06e: Icons.bookmark_added, // Icons.bookmark_added.codePoint
+    0xe872: Icons.delete_forever, // Icons.delete_forever.codePoint
+    0xe838: Icons.star, // Icons.star.codePoint
+    0xe065: Icons.auto_awesome, // Icons.auto_awesome.codePoint
+    0xe322: Icons.memory, // Icons.memory.codePoint
+    0xe62e: Icons.vpn_key, // Icons.vpn_key.codePoint
+    0xe7fd: Icons.person, // Icons.person.codePoint
+    0xe62c: Icons.transgender, // Icons.transgender.codePoint
+    0xe7f0: Icons.people, // Icons.people.codePoint
+    0xe310: Icons.language, // Icons.language.codePoint
+    0xe335: Icons.lightbulb_outline, // Icons.lightbulb_outline.codePoint
+    0xe62b: Icons.tune, // Icons.tune.codePoint
+    0xe14a: Icons.add_circle_outline, // Icons.add_circle_outline.codePoint
+    0xe31b: Icons.label, // Icons.label.codePoint
+    0xe147: Icons.add_circle, // Icons.add_circle.codePoint
+    0xe618: Icons.save, // Icons.save.codePoint
+    0xe06d: Icons.bookmark_add, // Icons.bookmark_add.codePoint
+  };
+
   final List<Map<String, dynamic>> _defaultPresetTones = [
     {
       'name': 'Custom Tone',
@@ -152,9 +179,9 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
               }
               // Reconstruct IconData from code point
               if (decoded['iconCodePoint'] != null) {
-                decoded['icon'] = IconData(decoded['iconCodePoint'] as int, fontFamily: 'MaterialIcons');
+                decoded['icon'] = _iconMap[decoded['iconCodePoint'] as int] ?? Icons.star;
               } else if (decoded['icon'] is int) { // Handle cases where old data might have icon as int
-                decoded['icon'] = IconData(decoded['icon'] as int, fontFamily: 'MaterialIcons');
+                decoded['icon'] = _iconMap[decoded['icon'] as int] ?? Icons.star;
               }
               // Reconstruct Color from integer value
               if (decoded['colorValue'] != null) {
@@ -300,7 +327,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   // Helper to get IconData from a preset map
   IconData _getPresetIcon(Map<String, dynamic> preset) {
     if (preset.containsKey('iconCodePoint')) {
-      return IconData(preset['iconCodePoint'] as int, fontFamily: 'MaterialIcons');
+      return _iconMap[preset['iconCodePoint'] as int] ?? Icons.star;
     }
     // Fallback for default presets that might still have 'icon' directly (though we've changed them)
     // or for safety if 'iconCodePoint' is missing.
