@@ -23,7 +23,7 @@ class AIPage extends StatefulWidget {
   State<AIPage> createState() => _AIPageState();
 }
 
-class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
+class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
@@ -37,6 +37,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
   List<List<ChatMessageModel>> _chatHistory = []; // List of past chats
   bool _isShowingHistory = false; // To toggle between current chat and history
   int? _currentChatIndex; // Null for a new chat, index for an existing chat
+  bool _isHistoryLoaded = false; // New flag to track if history is loaded
 
   // Personal Tone Settings
   String _toneName = '';
@@ -54,8 +55,9 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Add observer
     _loadPersonalToneSettings(); // Load settings on init
-    _loadChatHistory(); // Load chat history on init
+    _startNewChatOnLaunch(); // Start a new blank chat and load history in background
     flutterTts = FlutterTts();
     _initTts();
 
@@ -116,22 +118,42 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
       await flutterTts.speak(text);
     }
     flutterTts.setCompletionHandler(() {
-      setState(() {
-        _speakingMessageIndex = null;
-      });
+      if (mounted) { // Add mounted check
+        setState(() {
+          _speakingMessageIndex = null;
+        });
+      }
     });
   }
 
   Future _stop() async {
     await flutterTts.stop();
-    setState(() {
-      _speakingMessageIndex = null;
-    });
+    if (mounted) { // Add mounted check
+      setState(() {
+        _speakingMessageIndex = null;
+      });
+    }
   }
 
   Future<void> _loadChatHistory() async {
     _chatHistory = await _chatHistoryService.loadChatHistory();
-    setState(() {});
+    setState(() {
+      _isHistoryLoaded = true; // Set flag to true once history is loaded
+    });
+  }
+
+  void _startNewChatOnLaunch() {
+    setState(() {
+      _messages.clear();
+      _selectedImage = null;
+      _isLoading = false;
+      _isGeneratingImage = false;
+      _speakingMessageIndex = null;
+      _isShowingHistory = false;
+      _currentChatIndex = null; // Ensure a new blank chat
+      _isHistoryLoaded = false; // Reset flag
+    });
+    _loadChatHistory(); // Load history in the background
   }
 
   Future<void> _saveCurrentChat() async {
@@ -169,6 +191,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
       _isShowingHistory = false; // Ensure we are on the current chat view
       _currentChatIndex = null; // Reset to null for a new chat
     });
+    _scrollToBottom(); // Scroll to bottom for the new chat
   }
 
   void _viewChatHistory(int index) async {
@@ -216,7 +239,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
-    _saveCurrentChat(); // Save current chat when disposing the page
+    WidgetsBinding.instance.removeObserver(this); // Remove observer
     _scrollController.dispose();
     _controller.dispose();
     _stop(); // Stop TTS when disposing
@@ -395,6 +418,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
                 onStop: _stop,
                 isSpeaking: false));
           });
+          await _saveCurrentChat(); // Save after AI response
         } else {
           throw Exception('Invalid response format or empty candidates');
         }
@@ -527,29 +551,20 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
               if (!_isShowingHistory) {
                 // If switching to show history, save current chat
                 await _saveCurrentChat();
-              } else {
-                // If switching back to current chat view
-                if (_currentChatIndex == null) {
-                  // If no chat was selected from history, start a new empty chat
-                  _messages.clear();
-                } else {
-                  // If a chat was selected, reload it
-                  _messages.clear();
-                  _messages.addAll(_chatHistory[_currentChatIndex!].map((model) => ChatMessage(
-                    text: model.text,
-                    isUser: model.isUser,
-                    imagePath: model.imagePath,
-                    base64Image: model.base64Image,
-                    userImageBase64: model.userImageBase64,
-                    onSpeak: (text) => _speak(text),
-                    onStop: _stop,
-                    isSpeaking: false,
-                  )));
-                }
               }
               setState(() {
                 _isShowingHistory = !_isShowingHistory;
+                if (!_isShowingHistory) {
+                  // If switching back to current chat view, ensure a blank chat
+                  _messages.clear();
+                  _currentChatIndex = null;
+                  _selectedImage = null;
+                  _isLoading = false;
+                  _isGeneratingImage = false;
+                  _speakingMessageIndex = null;
+                }
               });
+              _scrollToBottom();
             },
             tooltip: _isShowingHistory ? 'Current Chat' : 'Chat History',
           ),
@@ -574,41 +589,43 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
             children: [
               Expanded(
                 child: _isShowingHistory
-                    ? ListView.builder(
-                        itemCount: _chatHistory.length + 1, // +1 for New Chat option
-                        padding: const EdgeInsets.all(12.0),
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            return Card(
-                              margin: const EdgeInsets.symmetric(vertical: 8.0),
-                              child: ListTile(
-                                leading: const Icon(Icons.add_comment),
-                                title: const Text('New Chat'),
-                                onTap: _startNewChat,
-                              ),
-                            );
-                          }
-                          final chat = _chatHistory[index - 1]; // Adjust index for history list
-                          // Display a summary of the chat
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 8.0),
-                            child: ListTile(
-                              title: Text(
-                                  'Chat ${(_chatHistory.length - (index - 1))}: ${chat.first.text.substring(0, chat.first.text.length > 50 ? 50 : chat.first.text.length)}...'),
-                              subtitle: Text(
-                                  '${chat.length} messages'),
-                              onTap: () => _viewChatHistory(index - 1), // Pass the actual index
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () async {
-                                  await _chatHistoryService.deleteChatAtIndex(index - 1); // Adjust index for actual history list
-                                  _loadChatHistory(); // Reload history after deleting
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      )
+                    ? (_isHistoryLoaded
+                        ? ListView.builder(
+                            itemCount: _chatHistory.length + 1, // +1 for New Chat option
+                            padding: const EdgeInsets.all(12.0),
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: ListTile(
+                                    leading: const Icon(Icons.add_comment),
+                                    title: const Text('New Chat'),
+                                    onTap: _startNewChat,
+                                  ),
+                                );
+                              }
+                              final chat = _chatHistory[index - 1]; // Adjust index for history list
+                              // Display a summary of the chat
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 8.0),
+                                child: ListTile(
+                                  title: Text(
+                                      'Chat ${(_chatHistory.length - (index - 1))}: ${chat.first.text.substring(0, chat.first.text.length > 50 ? 50 : chat.first.text.length)}...'),
+                                  subtitle: Text(
+                                      '${chat.length} messages'),
+                                  onTap: () => _viewChatHistory(index - 1), // Pass the actual index
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    onPressed: () async {
+                                      await _chatHistoryService.deleteChatAtIndex(index - 1); // Adjust index for actual history list
+                                      _loadChatHistory(); // Reload history after deleting
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : const Center(child: CircularProgressIndicator())) // Show loader while history loads
                     : ListView.builder(
                         controller: _scrollController,
                         itemCount: _messages.length,
@@ -768,7 +785,6 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin {
     );
   }
 }
-
 class ChatMessage extends StatelessWidget {
   final String text;
   final bool isUser;
