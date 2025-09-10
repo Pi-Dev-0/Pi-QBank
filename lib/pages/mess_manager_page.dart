@@ -3,7 +3,8 @@ import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:pi_qbank/models/mess_manager_models.dart'; // Import new models
+import 'package:pi_qbank/models/mess_manager_models.dart';
+import 'package:intl/intl.dart';
 
 class MessManagerPage extends StatefulWidget {
   const MessManagerPage({super.key});
@@ -14,41 +15,70 @@ class MessManagerPage extends StatefulWidget {
 
 class _MessManagerPageState extends State<MessManagerPage> {
   // State variables
-  List<Member> _members = [];
-  List<Meal> _meals = [];
-  List<Deposit> _deposits = [];
-  List<Expense> _expenses = [];
+  final List<Member> _members = [];
+  final List<Meal> _meals = [];
+  final List<ManagerExpense> _managerExpenses = [];
+  final List<MemberExpense> _memberExpenses = [];
+  final List<Deposit> _deposits = [];
+
+  // Selected member IDs
+  String _selectedExpenseMemberId = '';
+
+  // Controllers
+  final TextEditingController _expenseAmountController =
+      TextEditingController();
+  final TextEditingController _expenseDescriptionController =
+      TextEditingController();
+
+  // Getters
+  double get _totalExpense =>
+      _managerExpenses.fold(0.0, (sum, e) => sum + e.amount) +
+      _memberExpenses.fold(0.0, (sum, e) => sum + e.amount);
 
   // Controllers for input fields
-  final TextEditingController _newMemberNameController = TextEditingController();
-  final TextEditingController _depositAmountController = TextEditingController();
-  final TextEditingController _expenseAmountController = TextEditingController();
-  final TextEditingController _expenseDescriptionController = TextEditingController();
-
-  String _selectedDepositMemberId = '';
-  String _selectedExpenseMemberId = '';
+  final TextEditingController _newMemberNameController =
+      TextEditingController();
+  final TextEditingController _initialDepositController =
+      TextEditingController();
+  final TextEditingController _managerExpenseAmountController =
+      TextEditingController();
+  final TextEditingController _managerExpenseDescriptionController =
+      TextEditingController();
+  final TextEditingController _memberExpenseAmountController =
+      TextEditingController();
+  final TextEditingController _memberExpenseDescriptionController =
+      TextEditingController();
 
   @override
   void dispose() {
     _newMemberNameController.dispose();
-    _depositAmountController.dispose();
-    _expenseAmountController.dispose();
-    _expenseDescriptionController.dispose();
+    _initialDepositController.dispose();
+    _managerExpenseAmountController.dispose();
+    _managerExpenseDescriptionController.dispose();
+    _memberExpenseAmountController.dispose();
+    _memberExpenseDescriptionController.dispose();
     super.dispose();
   }
 
   // Handlers
   void _handleAddMember() {
     if (_newMemberNameController.text.trim().isNotEmpty) {
+      final initialDeposit =
+          double.tryParse(_initialDepositController.text) ?? 0.0;
       setState(() {
-        final newMember = Member(id: DateTime.now().millisecondsSinceEpoch.toString(), name: _newMemberNameController.text.trim());
+        final newMember = Member(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: _newMemberNameController.text.trim(),
+          initialDeposit: initialDeposit,
+        );
         _members.add(newMember);
         _meals.add(Meal(memberId: newMember.id, count: 0));
         _newMemberNameController.clear();
+        _initialDepositController.clear();
       });
-      _showSnackBar('সদস্য সফলভাবে যোগ করা হয়েছে। (Member added successfully.)', Colors.green);
+      _showSnackBar('সদস্য সফলভাবে যোগ করা হয়েছে।', Colors.green);
     } else {
-      _showSnackBar('সদস্যের নাম খালি রাখা যাবে না। (Member name cannot be empty.)', Colors.red);
+      _showSnackBar('সদস্যের নাম খালি রাখা যাবে না।', Colors.red);
     }
   }
 
@@ -57,57 +87,60 @@ class _MessManagerPageState extends State<MessManagerPage> {
       _members.removeWhere((m) => m.id == memberId);
       _meals.removeWhere((m) => m.memberId == memberId);
       _deposits.removeWhere((d) => d.memberId == memberId);
-      _expenses.removeWhere((e) => e.memberId == memberId);
+      _memberExpenses.removeWhere((e) => e.memberId == memberId);
     });
-    _showSnackBar('সদস্য সফলভাবে মুছে ফেলা হয়েছে। (Member deleted successfully.)', Colors.orange);
+    _showSnackBar('সদস্য মুছে ফেলা হয়েছে।', Colors.orange);
   }
 
-  void _handleMealChange(String memberId, String countText) {
-    int count = int.tryParse(countText) ?? 0;
-    if (count < 0) count = 0;
+  void _handleAddManagerExpense() {
+    final amount = double.tryParse(_managerExpenseAmountController.text);
+    final description = _managerExpenseDescriptionController.text.trim();
 
-    setState(() {
-      final index = _meals.indexWhere((m) => m.memberId == memberId);
-      if (index != -1) {
-        _meals[index].count = count;
-      } else {
-        _meals.add(Meal(memberId: memberId, count: count));
-      }
-    });
-  }
-
-  void _handleAddDeposit() {
-    final amount = double.tryParse(_depositAmountController.text);
-    if (_selectedDepositMemberId.isNotEmpty && amount != null && amount > 0) {
+    if (amount != null && amount > 0 && description.isNotEmpty) {
       setState(() {
-        _deposits.add(Deposit(id: DateTime.now().millisecondsSinceEpoch.toString(), memberId: _selectedDepositMemberId, amount: amount));
-        _depositAmountController.clear();
-        _selectedDepositMemberId = '';
+        _managerExpenses.add(ManagerExpense(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          amount: amount,
+          description: description,
+        ));
+        _managerExpenseAmountController.clear();
+        _managerExpenseDescriptionController.clear();
       });
-      _showSnackBar('জমা সফলভাবে যোগ করা হয়েছে। (Deposit added successfully.)', Colors.green);
+      _showSnackBar('ম্যানেজারের খরচ যোগ করা হয়েছে।', Colors.green);
     } else {
-      _showSnackBar('সদস্য নির্বাচন করুন এবং সঠিক পরিমাণ দিন। (Select a member and enter a valid amount.)', Colors.red);
+      _showSnackBar('সঠিক পরিমাণ এবং বিবরণ দিন।', Colors.red);
+    }
+  }
+
+  void _handleAddMemberExpense() {
+    final amount = double.tryParse(_memberExpenseAmountController.text);
+    final description = _memberExpenseDescriptionController.text.trim();
+
+    if (amount != null &&
+        amount > 0 &&
+        description.isNotEmpty &&
+        _selectedExpenseMemberId.isNotEmpty) {
+      setState(() {
+        _memberExpenses.add(MemberExpense(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          memberId: _selectedExpenseMemberId,
+          amount: amount,
+          description: description,
+        ));
+        _memberExpenseAmountController.clear();
+        _memberExpenseDescriptionController.clear();
+        _selectedExpenseMemberId = '';
+      });
+      _showSnackBar('সদস্যের খরচ যোগ করা হয়েছে।', Colors.green);
+    } else {
+      _showSnackBar(
+          'সদস্য নির্বাচন করুন, সঠিক পরিমাণ এবং বিবরণ দিন।', Colors.red);
     }
   }
 
   void _handleAddExpense() {
-    final amount = double.tryParse(_expenseAmountController.text);
-    if (_selectedExpenseMemberId.isNotEmpty && amount != null && amount > 0 && _expenseDescriptionController.text.trim().isNotEmpty) {
-      setState(() {
-        _expenses.add(Expense(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          memberId: _selectedExpenseMemberId,
-          amount: amount,
-          description: _expenseDescriptionController.text.trim(),
-        ));
-        _expenseAmountController.clear();
-        _expenseDescriptionController.clear();
-        _selectedExpenseMemberId = '';
-      });
-      _showSnackBar('খরচ সফলভাবে যোগ করা হয়েছে। (Expense added successfully.)', Colors.green);
-    } else {
-      _showSnackBar('খরচকারী নির্বাচন করুন, সঠিক পরিমাণ এবং বিবরণ দিন। (Select an expense creator, enter a valid amount and description.)', Colors.red);
-    }
+    // This is just a wrapper for _handleAddMemberExpense for backward compatibility
+    _handleAddMemberExpense();
   }
 
   // Show SnackBar
@@ -121,35 +154,89 @@ class _MessManagerPageState extends State<MessManagerPage> {
     );
   }
 
-  // Calculations (equivalent to useMemo)
+  // Edit initial deposit for a member
+  Future<void> _showEditInitialDepositDialog(Member member) async {
+    final controller = TextEditingController(
+        text: member.initialDeposit.toStringAsFixed(2));
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('প্রাথমিক জমা সম্পাদনা'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'প্রাথমিক জমা',
+              prefixText: '৳ ',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('বন্ধ করুন'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final val = double.tryParse(controller.text.trim());
+                if (val == null || val < 0) {
+                  _showSnackBar('সঠিক পরিমাণ দিন।', Colors.red);
+                  return;
+                }
+                setState(() {
+                  final idx = _members.indexWhere((m) => m.id == member.id);
+                  if (idx != -1) {
+                    _members[idx] = Member(
+                      id: member.id,
+                      name: member.name,
+                      initialDeposit: val,
+                    );
+                  }
+                });
+                Navigator.of(context).pop();
+                _showSnackBar('প্রাথমিক জমা হালনাগাদ করা হয়েছে।', Colors.green);
+              },
+              child: const Text('সেভ করুন'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Calculations
+  double get _totalManagerExpenses =>
+      _managerExpenses.fold(0.0, (sum, e) => sum + e.amount);
+  double get _totalMemberExpenses =>
+      _memberExpenses.fold(0.0, (sum, e) => sum + e.amount);
+  double get _totalExpenses => _totalManagerExpenses + _totalMemberExpenses;
   double get _totalDeposit => _deposits.fold(0.0, (sum, d) => sum + d.amount);
-  double get _totalExpense => _expenses.fold(0.0, (sum, e) => sum + e.amount);
   int get _totalMeals => _meals.fold(0, (sum, m) => sum + m.count);
-  double get _mealRate => _totalMeals > 0 ? _totalExpense / _totalMeals : 0.0;
+  double get _mealRate => _totalMeals > 0 ? _totalExpenses / _totalMeals : 0.0;
 
   List<ReportData> get _reportData {
     return _members.map((member) {
-      final memberMeals = _meals.firstWhere((m) => m.memberId == member.id, orElse: () => Meal(memberId: member.id, count: 0)).count;
-      final memberDeposit = _deposits
-          .where((d) => d.memberId == member.id)
-          .fold(0.0, (sum, d) => sum + d.amount);
-      final personalExpense = _expenses
+      final memberMeals = _meals
+          .firstWhere((m) => m.memberId == member.id,
+              orElse: () => Meal(memberId: member.id, count: 0))
+          .count;
+      final memberDeposit = member.initialDeposit;
+      final personalExpense = _memberExpenses
           .where((e) => e.memberId == member.id)
           .fold(0.0, (sum, e) => sum + e.amount);
-
       final totalContribution = memberDeposit + personalExpense;
       final mealCost = memberMeals * _mealRate;
       final balance = totalContribution - mealCost;
-
       return ReportData(
         memberId: member.id,
         memberName: member.name,
         totalMeals: memberMeals,
-        totalDeposit: memberDeposit,
+        initialDeposit: memberDeposit,
         personalExpense: personalExpense,
         totalContribution: totalContribution,
         mealCost: mealCost,
         balance: balance,
+        mealRate: _mealRate,
       );
     }).toList();
   }
@@ -165,7 +252,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
           return [
             pw.Center(
               child: pw.Text(
-                'মেস হিসাব নিকাশ (Mess Calculation Report)',
+                'মেস হিসাব নিকাশ',
                 style:
                     pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
               ),
@@ -174,51 +261,76 @@ class _MessManagerPageState extends State<MessManagerPage> {
             pw.Divider(),
             pw.SizedBox(height: 10),
             pw.Text(
-              'মেস এর হিসাব (Mess Calculation)',
+              'মেস এর হিসাব',
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
-            _buildPdfCalculationRow(
-                'মোট মিল সংখ্যা (Total Meals):', _totalMeals.toString()),
-            _buildPdfCalculationRow('মোট খরচ (Total Expenses):',
-                _totalExpense.toStringAsFixed(2)),
-            _buildPdfCalculationRow('মোট জমা (Total Deposits):',
-                _totalDeposit.toStringAsFixed(2)),
-            _buildPdfCalculationRow(
-                'মিল রেট (Meal Rate):', _mealRate.toStringAsFixed(2)),
+            _buildPdfCalculationRow('মোট মিল সংখ্যা:', _totalMeals.toString()),
+            _buildPdfCalculationRowColored(
+                'মোট খরচ:', _totalExpense.toStringAsFixed(2),
+                color: PdfColors.red),
+            _buildPdfCalculationRowColored(
+                'মোট জমা:', _totalDeposit.toStringAsFixed(2),
+                color: PdfColors.green),
+            _buildPdfCalculationRow('মিল রেট:', _mealRate.toStringAsFixed(2)),
             pw.SizedBox(height: 20),
             pw.Divider(),
             pw.SizedBox(height: 10),
             pw.Text(
-              'সদস্যদের হিসাব (Members\' Accounts)',
+              'সদস্যদের হিসাব',
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
             if (_reportData.isEmpty)
-              pw.Text('কোনো সদস্য যোগ করা হয়নি। (No members added yet.)')
+              pw.Text('কোনো সদস্য যোগ করা হয়নি।')
             else
               ..._reportData.map((data) {
                 return pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text(
-                      'নাম (Name): ${data.memberName}',
+                      'নাম: ${data.memberName}',
                       style: pw.TextStyle(
                           fontWeight: pw.FontWeight.bold, fontSize: 14),
                     ),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('মোট জমা:'),
+                        pw.Text(
+                            '${data.initialDeposit.toStringAsFixed(2)} টাকা',
+                            style: pw.TextStyle(color: PdfColors.green)),
+                      ],
+                    ),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('মোট মিল:'),
+                        pw.Text('${data.totalMeals} টি'),
+                      ],
+                    ),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('ব্যক্তিগত খরচ:'),
+                        pw.Text(
+                            '${data.personalExpense.toStringAsFixed(2)} টাকা',
+                            style: pw.TextStyle(color: PdfColors.red)),
+                      ],
+                    ),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('মিল খরচ:'),
+                        pw.Text('${data.mealCost.toStringAsFixed(2)} টাকা',
+                            style: pw.TextStyle(color: PdfColors.red)),
+                      ],
+                    ),
                     pw.Text(
-                        'মোট জমা (Total Deposit): ${data.totalDeposit.toStringAsFixed(2)} টাকা'),
-                    pw.Text('মোট মিল (Total Meals): ${data.totalMeals} টি'),
-                    pw.Text(
-                        'ব্যক্তিগত খরচ (Personal Expense): ${data.personalExpense.toStringAsFixed(2)} টাকা'),
-                    pw.Text(
-                        'মিল খরচ (Meal Cost): ${data.mealCost.toStringAsFixed(2)} টাকা'),
-                    pw.Text(
-                      'অবশিষ্ট (Balance): ${data.balance.toStringAsFixed(2)} টাকা',
+                      'অবশিষ্ট: ${data.balance.toStringAsFixed(2)} টাকা',
                       style: pw.TextStyle(
-                        color: data.balance >= 0
-                            ? PdfColors.green
-                            : PdfColors.red,
+                        color:
+                            data.balance >= 0 ? PdfColors.green : PdfColors.red,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
@@ -230,24 +342,35 @@ class _MessManagerPageState extends State<MessManagerPage> {
             pw.Divider(),
             pw.SizedBox(height: 10),
             pw.Text(
-              'খরচের তালিকা (Expense List)',
+              'খরচের তালিকা',
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
-            if (_expenses.isEmpty)
-              pw.Text(
-                  'কোনো খরচ যোগ করা হয়নি। (No expenses added yet.)')
+            if (_managerExpenses.isEmpty && _memberExpenses.isEmpty)
+              pw.Text('কোনো খরচ যোগ করা হয়নি।')
             else
-              ..._expenses.map((expense) {
-                final memberName = _members.firstWhere((m) => m.id == expense.memberId, orElse: () => Member(id: '', name: 'Unknown')).name;
+              ..._managerExpenses.map((expense) {
                 return pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('${expense.description} (${memberName})'),
+                    pw.Text('${expense.description} (ম্যানেজার)'),
                     pw.Text('${expense.amount.toStringAsFixed(2)} টাকা'),
                   ],
                 );
-              }),
+              }).toList()
+                ..addAll(_memberExpenses.map((expense) {
+                  final memberName = _members
+                      .firstWhere((m) => m.id == expense.memberId,
+                          orElse: () => Member(id: '', name: 'অজানা'))
+                      .name;
+                  return pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('${expense.description} ($memberName)'),
+                      pw.Text('${expense.amount.toStringAsFixed(2)} টাকা'),
+                    ],
+                  );
+                })),
           ];
         },
       ),
@@ -276,362 +399,548 @@ class _MessManagerPageState extends State<MessManagerPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: CustomAppBar(
-        title: 'মেস ম্যানেজার (Mess Manager)',
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.print),
-            onPressed: _generatePdfReport,
-            tooltip: 'Print Report',
+  pw.Widget _buildPdfCalculationRowColored(String label, String value,
+      {PdfColor? color}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2.0),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.normal),
+          ),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+                fontSize: 14, fontWeight: pw.FontWeight.bold, color: color),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Summary Section
-            Card(
-              elevation: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('মেস এর হিসাব (Mess Calculation)'),
-                    _buildCalculationRow('মোট জমা (Total Deposits):',
-                        '${_totalDeposit.toStringAsFixed(2)} টাকা'),
-                    _buildCalculationRow('মোট খরচ (Total Expenses):',
-                        '${_totalExpense.toStringAsFixed(2)} টাকা'),
-                    _buildCalculationRow('মোট মিল সংখ্যা (Total Meals):',
-                        '${_totalMeals} টি'),
-                    _buildCalculationRow('মিল রেট (Meal Rate):',
-                        '${_mealRate.toStringAsFixed(2)} টাকা'),
-                  ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        appBar: CustomAppBar(
+          title: 'মেস ম্যানেজার',
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.print),
+              onPressed: _generatePdfReport,
+              tooltip: 'রিপোর্ট প্রিন্ট করুন',
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Summary Section
+              Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('মেস এর হিসাব'),
+                      _buildCalculationRow('মোট জমা:',
+                          '${_members.fold(0.0, (sum, m) => sum + m.initialDeposit).toStringAsFixed(2)} টাকা',
+                          textColor: Colors.green),
+                      _buildCalculationRow('মোট খরচ:',
+                          '${_totalExpenses.toStringAsFixed(2)} টাকা',
+                          textColor: Colors.red),
+                      _buildCalculationRow('ম্যানেজারের খরচ:',
+                          '${_totalManagerExpenses.toStringAsFixed(2)} টাকা',
+                          textColor: Colors.red),
+                      _buildCalculationRow('সদস্যদের খরচ:',
+                          '${_totalMemberExpenses.toStringAsFixed(2)} টাকা',
+                          textColor: Colors.red),
+                      _buildCalculationRow(
+                          'মোট মিল সংখ্যা:', '$_totalMeals টি'),
+                      _buildCalculationRow(
+                          'মিল রেট:', '${_mealRate.toStringAsFixed(2)} টাকা'),
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-            // Members and Meals Management
-            Card(
-              elevation: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('সদস্য ও মিল ব্যবস্থাপনা (Members & Meal Management)'),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _newMemberNameController,
-                            decoration: InputDecoration(
-                              labelText: 'নতুন সদস্যের নাম (New Member Name)',
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                            ),
+              // Manager Expenses Section
+              Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('ম্যানেজারের খরচ'),
+                      TextField(
+                        controller: _managerExpenseDescriptionController,
+                        decoration: InputDecoration(
+                          labelText: 'খরচের বিবরণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _managerExpenseAmountController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'পরিমাণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          prefixText: '৳ ',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _handleAddManagerExpense,
+                          icon: const Icon(Icons.add),
+                          label: const Text('খরচ যোগ করুন'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        ElevatedButton.icon(
-                          onPressed: _handleAddMember,
-                          icon: const Icon(Icons.person_add_alt_1),
-                          label: const Text('যোগ করুন'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                            shape: RoundedRectangleBorder(
+                      ),
+                      if (_managerExpenses.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _fullWidthLabel('খরচের তালিকা'),
+                        ..._managerExpenses.map((expense) => ListTile(
+                              title: Text(expense.description),
+                              subtitle: Text(DateFormat('dd MMM yyyy')
+                                  .format(expense.date)),
+                              trailing: Text(
+                                  '৳${expense.amount.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red)),
+                            )),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              // Member Expenses Section
+              Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('সদস্যদের খরচ'),
+                      if (_members.isNotEmpty) ...[
+                        DropdownButtonFormField<String>(
+                          value: _selectedExpenseMemberId.isEmpty
+                              ? null
+                              : _selectedExpenseMemberId,
+                          decoration: InputDecoration(
+                            labelText: 'সদস্য নির্বাচন করুন',
+                            border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8)),
                           ),
+                          items: _members
+                              .map((member) => DropdownMenuItem(
+                                    value: member.id,
+                                    child: Text(member.name),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedExpenseMemberId = value ?? '';
+                            });
+                          },
                         ),
+                        const SizedBox(height: 10),
                       ],
-                    ),
-                    const SizedBox(height: 20),
-                    if (_members.isEmpty)
-                      const Text('কোনো সদস্য যোগ করা হয়নি। (No members added yet.)')
-                    else
-                      ..._members.map((member) {
-                        final memberMeals = _meals.firstWhere((m) => m.memberId == member.id, orElse: () => Meal(memberId: member.id, count: 0)).count;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  member.name,
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                                ),
-                              ),
-                              SizedBox(
-                                width: 80,
-                                child: TextField(
-                                  controller: TextEditingController(text: memberMeals.toString()),
-                                  keyboardType: TextInputType.number,
-                                  textAlign: TextAlign.right,
-                                  decoration: InputDecoration(
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                  ),
-                                  onChanged: (value) => _handleMealChange(member.id, value),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => _handleDeleteMember(member.id),
-                              ),
-                            ],
+                      TextField(
+                        controller: _expenseDescriptionController,
+                        decoration: InputDecoration(
+                          labelText: 'খরচের বিবরণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _expenseAmountController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'পরিমাণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          prefixText: '৳ ',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _handleAddExpense,
+                          icon: const Icon(Icons.add),
+                          label: const Text('খরচ যোগ করুন'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
-                        );
-                      }),
-                  ],
-                ),
-              ),
-            ),
-
-            // Deposit Form
-            Card(
-              elevation: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('টাকা জমা করুন (Add Deposit)'),
-                    DropdownButtonFormField<String>(
-                      value: _selectedDepositMemberId.isEmpty && _members.isNotEmpty
-                          ? _members.first.id
-                          : _selectedDepositMemberId,
-                      decoration: InputDecoration(
-                        labelText: 'সদস্য নির্বাচন করুন (Select Member)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      items: [
-                        const DropdownMenuItem(value: '', child: Text('সদস্য নির্বাচন করুন')),
-                        ..._members.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))),
-                      ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedDepositMemberId = value ?? '';
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _depositAmountController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'টাকার পরিমাণ (Amount)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _handleAddDeposit,
-                        icon: const Icon(Icons.attach_money),
-                        label: const Text('জমা করুন (Deposit)'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade600,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Expense Form
-            Card(
-              elevation: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('খরচ যোগ করুন (Add Expense)'),
-                    DropdownButtonFormField<String>(
-                      value: _selectedExpenseMemberId.isEmpty && _members.isNotEmpty
-                          ? _members.first.id
-                          : _selectedExpenseMemberId,
-                      decoration: InputDecoration(
-                        labelText: 'খরচকারী নির্বাচন করুন (Select Payer)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      items: [
-                        const DropdownMenuItem(value: '', child: Text('খরচকারী নির্বাচন করুন')),
-                        ..._members.map((m) => DropdownMenuItem(value: m.id, child: Text(m.name))),
+                      if (_memberExpenses.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        const Text('খরচের তালিকা:',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        ..._memberExpenses.map((expense) {
+                          final member = _members.firstWhere(
+                              (m) => m.id == expense.memberId,
+                              orElse: () => Member(id: '', name: 'অজানা'));
+                          return ListTile(
+                            title: Text(expense.description),
+                            subtitle: Text(
+                                '${member.name} • ${DateFormat('dd MMM yyyy').format(expense.date)}'),
+                            trailing: Text(
+                                '৳${expense.amount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red)),
+                          );
+                        }),
                       ],
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedExpenseMemberId = value ?? '';
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _expenseAmountController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'টাকার পরিমাণ (Amount)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _expenseDescriptionController,
-                      decoration: InputDecoration(
-                        labelText: 'খরচের বিবরণ (Expense Description)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _handleAddExpense,
-                        icon: const Icon(Icons.shopping_cart_checkout),
-                        label: const Text('খরচ যোগ করুন (Add Expense)'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade600,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-            // Members' Accounts Report
-            Card(
-              elevation: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('সদস্যদের হিসাব (Members\' Accounts)'),
-                    if (_reportData.isEmpty)
-                      const Text(
-                          'কোনো সদস্য যোগ করা হয়নি। (No members added yet.)')
-                    else
-                      ..._reportData.map((data) {
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 8.0),
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
+              // Members and Meals Management
+              Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('সদস্য ও মিল ব্যবস্থাপনা'),
+                      Row(
+                        children: [
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'নাম (Name): ${data.memberName}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.deepPurple),
+                                TextField(
+                                  controller: _newMemberNameController,
+                                  decoration: InputDecoration(
+                                    labelText: 'নতুন সদস্যের নাম',
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                  ),
                                 ),
-                                const Divider(),
-                                _buildCalculationRow('মোট জমা (Total Deposit):',
-                                    '${data.totalDeposit.toStringAsFixed(2)} টাকা'),
-                                _buildCalculationRow('মোট মিল (Total Meals):',
-                                    '${data.totalMeals} টি'),
-                                _buildCalculationRow(
-                                    'ব্যক্তিগত খরচ (Personal Expense):',
-                                    '${data.personalExpense.toStringAsFixed(2)} টাকা'),
-                                _buildCalculationRow('মিল খরচ (Meal Cost):',
-                                    '${data.mealCost.toStringAsFixed(2)} টাকা'),
-                                const Divider(),
-                                _buildCalculationRow(
-                                  'অবশিষ্ট (Balance):',
-                                  '${data.balance.toStringAsFixed(2)} টাকা',
-                                  textColor: data.balance >= 0
-                                      ? Colors.green.shade700
-                                      : Colors.red.shade700,
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _initialDepositController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    labelText: 'প্রাথমিক জমা',
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                    prefixText: '৳ ',
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        );
-                      }),
-                  ],
-                ),
-              ),
-            ),
-
-            // Expense List
-            Card(
-              elevation: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle(
-                        'খরচের তালিকা (Expense List)'),
-                    if (_expenses.isEmpty)
-                      const Text(
-                          'কোনো খরচ যোগ করা হয়নি। (No expenses added yet.)')
-                    else
-                      ..._expenses.map((expense) {
-                        final memberName = _members.firstWhere((m) => m.id == expense.memberId, orElse: () => Member(id: '', name: 'Unknown')).name;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('${expense.description} (${memberName})',
-                                  style: const TextStyle(fontSize: 15)),
-                              Text('${expense.amount.toStringAsFixed(2)} টাকা',
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500)),
-                            ],
+                          const SizedBox(width: 10),
+                          ElevatedButton.icon(
+                            onPressed: _handleAddMember,
+                            icon: const Icon(Icons.person_add_alt_1),
+                            label: const Text('যোগ করুন'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade600,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 16),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
                           ),
-                        );
-                      }),
-                  ],
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      if (_members.isEmpty)
+                        const Text('কোনো সদস্য যোগ করা হয়নি।')
+                      else
+                        ..._members.map((member) {
+                          final memberMeals = _meals
+                              .firstWhere((m) => m.memberId == member.id,
+                                  orElse: () =>
+                                      Meal(memberId: member.id, count: 0))
+                              .count;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    member.name,
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                // Edit initial deposit
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.teal),
+                                  tooltip: 'প্রাথমিক জমা সম্পাদনা',
+                                  onPressed: () => _showEditInitialDepositDialog(member),
+                                ),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    border:
+                                        Border.all(color: Colors.grey.shade400),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 4),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.remove),
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints:
+                                            const BoxConstraints.tightFor(
+                                                width: 32, height: 32),
+                                        onPressed: () {
+                                          setState(() {
+                                            final int newCount = memberMeals > 0
+                                                ? memberMeals - 1
+                                                : 0;
+                                            final idx = _meals.indexWhere(
+                                                (m) => m.memberId == member.id);
+                                            if (idx != -1) {
+                                              _meals[idx].count = newCount;
+                                            } else {
+                                              _meals.add(Meal(
+                                                  memberId: member.id,
+                                                  count: newCount));
+                                            }
+                                          });
+                                        },
+                                      ),
+                                      SizedBox(
+                                        width: 36,
+                                        child: Center(
+                                          child: Text(
+                                            memberMeals.toString(),
+                                            style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.add),
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints:
+                                            const BoxConstraints.tightFor(
+                                                width: 32, height: 32),
+                                        onPressed: () {
+                                          setState(() {
+                                            final int newCount =
+                                                memberMeals + 1;
+                                            final idx = _meals.indexWhere(
+                                                (m) => m.memberId == member.id);
+                                            if (idx != -1) {
+                                              _meals[idx].count = newCount;
+                                            } else {
+                                              _meals.add(Meal(
+                                                  memberId: member.id,
+                                                  count: newCount));
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  onPressed: () =>
+                                      _handleDeleteMember(member.id),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
+
+              // Deposit Form removed as per requirement
+
+              // Members' Accounts Report
+              Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_reportData.isNotEmpty)
+                        _buildSectionTitle('ফাইনাল হিসাব'),
+                      if (_reportData.isEmpty)
+                        _emptyBox('কোনো সদস্য যোগ করা হয়নি।'),
+                      if (_reportData.isEmpty)
+                        _emptyBox('কোনো ডাটা পাওয়া যায়নি।')
+                      else
+                        ..._reportData.map((data) {
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    data.memberName,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _buildCalculationRow('প্রাথমিক জমা:',
+                                      '${data.initialDeposit.toStringAsFixed(2)} টাকা',
+                                      textColor: Colors.green),
+                                  _buildCalculationRow('ব্যক্তিগত খরচ:',
+                                      '${data.personalExpense.toStringAsFixed(2)} টাকা',
+                                      textColor: Colors.red),
+                                  _buildCalculationRow('মোট জমা:',
+                                      '${data.totalContribution.toStringAsFixed(2)} টাকা'),
+                                  _buildCalculationRow(
+                                      'মোট মিল:', '${data.totalMeals} টি'),
+                                  _buildCalculationRow('মিল রেট:',
+                                      '${data.mealRate.toStringAsFixed(2)} টাকা'),
+                                  _buildCalculationRow('মোট খরচ:',
+                                      '${data.mealCost.toStringAsFixed(2)} টাকা',
+                                      textColor: Colors.red),
+                                  const Divider(),
+                                  _buildCalculationRow('ব্যালেন্স:',
+                                      '${data.balance.toStringAsFixed(2)} টাকা',
+                                      textColor: data.balance >= 0
+                                          ? Colors.green
+                                          : Colors.red),
+                                  if (data.balance > 0)
+                                    Text(
+                                      '${data.memberName} ${data.balance.toStringAsFixed(2)} টাকা ফেরত পাবেন',
+                                      style: const TextStyle(
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.bold),
+                                    )
+                                  else if (data.balance < 0)
+                                    Text(
+                                      '${data.memberName} ${(-data.balance).toStringAsFixed(2)} টাকা দিবেন',
+                                      style: const TextStyle(
+                                          color: Colors.red,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Expense List
+              Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _fullWidthLabel('খরচের তালিকা'),
+                      if (_managerExpenses.isEmpty && _memberExpenses.isEmpty)
+                        _emptyBox('কোনো খরচ যোগ করা হয়নি।')
+                      else ...[
+                        ..._managerExpenses.map((expense) => Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('${expense.description} (ম্যানেজার)',
+                                      style: const TextStyle(fontSize: 15)),
+                                  Text(
+                                      '${expense.amount.toStringAsFixed(2)} টাকা',
+                                      style: const TextStyle(fontSize: 15)),
+                                ],
+                              ),
+                            )),
+                        ..._memberExpenses.map((expense) {
+                          final memberName = _members
+                              .firstWhere((m) => m.id == expense.memberId,
+                                  orElse: () => Member(id: '', name: 'অজানা'))
+                              .name;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('${expense.description} ($memberName)',
+                                    style: const TextStyle(fontSize: 15)),
+                                Text(
+                                    '${expense.amount.toStringAsFixed(2)} টাকা',
+                                    style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ));
   }
 
   Widget _buildSectionTitle(String title) {
@@ -664,6 +973,39 @@ class _MessManagerPageState extends State<MessManagerPage> {
                 fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
           ),
         ],
+      ),
+    );
+  }
+
+  // UI helpers
+  Widget _fullWidthLabel(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _emptyBox(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 15, color: Colors.black54),
       ),
     );
   }
