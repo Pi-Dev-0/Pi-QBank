@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:pi_qbank/widgets/delete_confirmation_dialog.dart';
+import 'package:flutter/rendering.dart';
+import 'dart:ui' as ui;
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:pi_qbank/models/mess_manager_models.dart';
 import 'package:intl/intl.dart';
 
@@ -21,6 +24,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
   final List<MemberExpense> _memberExpenses = [];
   final List<Deposit> _deposits = [];
 
+  // Share keys
+  final GlobalKey _finalReportKey = GlobalKey();
+  final Map<String, GlobalKey> _memberCardKeys = {};
+
   // Selected member IDs
   String _selectedExpenseMemberId = '';
 
@@ -34,6 +41,12 @@ class _MessManagerPageState extends State<MessManagerPage> {
   double get _totalExpense =>
       _managerExpenses.fold(0.0, (sum, e) => sum + e.amount) +
       _memberExpenses.fold(0.0, (sum, e) => sum + e.amount);
+
+  // Manager cash after expenses (based on initial deposits only)
+  double get _totalInitialDeposits =>
+      _members.fold(0.0, (sum, m) => sum + m.initialDeposit);
+  double get _managerCashInHand =>
+      _totalInitialDeposits - _totalManagerExpenses;
 
   // Controllers for input fields
   final TextEditingController _newMemberNameController =
@@ -93,7 +106,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   }
 
   void _handleAddManagerExpense() {
-    final amount = double.tryParse(_managerExpenseAmountController.text);
+    final amount = _parseAmount(_managerExpenseAmountController.text);
     final description = _managerExpenseDescriptionController.text.trim();
 
     if (amount != null && amount > 0 && description.isNotEmpty) {
@@ -113,8 +126,13 @@ class _MessManagerPageState extends State<MessManagerPage> {
   }
 
   void _handleAddMemberExpense() {
-    final amount = double.tryParse(_memberExpenseAmountController.text);
-    final description = _memberExpenseDescriptionController.text.trim();
+    final amount = _parseAmount(_expenseAmountController.text);
+    final description = _expenseDescriptionController.text.trim();
+
+    // Ensure a member is selected; default to first member if none selected
+    if (_selectedExpenseMemberId.isEmpty && _members.isNotEmpty) {
+      _selectedExpenseMemberId = _members.first.id;
+    }
 
     if (amount != null &&
         amount > 0 &&
@@ -127,8 +145,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
           amount: amount,
           description: description,
         ));
-        _memberExpenseAmountController.clear();
-        _memberExpenseDescriptionController.clear();
+        _expenseAmountController.clear();
+        _expenseDescriptionController.clear();
         _selectedExpenseMemberId = '';
       });
       _showSnackBar('সদস্যের খরচ যোগ করা হয়েছে।', Colors.green);
@@ -154,10 +172,79 @@ class _MessManagerPageState extends State<MessManagerPage> {
     );
   }
 
+  // Share a widget (by key) as image
+  Future<void> _shareKeyAsImage(GlobalKey key, String fileName,
+      {String? text}) async {
+    // Allow UI to settle (e.g., ripple effects) before capturing
+    await Future.delayed(const Duration(milliseconds: 120));
+    final ctx = key.currentContext;
+    if (ctx == null) {
+      _showSnackBar('শেয়ার করতে ব্যর্থ: কন্টেন্ট পাওয়া যায়নি।', Colors.red);
+      return;
+    }
+
+    // Ensure the target is visible/painted
+    await Scrollable.ensureVisible(ctx,
+        duration: const Duration(milliseconds: 1), alignment: 0.5);
+    await Future.delayed(const Duration(milliseconds: 16));
+    // ignore: deprecated_member_use
+    await WidgetsBinding.instance.endOfFrame;
+
+    final renderObject = ctx.findRenderObject();
+    if (renderObject is! RenderRepaintBoundary) {
+      _showSnackBar('শেয়ার করতে ব্যর্থ: রেন্ডারিং সমস্যা।', Colors.red);
+      return;
+    }
+    final boundary = renderObject as RenderRepaintBoundary;
+    final dpr = MediaQuery.of(ctx).devicePixelRatio;
+    final image = await boundary.toImage(pixelRatio: (dpr * 2).clamp(2.0, 4.0));
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) {
+      _showSnackBar('শেয়ার করতে ব্যর্থ: ইমেজ তৈরি হয়নি।', Colors.red);
+      return;
+    }
+    final pngBytes = byteData.buffer.asUint8List();
+    // Use a unique filename and a temp file path to avoid preview caching
+    final uniqueName = '${DateTime.now().millisecondsSinceEpoch}_' + fileName;
+    final dir = await getTemporaryDirectory();
+    final filePath = '${dir.path}/$uniqueName';
+    final file = File(filePath);
+    await file.writeAsBytes(pngBytes, flush: true);
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'image/png', name: uniqueName)],
+      text: text,
+    );
+  }
+
+  // Helpers: parse amounts with Bangla numerals and currency symbols
+  String _normalizeDigits(String input) {
+    const bangla = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    final buffer = StringBuffer();
+    for (final ch in input.trim().characters) {
+      final idx = bangla.indexOf(ch);
+      if (idx != -1) {
+        buffer.write(idx.toString());
+      } else {
+        buffer.write(ch);
+      }
+    }
+    return buffer.toString();
+  }
+
+  double? _parseAmount(String raw) {
+    final normalized = _normalizeDigits(raw)
+        .replaceAll('৳', '')
+        .replaceAll('tk', '')
+        .replaceAll('TK', '')
+        .replaceAll(',', '')
+        .trim();
+    return double.tryParse(normalized);
+  }
+
   // Edit initial deposit for a member
   Future<void> _showEditInitialDepositDialog(Member member) async {
-    final controller = TextEditingController(
-        text: member.initialDeposit.toStringAsFixed(2));
+    final controller =
+        TextEditingController(text: member.initialDeposit.toStringAsFixed(2));
     await showDialog(
       context: context,
       builder: (context) {
@@ -194,7 +281,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
                   }
                 });
                 Navigator.of(context).pop();
-                _showSnackBar('প্রাথমিক জমা হালনাগাদ করা হয়েছে।', Colors.green);
+                _showSnackBar(
+                    'প্রাথমিক জমা হালনাগাদ করা হয়েছে।', Colors.green);
               },
               child: const Text('সেভ করুন'),
             ),
@@ -241,185 +329,6 @@ class _MessManagerPageState extends State<MessManagerPage> {
     }).toList();
   }
 
-  // Generate PDF report
-  Future<void> _generatePdfReport() async {
-    final pdf = pw.Document();
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        build: (pw.Context context) {
-          return [
-            pw.Center(
-              child: pw.Text(
-                'মেস হিসাব নিকাশ',
-                style:
-                    pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
-              ),
-            ),
-            pw.SizedBox(height: 20),
-            pw.Divider(),
-            pw.SizedBox(height: 10),
-            pw.Text(
-              'মেস এর হিসাব',
-              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 10),
-            _buildPdfCalculationRow('মোট মিল সংখ্যা:', _totalMeals.toString()),
-            _buildPdfCalculationRowColored(
-                'মোট খরচ:', _totalExpense.toStringAsFixed(2),
-                color: PdfColors.red),
-            _buildPdfCalculationRowColored(
-                'মোট জমা:', _totalDeposit.toStringAsFixed(2),
-                color: PdfColors.green),
-            _buildPdfCalculationRow('মিল রেট:', _mealRate.toStringAsFixed(2)),
-            pw.SizedBox(height: 20),
-            pw.Divider(),
-            pw.SizedBox(height: 10),
-            pw.Text(
-              'সদস্যদের হিসাব',
-              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 10),
-            if (_reportData.isEmpty)
-              pw.Text('কোনো সদস্য যোগ করা হয়নি।')
-            else
-              ..._reportData.map((data) {
-                return pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      'নাম: ${data.memberName}',
-                      style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold, fontSize: 14),
-                    ),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('মোট জমা:'),
-                        pw.Text(
-                            '${data.initialDeposit.toStringAsFixed(2)} টাকা',
-                            style: pw.TextStyle(color: PdfColors.green)),
-                      ],
-                    ),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('মোট মিল:'),
-                        pw.Text('${data.totalMeals} টি'),
-                      ],
-                    ),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('ব্যক্তিগত খরচ:'),
-                        pw.Text(
-                            '${data.personalExpense.toStringAsFixed(2)} টাকা',
-                            style: pw.TextStyle(color: PdfColors.red)),
-                      ],
-                    ),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('মিল খরচ:'),
-                        pw.Text('${data.mealCost.toStringAsFixed(2)} টাকা',
-                            style: pw.TextStyle(color: PdfColors.red)),
-                      ],
-                    ),
-                    pw.Text(
-                      'অবশিষ্ট: ${data.balance.toStringAsFixed(2)} টাকা',
-                      style: pw.TextStyle(
-                        color:
-                            data.balance >= 0 ? PdfColors.green : PdfColors.red,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.SizedBox(height: 10),
-                  ],
-                );
-              }),
-            pw.SizedBox(height: 20),
-            pw.Divider(),
-            pw.SizedBox(height: 10),
-            pw.Text(
-              'খরচের তালিকা',
-              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 10),
-            if (_managerExpenses.isEmpty && _memberExpenses.isEmpty)
-              pw.Text('কোনো খরচ যোগ করা হয়নি।')
-            else
-              ..._managerExpenses.map((expense) {
-                return pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('${expense.description} (ম্যানেজার)'),
-                    pw.Text('${expense.amount.toStringAsFixed(2)} টাকা'),
-                  ],
-                );
-              }).toList()
-                ..addAll(_memberExpenses.map((expense) {
-                  final memberName = _members
-                      .firstWhere((m) => m.id == expense.memberId,
-                          orElse: () => Member(id: '', name: 'অজানা'))
-                      .name;
-                  return pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text('${expense.description} ($memberName)'),
-                      pw.Text('${expense.amount.toStringAsFixed(2)} টাকা'),
-                    ],
-                  );
-                })),
-          ];
-        },
-      ),
-    );
-
-    await Printing.sharePdf(
-        bytes: await pdf.save(), filename: 'mess_report.pdf');
-  }
-
-  pw.Widget _buildPdfCalculationRow(String label, String value) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2.0),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.normal),
-          ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _buildPdfCalculationRowColored(String label, String value,
-      {PdfColor? color}) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2.0),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.normal),
-          ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-                fontSize: 14, fontWeight: pw.FontWeight.bold, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -427,9 +336,11 @@ class _MessManagerPageState extends State<MessManagerPage> {
           title: 'মেস ম্যানেজার',
           actions: [
             IconButton(
-              icon: const Icon(Icons.print),
-              onPressed: _generatePdfReport,
-              tooltip: 'রিপোর্ট প্রিন্ট করুন',
+              icon: const Icon(Icons.ios_share),
+              onPressed: () => _shareKeyAsImage(
+                  _finalReportKey, 'final_report.png',
+                  text: 'ফাইনাল হিসাব'),
+              tooltip: 'ফাইনাল হিসাব শেয়ার করুন',
             ),
           ],
         ),
@@ -462,6 +373,11 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       _buildCalculationRow('সদস্যদের খরচ:',
                           '${_totalMemberExpenses.toStringAsFixed(2)} টাকা',
                           textColor: Colors.red),
+                      _buildCalculationRow('ম্যানেজারের হাতে অবশিষ্ট:',
+                          '${_managerCashInHand.toStringAsFixed(2)} টাকা',
+                          textColor: _managerCashInHand >= 0
+                              ? Colors.green
+                              : Colors.red),
                       _buildCalculationRow(
                           'মোট মিল সংখ্যা:', '$_totalMeals টি'),
                       _buildCalculationRow(
@@ -549,8 +465,9 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       _buildSectionTitle('সদস্যদের খরচ'),
                       if (_members.isNotEmpty) ...[
                         DropdownButtonFormField<String>(
-                          value: _selectedExpenseMemberId.isEmpty
-                              ? null
+                          value: _selectedExpenseMemberId.isEmpty &&
+                                  _members.isNotEmpty
+                              ? _members.first.id
                               : _selectedExpenseMemberId,
                           decoration: InputDecoration(
                             labelText: 'সদস্য নির্বাচন করুন',
@@ -604,26 +521,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
                           ),
                         ),
                       ),
-                      if (_memberExpenses.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        const Text('খরচের তালিকা:',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                        ..._memberExpenses.map((expense) {
-                          final member = _members.firstWhere(
-                              (m) => m.id == expense.memberId,
-                              orElse: () => Member(id: '', name: 'অজানা'));
-                          return ListTile(
-                            title: Text(expense.description),
-                            subtitle: Text(
-                                '${member.name} • ${DateFormat('dd MMM yyyy').format(expense.date)}'),
-                            trailing: Text(
-                                '৳${expense.amount.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red)),
-                          );
-                        }),
-                      ],
+                      // Removed extra member expenses list; shown in combined list below
                     ],
                   ),
                 ),
@@ -710,9 +608,11 @@ class _MessManagerPageState extends State<MessManagerPage> {
                                 const SizedBox(width: 8),
                                 // Edit initial deposit
                                 IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.teal),
+                                  icon: const Icon(Icons.edit,
+                                      color: Colors.teal),
                                   tooltip: 'প্রাথমিক জমা সম্পাদনা',
-                                  onPressed: () => _showEditInitialDepositDialog(member),
+                                  onPressed: () =>
+                                      _showEditInitialDepositDialog(member),
                                 ),
                                 Container(
                                   decoration: BoxDecoration(
@@ -789,8 +689,21 @@ class _MessManagerPageState extends State<MessManagerPage> {
                                 IconButton(
                                   icon: const Icon(Icons.delete,
                                       color: Colors.red),
-                                  onPressed: () =>
-                                      _handleDeleteMember(member.id),
+                                  onPressed: () async {
+                                    final confirmed =
+                                        await showDeleteConfirmationDialog(
+                                      context: context,
+                                      title: 'সদস্য ডিলিট',
+                                      message:
+                                          'আপনি কি নিশ্চিতভাবে এই সদস্যকে ডিলিট করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।',
+                                      paperTitle: member.name,
+                                      paperSubtitle:
+                                          'প্রাথমিক জমা: ৳ ${member.initialDeposit.toStringAsFixed(2)}',
+                                    );
+                                    if (confirmed == true) {
+                                      _handleDeleteMember(member.id);
+                                    }
+                                  },
                                 ),
                               ],
                             ),
@@ -809,75 +722,100 @@ class _MessManagerPageState extends State<MessManagerPage> {
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_reportData.isNotEmpty)
-                        _buildSectionTitle('ফাইনাল হিসাব'),
-                      if (_reportData.isEmpty)
-                        _emptyBox('কোনো সদস্য যোগ করা হয়নি।'),
-                      if (_reportData.isEmpty)
-                        _emptyBox('কোনো ডাটা পাওয়া যায়নি।')
-                      else
-                        ..._reportData.map((data) {
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    data.memberName,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                child: RepaintBoundary(
+                  key: _finalReportKey,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_reportData.isNotEmpty)
+                          _buildSectionTitle('ফাইনাল হিসাব'),
+                        if (_reportData.isEmpty)
+                          _emptyBox('কোনো সদস্য যোগ করা হয়নি।'),
+                        if (_reportData.isEmpty)
+                          _emptyBox('কোনো ডাটা পাওয়া যায়নি।')
+                        else
+                          ..._reportData.map((data) {
+                            final key = _memberCardKeys.putIfAbsent(
+                                data.memberId, () => GlobalKey());
+                            return RepaintBoundary(
+                              key: key,
+                              child: Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            data.memberName,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.ios_share,
+                                                color: Colors.blueGrey),
+                                            tooltip: 'শেয়ার',
+                                            onPressed: () => _shareKeyAsImage(
+                                                key,
+                                                '${data.memberName}_ হিসাব.png',
+                                                text:
+                                                    '${data.memberName} - ফাইনাল হিসাব'),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _buildCalculationRow('প্রাথমিক জমা:',
+                                          '${data.initialDeposit.toStringAsFixed(2)} টাকা',
+                                          textColor: Colors.green),
+                                      _buildCalculationRow('ব্যক্তিগত খরচ:',
+                                          '${data.personalExpense.toStringAsFixed(2)} টাকা',
+                                          textColor: Colors.red),
+                                      _buildCalculationRow('মোট জমা:',
+                                          '${data.totalContribution.toStringAsFixed(2)} টাকা'),
+                                      _buildCalculationRow(
+                                          'মোট মিল:', '${data.totalMeals} টি'),
+                                      _buildCalculationRow('মিল রেট:',
+                                          '${data.mealRate.toStringAsFixed(2)} টাকা'),
+                                      _buildCalculationRow('মোট খরচ:',
+                                          '${data.mealCost.toStringAsFixed(2)} টাকা',
+                                          textColor: Colors.red),
+                                      const Divider(),
+                                      _buildCalculationRow('ব্যালেন্স:',
+                                          '${data.balance.toStringAsFixed(2)} টাকা',
+                                          textColor: data.balance >= 0
+                                              ? Colors.green
+                                              : Colors.red),
+                                      if (data.balance > 0)
+                                        Text(
+                                          '${data.memberName} ${data.balance.toStringAsFixed(2)} টাকা ফেরত পাবেন',
+                                          style: const TextStyle(
+                                              color: Colors.green,
+                                              fontWeight: FontWeight.bold),
+                                        )
+                                      else if (data.balance < 0)
+                                        Text(
+                                          '${data.memberName} ${(-data.balance).toStringAsFixed(2)} টাকা দিবেন',
+                                          style: const TextStyle(
+                                              color: Colors.red,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  _buildCalculationRow('প্রাথমিক জমা:',
-                                      '${data.initialDeposit.toStringAsFixed(2)} টাকা',
-                                      textColor: Colors.green),
-                                  _buildCalculationRow('ব্যক্তিগত খরচ:',
-                                      '${data.personalExpense.toStringAsFixed(2)} টাকা',
-                                      textColor: Colors.red),
-                                  _buildCalculationRow('মোট জমা:',
-                                      '${data.totalContribution.toStringAsFixed(2)} টাকা'),
-                                  _buildCalculationRow(
-                                      'মোট মিল:', '${data.totalMeals} টি'),
-                                  _buildCalculationRow('মিল রেট:',
-                                      '${data.mealRate.toStringAsFixed(2)} টাকা'),
-                                  _buildCalculationRow('মোট খরচ:',
-                                      '${data.mealCost.toStringAsFixed(2)} টাকা',
-                                      textColor: Colors.red),
-                                  const Divider(),
-                                  _buildCalculationRow('ব্যালেন্স:',
-                                      '${data.balance.toStringAsFixed(2)} টাকা',
-                                      textColor: data.balance >= 0
-                                          ? Colors.green
-                                          : Colors.red),
-                                  if (data.balance > 0)
-                                    Text(
-                                      '${data.memberName} ${data.balance.toStringAsFixed(2)} টাকা ফেরত পাবেন',
-                                      style: const TextStyle(
-                                          color: Colors.green,
-                                          fontWeight: FontWeight.bold),
-                                    )
-                                  else if (data.balance < 0)
-                                    Text(
-                                      '${data.memberName} ${(-data.balance).toStringAsFixed(2)} টাকা দিবেন',
-                                      style: const TextStyle(
-                                          color: Colors.red,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                ],
+                                ),
                               ),
-                            ),
-                          );
-                        }),
-                    ],
+                            );
+                          }),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -904,11 +842,37 @@ class _MessManagerPageState extends State<MessManagerPage> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text('${expense.description} (ম্যানেজার)',
-                                      style: const TextStyle(fontSize: 15)),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '${expense.description} (ম্যানেজার)',
+                                          style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.deepPurple),
+                                          softWrap: true,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          DateFormat('dd MMM')
+                                              .format(expense.date),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                   Text(
                                       '${expense.amount.toStringAsFixed(2)} টাকা',
-                                      style: const TextStyle(fontSize: 15)),
+                                      style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.red)),
                                 ],
                               ),
                             )),
@@ -922,13 +886,34 @@ class _MessManagerPageState extends State<MessManagerPage> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('${expense.description} ($memberName)',
-                                    style: const TextStyle(fontSize: 15)),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${expense.description} ($memberName)',
+                                        style: const TextStyle(fontSize: 15),
+                                        softWrap: true,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        DateFormat('dd MMM')
+                                            .format(expense.date),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                                 Text(
                                     '${expense.amount.toStringAsFixed(2)} টাকা',
                                     style: const TextStyle(
                                         fontSize: 15,
-                                        fontWeight: FontWeight.w500)),
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red)),
                               ],
                             ),
                           );
