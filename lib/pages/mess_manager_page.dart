@@ -38,9 +38,6 @@ class _MessManagerPageState extends State<MessManagerPage> {
       TextEditingController();
 
   // Getters
-  double get _totalExpense =>
-      _managerExpenses.fold(0.0, (sum, e) => sum + e.amount) +
-      _memberExpenses.fold(0.0, (sum, e) => sum + e.amount);
 
   // Manager cash after expenses (based on initial deposits only)
   double get _totalInitialDeposits =>
@@ -163,6 +160,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
 
   // Show SnackBar
   void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -177,26 +175,38 @@ class _MessManagerPageState extends State<MessManagerPage> {
       {String? text}) async {
     // Allow UI to settle (e.g., ripple effects) before capturing
     await Future.delayed(const Duration(milliseconds: 120));
-    final ctx = key.currentContext;
+    if (!mounted) return;
+
+    // Fetch context after the async gap
+    BuildContext? ctx = key.currentContext;
     if (ctx == null) {
       _showSnackBar('শেয়ার করতে ব্যর্থ: কন্টেন্ট পাওয়া যায়নি।', Colors.red);
       return;
     }
 
     // Ensure the target is visible/painted
+    if (!ctx.mounted) return;
     await Scrollable.ensureVisible(ctx,
         duration: const Duration(milliseconds: 1), alignment: 0.5);
     await Future.delayed(const Duration(milliseconds: 16));
     // ignore: deprecated_member_use
     await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    // Re-fetch context again after async gaps
+    ctx = key.currentContext;
+    if (ctx == null) {
+      _showSnackBar('শেয়ার করতে ব্যর্থ: কন্টেন্ট পাওয়া যায়নি।', Colors.red);
+      return;
+    }
 
+    if (!ctx.mounted) return;
     final renderObject = ctx.findRenderObject();
     if (renderObject is! RenderRepaintBoundary) {
       _showSnackBar('শেয়ার করতে ব্যর্থ: রেন্ডারিং সমস্যা।', Colors.red);
       return;
     }
-    final boundary = renderObject as RenderRepaintBoundary;
-    final dpr = MediaQuery.of(ctx).devicePixelRatio;
+    final boundary = renderObject;
+    final dpr = MediaQuery.of(context).devicePixelRatio;
     final image = await boundary.toImage(pixelRatio: (dpr * 2).clamp(2.0, 4.0));
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) {
@@ -205,7 +215,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
     }
     final pngBytes = byteData.buffer.asUint8List();
     // Use a unique filename and a temp file path to avoid preview caching
-    final uniqueName = '${DateTime.now().millisecondsSinceEpoch}_' + fileName;
+    final uniqueName = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
     final dir = await getTemporaryDirectory();
     final filePath = '${dir.path}/$uniqueName';
     final file = File(filePath);
@@ -298,7 +308,6 @@ class _MessManagerPageState extends State<MessManagerPage> {
   double get _totalMemberExpenses =>
       _memberExpenses.fold(0.0, (sum, e) => sum + e.amount);
   double get _totalExpenses => _totalManagerExpenses + _totalMemberExpenses;
-  double get _totalDeposit => _deposits.fold(0.0, (sum, d) => sum + d.amount);
   int get _totalMeals => _meals.fold(0, (sum, m) => sum + m.count);
   double get _mealRate => _totalMeals > 0 ? _totalExpenses / _totalMeals : 0.0;
 
