@@ -5,6 +5,7 @@ import 'package:pi_qbank/pages/prepare_short_test_page.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import 'package:pi_qbank/pages/mcq_generator_page.dart'; // Import MCQGeneratorPage
 import 'package:pi_qbank/pages/question_generator_page.dart'; // Import QuestionGeneratorPage
+import 'package:pi_qbank/pages/mess_manager_page.dart'; // Import MessManagerPage
 // Import ExamPaperBuilderPage
 import '../widgets/app_drawer.dart'; // Import AppDrawer
 
@@ -157,6 +158,21 @@ class ToolsPage extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const ExamPaperBuilderPage(),
+                      ),
+                    );
+                  },
+                ),
+                _buildToolCard(
+                  context,
+                  Icons.calculate_outlined, // Choose an appropriate icon
+                  'মেস ম্যানেজার (Mess Manager)',
+                  'মেস এর হিসাব নিকাশ ম্যানেজ করুন', // Description in Bengali
+                  Colors.teal, // Choose an appropriate color
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MessManagerPage(),
                       ),
                     );
                   },
