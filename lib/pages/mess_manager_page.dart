@@ -13,20 +13,25 @@ class MessManagerPage extends StatefulWidget {
 
 class _MessManagerPageState extends State<MessManagerPage> {
   // Basic mess details
-  DateTime? _startDate;
-  DateTime? _endDate;
   int _managerContribution = 0;
-  final List<Map<String, dynamic>> _members = []; // {name: String, contribution: int, meals: int, personal_expense: int}
-  final List<Map<String, dynamic>> _commonExpenses = []; // {item: String, amount: int}
+  final List<Map<String, dynamic>> _members =
+      []; // {name: String, contribution: int, meals: int, personal_expense: int}
+  final List<Map<String, dynamic>> _commonExpenses =
+      []; // {item: String, amount: int}
 
   // Controllers for input fields
   final TextEditingController _memberNameController = TextEditingController();
-  final TextEditingController _memberContributionController = TextEditingController();
+  final TextEditingController _memberContributionController =
+      TextEditingController();
   final TextEditingController _memberMealsController = TextEditingController();
-  final TextEditingController _memberPersonalExpenseController = TextEditingController();
-  final TextEditingController _commonExpenseItemController = TextEditingController();
-  final TextEditingController _commonExpenseAmountController = TextEditingController();
-  final TextEditingController _managerContributionInputController = TextEditingController();
+  final TextEditingController _memberPersonalExpenseController =
+      TextEditingController();
+  final TextEditingController _commonExpenseItemController =
+      TextEditingController();
+  final TextEditingController _commonExpenseAmountController =
+      TextEditingController();
+  final TextEditingController _managerContributionInputController =
+      TextEditingController();
 
   @override
   void dispose() {
@@ -40,25 +45,6 @@ class _MessManagerPageState extends State<MessManagerPage> {
     super.dispose();
   }
 
-  // Date picker for start and end dates
-  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null && picked != (isStartDate ? _startDate : _endDate)) {
-      setState(() {
-        if (isStartDate) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
-      });
-    }
-  }
-
   // Add a new member
   void _addMember() {
     if (_memberNameController.text.isNotEmpty) {
@@ -67,19 +53,24 @@ class _MessManagerPageState extends State<MessManagerPage> {
           'name': _memberNameController.text,
           'contribution': int.tryParse(_memberContributionController.text) ?? 0,
           'meals': int.tryParse(_memberMealsController.text) ?? 0,
-          'personal_expense': int.tryParse(_memberPersonalExpenseController.text) ?? 0,
+          'personal_expense':
+              int.tryParse(_memberPersonalExpenseController.text) ?? 0,
         });
         _memberNameController.clear();
         _memberContributionController.clear();
         _memberMealsController.clear();
         _memberPersonalExpenseController.clear();
       });
+      _showSnackBar('সদস্য সফলভাবে যোগ করা হয়েছে। (Member added successfully.)', Colors.green);
+    } else {
+      _showSnackBar('সদস্যের নাম খালি রাখা যাবে না। (Member name cannot be empty.)', Colors.red);
     }
   }
 
   // Add a common expense
   void _addCommonExpense() {
-    if (_commonExpenseItemController.text.isNotEmpty && _commonExpenseAmountController.text.isNotEmpty) {
+    if (_commonExpenseItemController.text.isNotEmpty &&
+        _commonExpenseAmountController.text.isNotEmpty) {
       setState(() {
         _commonExpenses.add({
           'item': _commonExpenseItemController.text,
@@ -88,7 +79,21 @@ class _MessManagerPageState extends State<MessManagerPage> {
         _commonExpenseItemController.clear();
         _commonExpenseAmountController.clear();
       });
+      _showSnackBar('খরচ সফলভাবে যোগ করা হয়েছে। (Expense added successfully.)', Colors.green);
+    } else {
+      _showSnackBar('খরচের বিবরণ বা পরিমাণ খালি রাখা যাবে না। (Expense description or amount cannot be empty.)', Colors.red);
     }
+  }
+
+  // Show SnackBar
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   // Calculate total meals
@@ -98,12 +103,15 @@ class _MessManagerPageState extends State<MessManagerPage> {
 
   // Calculate total common expenses
   int _getTotalCommonExpenses() {
-    return _commonExpenses.fold(0, (sum, expense) => sum + (expense['amount'] as int));
+    return _commonExpenses.fold(
+        0, (sum, expense) => sum + (expense['amount'] as int));
   }
 
   // Calculate total contributions
   int _getTotalContributions() {
-    return _members.fold(0, (sum, member) => sum + (member['contribution'] as int)) + _managerContribution;
+    return _members.fold(
+            0, (sum, member) => sum + (member['contribution'] as int)) +
+        _managerContribution;
   }
 
   // Calculate meal rate
@@ -132,14 +140,11 @@ class _MessManagerPageState extends State<MessManagerPage> {
             pw.Center(
               child: pw.Text(
                 'মেস হিসাব নিকাশ (Mess Calculation Report)',
-                style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
               ),
             ),
             pw.SizedBox(height: 20),
-            pw.Text(
-              'মেস এর সময়কাল (Mess Duration): ${_startDate?.toLocal().toString().split(' ')[0] ?? 'N/A'} - ${_endDate?.toLocal().toString().split(' ')[0] ?? 'N/A'}',
-              style: const pw.TextStyle(fontSize: 16),
-            ),
             pw.Text(
               'ম্যানেজারের জমা (Manager\'s Contribution): $_managerContribution টাকা',
               style: const pw.TextStyle(fontSize: 16),
@@ -152,10 +157,14 @@ class _MessManagerPageState extends State<MessManagerPage> {
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
-            _buildPdfCalculationRow('মোট মিল সংখ্যা (Total Meals):', _getTotalMeals().toString()),
-            _buildPdfCalculationRow('মোট সাধারণ খরচ (Total Common Expenses):', _getTotalCommonExpenses().toString()),
-            _buildPdfCalculationRow('মোট জমা (Total Contributions):', _getTotalContributions().toString()),
-            _buildPdfCalculationRow('মিল রেট (Meal Rate):', _getMealRate().toStringAsFixed(2)),
+            _buildPdfCalculationRow(
+                'মোট মিল সংখ্যা (Total Meals):', _getTotalMeals().toString()),
+            _buildPdfCalculationRow('মোট সাধারণ খরচ (Total Common Expenses):',
+                _getTotalCommonExpenses().toString()),
+            _buildPdfCalculationRow('মোট জমা (Total Contributions):',
+                _getTotalContributions().toString()),
+            _buildPdfCalculationRow(
+                'মিল রেট (Meal Rate):', _getMealRate().toStringAsFixed(2)),
             pw.SizedBox(height: 20),
             pw.Divider(),
             pw.SizedBox(height: 10),
@@ -173,23 +182,29 @@ class _MessManagerPageState extends State<MessManagerPage> {
                   children: [
                     pw.Text(
                       'নাম (Name): ${member['name']}',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
+                      style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold, fontSize: 14),
                     ),
-                    pw.Text('জমা (Contribution): ${member['contribution']} টাকা'),
+                    pw.Text(
+                        'জমা (Contribution): ${member['contribution']} টাকা'),
                     pw.Text('মিল সংখ্যা (Meals): ${member['meals']} টি'),
-                    pw.Text('ব্যক্তিগত বাজার খরচ (Personal Market Expense): ${member['personal_expense']} টাকা'),
-                    pw.Text('মিল খরচ (Meal Cost): ${((member['meals'] as int) * _getMealRate()).toStringAsFixed(2)} টাকা'),
+                    pw.Text(
+                        'ব্যক্তিগত বাজার খরচ (Personal Market Expense): ${member['personal_expense']} টাকা'),
+                    pw.Text(
+                        'মিল খরচ (Meal Cost): ${((member['meals'] as int) * _getMealRate()).toStringAsFixed(2)} টাকা'),
                     pw.Text(
                       'অবশিষ্ট (Balance): ${_getMemberBalance(member)} টাকা',
                       style: pw.TextStyle(
-                        color: _getMemberBalance(member) >= 0 ? PdfColors.green : PdfColors.red,
+                        color: _getMemberBalance(member) >= 0
+                            ? PdfColors.green
+                            : PdfColors.red,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
                     pw.SizedBox(height: 10),
                   ],
                 );
-              }).toList(),
+              }),
             pw.SizedBox(height: 20),
             pw.Divider(),
             pw.SizedBox(height: 10),
@@ -199,7 +214,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
             ),
             pw.SizedBox(height: 10),
             if (_commonExpenses.isEmpty)
-              pw.Text('কোনো সাধারণ খরচ যোগ করা হয়নি। (No common expenses added yet.)')
+              pw.Text(
+                  'কোনো সাধারণ খরচ যোগ করা হয়নি। (No common expenses added yet.)')
             else
               ..._commonExpenses.map((expense) {
                 return pw.Row(
@@ -209,13 +225,14 @@ class _MessManagerPageState extends State<MessManagerPage> {
                     pw.Text('${expense['amount']} টাকা'),
                   ],
                 );
-              }).toList(),
+              }),
           ];
         },
       ),
     );
 
-    await Printing.sharePdf(bytes: await pdf.save(), filename: 'mess_report.pdf');
+    await Printing.sharePdf(
+        bytes: await pdf.save(), filename: 'mess_report.pdf');
   }
 
   pw.Widget _buildPdfCalculationRow(String label, String value) {
@@ -258,72 +275,34 @@ class _MessManagerPageState extends State<MessManagerPage> {
             Card(
               elevation: 4,
               margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionTitle('মেস এর সময়কাল (Mess Duration)'),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _selectDate(context, true),
-                            icon: const Icon(Icons.calendar_today),
-                            label: Text(_startDate == null
-                                ? 'শুরুর তারিখ (Start Date)'
-                                : 'শুরুর তারিখ: ${_startDate!.toLocal().toString().split(' ')[0]}'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _selectDate(context, false),
-                            icon: const Icon(Icons.calendar_today),
-                            label: Text(_endDate == null
-                                ? 'শেষের তারিখ (End Date)'
-                                : 'শেষের তারিখ: ${_endDate!.toLocal().toString().split(' ')[0]}'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            Card(
-              elevation: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle('ম্যানেজারের জমা (Manager\'s Contribution)'),
+                    _buildSectionTitle(
+                        'ম্যানেজারের জমা (Manager\'s Contribution)'),
                     TextField(
                       controller: _managerContributionInputController,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                         labelText: 'ম্যানেজারের জমা (Manager\'s Contribution)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                         suffixIcon: IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
+                          icon: const Icon(Icons.attach_money, color: Colors.teal),
                           onPressed: () {
                             setState(() {
-                              _managerContribution = int.tryParse(_managerContributionInputController.text) ?? 0;
+                              _managerContribution = int.tryParse(
+                                      _managerContributionInputController
+                                          .text) ??
+                                  0;
                             });
-                            FocusScope.of(context).unfocus(); // Dismiss keyboard
+                            FocusScope.of(context)
+                                .unfocus(); // Dismiss keyboard
+                            _showSnackBar('ম্যানেজারের জমা সফলভাবে আপডেট করা হয়েছে। (Manager\'s contribution updated successfully.)', Colors.green);
                           },
                         ),
                       ),
@@ -332,11 +311,11 @@ class _MessManagerPageState extends State<MessManagerPage> {
                 ),
               ),
             ),
-
             Card(
               elevation: 4,
               margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -347,7 +326,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       controller: _memberNameController,
                       decoration: InputDecoration(
                         labelText: 'সদস্যের নাম (Member Name)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -356,7 +336,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                         labelText: 'সদস্যের জমা (Member Contribution)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -365,7 +346,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                         labelText: 'মোট মিল সংখ্যা (Total Meals)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -373,8 +355,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       controller: _memberPersonalExpenseController,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
-                        labelText: 'ব্যক্তিগত বাজার খরচ (Personal Market Expense)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        labelText:
+                            'ব্যক্তিগত বাজার খরচ (Personal Market Expense)',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -382,11 +366,14 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: _addMember,
-                        icon: const Icon(Icons.person_add),
+                        icon: const Icon(Icons.person_add_alt_1),
                         label: const Text('সদস্য যোগ করুন (Add Member)'),
                         style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ),
@@ -394,22 +381,24 @@ class _MessManagerPageState extends State<MessManagerPage> {
                 ),
               ),
             ),
-
             Card(
               elevation: 4,
               margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionTitle('সাধারণ খরচ যোগ করুন (Add Common Expense)'),
+                    _buildSectionTitle(
+                        'সাধারণ খরচ যোগ করুন (Add Common Expense)'),
                     TextField(
                       controller: _commonExpenseItemController,
                       decoration: InputDecoration(
                         labelText: 'খরচের বিবরণ (Expense Description)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -418,7 +407,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                         labelText: 'পরিমাণ (Amount)',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -426,11 +416,14 @@ class _MessManagerPageState extends State<MessManagerPage> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: _addCommonExpense,
-                        icon: const Icon(Icons.add_shopping_cart),
+                        icon: const Icon(Icons.shopping_cart_checkout),
                         label: const Text('খরচ যোগ করুন (Add Expense)'),
                         style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ),
@@ -438,30 +431,35 @@ class _MessManagerPageState extends State<MessManagerPage> {
                 ),
               ),
             ),
-
             Card(
               elevation: 4,
               margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSectionTitle('মেস এর হিসাব (Mess Calculation)'),
-                    _buildCalculationRow('মোট মিল সংখ্যা (Total Meals):', _getTotalMeals().toString()),
-                    _buildCalculationRow('মোট সাধারণ খরচ (Total Common Expenses):', _getTotalCommonExpenses().toString()),
-                    _buildCalculationRow('মোট জমা (Total Contributions):', _getTotalContributions().toString()),
-                    _buildCalculationRow('মিল রেট (Meal Rate):', _getMealRate().toStringAsFixed(2)),
+                    _buildCalculationRow('মোট মিল সংখ্যা (Total Meals):',
+                        _getTotalMeals().toString()),
+                    _buildCalculationRow(
+                        'মোট সাধারণ খরচ (Total Common Expenses):',
+                        _getTotalCommonExpenses().toString()),
+                    _buildCalculationRow('মোট জমা (Total Contributions):',
+                        _getTotalContributions().toString()),
+                    _buildCalculationRow('মিল রেট (Meal Rate):',
+                        _getMealRate().toStringAsFixed(2)),
                   ],
                 ),
               ),
             ),
-
             Card(
               elevation: 4,
               margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -469,13 +467,15 @@ class _MessManagerPageState extends State<MessManagerPage> {
                   children: [
                     _buildSectionTitle('সদস্যদের হিসাব (Members\' Accounts)'),
                     if (_members.isEmpty)
-                      const Text('কোনো সদস্য যোগ করা হয়নি। (No members added yet.)')
+                      const Text(
+                          'কোনো সদস্য যোগ করা হয়নি। (No members added yet.)')
                     else
                       ..._members.map((member) {
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 8.0),
                           elevation: 2,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
                             child: Column(
@@ -483,41 +483,53 @@ class _MessManagerPageState extends State<MessManagerPage> {
                               children: [
                                 Text(
                                   'নাম (Name): ${member['name']}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepPurple),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.deepPurple),
                                 ),
                                 const Divider(),
-                                _buildCalculationRow('জমা (Contribution):', '${member['contribution']} টাকা'),
-                                _buildCalculationRow('মিল সংখ্যা (Meals):', '${member['meals']} টি'),
-                                _buildCalculationRow('ব্যক্তিগত বাজার খরচ (Personal Market Expense):', '${member['personal_expense']} টাকা'),
-                                _buildCalculationRow('মিল খরচ (Meal Cost):', '${((member['meals'] as int) * _getMealRate()).toStringAsFixed(2)} টাকা'),
+                                _buildCalculationRow('জমা (Contribution):',
+                                    '${member['contribution']} টাকা'),
+                                _buildCalculationRow('মিল সংখ্যা (Meals):',
+                                    '${member['meals']} টি'),
+                                _buildCalculationRow(
+                                    'ব্যক্তিগত বাজার খরচ (Personal Market Expense):',
+                                    '${member['personal_expense']} টাকা'),
+                                _buildCalculationRow('মিল খরচ (Meal Cost):',
+                                    '${((member['meals'] as int) * _getMealRate()).toStringAsFixed(2)} টাকা'),
                                 const Divider(),
                                 _buildCalculationRow(
                                   'অবশিষ্ট (Balance):',
                                   '${_getMemberBalance(member)} টাকা',
-                                  textColor: _getMemberBalance(member) >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                                  textColor: _getMemberBalance(member) >= 0
+                                      ? Colors.green.shade700
+                                      : Colors.red.shade700,
                                 ),
                               ],
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
                   ],
                 ),
               ),
             ),
-
             Card(
               elevation: 4,
               margin: const EdgeInsets.only(bottom: 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSectionTitle('সাধারণ খরচের তালিকা (Common Expense List)'),
+                    _buildSectionTitle(
+                        'সাধারণ খরচের তালিকা (Common Expense List)'),
                     if (_commonExpenses.isEmpty)
-                      const Text('কোনো সাধারণ খরচ যোগ করা হয়নি। (No common expenses added yet.)')
+                      const Text(
+                          'কোনো সাধারণ খরচ যোগ করা হয়নি। (No common expenses added yet.)')
                     else
                       ..._commonExpenses.map((expense) {
                         return Padding(
@@ -525,12 +537,16 @@ class _MessManagerPageState extends State<MessManagerPage> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(expense['item'], style: const TextStyle(fontSize: 15)),
-                              Text('${expense['amount']} টাকা', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                              Text(expense['item'],
+                                  style: const TextStyle(fontSize: 15)),
+                              Text('${expense['amount']} টাকা',
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500)),
                             ],
                           ),
                         );
-                      }).toList(),
+                      }),
                   ],
                 ),
               ),
@@ -567,7 +583,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
           ),
           Text(
             value,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
           ),
         ],
       ),
