@@ -32,6 +32,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   final GlobalKey _finalReportKey = GlobalKey();
   final Map<String, GlobalKey> _memberCardKeys = {};
   final GlobalKey _summaryKey = GlobalKey();
+  final GlobalKey _expenseListKey = GlobalKey();
 
   // Selected member IDs
   String _selectedExpenseMemberId = '';
@@ -123,7 +124,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
       if (membersStr != null) {
         final data = jsonDecode(membersStr) as List<dynamic>;
         _members.clear();
-        _members.addAll(data.map((e) => Member.fromMap(e as Map<String, dynamic>)));
+        _members
+            .addAll(data.map((e) => Member.fromMap(e as Map<String, dynamic>)));
       }
       if (mealsStr != null) {
         final data = jsonDecode(mealsStr) as List<dynamic>;
@@ -145,8 +147,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
       if (depositsStr != null) {
         final data = jsonDecode(depositsStr) as List<dynamic>;
         _deposits.clear();
-        _deposits
-            .addAll(data.map((e) => Deposit.fromMap(e as Map<String, dynamic>)));
+        _deposits.addAll(
+            data.map((e) => Deposit.fromMap(e as Map<String, dynamic>)));
       }
 
       if (mounted) setState(() {});
@@ -650,8 +652,8 @@ function _json(obj, code) {
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               labelText: 'প্রাথমিক জমা',
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               prefixText: '৳ ',
             ),
           ),
@@ -765,7 +767,8 @@ function _json(obj, code) {
                             children: [
                               _buildSectionTitle('মেস এর হিসাব'),
                               IconButton(
-                                icon: const Icon(Icons.ios_share, color: Colors.blueGrey),
+                                icon: const Icon(Icons.ios_share,
+                                    color: Colors.blueGrey),
                                 tooltip: 'মেস এর হিসাব শেয়ার করুন',
                                 onPressed: () => _shareKeyAsImage(
                                     _summaryKey, 'summary_report.png',
@@ -792,8 +795,8 @@ function _json(obj, code) {
                                   : Colors.red),
                           _buildCalculationRow(
                               'মোট মিল সংখ্যা:', '$_totalMeals টি'),
-                          _buildCalculationRow(
-                              'মিল রেট:', '${_mealRate.toStringAsFixed(2)} টাকা'),
+                          _buildCalculationRow('মিল রেট:',
+                              '${_mealRate.toStringAsFixed(2)} টাকা'),
                         ],
                       ),
                     ),
@@ -846,20 +849,6 @@ function _json(obj, code) {
                           ),
                         ),
                       ),
-                      if (_managerExpenses.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        _fullWidthLabel('খরচের তালিকা'),
-                        ..._managerExpenses.map((expense) => ListTile(
-                              title: Text(expense.description),
-                              subtitle: Text(DateFormat('dd MMM yyyy')
-                                  .format(expense.date)),
-                              trailing: Text(
-                                  '৳${expense.amount.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.red)),
-                            )),
-                      ],
                     ],
                   ),
                 ),
@@ -1242,100 +1231,124 @@ function _json(obj, code) {
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _fullWidthLabel('খরচের তালিকা'),
-                      if (_managerExpenses.isEmpty && _memberExpenses.isEmpty)
-                        _emptyBox('কোনো খরচ যোগ করা হয়নি।')
-                      else ...[
-                        ..._managerExpenses.map((expense) => Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 4.0),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '${expense.description} (ম্যানেজার)',
-                                          style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.deepPurple),
-                                          softWrap: true,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          DateFormat('dd MMM')
-                                              .format(expense.date),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Text(
-                                      '${expense.amount.toStringAsFixed(2)} টাকা',
-                                      style: const TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.red)),
-                                ],
+                child: RepaintBoundary(
+                  key: _expenseListKey,
+                  child: Container(
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildSectionTitle('খরচের তালিকা'),
+                              IconButton(
+                                icon: const Icon(Icons.ios_share,
+                                    color: Colors.blueGrey),
+                                tooltip: 'খরচের তালিকা শেয়ার করুন',
+                                onPressed: () => _shareKeyAsImage(
+                                    _expenseListKey, 'expenses_list.png',
+                                    text: 'খরচের তালিকা'),
                               ),
-                            )),
-                        ..._memberExpenses.map((expense) {
-                          final memberName = _members
-                              .firstWhere((m) => m.id == expense.memberId,
-                                  orElse: () => Member(id: '', name: 'অজানা'))
-                              .name;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                            ],
+                          ),
+                          if (_managerExpenses.isEmpty &&
+                              _memberExpenses.isEmpty)
+                            _emptyBox('কোনো খরচ যোগ করা হয়নি।')
+                          else ...[
+                            ..._managerExpenses.map((expense) => Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 4.0),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(
-                                        '${expense.description} ($memberName)',
-                                        style: const TextStyle(fontSize: 15),
-                                        softWrap: true,
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        DateFormat('dd MMM')
-                                            .format(expense.date),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${expense.description} (ম্যানেজার)',
+                                              style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.deepPurple),
+                                              softWrap: true,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              DateFormat('dd MMM')
+                                                  .format(expense.date),
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
+                                      Text(
+                                          '${expense.amount.toStringAsFixed(2)} টাকা',
+                                          style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.red)),
                                     ],
                                   ),
+                                )),
+                            ..._memberExpenses.map((expense) {
+                              final memberName = _members
+                                  .firstWhere((m) => m.id == expense.memberId,
+                                      orElse: () =>
+                                          Member(id: '', name: 'অজানা'))
+                                  .name;
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4.0),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${expense.description} ($memberName)',
+                                            style:
+                                                const TextStyle(fontSize: 15),
+                                            softWrap: true,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            DateFormat('dd MMM')
+                                                .format(expense.date),
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                        '${expense.amount.toStringAsFixed(2)} টাকা',
+                                        style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.red)),
+                                  ],
                                 ),
-                                Text(
-                                    '${expense.amount.toStringAsFixed(2)} টাকা',
-                                    style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.red)),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    ],
+                              );
+                            }),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1379,21 +1392,6 @@ function _json(obj, code) {
   }
 
   // UI helpers
-  Widget _fullWidthLabel(String text) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
 
   Widget _emptyBox(String text) {
     return Container(
