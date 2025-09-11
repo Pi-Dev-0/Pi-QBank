@@ -31,6 +31,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   // Share keys
   final GlobalKey _finalReportKey = GlobalKey();
   final Map<String, GlobalKey> _memberCardKeys = {};
+  final GlobalKey _summaryKey = GlobalKey();
 
   // Selected member IDs
   String _selectedExpenseMemberId = '';
@@ -732,13 +733,6 @@ function _json(obj, code) {
           title: 'মেস ম্যানেজার',
           actions: [
             IconButton(
-              icon: const Icon(Icons.ios_share),
-              onPressed: () => _shareKeyAsImage(
-                  _finalReportKey, 'final_report.png',
-                  text: 'ফাইনাল হিসাব'),
-              tooltip: 'ফাইনাল হিসাব শেয়ার করুন',
-            ),
-            IconButton(
               icon: const Icon(Icons.cloud_upload),
               onPressed: _syncToGoogleSheets,
               tooltip: 'Google Sheets এ সিঙ্ক করুন',
@@ -756,34 +750,53 @@ function _json(obj, code) {
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('মেস এর হিসাব'),
-                      _buildCalculationRow('মোট জমা:',
-                          '${_members.fold(0.0, (sum, m) => sum + m.initialDeposit).toStringAsFixed(2)} টাকা',
-                          textColor: Colors.green),
-                      _buildCalculationRow('মোট খরচ:',
-                          '${_totalExpenses.toStringAsFixed(2)} টাকা',
-                          textColor: Colors.red),
-                      _buildCalculationRow('ম্যানেজারের খরচ:',
-                          '${_totalManagerExpenses.toStringAsFixed(2)} টাকা',
-                          textColor: Colors.red),
-                      _buildCalculationRow('সদস্যদের খরচ:',
-                          '${_totalMemberExpenses.toStringAsFixed(2)} টাকা',
-                          textColor: Colors.red),
-                      _buildCalculationRow('ম্যানেজারের হাতে অবশিষ্ট:',
-                          '${_managerCashInHand.toStringAsFixed(2)} টাকা',
-                          textColor: _managerCashInHand >= 0
-                              ? Colors.green
-                              : Colors.red),
-                      _buildCalculationRow(
-                          'মোট মিল সংখ্যা:', '$_totalMeals টি'),
-                      _buildCalculationRow(
-                          'মিল রেট:', '${_mealRate.toStringAsFixed(2)} টাকা'),
-                    ],
+                child: RepaintBoundary(
+                  key: _summaryKey,
+                  child: Container(
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header with share button inside the box
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildSectionTitle('মেস এর হিসাব'),
+                              IconButton(
+                                icon: const Icon(Icons.ios_share, color: Colors.blueGrey),
+                                tooltip: 'মেস এর হিসাব শেয়ার করুন',
+                                onPressed: () => _shareKeyAsImage(
+                                    _summaryKey, 'summary_report.png',
+                                    text: 'মেস এর হিসাব'),
+                              ),
+                            ],
+                          ),
+                          _buildCalculationRow('মোট জমা:',
+                              '${_members.fold(0.0, (sum, m) => sum + m.initialDeposit).toStringAsFixed(2)} টাকা',
+                              textColor: Colors.green),
+                          _buildCalculationRow('মোট খরচ:',
+                              '${_totalExpenses.toStringAsFixed(2)} টাকা',
+                              textColor: Colors.red),
+                          _buildCalculationRow('ম্যানেজারের খরচ:',
+                              '${_totalManagerExpenses.toStringAsFixed(2)} টাকা',
+                              textColor: Colors.red),
+                          _buildCalculationRow('সদস্যদের খরচ:',
+                              '${_totalMemberExpenses.toStringAsFixed(2)} টাকা',
+                              textColor: Colors.red),
+                          _buildCalculationRow('ম্যানেজারের হাতে অবশিষ্ট:',
+                              '${_managerCashInHand.toStringAsFixed(2)} টাকা',
+                              textColor: _managerCashInHand >= 0
+                                  ? Colors.green
+                                  : Colors.red),
+                          _buildCalculationRow(
+                              'মোট মিল সংখ্যা:', '$_totalMeals টি'),
+                          _buildCalculationRow(
+                              'মিল রেট:', '${_mealRate.toStringAsFixed(2)} টাকা'),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
