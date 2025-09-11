@@ -10,6 +10,7 @@ import 'package:pi_qbank/models/mess_manager_models.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class MessManagerPage extends StatefulWidget {
   const MessManagerPage({super.key});
@@ -67,6 +68,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
   static const String _kManagerExpenses = 'mm_manager_expenses';
   static const String _kMemberExpenses = 'mm_member_expenses';
   static const String _kDeposits = 'mm_deposits';
+  static const String _kAppsScriptUrl = 'mm_apps_script_url';
+
+  // External sync endpoint
+  String _appsScriptUrl = '';
 
   @override
   void initState() {
@@ -111,6 +116,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
       final mngExpStr = prefs.getString(_kManagerExpenses);
       final mbrExpStr = prefs.getString(_kMemberExpenses);
       final depositsStr = prefs.getString(_kDeposits);
+      _appsScriptUrl = prefs.getString(_kAppsScriptUrl) ?? '';
 
       if (membersStr != null) {
         final data = jsonDecode(membersStr) as List<dynamic>;
@@ -144,6 +150,119 @@ class _MessManagerPageState extends State<MessManagerPage> {
       if (mounted) setState(() {});
     } catch (e) {
       // If anything goes wrong, don't crash the UI; continue with empty state
+    }
+  }
+
+  // Build export payload for Google Sheets sync
+  Map<String, dynamic> _buildExportPayload() {
+    return {
+      'members': _members.map((e) => e.toMap()).toList(),
+      'meals': _meals.map((e) => e.toMap()).toList(),
+      'managerExpenses': _managerExpenses.map((e) => e.toMap()).toList(),
+      'memberExpenses': _memberExpenses.map((e) => e.toMap()).toList(),
+      'deposits': _deposits.map((e) => e.toMap()).toList(),
+      'report': _reportData
+          .map((r) => {
+                'memberId': r.memberId,
+                'memberName': r.memberName,
+                'totalMeals': r.totalMeals,
+                'initialDeposit': r.initialDeposit,
+                'personalExpense': r.personalExpense,
+                'mealCost': r.mealCost,
+                'totalContribution': r.totalContribution,
+                'balance': r.balance,
+                'mealRate': r.mealRate,
+              })
+          .toList(),
+      'generatedAt': DateTime.now().toIso8601String(),
+    };
+  }
+
+  Future<void> _promptForAppsScriptUrl() async {
+    final controller = TextEditingController(text: _appsScriptUrl);
+    final newUrl = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Google Apps Script URL দিন'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.url,
+            decoration: InputDecoration(
+              labelText: 'ওয়েব অ্যাপ URL',
+              hintText: 'https://script.google.com/...',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('বাতিল'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop(controller.text.trim());
+              },
+              child: const Text('সেভ'),
+            ),
+          ],
+        );
+      },
+    );
+    if (newUrl != null) {
+      setState(() {
+        _appsScriptUrl = newUrl;
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kAppsScriptUrl, _appsScriptUrl);
+      _showSnackBar('Apps Script URL সংরক্ষণ করা হয়েছে।', Colors.green);
+    }
+  }
+
+  Future<void> _syncToGoogleSheets() async {
+    try {
+      if (_appsScriptUrl.isEmpty) {
+        await _promptForAppsScriptUrl();
+        if (_appsScriptUrl.isEmpty) return;
+      }
+
+      final uri = Uri.parse(_appsScriptUrl);
+      final payload = {
+        'action': 'sync',
+        'payload': _buildExportPayload(),
+      };
+
+      _showSnackBar('সিঙ্ক শুরু হচ্ছে...', Colors.blueGrey);
+      final resp = await http.post(
+        uri,
+        headers: const {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(payload),
+      );
+
+      if (resp.statusCode == 200) {
+        // Try to parse response JSON
+        bool success = false;
+        String? message;
+        try {
+          final data = jsonDecode(resp.body);
+          success = (data['success'] == true) || (data['status'] == 'ok');
+          message = data['message'] as String?;
+        } catch (_) {
+          // If not JSON, consider status 200 as success
+          success = true;
+        }
+        if (success) {
+          _showSnackBar(message ?? 'ডাটা সফলভাবে সিঙ্ক হয়েছে।', Colors.green);
+        } else {
+          _showSnackBar(message ?? 'সিঙ্ক ব্যর্থ হয়েছে।', Colors.red);
+        }
+      } else {
+        _showSnackBar('সার্ভার ত্রুটি: ${resp.statusCode}', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('সিঙ্ক করতে সমস্যা: $e', Colors.red);
     }
   }
 
@@ -434,6 +553,11 @@ class _MessManagerPageState extends State<MessManagerPage> {
                   _finalReportKey, 'final_report.png',
                   text: 'ফাইনাল হিসাব'),
               tooltip: 'ফাইনাল হিসাব শেয়ার করুন',
+            ),
+            IconButton(
+              icon: const Icon(Icons.cloud_upload),
+              onPressed: _syncToGoogleSheets,
+              tooltip: 'Google Sheets এ সিঙ্ক করুন',
             ),
           ],
         ),
