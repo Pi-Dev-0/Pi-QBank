@@ -8,6 +8,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:pi_qbank/models/mess_manager_models.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class MessManagerPage extends StatefulWidget {
   const MessManagerPage({super.key});
@@ -59,6 +61,19 @@ class _MessManagerPageState extends State<MessManagerPage> {
   final TextEditingController _memberExpenseDescriptionController =
       TextEditingController();
 
+  // Persistence keys
+  static const String _kMembers = 'mm_members';
+  static const String _kMeals = 'mm_meals';
+  static const String _kManagerExpenses = 'mm_manager_expenses';
+  static const String _kMemberExpenses = 'mm_member_expenses';
+  static const String _kDeposits = 'mm_deposits';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadState();
+  }
+
   @override
   void dispose() {
     _newMemberNameController.dispose();
@@ -68,6 +83,68 @@ class _MessManagerPageState extends State<MessManagerPage> {
     _memberExpenseAmountController.dispose();
     _memberExpenseDescriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          _kMembers, jsonEncode(_members.map((e) => e.toMap()).toList()));
+      await prefs.setString(
+          _kMeals, jsonEncode(_meals.map((e) => e.toMap()).toList()));
+      await prefs.setString(_kManagerExpenses,
+          jsonEncode(_managerExpenses.map((e) => e.toMap()).toList()));
+      await prefs.setString(_kMemberExpenses,
+          jsonEncode(_memberExpenses.map((e) => e.toMap()).toList()));
+      await prefs.setString(
+          _kDeposits, jsonEncode(_deposits.map((e) => e.toMap()).toList()));
+    } catch (e) {
+      // Non-fatal: ignore save errors but log via snackbar once
+    }
+  }
+
+  Future<void> _loadState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final membersStr = prefs.getString(_kMembers);
+      final mealsStr = prefs.getString(_kMeals);
+      final mngExpStr = prefs.getString(_kManagerExpenses);
+      final mbrExpStr = prefs.getString(_kMemberExpenses);
+      final depositsStr = prefs.getString(_kDeposits);
+
+      if (membersStr != null) {
+        final data = jsonDecode(membersStr) as List<dynamic>;
+        _members.clear();
+        _members.addAll(data.map((e) => Member.fromMap(e as Map<String, dynamic>)));
+      }
+      if (mealsStr != null) {
+        final data = jsonDecode(mealsStr) as List<dynamic>;
+        _meals.clear();
+        _meals.addAll(data.map((e) => Meal.fromMap(e as Map<String, dynamic>)));
+      }
+      if (mngExpStr != null) {
+        final data = jsonDecode(mngExpStr) as List<dynamic>;
+        _managerExpenses.clear();
+        _managerExpenses.addAll(
+            data.map((e) => ManagerExpense.fromMap(e as Map<String, dynamic>)));
+      }
+      if (mbrExpStr != null) {
+        final data = jsonDecode(mbrExpStr) as List<dynamic>;
+        _memberExpenses.clear();
+        _memberExpenses.addAll(
+            data.map((e) => MemberExpense.fromMap(e as Map<String, dynamic>)));
+      }
+      if (depositsStr != null) {
+        final data = jsonDecode(depositsStr) as List<dynamic>;
+        _deposits.clear();
+        _deposits
+            .addAll(data.map((e) => Deposit.fromMap(e as Map<String, dynamic>)));
+      }
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      // If anything goes wrong, don't crash the UI; continue with empty state
+    }
   }
 
   // Handlers
@@ -86,6 +163,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
         _newMemberNameController.clear();
         _initialDepositController.clear();
       });
+      _saveState();
       _showSnackBar('সদস্য সফলভাবে যোগ করা হয়েছে।', Colors.green);
     } else {
       _showSnackBar('সদস্যের নাম খালি রাখা যাবে না।', Colors.red);
@@ -99,6 +177,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
       _deposits.removeWhere((d) => d.memberId == memberId);
       _memberExpenses.removeWhere((e) => e.memberId == memberId);
     });
+    _saveState();
     _showSnackBar('সদস্য মুছে ফেলা হয়েছে।', Colors.orange);
   }
 
@@ -116,6 +195,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
         _managerExpenseAmountController.clear();
         _managerExpenseDescriptionController.clear();
       });
+      _saveState();
       _showSnackBar('ম্যানেজারের খরচ যোগ করা হয়েছে।', Colors.green);
     } else {
       _showSnackBar('সঠিক পরিমাণ এবং বিবরণ দিন।', Colors.red);
@@ -146,6 +226,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
         _expenseDescriptionController.clear();
         _selectedExpenseMemberId = '';
       });
+      _saveState();
       _showSnackBar('সদস্যের খরচ যোগ করা হয়েছে।', Colors.green);
     } else {
       _showSnackBar(
@@ -263,8 +344,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'প্রাথমিক জমা',
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8)),
               prefixText: '৳ ',
             ),
           ),
@@ -290,6 +373,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
                     );
                   }
                 });
+                _saveState();
                 Navigator.of(context).pop();
                 _showSnackBar(
                     'প্রাথমিক জমা হালনাগাদ করা হয়েছে।', Colors.green);
@@ -656,6 +740,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
                                                   count: newCount));
                                             }
                                           });
+                                          _saveState();
                                         },
                                       ),
                                       SizedBox(
@@ -690,6 +775,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
                                                   count: newCount));
                                             }
                                           });
+                                          _saveState();
                                         },
                                       ),
                                     ],
