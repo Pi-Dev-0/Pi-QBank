@@ -25,6 +25,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   final List<Member> _members = [];
   final List<Meal> _meals = [];
   final List<ManagerExpense> _managerExpenses = [];
+  final List<MiscExpense> _miscExpenses = [];
   final List<MemberExpense> _memberExpenses = [];
   final List<Deposit> _deposits = [];
 
@@ -49,7 +50,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   double get _totalInitialDeposits =>
       _members.fold(0.0, (sum, m) => sum + m.initialDeposit);
   double get _managerCashInHand =>
-      _totalInitialDeposits - _totalManagerExpenses;
+      _totalInitialDeposits - (_totalManagerExpenses + _totalMiscExpenses);
 
   // Controllers for input fields
   final TextEditingController _newMemberNameController =
@@ -60,6 +61,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
       TextEditingController();
   final TextEditingController _managerExpenseDescriptionController =
       TextEditingController();
+  final TextEditingController _miscExpenseAmountController =
+      TextEditingController();
+  final TextEditingController _miscExpenseDescriptionController =
+      TextEditingController();
   final TextEditingController _memberExpenseAmountController =
       TextEditingController();
   final TextEditingController _memberExpenseDescriptionController =
@@ -69,6 +74,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   static const String _kMembers = 'mm_members';
   static const String _kMeals = 'mm_meals';
   static const String _kManagerExpenses = 'mm_manager_expenses';
+  static const String _kMiscExpenses = 'mm_misc_expenses';
   static const String _kMemberExpenses = 'mm_member_expenses';
   static const String _kDeposits = 'mm_deposits';
   static const String _kAppsScriptUrl = 'mm_apps_script_url';
@@ -82,12 +88,35 @@ class _MessManagerPageState extends State<MessManagerPage> {
     _loadState();
   }
 
+  void _handleAddMiscExpense() {
+    final amount = _parseAmount(_miscExpenseAmountController.text);
+    final description = _miscExpenseDescriptionController.text.trim();
+
+    if (amount != null && amount > 0 && description.isNotEmpty) {
+      setState(() {
+        _miscExpenses.add(MiscExpense(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          amount: amount,
+          description: description,
+        ));
+        _miscExpenseAmountController.clear();
+        _miscExpenseDescriptionController.clear();
+      });
+      _saveState();
+      _showSnackBar('বিবিধ খরচ যোগ করা হয়েছে।', Colors.green);
+    } else {
+      _showSnackBar('সঠিক পরিমাণ এবং বিবরণ দিন।', Colors.red);
+    }
+  }
+
   @override
   void dispose() {
     _newMemberNameController.dispose();
     _initialDepositController.dispose();
     _managerExpenseAmountController.dispose();
     _managerExpenseDescriptionController.dispose();
+    _miscExpenseAmountController.dispose();
+    _miscExpenseDescriptionController.dispose();
     _memberExpenseAmountController.dispose();
     _memberExpenseDescriptionController.dispose();
     super.dispose();
@@ -102,6 +131,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
           _kMeals, jsonEncode(_meals.map((e) => e.toMap()).toList()));
       await prefs.setString(_kManagerExpenses,
           jsonEncode(_managerExpenses.map((e) => e.toMap()).toList()));
+      await prefs.setString(_kMiscExpenses,
+          jsonEncode(_miscExpenses.map((e) => e.toMap()).toList()));
       await prefs.setString(_kMemberExpenses,
           jsonEncode(_memberExpenses.map((e) => e.toMap()).toList()));
       await prefs.setString(
@@ -117,6 +148,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
       final membersStr = prefs.getString(_kMembers);
       final mealsStr = prefs.getString(_kMeals);
       final mngExpStr = prefs.getString(_kManagerExpenses);
+      final miscExpStr = prefs.getString(_kMiscExpenses);
       final mbrExpStr = prefs.getString(_kMemberExpenses);
       final depositsStr = prefs.getString(_kDeposits);
       _appsScriptUrl = prefs.getString(_kAppsScriptUrl) ?? '';
@@ -137,6 +169,12 @@ class _MessManagerPageState extends State<MessManagerPage> {
         _managerExpenses.clear();
         _managerExpenses.addAll(
             data.map((e) => ManagerExpense.fromMap(e as Map<String, dynamic>)));
+      }
+      if (miscExpStr != null) {
+        final data = jsonDecode(miscExpStr) as List<dynamic>;
+        _miscExpenses.clear();
+        _miscExpenses.addAll(
+            data.map((e) => MiscExpense.fromMap(e as Map<String, dynamic>)));
       }
       if (mbrExpStr != null) {
         final data = jsonDecode(mbrExpStr) as List<dynamic>;
@@ -697,6 +735,9 @@ function _json(obj, code) {
       _managerExpenses.fold(0.0, (sum, e) => sum + e.amount);
   double get _totalMemberExpenses =>
       _memberExpenses.fold(0.0, (sum, e) => sum + e.amount);
+  double get _totalMiscExpenses =>
+      _miscExpenses.fold(0.0, (sum, e) => sum + e.amount);
+  // Meal-related total excludes misc expenses (misc split equally by headcount)
   double get _totalExpenses => _totalManagerExpenses + _totalMemberExpenses;
   int get _totalMeals => _meals.fold(0, (sum, m) => sum + m.count);
   double get _mealRate => _totalMeals > 0 ? _totalExpenses / _totalMeals : 0.0;
@@ -788,6 +829,12 @@ function _json(obj, code) {
                           _buildCalculationRow('সদস্যদের খরচ:',
                               '${_totalMemberExpenses.toStringAsFixed(2)} টাকা',
                               textColor: Colors.red),
+                          _buildCalculationRow('বিবিধ খরচ:',
+                              '${_totalMiscExpenses.toStringAsFixed(2)} টাকা',
+                              textColor: Colors.red),
+                          if (_members.isNotEmpty)
+                            _buildCalculationRow('প্রতি সদস্যের বিবিধ অংশ:',
+                                '${(_totalMiscExpenses / _members.length).toStringAsFixed(2)} টাকা'),
                           _buildCalculationRow('ম্যানেজারের হাতে অবশিষ্ট:',
                               '${_managerCashInHand.toStringAsFixed(2)} টাকা',
                               textColor: _managerCashInHand >= 0
@@ -849,6 +896,64 @@ function _json(obj, code) {
                           ),
                         ),
                       ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Misc Expenses Section
+              Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('বিবিধ খরচ '),
+                      TextField(
+                        controller: _miscExpenseDescriptionController,
+                        decoration: InputDecoration(
+                          labelText: 'খরচের বিবরণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _miscExpenseAmountController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'পরিমাণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          prefixText: '৳ ',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _handleAddMiscExpense,
+                          icon: const Icon(Icons.add),
+                          label: const Text('বিবিধ খরচ যোগ করুন'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (_members.isNotEmpty)
+                        Text(
+                          'প্রতি সদস্যের বর্তমান বিবিধ অংশ: ৳ ${(_totalMiscExpenses / _members.length).toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.deepPurple),
+                        ),
                     ],
                   ),
                 ),
@@ -1190,25 +1295,31 @@ function _json(obj, code) {
                                           'মোট মিল:', '${data.totalMeals} টি'),
                                       _buildCalculationRow('মিল রেট:',
                                           '${data.mealRate.toStringAsFixed(2)} টাকা'),
-                                      _buildCalculationRow('মোট খরচ:',
+                                      _buildCalculationRow('মিল খরচ:',
                                           '${data.mealCost.toStringAsFixed(2)} টাকা',
+                                          textColor: Colors.red),
+                                      _buildCalculationRow('বিবিধ খরচের অংশ:',
+                                          '${(_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0).toStringAsFixed(2)} টাকা',
+                                          textColor: Colors.red),
+                                      _buildCalculationRow('মোট খরচ:',
+                                          '${(data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0)).toStringAsFixed(2)} টাকা',
                                           textColor: Colors.red),
                                       const Divider(),
                                       _buildCalculationRow('ব্যালেন্স:',
-                                          '${data.balance.toStringAsFixed(2)} টাকা',
-                                          textColor: data.balance >= 0
+                                          '${(data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))).toStringAsFixed(2)} টাকা',
+                                          textColor: (data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))) >= 0
                                               ? Colors.green
                                               : Colors.red),
-                                      if (data.balance > 0)
+                                      if ((data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))) > 0)
                                         Text(
-                                          '${data.memberName} ${data.balance.toStringAsFixed(2)} টাকা ফেরত পাবেন',
+                                          '${data.memberName} ${(data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))).toStringAsFixed(2)} টাকা ফেরত পাবেন',
                                           style: const TextStyle(
                                               color: Colors.green,
                                               fontWeight: FontWeight.bold),
                                         )
-                                      else if (data.balance < 0)
+                                      else if ((data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))) < 0)
                                         Text(
-                                          '${data.memberName} ${(-data.balance).toStringAsFixed(2)} টাকা দিবেন',
+                                          '${data.memberName} ${((data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0)) - data.totalContribution).toStringAsFixed(2)} টাকা দিবেন',
                                           style: const TextStyle(
                                               color: Colors.red,
                                               fontWeight: FontWeight.bold),
@@ -1255,7 +1366,8 @@ function _json(obj, code) {
                             ],
                           ),
                           if (_managerExpenses.isEmpty &&
-                              _memberExpenses.isEmpty)
+                              _memberExpenses.isEmpty &&
+                              _miscExpenses.isEmpty)
                             _emptyBox('কোনো খরচ যোগ করা হয়নি।')
                           else ...[
                             ..._managerExpenses.map((expense) => Padding(
@@ -1345,6 +1457,47 @@ function _json(obj, code) {
                                 ),
                               );
                             }),
+                            ..._miscExpenses.map((expense) => Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 4.0),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${expense.description} (বিবিধ)',
+                                              style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.deepPurple),
+                                              softWrap: true,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              DateFormat('dd MMM')
+                                                  .format(expense.date),
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Text(
+                                          '${expense.amount.toStringAsFixed(2)} টাকা',
+                                          style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.red)),
+                                    ],
+                                  ),
+                                )),
                           ],
                         ],
                       ),

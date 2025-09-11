@@ -65,6 +65,34 @@ class ManagerExpense {
       );
 }
 
+class MiscExpense {
+  final String id;
+  final double amount;
+  final String description;
+  final DateTime date;
+
+  MiscExpense({
+    required this.id,
+    required this.amount,
+    required this.description,
+    DateTime? date,
+  }) : date = date ?? DateTime.now();
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'amount': amount,
+        'description': description,
+        'date': date.toIso8601String(),
+      };
+
+  factory MiscExpense.fromMap(Map<String, dynamic> map) => MiscExpense(
+        id: map['id'] as String,
+        amount: (map['amount'] as num).toDouble(),
+        description: map['description'] as String,
+        date: DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now(),
+      );
+}
+
 class Deposit {
   final String id;
   final String memberId;
@@ -148,3 +176,4 @@ class ReportData {
     required this.mealRate,
   });
 }
+
