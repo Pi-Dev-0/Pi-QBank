@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
 
 class MessManagerPage extends StatefulWidget {
   const MessManagerPage({super.key});
@@ -184,14 +185,81 @@ class _MessManagerPageState extends State<MessManagerPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Google Apps Script URL দিন'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.url,
-            decoration: InputDecoration(
-              labelText: 'ওয়েব অ্যাপ URL',
-              hintText: 'https://script.google.com/...',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          title: const Text('প্রথমবার সেটআপ: Google Apps Script'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // URL input on top
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.url,
+                    decoration: InputDecoration(
+                      labelText: 'Apps Script ওয়েব অ্যাপ URL',
+                      hintText: 'https://script.google.com/.../exec',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'সেটআপ নির্দেশনা (একবারই করতে হবে):',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.deepPurple),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '১) একটি নতুন Google Sheet খুলুন (নাম দিতে পারেন: "Mess Manager").\n'
+                    '২) Extensions > Apps Script এ যান।\n'
+                    '৩) নিচের কোডটি Code.gs এ পেস্ট করে সেভ করুন।\n'
+                    '৪) Deploy > New deployment > Web app নির্বাচন করুন।\n'
+                    '   Execute as: Me, Who has access: Anyone with the link দিন।\n'
+                    '৫) Deploy করে প্রাপ্ত Web App URL টি উপরের ঘরে পেস্ট করে সেভ করুন।',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Apps Script কোড :',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                              ClipboardData(text: _appsScriptCode));
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('কোড কপি হয়েছে।')));
+                          }
+                        },
+                        icon: const Icon(Icons.copy),
+                        label: const Text('কোড কপি করুন'),
+                      )
+                    ],
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.all(10),
+                    child: SelectableText(
+                      _appsScriptCode,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
@@ -218,6 +286,122 @@ class _MessManagerPageState extends State<MessManagerPage> {
       _showSnackBar('Apps Script URL সংরক্ষণ করা হয়েছে।', Colors.green);
     }
   }
+
+  String get _appsScriptCode => '''/* global ContentService, SpreadsheetApp */
+
+function doGet(e) {
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'ok', message: 'MessManager endpoint up' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+
+    if (!payload || payload.action !== 'sync' || !payload.payload) {
+      return _json({ success: false, message: 'Invalid payload' }, 400);
+    }
+
+    var data = payload.payload;
+
+    _writeTable('Members', ['id', 'name', 'initialDeposit'], data.members || [], function (m) {
+      return [m.id, m.name, _num(m.initialDeposit)];
+    });
+
+    _writeTable('Meals', ['memberId', 'count'], data.meals || [], function (m) {
+      return [m.memberId, _int(m.count)];
+    });
+
+    _writeTable('ManagerExpenses', ['id', 'amount', 'description', 'date'], data.managerExpenses || [], function (x) {
+      return [x.id, _num(x.amount), x.description, _date(x.date)];
+    });
+
+    _writeTable('MemberExpenses', ['id', 'memberId', 'amount', 'description', 'date'], data.memberExpenses || [], function (x) {
+      return [x.id, x.memberId, _num(x.amount), x.description, _date(x.date)];
+    });
+
+    _writeTable('Deposits', ['id', 'memberId', 'amount', 'date'], data.deposits || [], function (x) {
+      return [x.id, x.memberId, _num(x.amount), _date(x.date)];
+    });
+
+    _writeTable('Report', [
+      'memberId', 'memberName', 'totalMeals', 'initialDeposit', 'personalExpense',
+      'mealCost', 'totalContribution', 'balance', 'mealRate', 'generatedAt'
+    ], data.report || [], function (r) {
+      return [
+        r.memberId, r.memberName, _int(r.totalMeals), _num(r.initialDeposit),
+        _num(r.personalExpense), _num(r.mealCost), _num(r.totalContribution),
+        _num(r.balance), _num(r.mealRate), _date(data.generatedAt)
+      ];
+    });
+
+    return _json({ success: true, message: 'Synced successfully' }, 200);
+  } catch (err) {
+    return _json({ success: false, message: String(err) }, 500);
+  }
+}
+
+function _writeTable(sheetName, headers, items, mapRow) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  } else {
+    sheet.clear();
+  }
+  if (!items) items = [];
+
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  if (items.length === 0) return;
+
+  var rows = [];
+  for (var i = 0; i < items.length; i++) {
+    rows.push(mapRow(items[i]));
+  }
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+
+  _applyFormats(sheetName, headers);
+}
+
+function _applyFormats(sheetName, headers) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return;
+
+  for (var c = 0; c < headers.length; c++) {
+    var h = headers[c].toLowerCase();
+    if (h.indexOf('date') !== -1 || h === 'generatedat') {
+      sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('yyyy-mm-dd hh:mm');
+    } else if (['amount', 'initialdeposit', 'personalexpense', 'mealcost', 'totalcontribution', 'balance', 'mealrate'].indexOf(h) !== -1) {
+      sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('#,##0.00');
+    } else if (h.indexOf('count') !== -1 || h.indexOf('meals') !== -1 || h.indexOf('totalmeals') !== -1) {
+      sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('0');
+    }
+  }
+}
+
+function _num(x) {
+  var n = Number(x);
+  return isNaN(n) ? 0 : n;
+}
+function _int(x) {
+  var n = parseInt(x, 10);
+  return isNaN(n) ? 0 : n;
+}
+function _date(s) {
+  if (!s) return '';
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? '' : d;
+}
+
+function _json(obj, code) {
+  var out = ContentService.createTextOutput(JSON.stringify(obj));
+  out.setMimeType(ContentService.MimeType.JSON);
+  return out.setStatusCode(code || 200);
+}
+''';
 
   Future<void> _syncToGoogleSheets() async {
     try {
