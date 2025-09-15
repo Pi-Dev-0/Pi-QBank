@@ -22,7 +22,7 @@ class Member {
 
 class Meal {
   final String memberId;
-  int count;
+  double count;
 
   Meal({required this.memberId, required this.count});
 
@@ -33,7 +33,7 @@ class Meal {
 
   factory Meal.fromMap(Map<String, dynamic> map) => Meal(
         memberId: map['memberId'] as String,
-        count: (map['count'] as num).toInt(),
+        count: (map['count'] as num).toDouble(),
       );
 }
 
@@ -156,7 +156,7 @@ class MemberExpense {
 class ReportData {
   final String memberId;
   final String memberName;
-  final int totalMeals;
+  final double totalMeals;
   final double initialDeposit; // Money given to manager
   final double personalExpense; // Money spent on market purchases
   final double mealCost; // Total cost of meals consumed (meals * mealRate)

@@ -34,6 +34,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   final Map<String, GlobalKey> _memberCardKeys = {};
   final GlobalKey _summaryKey = GlobalKey();
   final GlobalKey _expenseListKey = GlobalKey();
+  final GlobalKey _membersListKey = GlobalKey();
 
   // Selected member IDs
   String _selectedExpenseMemberId = '';
@@ -351,7 +352,7 @@ function doPost(e) {
     });
 
     _writeTable('Meals', ['memberId', 'count'], data.meals || [], function (m) {
-      return [m.memberId, _int(m.count)];
+      return [m.memberId, _num(m.count)];
     });
 
     _writeTable('ManagerExpenses', ['id', 'amount', 'description', 'date'], data.managerExpenses || [], function (x) {
@@ -371,7 +372,7 @@ function doPost(e) {
       'mealCost', 'totalContribution', 'balance', 'mealRate', 'generatedAt'
     ], data.report || [], function (r) {
       return [
-        r.memberId, r.memberName, _int(r.totalMeals), _num(r.initialDeposit),
+        r.memberId, r.memberName, _num(r.totalMeals), _num(r.initialDeposit),
         _num(r.personalExpense), _num(r.mealCost), _num(r.totalContribution),
         _num(r.balance), _num(r.mealRate), _date(data.generatedAt)
       ];
@@ -418,7 +419,7 @@ function _applyFormats(sheetName, headers) {
     } else if (['amount', 'initialdeposit', 'personalexpense', 'mealcost', 'totalcontribution', 'balance', 'mealrate'].indexOf(h) !== -1) {
       sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('#,##0.00');
     } else if (h.indexOf('count') !== -1 || h.indexOf('meals') !== -1 || h.indexOf('totalmeals') !== -1) {
-      sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('0');
+      sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('0.0');
     }
   }
 }
@@ -503,7 +504,7 @@ function _json(obj, code) {
           initialDeposit: initialDeposit,
         );
         _members.add(newMember);
-        _meals.add(Meal(memberId: newMember.id, count: 0));
+        _meals.add(Meal(memberId: newMember.id, count: 0.0));
         _newMemberNameController.clear();
         _initialDepositController.clear();
       });
@@ -739,14 +740,14 @@ function _json(obj, code) {
       _miscExpenses.fold(0.0, (sum, e) => sum + e.amount);
   // Meal-related total excludes misc expenses (misc split equally by headcount)
   double get _totalExpenses => _totalManagerExpenses + _totalMemberExpenses;
-  int get _totalMeals => _meals.fold(0, (sum, m) => sum + m.count);
+  double get _totalMeals => _meals.fold(0.0, (sum, m) => sum + m.count);
   double get _mealRate => _totalMeals > 0 ? _totalExpenses / _totalMeals : 0.0;
 
   List<ReportData> get _reportData {
     return _members.map((member) {
       final memberMeals = _meals
           .firstWhere((m) => m.memberId == member.id,
-              orElse: () => Meal(memberId: member.id, count: 0))
+              orElse: () => Meal(memberId: member.id, count: 0.0))
           .count;
       final memberDeposit = member.initialDeposit;
       final personalExpense = _memberExpenses
@@ -779,6 +780,13 @@ function _json(obj, code) {
               icon: const Icon(Icons.cloud_upload),
               onPressed: _syncToGoogleSheets,
               tooltip: 'Google Sheets এ সিঙ্ক করুন',
+            ),
+            IconButton(
+              icon: const Icon(Icons.ios_share),
+              onPressed: () => _shareKeyAsImage(
+                  _finalReportKey, 'final_report.png',
+                  text: 'ফাইনাল হিসাব'),
+              tooltip: 'ফাইনাল হিসাব শেয়ার করুন',
             ),
           ],
         ),
@@ -840,8 +848,8 @@ function _json(obj, code) {
                               textColor: _managerCashInHand >= 0
                                   ? Colors.green
                                   : Colors.red),
-                          _buildCalculationRow(
-                              'মোট মিল সংখ্যা:', '$_totalMeals টি'),
+                          _buildCalculationRow('মোট মিল সংখ্যা:',
+                              '${_totalMeals.toStringAsFixed(1)} টি'),
                           _buildCalculationRow('মিল রেট:',
                               '${_mealRate.toStringAsFixed(2)} টাকা'),
                         ],
@@ -1092,35 +1100,131 @@ function _json(obj, code) {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      if (_members.isEmpty)
-                        const Text('কোনো সদস্য যোগ করা হয়নি।')
-                      else
-                        ..._members.map((member) {
+                      const Text(
+                        'নিচের বক্সে সদস্যদের তালিকা ও মিল দেখুন।',
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Deposit Form removed as per requirement
+
+              // Members list and meals box (separate)
+              Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: RepaintBoundary(
+                  key: _membersListKey,
+                  child: Container(
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildSectionTitle('সদস্যদের তালিকা ও মিল'),
+                              IconButton(
+                                icon: const Icon(Icons.ios_share,
+                                    color: Colors.blueGrey),
+                                tooltip: 'সদস্যদের তালিকা শেয়ার করুন',
+                                onPressed: () => _shareKeyAsImage(
+                                    _membersListKey, 'members_list.png',
+                                    text: 'সদস্যদের তালিকা ও মিল'),
+                              ),
+                            ],
+                          ),
+                          if (_members.isEmpty)
+                            _emptyBox('কোনো সদস্য যোগ করা হয়নি।')
+                          else
+                            ..._members.map((member) {
                           final memberMeals = _meals
                               .firstWhere((m) => m.memberId == member.id,
                                   orElse: () =>
-                                      Meal(memberId: member.id, count: 0))
+                                      Meal(memberId: member.id, count: 0.0))
                               .count;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.white,
+                            ),
                             child: Row(
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    member.name,
-                                    style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        member.name,
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'প্রাথমিক জমা: ৳ ${member.initialDeposit.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                // Edit initial deposit
-                                IconButton(
-                                  icon: const Icon(Icons.edit,
-                                      color: Colors.teal),
-                                  tooltip: 'প্রাথমিক জমা সম্পাদনা',
-                                  onPressed: () =>
-                                      _showEditInitialDepositDialog(member),
+                                PopupMenuButton<String>(
+                                  tooltip: 'অ্যাকশন',
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      _showEditInitialDepositDialog(member);
+                                    } else if (value == 'delete') {
+                                      final confirmed =
+                                          await showDeleteConfirmationDialog(
+                                        context: context,
+                                        title: 'সদস্য ডিলিট',
+                                        message:
+                                            'আপনি কি নিশ্চিতভাবে এই সদস্যকে ডিলিট করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।',
+                                        paperTitle: member.name,
+                                        paperSubtitle:
+                                            'প্রাথমিক জমা: ৳ ${member.initialDeposit.toStringAsFixed(2)}',
+                                      );
+                                      if (confirmed == true) {
+                                        _handleDeleteMember(member.id);
+                                      }
+                                    }
+                                  },
+                                  itemBuilder: (context) => const [
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.edit, color: Colors.teal),
+                                          SizedBox(width: 8),
+                                          Text('প্রাথমিক জমা সম্পাদনা'),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text('সদস্য ডিলিট'),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 Container(
                                   decoration: BoxDecoration(
@@ -1142,9 +1246,8 @@ function _json(obj, code) {
                                                 width: 32, height: 32),
                                         onPressed: () {
                                           setState(() {
-                                            final int newCount = memberMeals > 0
-                                                ? memberMeals - 1
-                                                : 0;
+                                            double newCount = memberMeals - 0.5;
+                                            if (newCount < 0) newCount = 0.0;
                                             final idx = _meals.indexWhere(
                                                 (m) => m.memberId == member.id);
                                             if (idx != -1) {
@@ -1159,10 +1262,10 @@ function _json(obj, code) {
                                         },
                                       ),
                                       SizedBox(
-                                        width: 36,
+                                        width: 44,
                                         child: Center(
                                           child: Text(
-                                            memberMeals.toString(),
+                                            memberMeals.toStringAsFixed(1),
                                             style: const TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w600),
@@ -1178,8 +1281,8 @@ function _json(obj, code) {
                                                 width: 32, height: 32),
                                         onPressed: () {
                                           setState(() {
-                                            final int newCount =
-                                                memberMeals + 1;
+                                            final double newCount =
+                                                memberMeals + 0.5;
                                             final idx = _meals.indexWhere(
                                                 (m) => m.memberId == member.id);
                                             if (idx != -1) {
@@ -1196,35 +1299,16 @@ function _json(obj, code) {
                                     ],
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      color: Colors.red),
-                                  onPressed: () async {
-                                    final confirmed =
-                                        await showDeleteConfirmationDialog(
-                                      context: context,
-                                      title: 'সদস্য ডিলিট',
-                                      message:
-                                          'আপনি কি নিশ্চিতভাবে এই সদস্যকে ডিলিট করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।',
-                                      paperTitle: member.name,
-                                      paperSubtitle:
-                                          'প্রাথমিক জমা: ৳ ${member.initialDeposit.toStringAsFixed(2)}',
-                                    );
-                                    if (confirmed == true) {
-                                      _handleDeleteMember(member.id);
-                                    }
-                                  },
-                                ),
                               ],
                             ),
                           );
                         }),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-
-              // Deposit Form removed as per requirement
 
               // Members' Accounts Report
               Card(
@@ -1291,8 +1375,8 @@ function _json(obj, code) {
                                           textColor: Colors.red),
                                       _buildCalculationRow('মোট জমা:',
                                           '${data.totalContribution.toStringAsFixed(2)} টাকা'),
-                                      _buildCalculationRow(
-                                          'মোট মিল:', '${data.totalMeals} টি'),
+                                      _buildCalculationRow('মোট মিল:',
+                                          '${data.totalMeals.toStringAsFixed(1)} টি'),
                                       _buildCalculationRow('মিল রেট:',
                                           '${data.mealRate.toStringAsFixed(2)} টাকা'),
                                       _buildCalculationRow('মিল খরচ:',
@@ -1307,17 +1391,36 @@ function _json(obj, code) {
                                       const Divider(),
                                       _buildCalculationRow('ব্যালেন্স:',
                                           '${(data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))).toStringAsFixed(2)} টাকা',
-                                          textColor: (data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))) >= 0
+                                          textColor: (data.totalContribution -
+                                                      (data.mealCost +
+                                                          (_members.isNotEmpty
+                                                              ? (_totalMiscExpenses /
+                                                                  _members
+                                                                      .length)
+                                                              : 0))) >=
+                                                  0
                                               ? Colors.green
                                               : Colors.red),
-                                      if ((data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))) > 0)
+                                      if ((data.totalContribution -
+                                              (data.mealCost +
+                                                  (_members.isNotEmpty
+                                                      ? (_totalMiscExpenses /
+                                                          _members.length)
+                                                      : 0))) >
+                                          0)
                                         Text(
                                           '${data.memberName} ${(data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))).toStringAsFixed(2)} টাকা ফেরত পাবেন',
                                           style: const TextStyle(
                                               color: Colors.green,
                                               fontWeight: FontWeight.bold),
                                         )
-                                      else if ((data.totalContribution - (data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0))) < 0)
+                                      else if ((data.totalContribution -
+                                              (data.mealCost +
+                                                  (_members.isNotEmpty
+                                                      ? (_totalMiscExpenses /
+                                                          _members.length)
+                                                      : 0))) <
+                                          0)
                                         Text(
                                           '${data.memberName} ${((data.mealCost + (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0)) - data.totalContribution).toStringAsFixed(2)} টাকা দিবেন',
                                           style: const TextStyle(
@@ -1371,8 +1474,8 @@ function _json(obj, code) {
                             _emptyBox('কোনো খরচ যোগ করা হয়নি।')
                           else ...[
                             ..._managerExpenses.map((expense) => Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 4.0),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 4.0),
                                   child: Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -1458,8 +1561,8 @@ function _json(obj, code) {
                               );
                             }),
                             ..._miscExpenses.map((expense) => Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 4.0),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 4.0),
                                   child: Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
