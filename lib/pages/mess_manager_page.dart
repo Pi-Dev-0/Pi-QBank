@@ -89,6 +89,113 @@ class _MessManagerPageState extends State<MessManagerPage> {
     _loadState();
   }
 
+  Future<void> _showSyncOptions() async {
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 6),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.cloud_upload, color: Colors.green),
+                title: const Text('Google Sheets এ আপলোড করুন'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await _syncToGoogleSheets();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cloud_download, color: Colors.blue),
+                title: const Text('Google Sheets থেকে ডাউনলোড করুন'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await _syncFromGoogleSheets();
+                },
+              ),
+              const SizedBox(height: 6),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _syncFromGoogleSheets() async {
+    try {
+      if (_appsScriptUrl.isEmpty) {
+        await _promptForAppsScriptUrl();
+        if (_appsScriptUrl.isEmpty) return;
+      }
+
+      final uri = Uri.parse(_appsScriptUrl).replace(queryParameters: {
+        'action': 'pull',
+      });
+
+      _showSnackBar('ডাটা টানা হচ্ছে...', Colors.blueGrey);
+      final resp = await http.get(uri, headers: const {
+        'Content-Type': 'application/json',
+      });
+
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        if (data['success'] != true || data['payload'] == null) {
+          _showSnackBar('সঠিক ডাটা পাওয়া যায়নি।', Colors.red);
+          return;
+        }
+        final payload = data['payload'] as Map<String, dynamic>;
+
+        setState(() {
+          _members
+            ..clear()
+            ..addAll(((payload['members'] as List<dynamic>? ) ?? [])
+                .map((e) => Member.fromMap(e as Map<String, dynamic>)));
+          _meals
+            ..clear()
+            ..addAll(((payload['meals'] as List<dynamic>? ) ?? [])
+                .map((e) => Meal.fromMap(e as Map<String, dynamic>)));
+          _managerExpenses
+            ..clear()
+            ..addAll(((payload['managerExpenses'] as List<dynamic>? ) ?? [])
+                .map((e) => ManagerExpense.fromMap(e as Map<String, dynamic>)));
+          _miscExpenses
+            ..clear()
+            ..addAll(((payload['miscExpenses'] as List<dynamic>? ) ?? [])
+                .map((e) => MiscExpense.fromMap(e as Map<String, dynamic>)));
+          _memberExpenses
+            ..clear()
+            ..addAll(((payload['memberExpenses'] as List<dynamic>? ) ?? [])
+                .map((e) => MemberExpense.fromMap(e as Map<String, dynamic>)));
+          _deposits
+            ..clear()
+            ..addAll(((payload['deposits'] as List<dynamic>? ) ?? [])
+                .map((e) => Deposit.fromMap(e as Map<String, dynamic>)));
+        });
+
+        await _saveState();
+        _showSnackBar('শিট থেকে ডাটা ইম্পোর্ট সম্পন্ন।', Colors.green);
+      } else {
+        _showSnackBar('সার্ভার ত্রুটি: ${resp.statusCode}', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('ডাটা টানা যায়নি: $e', Colors.red);
+    }
+  }
+
   void _handleAddMiscExpense() {
     final amount = _parseAmount(_miscExpenseAmountController.text);
     final description = _miscExpenseDescriptionController.text.trim();
@@ -332,9 +439,30 @@ class _MessManagerPageState extends State<MessManagerPage> {
   String get _appsScriptCode => '''/* global ContentService, SpreadsheetApp */
 
 function doGet(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok', message: 'MessManager endpoint up' }))
-    .setMimeType(ContentService.MimeType.JSON);
+  try {
+    var action = e && e.parameter && e.parameter.action;
+    if (action === 'pull') {
+      var out = {
+        members: _readTable('Members', function (r) { return { id: r[0], name: r[1], initialDeposit: _num(r[2]) }; }),
+        meals: _readTable('Meals', function (r) { return { memberId: r[0], count: Number(r[1]) }; }),
+        managerExpenses: _readTable('ManagerExpenses', function (r) { return { id: r[0], amount: _num(r[1]), description: r[2], date: r[3] }; }),
+        memberExpenses: _readTable('MemberExpenses', function (r) { return { id: r[0], memberId: r[1], amount: _num(r[2]), description: r[3], date: r[4] }; }),
+        miscExpenses: _readTable('MiscExpenses', function (r) { return { id: r[0], amount: _num(r[1]), description: r[2], date: r[3] }; }),
+        deposits: _readTable('Deposits', function (r) { return { id: r[0], memberId: r[1], amount: _num(r[2]), date: r[3] }; }),
+        report: _readTable('Report', function (r) { return {
+          memberId: r[0], memberName: r[1], totalMeals: Number(r[2]), initialDeposit: _num(r[3]), personalExpense: _num(r[4]),
+          mealCost: _num(r[5]), totalContribution: _num(r[6]), balance: _num(r[7]), mealRate: _num(r[8])
+        }; }),
+        generatedAt: new Date().toISOString(),
+      };
+      return _json({ success: true, payload: out }, 200);
+    }
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'ok', message: 'MessManager endpoint up' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return _json({ success: false, message: String(err) }, 500);
+  }
 }
 
 function doPost(e) {
@@ -442,6 +570,21 @@ function _json(obj, code) {
   var out = ContentService.createTextOutput(JSON.stringify(obj));
   out.setMimeType(ContentService.MimeType.JSON);
   return out.setStatusCode(code || 200);
+}
+
+function _readTable(sheetName, mapRow) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return [];
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
+  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var out = [];
+  for (var i = 0; i < values.length; i++) {
+    out.push(mapRow(values[i]));
+  }
+  return out;
 }
 ''';
 
@@ -777,9 +920,9 @@ function _json(obj, code) {
           title: 'মেস ম্যানেজার',
           actions: [
             IconButton(
-              icon: const Icon(Icons.cloud_upload),
-              onPressed: _syncToGoogleSheets,
-              tooltip: 'Google Sheets এ সিঙ্ক করুন',
+              icon: const Icon(Icons.sync),
+              onPressed: _showSyncOptions,
+              tooltip: 'সিঙ্ক অপশন',
             ),
           ],
         ),
