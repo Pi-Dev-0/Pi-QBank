@@ -781,13 +781,6 @@ function _json(obj, code) {
               onPressed: _syncToGoogleSheets,
               tooltip: 'Google Sheets এ সিঙ্ক করুন',
             ),
-            IconButton(
-              icon: const Icon(Icons.ios_share),
-              onPressed: () => _shareKeyAsImage(
-                  _finalReportKey, 'final_report.png',
-                  text: 'ফাইনাল হিসাব'),
-              tooltip: 'ফাইনাল হিসাব শেয়ার করুন',
-            ),
           ],
         ),
         body: SingleChildScrollView(
@@ -797,10 +790,14 @@ function _json(obj, code) {
             children: [
               // Summary Section
               Card(
-                elevation: 4,
+                elevation: 12,
+                shadowColor: Colors.black26,
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
                 child: RepaintBoundary(
                   key: _summaryKey,
                   child: Container(
@@ -825,6 +822,7 @@ function _json(obj, code) {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 6),
                           _buildCalculationRow('মোট জমা:',
                               '${_members.fold(0.0, (sum, m) => sum + m.initialDeposit).toStringAsFixed(2)} টাকা',
                               textColor: Colors.green),
@@ -861,16 +859,21 @@ function _json(obj, code) {
 
               // Manager Expenses Section
               Card(
-                elevation: 4,
+                elevation: 12,
+                shadowColor: Colors.black38,
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildSectionTitle('ম্যানেজারের খরচ'),
+                      const SizedBox(height: 6),
                       TextField(
                         controller: _managerExpenseDescriptionController,
                         decoration: InputDecoration(
@@ -911,16 +914,21 @@ function _json(obj, code) {
 
               // Misc Expenses Section
               Card(
-                elevation: 4,
+                elevation: 12,
+                shadowColor: Colors.black38,
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildSectionTitle('বিবিধ খরচ '),
+                      const SizedBox(height: 6),
                       TextField(
                         controller: _miscExpenseDescriptionController,
                         decoration: InputDecoration(
@@ -969,16 +977,21 @@ function _json(obj, code) {
 
               // Member Expenses Section
               Card(
-                elevation: 4,
+                elevation: 12,
+                shadowColor: Colors.black38,
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildSectionTitle('সদস্যদের খরচ'),
+                      const SizedBox(height: 6),
                       if (_members.isNotEmpty) ...[
                         DropdownButtonFormField<String>(
                           value: _selectedExpenseMemberId.isEmpty &&
@@ -1045,16 +1058,21 @@ function _json(obj, code) {
 
               // Members and Meals Management
               Card(
-                elevation: 4,
+                elevation: 12,
+                shadowColor: Colors.black38,
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildSectionTitle('সদস্য ও মিল ব্যবস্থাপনা'),
+                      const SizedBox(height: 6),
                       Row(
                         children: [
                           Expanded(
@@ -1113,10 +1131,14 @@ function _json(obj, code) {
 
               // Members list and meals box (separate)
               Card(
-                elevation: 4,
+                elevation: 12,
+                shadowColor: Colors.black38,
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
                 child: RepaintBoundary(
                   key: _membersListKey,
                   child: Container(
@@ -1140,6 +1162,7 @@ function _json(obj, code) {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 6),
                           if (_members.isEmpty)
                             _emptyBox('কোনো সদস্য যোগ করা হয়নি।')
                           else
@@ -1312,10 +1335,14 @@ function _json(obj, code) {
 
               // Members' Accounts Report
               Card(
-                elevation: 4,
+                elevation: 12,
+                shadowColor: Colors.black38,
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
                 child: RepaintBoundary(
                   key: _finalReportKey,
                   child: Padding(
@@ -1323,8 +1350,10 @@ function _json(obj, code) {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (_reportData.isNotEmpty)
+                        if (_reportData.isNotEmpty) ...[
                           _buildSectionTitle('ফাইনাল হিসাব'),
+                          const SizedBox(height: 6),
+                        ],
                         if (_reportData.isEmpty)
                           _emptyBox('কোনো সদস্য যোগ করা হয়নি।'),
                         if (_reportData.isEmpty)
@@ -1337,6 +1366,14 @@ function _json(obj, code) {
                               key: key,
                               child: Card(
                                 margin: const EdgeInsets.only(bottom: 12),
+                                elevation: 8,
+                                shadowColor: Colors.black26,
+                                color: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  side:
+                                      BorderSide(color: Colors.grey.shade200),
+                                ),
                                 child: Padding(
                                   padding: const EdgeInsets.all(12.0),
                                   child: Column(
@@ -1441,10 +1478,14 @@ function _json(obj, code) {
 
               // Expense List
               Card(
-                elevation: 4,
+                elevation: 12,
+                shadowColor: Colors.black38,
+                color: Colors.white,
                 margin: const EdgeInsets.only(bottom: 20),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade200),
+                ),
                 child: RepaintBoundary(
                   key: _expenseListKey,
                   child: Container(
@@ -1468,6 +1509,7 @@ function _json(obj, code) {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 6),
                           if (_managerExpenses.isEmpty &&
                               _memberExpenses.isEmpty &&
                               _miscExpenses.isEmpty)
