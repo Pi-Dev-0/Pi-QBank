@@ -314,25 +314,33 @@ class _MessManagerPageState extends State<MessManagerPage> {
 
   // Build export payload for Google Sheets sync
   Map<String, dynamic> _buildExportPayload() {
-    return {
+    final report = _reportData
+        .map((r) => {
+              'memberId': r.memberId,
+              'memberName': r.memberName,
+              'totalMeals': r.totalMeals,
+              'initialDeposit': r.initialDeposit,
+              'personalExpense': r.personalExpense,
+              'mealCost': r.mealCost,
+              'totalContribution': r.totalContribution,
+              'balance': r.balance,
+              'mealRate': r.mealRate,
+            })
+        .toList();
+
+    // This is the raw data that allows the app to be fully restored.
+    final rawData = {
       'members': _members.map((e) => e.toMap()).toList(),
       'meals': _meals.map((e) => e.toMap()).toList(),
       'managerExpenses': _managerExpenses.map((e) => e.toMap()).toList(),
+      'miscExpenses': _miscExpenses.map((e) => e.toMap()).toList(),
       'memberExpenses': _memberExpenses.map((e) => e.toMap()).toList(),
       'deposits': _deposits.map((e) => e.toMap()).toList(),
-      'report': _reportData
-          .map((r) => {
-                'memberId': r.memberId,
-                'memberName': r.memberName,
-                'totalMeals': r.totalMeals,
-                'initialDeposit': r.initialDeposit,
-                'personalExpense': r.personalExpense,
-                'mealCost': r.mealCost,
-                'totalContribution': r.totalContribution,
-                'balance': r.balance,
-                'mealRate': r.mealRate,
-              })
-          .toList(),
+    };
+
+    return {
+      'report': report,
+      'rawData': rawData,
       'generatedAt': DateTime.now().toIso8601String(),
     };
   }
@@ -447,24 +455,44 @@ class _MessManagerPageState extends State<MessManagerPage> {
 
   String get _appsScriptCode => '''/* global ContentService, SpreadsheetApp */
 
+const RAW_DATA_SEPARATOR = '--- DO NOT EDIT BELOW THIS LINE --- RAW DATA ---';
+
 function doGet(e) {
   try {
     var action = e && e.parameter && e.parameter.action;
     if (action === 'pull') {
-      var out = {
-        members: _readTable('Members', function (r) { return { id: r[0], name: r[1], initialDeposit: _num(r[2]) }; }),
-        meals: _readTable('Meals', function (r) { return { memberId: r[0], count: Number(r[1]) }; }),
-        managerExpenses: _readTable('ManagerExpenses', function (r) { return { id: r[0], amount: _num(r[1]), description: r[2], date: r[3] }; }),
-        memberExpenses: _readTable('MemberExpenses', function (r) { return { id: r[0], memberId: r[1], amount: _num(r[2]), description: r[3], date: r[4] }; }),
-        miscExpenses: _readTable('MiscExpenses', function (r) { return { id: r[0], amount: _num(r[1]), description: r[2], date: r[3] }; }),
-        deposits: _readTable('Deposits', function (r) { return { id: r[0], memberId: r[1], amount: _num(r[2]), date: r[3] }; }),
-        report: _readTable('Report', function (r) { return {
-          memberId: r[0], memberName: r[1], totalMeals: Number(r[2]), initialDeposit: _num(r[3]), personalExpense: _num(r[4]),
-          mealCost: _num(r[5]), totalContribution: _num(r[6]), balance: _num(r[7]), mealRate: _num(r[8])
-        }; }),
-        generatedAt: new Date().toISOString(),
-      };
-      return _json({ success: true, payload: out }, 200);
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName('Mess Report');
+      
+      // Fallback for migration from the previous hidden 'Data' sheet solution
+      if (!sheet) {
+        var dataSheet = ss.getSheetByName('Data');
+        if (dataSheet) {
+            var rawDataString = dataSheet.getRange('A1').getValue();
+            if (rawDataString) {
+              return _json({ success: true, payload: JSON.parse(rawDataString) }, 200);
+            }
+        }
+        return _json({ success: false, message: 'Mess Report sheet not found and no fallback available.' }, 404);
+      }
+
+      var textFinder = sheet.createTextFinder(RAW_DATA_SEPARATOR);
+      var searchResult = textFinder.findNext();
+      
+      var payload = {};
+      if (searchResult) {
+        var dataRow = searchResult.getRow() + 1;
+        var rawDataString = sheet.getRange(dataRow, 1).getValue();
+        if (rawDataString) {
+          payload = JSON.parse(rawDataString);
+        }
+      }
+      
+      if (!payload.members) {
+          return _json({ success: false, message: 'Could not find raw data in Mess Report sheet.' }, 404);
+      }
+
+      return _json({ success: true, payload: payload }, 200);
     }
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok', message: 'MessManager endpoint up' }))
@@ -483,55 +511,61 @@ function doPost(e) {
     }
 
     var data = payload.payload;
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    _writeTable('Members', ['id', 'name', 'initialDeposit'], data.members || [], function (m) {
-      return [m.id, m.name, _num(m.initialDeposit)];
-    });
+    var sheet = ss.getSheetByName('Mess Report');
+    if (!sheet) {
+      sheet = ss.insertSheet('Mess Report');
+    } else {
+      sheet.clear();
+    }
 
-    _writeTable('Meals', ['memberId', 'count'], data.meals || [], function (m) {
-      return [m.memberId, _num(m.count)];
-    });
-
-    _writeTable('ManagerExpenses', ['id', 'amount', 'description', 'date'], data.managerExpenses || [], function (x) {
-      return [x.id, _num(x.amount), x.description, _date(x.date)];
-    });
-
-    _writeTable('MemberExpenses', ['id', 'memberId', 'amount', 'description', 'date'], data.memberExpenses || [], function (x) {
-      return [x.id, x.memberId, _num(x.amount), x.description, _date(x.date)];
-    });
-
-    _writeTable('Deposits', ['id', 'memberId', 'amount', 'date'], data.deposits || [], function (x) {
-      return [x.id, x.memberId, _num(x.amount), _date(x.date)];
-    });
-
-    _writeTable('Report', [
-      'memberId', 'memberName', 'totalMeals', 'initialDeposit', 'personalExpense',
-      'mealCost', 'totalContribution', 'balance', 'mealRate', 'generatedAt'
+    // 1. Write the human-readable report table
+    _writeReportTable(sheet.getName(), [
+      'Member Name', 'Total Meals', 'Initial Deposit', 'Personal Expense',
+      'Total Contribution', 'Meal Cost', 'Balance', 'Meal Rate'
     ], data.report || [], function (r) {
       return [
-        r.memberId, r.memberName, _num(r.totalMeals), _num(r.initialDeposit),
-        _num(r.personalExpense), _num(r.mealCost), _num(r.totalContribution),
-        _num(r.balance), _num(r.mealRate), _date(data.generatedAt)
+        r.memberName, _num(r.totalMeals), _num(r.initialDeposit),
+        _num(r.personalExpense), _num(r.totalContribution),
+        _num(r.mealCost), _num(r.balance), _num(r.mealRate)
       ];
     });
 
-    return _json({ success: true, message: 'Synced successfully' }, 200);
+    // 2. Write the raw data JSON below the report
+    var lastRow = sheet.getLastRow();
+    var separatorRow = lastRow + 2;
+    sheet.getRange(separatorRow, 1).setValue(RAW_DATA_SEPARATOR).setFontWeight('bold');
+    
+    if (data.rawData) {
+      sheet.getRange(separatorRow + 1, 1).setValue(JSON.stringify(data.rawData));
+    }
+
+    // 3. Clean up all other sheets to enforce the single-sheet structure
+    var allSheets = ss.getSheets();
+    for (var i = 0; i < allSheets.length; i++) {
+        if (allSheets[i].getName() !== 'Mess Report') {
+            ss.deleteSheet(allSheets[i]);
+        }
+    }
+
+    return _json({ success: true, message: 'Synced successfully to single sheet.' }, 200);
   } catch (err) {
     return _json({ success: false, message: String(err) }, 500);
   }
 }
 
-function _writeTable(sheetName, headers, items, mapRow) {
+function _writeReportTable(sheetName, headers, items, mapRow) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
   } else {
-    sheet.clear();
+    sheet.clear(); // Clear before writing
   }
   if (!items) items = [];
 
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
 
   if (items.length === 0) return;
 
@@ -540,60 +574,19 @@ function _writeTable(sheetName, headers, items, mapRow) {
     rows.push(mapRow(items[i]));
   }
   sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-
-  _applyFormats(sheetName, headers);
-}
-
-function _applyFormats(sheetName, headers) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return;
-
-  for (var c = 0; c < headers.length; c++) {
-    var h = headers[c].toLowerCase();
-    if (h.indexOf('date') !== -1 || h === 'generatedat') {
-      sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('yyyy-mm-dd hh:mm');
-    } else if (['amount', 'initialdeposit', 'personalexpense', 'mealcost', 'totalcontribution', 'balance', 'mealrate'].indexOf(h) !== -1) {
-      sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('#,##0.00');
-    } else if (h.indexOf('count') !== -1 || h.indexOf('meals') !== -1 || h.indexOf('totalmeals') !== -1) {
-      sheet.getRange(2, c + 1, Math.max(0, sheet.getLastRow() - 1), 1).setNumberFormat('0.0');
-    }
-  }
+  
+  sheet.autoResizeColumns(1, headers.length);
 }
 
 function _num(x) {
   var n = Number(x);
   return isNaN(n) ? 0 : n;
 }
-function _int(x) {
-  var n = parseInt(x, 10);
-  return isNaN(n) ? 0 : n;
-}
-function _date(s) {
-  if (!s) return '';
-  var d = new Date(s);
-  return isNaN(d.getTime()) ? '' : d;
-}
 
 function _json(obj, code) {
   var out = ContentService.createTextOutput(JSON.stringify(obj));
   out.setMimeType(ContentService.MimeType.JSON);
   return out.setStatusCode(code || 200);
-}
-
-function _readTable(sheetName, mapRow) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return [];
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  if (lastRow < 2 || lastCol < 1) return [];
-  var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
-  var out = [];
-  for (var i = 0; i < values.length; i++) {
-    out.push(mapRow(values[i]));
-  }
-  return out;
 }
 ''';
 
