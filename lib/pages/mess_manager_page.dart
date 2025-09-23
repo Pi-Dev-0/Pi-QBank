@@ -127,6 +127,15 @@ class _MessManagerPageState extends State<MessManagerPage> {
                   await _syncFromGoogleSheets();
                 },
               ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.link, color: Colors.orange),
+                title: const Text('Apps Script URL পরিবর্তন করুন'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await _promptForAppsScriptUrl();
+                },
+              ),
               const SizedBox(height: 6),
             ],
           ),
