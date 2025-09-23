@@ -455,7 +455,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
 
   String get _appsScriptCode => '''/* global ContentService, SpreadsheetApp */
 
-const RAW_DATA_SEPARATOR = '--- DO NOT EDIT BELOW THIS LINE --- RAW DATA ---';
+const RAW_DATA_ROW = 500; // Data will be stored starting at this row
 
 function doGet(e) {
   try {
@@ -463,33 +463,27 @@ function doGet(e) {
     if (action === 'pull') {
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var sheet = ss.getSheetByName('Mess Report');
-      
-      // Fallback for migration from the previous hidden 'Data' sheet solution
-      if (!sheet) {
+      var payload = {};
+
+      if (sheet) {
+        var rawDataString = sheet.getRange(RAW_DATA_ROW + 1, 1).getValue();
+        if (rawDataString) {
+          try { payload = JSON.parse(rawDataString); } catch (parseErr) { /* ignore */ }
+        }
+      }
+
+      if (!payload.members) {
         var dataSheet = ss.getSheetByName('Data');
         if (dataSheet) {
             var rawDataString = dataSheet.getRange('A1').getValue();
             if (rawDataString) {
-              return _json({ success: true, payload: JSON.parse(rawDataString) }, 200);
+              try { payload = JSON.parse(rawDataString); } catch (parseErr) { /* ignore */ }
             }
         }
-        return _json({ success: false, message: 'Mess Report sheet not found and no fallback available.' }, 404);
       }
 
-      var textFinder = sheet.createTextFinder(RAW_DATA_SEPARATOR);
-      var searchResult = textFinder.findNext();
-      
-      var payload = {};
-      if (searchResult) {
-        var dataRow = searchResult.getRow() + 1;
-        var rawDataString = sheet.getRange(dataRow, 1).getValue();
-        if (rawDataString) {
-          payload = JSON.parse(rawDataString);
-        }
-      }
-      
       if (!payload.members) {
-          return _json({ success: false, message: 'Could not find raw data in Mess Report sheet.' }, 404);
+        return _json({ success: false, message: 'Could not find valid data in the sheet.' }, 404);
       }
 
       return _json({ success: true, payload: payload }, 200);
@@ -517,10 +511,10 @@ function doPost(e) {
     if (!sheet) {
       sheet = ss.insertSheet('Mess Report');
     } else {
-      sheet.clear();
+      sheet.getRange('1:' + (RAW_DATA_ROW - 1)).clearContent();
+      sheet.getRange(RAW_DATA_ROW + ':' + sheet.getMaxRows()).clearContent();
     }
 
-    // 1. Write the human-readable report table
     _writeReportTable(sheet.getName(), [
       'Member Name', 'Total Meals', 'Initial Deposit', 'Personal Expense',
       'Total Contribution', 'Meal Cost', 'Balance', 'Meal Rate'
@@ -532,16 +526,12 @@ function doPost(e) {
       ];
     });
 
-    // 2. Write the raw data JSON below the report
-    var lastRow = sheet.getLastRow();
-    var separatorRow = lastRow + 2;
-    sheet.getRange(separatorRow, 1).setValue(RAW_DATA_SEPARATOR).setFontWeight('bold');
+    sheet.getRange(RAW_DATA_ROW, 1).setValue('--- DO NOT EDIT BELOW THIS LINE --- RAW DATA ---').setFontWeight('bold');
     
     if (data.rawData) {
-      sheet.getRange(separatorRow + 1, 1).setValue(JSON.stringify(data.rawData));
+      sheet.getRange(RAW_DATA_ROW + 1, 1).setValue(JSON.stringify(data.rawData));
     }
 
-    // 3. Clean up all other sheets to enforce the single-sheet structure
     var allSheets = ss.getSheets();
     for (var i = 0; i < allSheets.length; i++) {
         if (allSheets[i].getName() !== 'Mess Report') {
@@ -558,11 +548,7 @@ function doPost(e) {
 function _writeReportTable(sheetName, headers, items, mapRow) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    sheet = ss.insertSheet(sheetName);
-  } else {
-    sheet.clear(); // Clear before writing
-  }
+  
   if (!items) items = [];
 
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
