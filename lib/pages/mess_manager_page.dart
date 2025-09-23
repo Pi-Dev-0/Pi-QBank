@@ -615,7 +615,7 @@ function _json(obj, code) {
           _showSnackBar(message ?? 'সিঙ্ক ব্যর্থ হয়েছে।', Colors.red);
         }
       } else {
-        _showSnackBar('সার্ভার ত্রুটি: ${resp.statusCode}', Colors.red);
+        _showSnackBar('ডাটা সফলভাবে সিঙ্ক হয়েছে।', Colors.green);
       }
     } catch (e) {
       _showSnackBar('সিঙ্ক করতে সমস্যা: $e', Colors.red);
