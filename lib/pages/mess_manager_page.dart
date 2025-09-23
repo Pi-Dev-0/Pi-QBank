@@ -161,47 +161,73 @@ class _MessManagerPageState extends State<MessManagerPage> {
       });
 
       if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body);
-        if (data['success'] != true || data['payload'] == null) {
-          _showSnackBar('সঠিক ডাটা পাওয়া যায়নি।', Colors.red);
-          return;
+        try {
+          final data = jsonDecode(resp.body);
+          if (data['success'] != true || data['payload'] == null) {
+            final errorMessage = data['message'] as String? ?? 'Unknown error from script.';
+            _showSnackBar('শিট থেকে ডাটা আনা যায়নি: $errorMessage', Colors.red);
+            print('--- GOOGLE SHEETS SYNC ERROR (SCRIPT) ---');
+            print(errorMessage);
+            print('-----------------------------------------');
+            return;
+          }
+          final payload = data['payload'] as Map<String, dynamic>;
+
+          print('--- GOOGLE SHEETS SYNC PAYLOAD RECEIVED ---');
+          print(jsonEncode(payload));
+          print('-------------------------------------------');
+
+          setState(() {
+            _members
+              ..clear()
+              ..addAll(((payload['members'] as List<dynamic>? ) ?? [])
+                  .map((e) => Member.fromMap(e as Map<String, dynamic>)));
+            _meals
+              ..clear()
+              ..addAll(((payload['meals'] as List<dynamic>? ) ?? [])
+                  .map((e) => Meal.fromMap(e as Map<String, dynamic>)));
+            _managerExpenses
+              ..clear()
+              ..addAll(((payload['managerExpenses'] as List<dynamic>? ) ?? [])
+                  .map((e) => ManagerExpense.fromMap(e as Map<String, dynamic>)));
+            _miscExpenses
+              ..clear()
+              ..addAll(((payload['miscExpenses'] as List<dynamic>? ) ?? [])
+                  .map((e) => MiscExpense.fromMap(e as Map<String, dynamic>)));
+            _memberExpenses
+              ..clear()
+              ..addAll(((payload['memberExpenses'] as List<dynamic>? ) ?? [])
+                  .map((e) => MemberExpense.fromMap(e as Map<String, dynamic>)));
+            _deposits
+              ..clear()
+              ..addAll(((payload['deposits'] as List<dynamic>? ) ?? [])
+                  .map((e) => Deposit.fromMap(e as Map<String, dynamic>)));
+          });
+
+          await _saveState();
+          _showSnackBar('শিট থেকে ডাটা ইম্পোর্ট সম্পন্ন।', Colors.green);
+        } on FormatException catch (e) {
+          _showSnackBar('ডাটা পার্সিং এ সমস্যা: $e', Colors.red);
+          print('--- GOOGLE SHEETS SYNC ERROR (INVALID JSON) ---');
+          print('FormatException: $e');
+          print('Server response that caused the error:');
+          print(resp.body);
+          print('-----------------------------------------------');
         }
-        final payload = data['payload'] as Map<String, dynamic>;
-
-        setState(() {
-          _members
-            ..clear()
-            ..addAll(((payload['members'] as List<dynamic>? ) ?? [])
-                .map((e) => Member.fromMap(e as Map<String, dynamic>)));
-          _meals
-            ..clear()
-            ..addAll(((payload['meals'] as List<dynamic>? ) ?? [])
-                .map((e) => Meal.fromMap(e as Map<String, dynamic>)));
-          _managerExpenses
-            ..clear()
-            ..addAll(((payload['managerExpenses'] as List<dynamic>? ) ?? [])
-                .map((e) => ManagerExpense.fromMap(e as Map<String, dynamic>)));
-          _miscExpenses
-            ..clear()
-            ..addAll(((payload['miscExpenses'] as List<dynamic>? ) ?? [])
-                .map((e) => MiscExpense.fromMap(e as Map<String, dynamic>)));
-          _memberExpenses
-            ..clear()
-            ..addAll(((payload['memberExpenses'] as List<dynamic>? ) ?? [])
-                .map((e) => MemberExpense.fromMap(e as Map<String, dynamic>)));
-          _deposits
-            ..clear()
-            ..addAll(((payload['deposits'] as List<dynamic>? ) ?? [])
-                .map((e) => Deposit.fromMap(e as Map<String, dynamic>)));
-        });
-
-        await _saveState();
-        _showSnackBar('শিট থেকে ডাটা ইম্পোর্ট সম্পন্ন।', Colors.green);
       } else {
         _showSnackBar('সার্ভার ত্রুটি: ${resp.statusCode}', Colors.red);
+        print('--- GOOGLE SHEETS SYNC ERROR (SERVER) ---');
+        print('Status Code: ${resp.statusCode}');
+        print('Server Response:');
+        print(resp.body);
+        print('-----------------------------------------');
       }
-    } catch (e) {
+    } catch (e, s) {
       _showSnackBar('ডাটা টানা যায়নি: $e', Colors.red);
+      print('--- GOOGLE SHEETS SYNC ERROR (EXCEPTION) ---');
+      print('Exception: $e');
+      print('Stack Trace: $s');
+      print('--------------------------------------------');
     }
   }
 
@@ -468,22 +494,16 @@ function doGet(e) {
       if (sheet) {
         var rawDataString = sheet.getRange(RAW_DATA_ROW + 1, 1).getValue();
         if (rawDataString) {
-          try { payload = JSON.parse(rawDataString); } catch (parseErr) { /* ignore */ }
+          try {
+            payload = JSON.parse(rawDataString);
+          } catch (parseErr) {
+            return _json({ success: false, message: 'Failed to parse data from sheet: ' + parseErr }, 500);
+          }
         }
       }
 
-      if (!payload.members) {
-        var dataSheet = ss.getSheetByName('Data');
-        if (dataSheet) {
-            var rawDataString = dataSheet.getRange('A1').getValue();
-            if (rawDataString) {
-              try { payload = JSON.parse(rawDataString); } catch (parseErr) { /* ignore */ }
-            }
-        }
-      }
-
-      if (!payload.members) {
-        return _json({ success: false, message: 'Could not find valid data in the sheet.' }, 404);
+      if (!payload.members || !Array.isArray(payload.members)) {
+        return _json({ success: false, message: 'Could not find valid data in the sheet. Raw data might be empty or corrupted.' }, 404);
       }
 
       return _json({ success: true, payload: payload }, 200);
@@ -572,7 +592,7 @@ function _num(x) {
 function _json(obj, code) {
   var out = ContentService.createTextOutput(JSON.stringify(obj));
   out.setMimeType(ContentService.MimeType.JSON);
-  return out.setStatusCode(code || 200);
+  return out;
 }
 ''';
 
