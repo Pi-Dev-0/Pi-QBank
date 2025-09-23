@@ -165,17 +165,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
           final data = jsonDecode(resp.body);
           if (data['success'] != true || data['payload'] == null) {
             final errorMessage = data['message'] as String? ?? 'Unknown error from script.';
-            _showSnackBar('শিট থেকে ডাটা আনা যায়নি: $errorMessage', Colors.red);
-            print('--- GOOGLE SHEETS SYNC ERROR (SCRIPT) ---');
-            print(errorMessage);
-            print('-----------------------------------------');
+            _showSnackBar('Error syncing from sheet: $errorMessage', Colors.red);
             return;
           }
           final payload = data['payload'] as Map<String, dynamic>;
-
-          print('--- GOOGLE SHEETS SYNC PAYLOAD RECEIVED ---');
-          print(jsonEncode(payload));
-          print('-------------------------------------------');
 
           setState(() {
             _members
@@ -207,27 +200,13 @@ class _MessManagerPageState extends State<MessManagerPage> {
           await _saveState();
           _showSnackBar('শিট থেকে ডাটা ইম্পোর্ট সম্পন্ন।', Colors.green);
         } on FormatException catch (e) {
-          _showSnackBar('ডাটা পার্সিং এ সমস্যা: $e', Colors.red);
-          print('--- GOOGLE SHEETS SYNC ERROR (INVALID JSON) ---');
-          print('FormatException: $e');
-          print('Server response that caused the error:');
-          print(resp.body);
-          print('-----------------------------------------------');
+          _showSnackBar('Error parsing data from sheet: $e', Colors.red);
         }
       } else {
-        _showSnackBar('সার্ভার ত্রুটি: ${resp.statusCode}', Colors.red);
-        print('--- GOOGLE SHEETS SYNC ERROR (SERVER) ---');
-        print('Status Code: ${resp.statusCode}');
-        print('Server Response:');
-        print(resp.body);
-        print('-----------------------------------------');
+        _showSnackBar('Server error: ${resp.statusCode}', Colors.red);
       }
-    } catch (e, s) {
-      _showSnackBar('ডাটা টানা যায়নি: $e', Colors.red);
-      print('--- GOOGLE SHEETS SYNC ERROR (EXCEPTION) ---');
-      print('Exception: $e');
-      print('Stack Trace: $s');
-      print('--------------------------------------------');
+    } catch (e) {
+      _showSnackBar('Failed to sync from sheet: $e', Colors.red);
     }
   }
 
