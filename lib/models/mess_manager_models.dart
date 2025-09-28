@@ -163,6 +163,8 @@ class ReportData {
   final double totalContribution; // initialDeposit + personalExpense
   final double balance; // totalContribution - mealCost
   final double mealRate;
+  final double bigMarketMealRate; // Meal rate without manager expenses and misc
+  final double rawMarketMealRate; // Meal rate with all expenses
 
   ReportData({
     required this.memberId,
@@ -174,6 +176,8 @@ class ReportData {
     required this.totalContribution,
     required this.balance,
     required this.mealRate,
+    required this.bigMarketMealRate,
+    required this.rawMarketMealRate,
   });
 }
 
