@@ -832,6 +832,203 @@ function _json(obj, code) {
     _handleAddMemberExpense();
   }
 
+  void _handleDeleteExpense(dynamic expense) {
+    setState(() {
+      if (expense is ManagerExpense) {
+        _managerExpenses.removeWhere((e) => e.id == expense.id);
+      } else if (expense is MemberExpense) {
+        _memberExpenses.removeWhere((e) => e.id == expense.id);
+      } else if (expense is MiscExpense) {
+        _miscExpenses.removeWhere((e) => e.id == expense.id);
+      }
+    });
+    _saveState();
+    _showSnackBar('খরচ মুছে ফেলা হয়েছে।', Colors.orange);
+  }
+
+  Future<void> _showEditExpenseDialog(dynamic expense) async {
+    final descriptionController = TextEditingController(text: expense.description);
+    final amountController =
+        TextEditingController(text: expense.amount.toStringAsFixed(2));
+    String? selectedMemberId =
+        (expense is MemberExpense) ? expense.memberId : null;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('খরচ সম্পাদনা', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (expense is MemberExpense)
+                    DropdownButtonFormField<String>(
+                      value: selectedMemberId,
+                      items: _members.map((member) {
+                        return DropdownMenuItem(
+                          value: member.id,
+                          child: Text(member.name),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            selectedMemberId = value;
+                          });
+                        }
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'সদস্য',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: InputDecoration(
+                      labelText: 'বিবরণ',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'পরিমাণ',
+                      prefixText: '৳ ',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('বাতিল'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final amount = _parseAmount(amountController.text);
+                final description = descriptionController.text.trim();
+
+                if (amount == null || amount <= 0 || description.isEmpty) {
+                  _showSnackBar('সঠিক পরিমাণ এবং বিবরণ দিন।', Colors.red);
+                  return;
+                }
+
+                setState(() {
+                  if (expense is ManagerExpense) {
+                    final index =
+                        _managerExpenses.indexWhere((e) => e.id == expense.id);
+                    if (index != -1) {
+                      _managerExpenses[index] = ManagerExpense(
+                        id: expense.id,
+                        amount: amount,
+                        description: description,
+                        date: expense.date,
+                      );
+                    }
+                  } else if (expense is MemberExpense) {
+                    final index =
+                        _memberExpenses.indexWhere((e) => e.id == expense.id);
+                    if (index != -1) {
+                      _memberExpenses[index] = MemberExpense(
+                        id: expense.id,
+                        memberId: selectedMemberId!,
+                        amount: amount,
+                        description: description,
+                        date: expense.date,
+                      );
+                    }
+                  } else if (expense is MiscExpense) {
+                    final index =
+                        _miscExpenses.indexWhere((e) => e.id == expense.id);
+                    if (index != -1) {
+                      _miscExpenses[index] = MiscExpense(
+                        id: expense.id,
+                        amount: amount,
+                        description: description,
+                        date: expense.date,
+                      );
+                    }
+                  }
+                });
+                _saveState();
+                Navigator.of(context).pop();
+                _showSnackBar('খরচ হালনাগাদ করা হয়েছে।', Colors.green);
+              },
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('সেভ'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showExpenseActionDialog(dynamic expense) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(expense.description, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              ElevatedButton.icon(
+                icon: const Icon(Icons.edit, color: Colors.white),
+                label: const Text('সম্পাদনা', style: TextStyle(color: Colors.white)),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _showEditExpenseDialog(expense);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                label: const Text('ডিলিট', style: TextStyle(color: Colors.red)),
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  final confirmed = await showDeleteConfirmationDialog(
+                    context: context,
+                    title: 'খরচ ডিলিট',
+                    message: 'আপনি কি নিশ্চিতভাবে এই খরচটি ডিলিট করতে চান?',
+                    paperTitle: expense.description,
+                    paperSubtitle:
+                        'পরিমাণ: ৳ ${expense.amount.toStringAsFixed(2)}',
+                  );
+                  if (confirmed == true) {
+                    _handleDeleteExpense(expense);
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // Show SnackBar
   void _showSnackBar(String message, Color color) {
     if (!mounted) return;
@@ -1747,41 +1944,46 @@ function _json(obj, code) {
                         title = 'অজানা খরচ';
                       }
 
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 5.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    title,
-                                    style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        color: titleColor),
-                                    softWrap: true,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    DateFormat('dd MMM, yyyy')
-                                        .format(expense.date),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade600,
+                      return GestureDetector(
+                        onLongPress: () {
+                          _showExpenseActionDialog(expense);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 5.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: titleColor),
+                                      softWrap: true,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      DateFormat('dd MMM, yyyy')
+                                          .format(expense.date),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Text('${expense.amount.toStringAsFixed(2)} টাকা',
-                                style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red)),
-                          ],
+                              Text('${expense.amount.toStringAsFixed(2)} টাকা',
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red)),
+                            ],
+                          ),
                         ),
                       );
                     }).toList(),
