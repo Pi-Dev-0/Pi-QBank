@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui'; // Import for ImageFilter
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import '../widgets/custom_app_bar.dart';
