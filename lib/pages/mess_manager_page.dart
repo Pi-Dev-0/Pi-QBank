@@ -1640,14 +1640,45 @@ function _json(obj, code) {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          if (_managerExpenses.isEmpty &&
-                              _memberExpenses.isEmpty &&
-                              _miscExpenses.isEmpty)
-                            _emptyBox('কোনো খরচ যোগ করা হয়নি।')
-                          else ...[
-                            ..._managerExpenses.map((expense) => Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 4.0),
+                          () {
+                            final allExpenses = <dynamic>[
+                              ..._managerExpenses,
+                              ..._memberExpenses,
+                              ..._miscExpenses,
+                            ];
+
+                            // Sort by date, newest first
+                            allExpenses.sort((a, b) => b.date.compareTo(a.date));
+
+                            if (allExpenses.isEmpty) {
+                              return _emptyBox('কোনো খরচ যোগ করা হয়নি।');
+                            }
+
+                            return Column(
+                              children: allExpenses.map((expense) {
+                                String title;
+                                Color titleColor = Colors.black87;
+
+                                if (expense is ManagerExpense) {
+                                  title = '${expense.description} (ম্যানেজার)';
+                                  titleColor = Colors.blue.shade800;
+                                } else if (expense is MemberExpense) {
+                                  final memberName = _members
+                                      .firstWhere((m) => m.id == expense.memberId,
+                                          orElse: () =>
+                                              Member(id: '', name: 'অজানা'))
+                                      .name;
+                                  title = '${expense.description} ($memberName)';
+                                } else if (expense is MiscExpense) {
+                                  title = '${expense.description} (বিবিধ)';
+                                  titleColor = Colors.purple.shade700;
+                                } else {
+                                  title = 'অজানা খরচ';
+                                }
+
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 5.0),
                                   child: Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -1658,16 +1689,16 @@ function _json(obj, code) {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              '${expense.description} (ম্যানেজার)',
+                                              title,
                                               style: TextStyle(
                                                   fontSize: 15,
                                                   fontWeight: FontWeight.w600,
-                                                  color: Colors.deepPurple),
+                                                  color: titleColor),
                                               softWrap: true,
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
-                                              DateFormat('dd MMM')
+                                              DateFormat('dd MMM, yyyy')
                                                   .format(expense.date),
                                               style: TextStyle(
                                                 fontSize: 12,
@@ -1685,95 +1716,10 @@ function _json(obj, code) {
                                               color: Colors.red)),
                                     ],
                                   ),
-                                )),
-                            ..._memberExpenses.map((expense) {
-                              final memberName = _members
-                                  .firstWhere((m) => m.id == expense.memberId,
-                                      orElse: () =>
-                                          Member(id: '', name: 'অজানা'))
-                                  .name;
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4.0),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '${expense.description} ($memberName)',
-                                            style:
-                                                const TextStyle(fontSize: 15),
-                                            softWrap: true,
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            DateFormat('dd MMM')
-                                                .format(expense.date),
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Text(
-                                        '${expense.amount.toStringAsFixed(2)} টাকা',
-                                        style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.red)),
-                                  ],
-                                ),
-                              );
-                            }),
-                            ..._miscExpenses.map((expense) => Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 4.0),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              '${expense.description} (বিবিধ)',
-                                              style: TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.deepPurple),
-                                              softWrap: true,
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              DateFormat('dd MMM')
-                                                  .format(expense.date),
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey.shade600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Text(
-                                          '${expense.amount.toStringAsFixed(2)} টাকা',
-                                          style: const TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.red)),
-                                    ],
-                                  ),
-                                )),
-                          ],
+                                );
+                              }).toList(),
+                            );
+                          }(),
                         ],
                       ),
                     ),
