@@ -56,10 +56,11 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // Add observer
-    _loadPersonalToneSettings(); // Load settings on init
     _startNewChatOnLaunch(); // Start a new blank chat and load history in background
     flutterTts = FlutterTts();
-    _initTts();
+    _loadPersonalToneSettings().then((_) {
+      _initTts(); // Initialize TTS after tone settings are loaded
+    });
 
     _animationController = AnimationController(
       vsync: this,
@@ -575,8 +576,9 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
                 context,
                 MaterialPageRoute(
                     builder: (context) => const PersonalToneSettingPage()),
-              ).then((_) {
-                _loadPersonalToneSettings(); // Reload settings when returning from the settings page
+              ).then((_) async {
+                await _loadPersonalToneSettings(); // Reload settings when returning from the settings page
+                _initTts(); // Re-initialize TTS with new settings
               });
             },
           ),
