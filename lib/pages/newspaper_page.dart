@@ -18,10 +18,75 @@ class _NewspaperPageState extends State<NewspaperPage> {
     {'name': 'The Daily Star', 'url': 'https://www.thedailystar.net/'},
   ];
 
+  String? _selectedChannelUrl;
+  bool _isReadingMode = false;
+
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController();
+    _selectedChannelUrl = newsChannels.first['url'];
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onProgress: (int progress) {
+            // Update loading bar.
+          },
+          onPageStarted: (String url) {},
+          onPageFinished: (String url) {
+            if (_isReadingMode) {
+              _applyReadingModeStyles();
+            }
+          },
+          onWebResourceError: (WebResourceError error) {},
+          onNavigationRequest: (NavigationRequest request) {
+            if (request.url.startsWith('https://www.youtube.com/')) {
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(_selectedChannelUrl!));
+  }
+
+  void _applyReadingModeStyles() {
+    _controller.runJavaScript('''
+      (function() {
+        document.body.style.backgroundColor = '#f5f5dc';
+        document.body.style.color = '#333';
+        document.body.style.fontFamily = 'serif';
+        document.body.style.fontSize = '1.2em';
+        document.querySelectorAll('header, footer, aside, .sidebar, .ad, .related-posts').forEach(el => {
+          el.style.display = 'none';
+        });
+      })();
+    ''');
+  }
+
+  void _removeReadingModeStyles() {
+    _controller.runJavaScript('''
+      (function() {
+        document.body.style.backgroundColor = '';
+        document.body.style.color = '';
+        document.body.style.fontFamily = '';
+        document.body.style.fontSize = '';
+        document.querySelectorAll('header, footer, aside, .sidebar, .ad, .related-posts').forEach(el => {
+          el.style.display = '';
+        });
+      })();
+    ''');
+  }
+
+  void _toggleReadingMode(bool value) {
+    setState(() {
+      _isReadingMode = value;
+    });
+    if (_isReadingMode) {
+      _applyReadingModeStyles();
+    } else {
+      _removeReadingModeStyles();
+    }
   }
 
   @override
@@ -29,25 +94,64 @@ class _NewspaperPageState extends State<NewspaperPage> {
     return Scaffold(
       appBar: CustomAppBar(
         title: 'News Paper',
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.menu_book, // Use Icons.menu_book consistently
+              color: _isReadingMode ? Theme.of(context).colorScheme.secondary : Colors.white,
+            ),
+            onPressed: () => _toggleReadingMode(!_isReadingMode),
+            tooltip: 'Toggle Reading Mode',
+          ),
+        ],
       ),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: DropdownButton<String>(
-              isExpanded: true,
-              hint: const Text('Select a news channel'),
-              onChanged: (String? newValue) {
-                if (newValue != null) {
-                  _controller.loadRequest(Uri.parse(newValue));
-                }
-              },
-              items: newsChannels.map<DropdownMenuItem<String>>((channel) {
-                return DropdownMenuItem<String>(
-                  value: channel['url'],
-                  child: Text(channel['name']!),
-                );
-              }).toList(),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: newsChannels.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final channel = entry.value;
+                  final isSelected = _selectedChannelUrl == channel['url'];
+                  final List<Color> buttonColors = [
+                    Colors.blue,
+                    Colors.green,
+                    Colors.orange,
+                    Colors.purple,
+                    Colors.red,
+                  ];
+                  final Color buttonColor = buttonColors[index % buttonColors.length];
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedChannelUrl = channel['url'];
+                        });
+                        _controller.loadRequest(Uri.parse(channel['url']!));
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isSelected ? buttonColor : buttonColor.withOpacity(0.7),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20.0),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        elevation: isSelected ? 5 : 2,
+                      ),
+                      child: Text(
+                        channel['name']!,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
           ),
           Expanded(

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../widgets/custom_app_bar.dart';
 import '../pages/pdf_viewer_page.dart';
 import '../widgets/delete_confirmation_dialog.dart';
@@ -418,11 +419,15 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                                         ),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      padding: const EdgeInsets.all(8),
-                                      child: const Icon(
-                                        Icons.arrow_forward_ios_rounded,
-                                        size: 16,
-                                        color: Colors.white,
+                                      child: IconButton(
+                                        icon: const Icon(
+                                          Icons.share,
+                                          size: 24,
+                                          color: Colors.white,
+                                        ),
+                                        onPressed: () async {
+                                          await Share.shareXFiles([XFile(file.path)], text: 'Sharing PDF: ${file.path.split('/').last}');
+                                        },
                                       ),
                                     ),
                                   ],
