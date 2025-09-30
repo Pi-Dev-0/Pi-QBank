@@ -32,17 +32,11 @@ class _NewspaperPageState extends State<NewspaperPage> {
             _controller.runJavaScript("""
               (function() {
                   const styleId = 'gemini-hide-elements-style';
-                  // Corrected and improved selectors. Note that some class names might be dynamic
-                  // and may need to be adjusted after inspecting the websites.
                   const css = `
-                    .gap-4, .shadow-anchorAdShadow, div.flex.justify-center, .adsBox, .bvT29, .TjeAm, ._0avoF._0U6Mc,
-                    .adsBox.U15rh, .special-ads.adsBox, .KjUap, .ad-bottom-container.gHtZA.sGTMR,
-                    .container-section.py-3.flex.items-center.justify-center,
-                    .flex.items-center.justify-center.w-full,
-                    .flex.items-center.justify-center.w-full.mb-7,
-                    .flex.items-center.justify-center.w-full.mb-1,
-                    .news-details div>div,
-                    ._5NJPB, .print-adslot.adsBox._4Pk8L._0Zwdj, .web-interstitial-ad, .special_ads_for_story_0, ._0Zwdj .dfp-ad-unit, .adunitContainer {
+
+                    ._5NJPB, .print-adslot.adsBox._4Pk8L._0Zwdj, .web-interstitial-ad, .special_ads_for_story_0, ._0Zwdj .dfp-ad-unit, .adunitContainer,
+                    #div-gpt-ad-1703757687357-0, #div-gpt-ad-1701849334941-0, #div-gpt-ad-1702964129290-0, #div-gpt-ad-1753528412147-0
+                    {
                         display: none !important;
                     }
                   `;

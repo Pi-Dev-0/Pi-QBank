@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:pi_qbank/pages/newspaper_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class NewspaperListPage extends StatelessWidget {
+class NewspaperListPage extends StatefulWidget {
   const NewspaperListPage({super.key});
+
+  @override
+  State<NewspaperListPage> createState() => _NewspaperListPageState();
+}
+
+class _NewspaperListPageState extends State<NewspaperListPage> {
 
   final List<Map<String, String>> newsChannels = const [
     {'name': 'Daily Amardesh', 'url': 'https://www.dailyamardesh.com/'},
@@ -62,15 +69,61 @@ class NewspaperListPage extends StatelessWidget {
     {'name': 'The Daily Barguna', 'url': 'https://www.dailybarguna.com/'},
   ];
 
+  Set<String> _favoriteNewspapers = {};
+  late SharedPreferences _prefs;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    _prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _favoriteNewspapers = _prefs.getStringList('favoriteNewspapers')?.toSet() ?? {};
+    });
+  }
+
+  Future<void> _saveFavorites() async {
+    await _prefs.setStringList('favoriteNewspapers', _favoriteNewspapers.toList());
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Separate favorite and non-favorite channels
+    final List<Map<String, String>> favoriteChannels = [];
+    final List<Map<String, String>> nonFavoriteChannels = [];
+
+    for (var channel in newsChannels) {
+      if (_favoriteNewspapers.contains(channel['url']!)) {
+        favoriteChannels.add(channel);
+      } else {
+        nonFavoriteChannels.add(channel);
+      }
+    }
+
+    // Combine them with favorites at the top
+    final List<Map<String, String>> displayedChannels = [
+      ...favoriteChannels,
+      ...nonFavoriteChannels,
+    ];
+
     return Scaffold(
       appBar: CustomAppBar(title: 'Select News Provider'),
-      body: SingleChildScrollView(
+      body: ListView.builder(
         padding: const EdgeInsets.all(8.0),
-        child: ListBody(
-          children: newsChannels.map((channel) {
-            return GestureDetector(
+        itemCount: displayedChannels.length,
+        itemBuilder: (context, index) {
+          final channel = displayedChannels[index];
+          final isFavorite = _favoriteNewspapers.contains(channel['url']!);
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: InkWell(
               onTap: () {
                 Navigator.push(
                   context,
@@ -82,38 +135,44 @@ class NewspaperListPage extends StatelessWidget {
                   ),
                 );
               },
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.grey.shade300,
-                    width: 1.5,
-                  ),
-                   boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 3,
-                      offset: const Offset(0, 2), // changes position of shadow
+                child: Row(
+                  children: [
+                    const Icon(Icons.article, color: Colors.blueGrey),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        channel['name']!,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite ? Colors.red : Colors.grey,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          if (isFavorite) {
+                            _favoriteNewspapers.remove(channel['url']!);
+                          } else {
+                            _favoriteNewspapers.add(channel['url']!);
+                          }
+                          _saveFavorites(); // Save changes to shared preferences
+                        });
+                      },
                     ),
                   ],
                 ),
-                child: Text(
-                  channel['name']!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.normal,
-                    color: Colors.black87,
-                  ),
-                ),
               ),
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
