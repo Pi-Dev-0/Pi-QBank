@@ -34,17 +34,15 @@ class _NewspaperPageState extends State<NewspaperPage> {
           onPageStarted: (String url) {},
           onPageFinished: (String url) {
             // Inject JavaScript to hide elements after the page has loaded
-            _controller.runJavaScript(
-              """
+            _controller.runJavaScript("""
               var style = document.createElement('style');
               style.innerHTML = `
-                .mb-6.flex.flex-col.items-center.justify-center.gap-4, .shadow-anchorAdShadow, flex .justify-center {
+                .mb-6.flex.flex-col.items-center.justify-center.gap-4, .shadow-anchorAdShadow, div.flex.justify-center, .adsBox, .bvT29, .TjeAm, ._0avoF _0U6Mc, .adsBox.U15rh, .special-ads.adsBox, .KjUap, .ad-bottom-container.gHtZA.sGTMR, .container-section.py-3.flex.items-center.justify-center, .flex.tems-center.justify-center.w-full ,flex.items-center.justify-center.w-full, footer-ad.container-section.py-[2px].flex.items-center.justify-center, flex.items-center.justify-center.w-full.mb-7, flex.items-center.justify-center.w-full.mb-1, .news-details div>div {
                   display: none !important;
                 }
               `;
               document.head.appendChild(style);
-              """
-            );
+              """);
           },
           onWebResourceError: (WebResourceError error) {},
           onNavigationRequest: (NavigationRequest request) {
@@ -58,14 +56,12 @@ class _NewspaperPageState extends State<NewspaperPage> {
       ..loadRequest(Uri.parse(_selectedChannelUrl!));
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CustomAppBar(
         title: 'News Paper',
-        actions: [
-        ],
+        actions: [],
       ),
       body: Column(
         children: [
@@ -86,7 +82,8 @@ class _NewspaperPageState extends State<NewspaperPage> {
                     Colors.purple,
                     Colors.red,
                   ];
-                  final Color buttonColor = buttonColors[index % buttonColors.length];
+                  final Color buttonColor =
+                      buttonColors[index % buttonColors.length];
 
                   return Padding(
                     padding: const EdgeInsets.only(right: 8.0),
@@ -98,12 +95,15 @@ class _NewspaperPageState extends State<NewspaperPage> {
                         _controller.loadRequest(Uri.parse(channel['url']!));
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isSelected ? buttonColor : buttonColor.withOpacity(0.7),
+                        backgroundColor: isSelected
+                            ? buttonColor
+                            : buttonColor.withOpacity(0.7),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20.0),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         elevation: isSelected ? 5 : 2,
                       ),
                       child: Text(
