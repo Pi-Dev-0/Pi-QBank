@@ -6,7 +6,7 @@ import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import 'package:pi_qbank/pages/mcq_generator_page.dart'; // Import MCQGeneratorPage
 import 'package:pi_qbank/pages/question_generator_page.dart'; // Import QuestionGeneratorPage
 import 'package:pi_qbank/pages/mess_manager_page.dart'; // Import MessManagerPage
-import 'package:pi_qbank/pages/newspaper_page.dart'; // Import NewspaperPage
+import 'package:pi_qbank/pages/newspaper_list_page.dart'; // Import NewspaperListPage
 // Import ExamPaperBuilderPage
 import '../widgets/app_drawer.dart'; // Import AppDrawer
 
@@ -188,7 +188,7 @@ class ToolsPage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const NewspaperPage(),
+                        builder: (context) => const NewspaperListPage(),
                       ),
                     );
                   },
