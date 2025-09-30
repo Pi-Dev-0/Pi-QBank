@@ -33,8 +33,9 @@ class _NewspaperPageState extends State<NewspaperPage> {
               (function() {
                   const styleId = 'gemini-hide-elements-style';
                   const css = `
-
-                    ._5NJPB, .print-adslot.adsBox._4Pk8L._0Zwdj, .web-interstitial-ad, .special_ads_for_story_0, ._0Zwdj .dfp-ad-unit, .adunitContainer,
+                   .bg-gray-50, .adsBox, .web-interstitial-ad, .special_ads_for_story_0, .TjeAm, .dfp-ad-unit, .bvT29, #anchor-ad, .print-none, ._5NJPB,
+                   .py-3, .flex.items-center.justify-center.w-full, .footer-ad, .ads-container, 
+                   .adsbygoogle, 
                     #div-gpt-ad-1703757687357-0, #div-gpt-ad-1701849334941-0, #div-gpt-ad-1702964129290-0, #div-gpt-ad-1753528412147-0
                     {
                         display: none !important;

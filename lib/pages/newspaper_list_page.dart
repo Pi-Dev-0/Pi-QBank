@@ -20,6 +20,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
     {'name': 'The Daily Campus', 'url': 'https://www.thedailycampus.com/'},
     {'name': 'Bangla Tribune', 'url': 'https://www.banglatribune.com/'},
     {'name': 'Kaler Kantho', 'url': 'https://www.kalerkantho.com/'},
+    {'name': 'BD GOVT. JOB', 'url': 'https://bdgovtjob.net/'},
     {'name': 'New Age', 'url': 'https://www.newagebd.net/'},
     {'name': 'The Independent', 'url': 'https://www.theindependentbd.com/'},
     {'name': 'The Financial Express', 'url': 'https://thefinancialexpress.com.bd/'},
