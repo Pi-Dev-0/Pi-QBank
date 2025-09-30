@@ -47,7 +47,8 @@ class _NewspaperPageState extends State<NewspaperPage> {
                     .flex.items-center.justify-center.w-full,
                     .flex.items-center.justify-center.w-full.mb-7,
                     .flex.items-center.justify-center.w-full.mb-1,
-                    .news-details div>div {
+                    .news-details div>div,
+                    ._5NJPB, .print-adslot.adsBox._4Pk8L._0Zwdj, .web-interstitial-ad, .special_ads_for_story_0, ._0Zwdj .dfp-ad-unit, .adunitContainer {
                         display: none !important;
                     }
                   `;
