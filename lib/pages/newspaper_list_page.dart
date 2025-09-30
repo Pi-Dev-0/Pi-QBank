@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pi_qbank/pages/newspaper_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pi_qbank/constants/app_colors.dart';
+import 'dart:math';
 
 class NewspaperListPage extends StatefulWidget {
   const NewspaperListPage({super.key});
@@ -111,6 +113,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
     ];
 
     return Scaffold(
+      backgroundColor: AppColors.lightBlueGrey, // Softer background color
       appBar: CustomAppBar(title: 'Select News Provider'),
       body: ListView.builder(
         padding: const EdgeInsets.all(8.0),
@@ -119,11 +122,13 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
           final channel = displayedChannels[index];
           final isFavorite = _favoriteNewspapers.contains(channel['url']!);
           return Card(
-            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-            elevation: 2,
+            color: AppColors.white, // Explicitly set card background to white
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            elevation: 4,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
             ),
+            clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: () {
                 Navigator.push(
@@ -136,26 +141,28 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
                   ),
                 );
               },
+              splashColor: AppColors.deepPurple.withOpacity(0.1),
+              highlightColor: AppColors.deepPurple.withOpacity(0.05),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                 child: Row(
                   children: [
-                    const Icon(Icons.article, color: Colors.blueGrey),
-                    const SizedBox(width: 12),
+                    Icon(Icons.article, color: AppColors.deepPurple),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Text(
                         channel['name']!,
                         style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black87,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.darkGrey,
                         ),
                       ),
                     ),
                     IconButton(
                       icon: Icon(
                         isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: isFavorite ? Colors.red : Colors.grey,
+                        color: isFavorite ? AppColors.redError : AppColors.lightGrey,
                       ),
                       onPressed: () {
                         setState(() {
@@ -164,7 +171,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
                           } else {
                             _favoriteNewspapers.add(channel['url']!);
                           }
-                          _saveFavorites(); // Save changes to shared preferences
+                          _saveFavorites();
                         });
                       },
                     ),
