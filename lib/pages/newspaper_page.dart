@@ -82,22 +82,36 @@ class _NewspaperPageState extends State<NewspaperPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: CustomAppBar(
-        title: _selectedChannelName ?? 'News Paper',
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.newspaper),
-            onPressed: () => _showNewsChannelPicker(context),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: WebViewWidget(controller: _controller),
-          ),
-        ],
+    return PopScope(
+      canPop: false, // Prevent popping by default
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) {
+          return;
+        }
+        if (await _controller.canGoBack()) {
+          _controller.goBack();
+        } else {
+          if (!context.mounted) return;
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: CustomAppBar(
+          title: _selectedChannelName ?? 'News Paper',
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.newspaper),
+              onPressed: () => _showNewsChannelPicker(context),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: WebViewWidget(controller: _controller),
+            ),
+          ],
+        ),
       ),
     );
   }
