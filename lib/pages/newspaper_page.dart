@@ -83,6 +83,7 @@ class _NewspaperPageState extends State<NewspaperPage> {
         }
       },
       child: Scaffold(
+        backgroundColor: Colors.white,
         appBar: CustomAppBar(
           title: widget.name,
         ),
