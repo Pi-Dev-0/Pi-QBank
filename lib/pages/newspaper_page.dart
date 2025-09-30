@@ -33,24 +33,45 @@ class _NewspaperPageState extends State<NewspaperPage> {
           },
           onPageStarted: (String url) {},
           onPageFinished: (String url) {
-            // Inject JavaScript to hide elements after the page has loaded
+            // Inject JavaScript to hide elements.
+            // This script runs periodically to hide dynamically loaded content.
             _controller.runJavaScript("""
-              var style = document.createElement('style');
-              style.innerHTML = `
-                .mb-6.flex.flex-col.items-center.justify-center.gap-4, .shadow-anchorAdShadow, div.flex.justify-center, .adsBox, .bvT29, .TjeAm, ._0avoF _0U6Mc, .adsBox.U15rh, .special-ads.adsBox, .KjUap, .ad-bottom-container.gHtZA.sGTMR, .container-section.py-3.flex.items-center.justify-center, .flex.tems-center.justify-center.w-full ,flex.items-center.justify-center.w-full, footer-ad.container-section.py-[2px].flex.items-center.justify-center, flex.items-center.justify-center.w-full.mb-7, flex.items-center.justify-center.w-full.mb-1, .news-details div>div {
-                  display: none !important;
-                }
-              `;
-              document.head.appendChild(style);
+              (function() {
+                  const styleId = 'gemini-hide-elements-style';
+                  // Corrected and improved selectors. Note that some class names might be dynamic
+                  // and may need to be adjusted after inspecting the websites.
+                  const css = `
+                    .gap-4, .shadow-anchorAdShadow, div.flex.justify-center, .adsBox, .bvT29, .TjeAm, ._0avoF._0U6Mc,
+                    .adsBox.U15rh, .special-ads.adsBox, .KjUap, .ad-bottom-container.gHtZA.sGTMR,
+                    .container-section.py-3.flex.items-center.justify-center,
+                    .flex.items-center.justify-center.w-full,
+                    .flex.items-center.justify-center.w-full.mb-7,
+                    .flex.items-center.justify-center.w-full.mb-1,
+                    .news-details div>div {
+                        display: none !important;
+                    }
+                  `;
+
+                  function addStyle() {
+                      var styleElement = document.getElementById(styleId);
+                      if (!styleElement) {
+                          styleElement = document.createElement('style');
+                          styleElement.id = styleId;
+                          styleElement.innerHTML = css;
+                          document.head.appendChild(styleElement);
+                      }
+                  }
+
+                  // Run initially on page load
+                  addStyle();
+
+                  // And retry periodically to catch elements that load later
+                  // or to re-apply if the website removes the style tag.
+                  setInterval(addStyle, 500);
+              })();
               """);
           },
           onWebResourceError: (WebResourceError error) {},
-          onNavigationRequest: (NavigationRequest request) {
-            if (request.url.startsWith('https://www.youtube.com/')) {
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
         ),
       )
       ..loadRequest(Uri.parse(_selectedChannelUrl!));
