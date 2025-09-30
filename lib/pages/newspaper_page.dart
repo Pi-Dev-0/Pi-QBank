@@ -19,7 +19,6 @@ class _NewspaperPageState extends State<NewspaperPage> {
   ];
 
   String? _selectedChannelUrl;
-  bool _isReadingMode = false;
 
   @override
   void initState() {
@@ -34,9 +33,6 @@ class _NewspaperPageState extends State<NewspaperPage> {
           },
           onPageStarted: (String url) {},
           onPageFinished: (String url) {
-            if (_isReadingMode) {
-              _applyReadingModeStyles();
-            }
           },
           onWebResourceError: (WebResourceError error) {},
           onNavigationRequest: (NavigationRequest request) {
@@ -50,44 +46,6 @@ class _NewspaperPageState extends State<NewspaperPage> {
       ..loadRequest(Uri.parse(_selectedChannelUrl!));
   }
 
-  void _applyReadingModeStyles() {
-    _controller.runJavaScript('''
-      (function() {
-        document.body.style.backgroundColor = '#f5f5dc';
-        document.body.style.color = '#333';
-        document.body.style.fontFamily = 'serif';
-        document.body.style.fontSize = '1.2em';
-        document.querySelectorAll('header, footer, aside, .sidebar, .ad, .related-posts').forEach(el => {
-          el.style.display = 'none';
-        });
-      })();
-    ''');
-  }
-
-  void _removeReadingModeStyles() {
-    _controller.runJavaScript('''
-      (function() {
-        document.body.style.backgroundColor = '';
-        document.body.style.color = '';
-        document.body.style.fontFamily = '';
-        document.body.style.fontSize = '';
-        document.querySelectorAll('header, footer, aside, .sidebar, .ad, .related-posts').forEach(el => {
-          el.style.display = '';
-        });
-      })();
-    ''');
-  }
-
-  void _toggleReadingMode(bool value) {
-    setState(() {
-      _isReadingMode = value;
-    });
-    if (_isReadingMode) {
-      _applyReadingModeStyles();
-    } else {
-      _removeReadingModeStyles();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,14 +53,6 @@ class _NewspaperPageState extends State<NewspaperPage> {
       appBar: CustomAppBar(
         title: 'News Paper',
         actions: [
-          IconButton(
-            icon: Icon(
-              Icons.menu_book, // Use Icons.menu_book consistently
-              color: _isReadingMode ? Theme.of(context).colorScheme.secondary : Colors.white,
-            ),
-            onPressed: () => _toggleReadingMode(!_isReadingMode),
-            tooltip: 'Toggle Reading Mode',
-          ),
         ],
       ),
       body: Column(
