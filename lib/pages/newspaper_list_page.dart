@@ -3,7 +3,6 @@ import 'package:pi_qbank/pages/newspaper_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pi_qbank/constants/app_colors.dart';
-import 'dart:math';
 
 class NewspaperListPage extends StatefulWidget {
   const NewspaperListPage({super.key});
