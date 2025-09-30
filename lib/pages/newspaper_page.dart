@@ -33,6 +33,18 @@ class _NewspaperPageState extends State<NewspaperPage> {
           },
           onPageStarted: (String url) {},
           onPageFinished: (String url) {
+            // Inject JavaScript to hide elements after the page has loaded
+            _controller.runJavaScript(
+              """
+              var style = document.createElement('style');
+              style.innerHTML = `
+                .mb-6.flex.flex-col.items-center.justify-center.gap-4, .shadow-anchorAdShadow, flex .justify-center {
+                  display: none !important;
+                }
+              `;
+              document.head.appendChild(style);
+              """
+            );
           },
           onWebResourceError: (WebResourceError error) {},
           onNavigationRequest: (NavigationRequest request) {
