@@ -19,11 +19,13 @@ class _NewspaperPageState extends State<NewspaperPage> {
   ];
 
   String? _selectedChannelUrl;
+  String? _selectedChannelName;
 
   @override
   void initState() {
     super.initState();
     _selectedChannelUrl = newsChannels.first['url'];
+    _selectedChannelName = newsChannels.first['name'];
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
@@ -82,67 +84,99 @@ class _NewspaperPageState extends State<NewspaperPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: CustomAppBar(
-        title: 'News Paper',
-        actions: [],
+        title: _selectedChannelName ?? 'News Paper',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.newspaper),
+            onPressed: () => _showNewsChannelPicker(context),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: newsChannels.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final channel = entry.value;
-                  final isSelected = _selectedChannelUrl == channel['url'];
-                  final List<Color> buttonColors = [
-                    Colors.blue,
-                    Colors.green,
-                    Colors.orange,
-                    Colors.purple,
-                    Colors.red,
-                  ];
-                  final Color buttonColor =
-                      buttonColors[index % buttonColors.length];
-
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _selectedChannelUrl = channel['url'];
-                        });
-                        _controller.loadRequest(Uri.parse(channel['url']!));
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isSelected
-                            ? buttonColor
-                            : buttonColor.withOpacity(0.7),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20.0),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        elevation: isSelected ? 5 : 2,
-                      ),
-                      child: Text(
-                        channel['name']!,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
           Expanded(
             child: WebViewWidget(controller: _controller),
           ),
         ],
       ),
+    );
+  }
+
+  void _showNewsChannelPicker(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          elevation: 8,
+          title: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Text(
+                'Select News Provider',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: newsChannels.map((channel) {
+                final isSelected = _selectedChannelUrl == channel['url'];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedChannelUrl = channel['url'];
+                      _selectedChannelName = channel['name'];
+                    });
+                    _controller.loadRequest(Uri.parse(channel['url']!));
+                    Navigator.of(context).pop();
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.blue.shade100 : Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isSelected ? Colors.blue : Colors.grey.shade300,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      channel['name']!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? Colors.blue.shade900 : Colors.black87,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Close'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
