@@ -5,8 +5,14 @@ import 'package:pi_qbank/widgets/custom_app_bar.dart';
 class NewspaperPage extends StatefulWidget {
   final String name;
   final String url;
+  final List<String> hiddenElements;
 
-  const NewspaperPage({super.key, required this.name, required this.url});
+  const NewspaperPage({
+    super.key,
+    required this.name,
+    required this.url,
+    this.hiddenElements = const [],
+  });
 
   @override
   State<NewspaperPage> createState() => _NewspaperPageState();
@@ -33,13 +39,10 @@ class _NewspaperPageState extends State<NewspaperPage> {
               (function() {
                   const styleId = 'gemini-hide-elements-style';
                   const css = `
-                   .bg-gray-50, .adsBox, .web-interstitial-ad, .special_ads_for_story_0, .TjeAm, .dfp-ad-unit, .bvT29, #anchor-ad, .print-none, ._5NJPB,
-                   .py-3, .flex.items-center.justify-center.w-full, .footer-ad, .ads-container, 
-                   .adsbygoogle, 
-                    #div-gpt-ad-1703757687357-0, #div-gpt-ad-1701849334941-0, #div-gpt-ad-1702964129290-0, #div-gpt-ad-1753528412147-0
-                    {
-                        display: none !important;
-                    }
+                   ${widget.hiddenElements.join(', ')}
+                   {
+                       display: none !important;
+                   }
                   `;
 
                   function addStyle() {
