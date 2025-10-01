@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:pi_qbank/widgets/custom_app_bar.dart';
+import 'package:pi_qbank/pages/newspaper_list_page.dart';
 
 class NewspaperPage extends StatefulWidget {
   final String name;
@@ -20,6 +20,8 @@ class NewspaperPage extends StatefulWidget {
 
 class _NewspaperPageState extends State<NewspaperPage> {
   late final WebViewController _controller;
+  bool _isLoading = true;
+  double _progress = 0;
 
   @override
   void initState() {
@@ -29,10 +31,20 @@ class _NewspaperPageState extends State<NewspaperPage> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
-            // Update loading bar.
+            setState(() {
+              _progress = progress / 100;
+            });
           },
-          onPageStarted: (String url) {},
+          onPageStarted: (String url) {
+            setState(() {
+              _isLoading = true;
+              _progress = 0; // Reset progress when page starts
+            });
+          },
           onPageFinished: (String url) {
+            setState(() {
+              _isLoading = false;
+            });
             // Inject JavaScript to hide elements.
             // This script runs periodically to hide dynamically loaded content.
             _controller.runJavaScript("""
@@ -87,14 +99,35 @@ class _NewspaperPageState extends State<NewspaperPage> {
       },
       child: Scaffold(
         backgroundColor: Colors.white,
-        appBar: CustomAppBar(
-          title: widget.name,
+        appBar: AppBar(
+          title: Text(widget.name),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                    builder: (context) => const NewspaperListPage()),
+              );
+            },
+          ),
         ),
-        body: Column(
+        body: Stack(
           children: [
-            Expanded(
-              child: WebViewWidget(controller: _controller),
-            ),
+            WebViewWidget(controller: _controller),
+            if (_isLoading)
+              LinearProgressIndicator(
+                value: _progress,
+                backgroundColor: Colors.grey[200],
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+              ),
+            if (_isLoading && _progress == 0) // Show circular indicator only when loading starts and progress is 0
+              Container(
+                color: Colors.white,
+                child: const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
           ],
         ),
       ),
