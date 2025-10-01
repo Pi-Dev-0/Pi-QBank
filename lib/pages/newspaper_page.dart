@@ -116,16 +116,28 @@ class _NewspaperPageState extends State<NewspaperPage> {
           children: [
             WebViewWidget(controller: _controller),
             if (_isLoading)
-              LinearProgressIndicator(
-                value: _progress,
-                backgroundColor: Colors.grey[200],
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
-              ),
-            if (_isLoading && _progress == 0) // Show circular indicator only when loading starts and progress is 0
               Container(
-                color: Colors.white,
+                color: Colors.white, // Full screen white background during loading
                 child: const Center(
-                  child: CircularProgressIndicator(),
+                  child: SizedBox( // Make circular indicator a bit larger and styled
+                    width: 60.0,
+                    height: 60.0,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 6.0, // Make it thicker
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue), // Give it a color
+                    ),
+                  ),
+                ),
+              ),
+            if (_isLoading)
+              Positioned( // Position linear progress indicator at the top
+                top: 0,
+                left: 0,
+                right: 0,
+                child: LinearProgressIndicator(
+                  value: _progress,
+                  backgroundColor: Colors.grey[200], // Background for the progress bar
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
                 ),
               ),
           ],
