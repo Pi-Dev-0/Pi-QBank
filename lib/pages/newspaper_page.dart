@@ -11,7 +11,7 @@ class TypewriterText extends StatefulWidget {
   const TypewriterText({
     super.key,
     required this.text,
-    this.speed = const Duration(milliseconds: 100),
+    this.speed = const Duration(milliseconds: 200),
   });
 
   @override
@@ -31,14 +31,20 @@ class _TypewriterTextState extends State<TypewriterText> {
 
   void _startTypewriterEffect() {
     _timer = Timer.periodic(widget.speed, (timer) {
-      if (_currentIndex < widget.text.length) {
-        setState(() {
+      if (!mounted) { // Check if the widget is still mounted
+        _timer?.cancel();
+        return;
+      }
+      setState(() {
+        if (_currentIndex < widget.text.length) {
           _displayedText += widget.text[_currentIndex];
           _currentIndex++;
-        });
-      } else {
-        _timer?.cancel();
-      }
+        } else {
+          // Reset and loop the effect
+          _displayedText = '';
+          _currentIndex = 0;
+        }
+      });
     });
   }
 
