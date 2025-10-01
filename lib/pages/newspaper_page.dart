@@ -1,6 +1,65 @@
+import 'dart:async'; // Import for Timer
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:pi_qbank/pages/newspaper_list_page.dart';
+
+// Custom Typewriter Text Widget
+class TypewriterText extends StatefulWidget {
+  final String text;
+  final Duration speed;
+
+  const TypewriterText({
+    super.key,
+    required this.text,
+    this.speed = const Duration(milliseconds: 100),
+  });
+
+  @override
+  State<TypewriterText> createState() => _TypewriterTextState();
+}
+
+class _TypewriterTextState extends State<TypewriterText> {
+  String _displayedText = '';
+  int _currentIndex = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTypewriterEffect();
+  }
+
+  void _startTypewriterEffect() {
+    _timer = Timer.periodic(widget.speed, (timer) {
+      if (_currentIndex < widget.text.length) {
+        setState(() {
+          _displayedText += widget.text[_currentIndex];
+          _currentIndex++;
+        });
+      } else {
+        _timer?.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _displayedText,
+      style: const TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+        color: Colors.blueAccent,
+      ),
+    );
+  }
+}
 
 class NewspaperPage extends StatefulWidget {
   final String name;
@@ -118,14 +177,18 @@ class _NewspaperPageState extends State<NewspaperPage> {
             if (_isLoading)
               Container(
                 color: Colors.white, // Full screen white background during loading
-                child: const Center(
-                  child: SizedBox( // Make circular indicator a bit larger and styled
-                    width: 60.0,
-                    height: 60.0,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 6.0, // Make it thicker
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue), // Give it a color
-                    ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        'assets/images/launcher.png', // Your logo from assets
+                        width: 100,
+                        height: 100,
+                      ),
+                      const SizedBox(height: 20),
+                      const TypewriterText(text: 'Loading...'),
+                    ],
                   ),
                 ),
               ),
