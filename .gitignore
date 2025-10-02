@@ -32,7 +32,6 @@ migrate_working_dir/
 /build/
 .env
 *.env
-config.json
 
 # Symbolication related
 app.*.symbols
