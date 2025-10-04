@@ -475,7 +475,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
-        value: value,
+        initialValue: value,
         items: items.map<DropdownMenuItem<String>>((String item) {
           return DropdownMenuItem<String>(
             value: item,

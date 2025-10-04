@@ -184,7 +184,7 @@ Platform: ${Theme.of(context).platform}''';
                     ),
                     prefixIcon: const Icon(Icons.category_outlined),
                   ),
-                  value: _feedbackType,
+                  initialValue: _feedbackType,
                   items: const [
                     DropdownMenuItem(
                         value: 'General Feedback',

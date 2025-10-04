@@ -674,7 +674,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           contentPadding:
               const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
-        value: _selectedModel,
+        initialValue: _selectedModel,
         items: _availableModels.map((model) {
           return DropdownMenuItem<String>(
             value: model,

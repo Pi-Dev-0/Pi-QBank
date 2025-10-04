@@ -866,7 +866,7 @@ function _json(obj, code) {
                 children: [
                   if (expense is MemberExpense)
                     DropdownButtonFormField<String>(
-                      value: selectedMemberId,
+                      initialValue: selectedMemberId,
                       items: _members.map((member) {
                         return DropdownMenuItem(
                           value: member.id,
