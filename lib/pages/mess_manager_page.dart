@@ -1189,16 +1189,15 @@ function _json(obj, code) {
   double get _mealRate => _totalMeals > 0 ? _totalExpenses / _totalMeals : 0.0;
 
   // New meal rate calculations
-  double get _bigMarketMealRate {
+  double get _rawMarketMealRate {
     // Calculated without manager expenses and miscellaneous expenses
     final expensesWithoutManagerAndMisc = _totalMemberExpenses;
     return _totalMeals > 0 ? expensesWithoutManagerAndMisc / _totalMeals : 0.0;
   }
 
-  double get _rawMarketMealRate {
+  double get _bigMarketMealRate {
     // Calculated by all expenses (manager, member, and miscellaneous)
-    final allExpenses = _totalManagerExpenses + _totalMemberExpenses + _totalMiscExpenses;
-    return _totalMeals > 0 ? allExpenses / _totalMeals : 0.0;
+    return _totalMeals > 0 ? _totalManagerExpenses / _totalMeals : 0.0;
   }
 
   List<ReportData> get _reportData {
@@ -1258,19 +1257,19 @@ function _json(obj, code) {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 6),
-                    _buildCalculationRow('মোট জমা:',
+                    _buildCalculationRow('মোট জমা (ম্যানেজার):',
                         '${_members.fold(0.0, (sum, m) => sum + m.initialDeposit).toStringAsFixed(2)} টাকা',
                         textColor: Colors.green),
-                    _buildCalculationRow(
-                        'মোট খরচ:', '${_totalExpenses.toStringAsFixed(2)} টাকা',
-                        textColor: Colors.red),
-                    _buildCalculationRow('ম্যানেজারের খরচ:',
+                    _buildCalculationRow('বড় বাজার খরচ:',
                         '${_totalManagerExpenses.toStringAsFixed(2)} টাকা',
                         textColor: Colors.red),
                     _buildCalculationRow('সদস্যদের খরচ:',
                         '${_totalMemberExpenses.toStringAsFixed(2)} টাকা',
                         textColor: Colors.red),
-                    _buildCalculationRow('বিবিধ খরচ:',
+                        _buildCalculationRow(
+                        'মোট খরচ:', '${_totalExpenses.toStringAsFixed(2)} টাকা',
+                        textColor: Colors.red),
+                    _buildCalculationRow('মোট বিবিধ খরচ:',
                         '${_totalMiscExpenses.toStringAsFixed(2)} টাকা',
                         textColor: Colors.red),
                     if (_members.isNotEmpty)
@@ -1293,7 +1292,7 @@ function _json(obj, code) {
                 ),
               ),
               _buildCollapsibleSection(
-                title: 'ম্যানেজারের খরচ',
+                title: 'বড় বাজার খরচ',
                 sectionKey: 'managerExpense',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

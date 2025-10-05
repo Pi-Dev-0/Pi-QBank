@@ -27,6 +27,107 @@
 
 ---
 
+## 🚀 About Pi-QBank
+
+**Pi-QBank** is a comprehensive, feature-rich mobile application developed using Flutter. It is designed to be an all-in-one educational resource for students, providing access to a vast question bank, study materials, and various learning tools.
+
+### ✨ Features
+
+The application boasts a wide array of features to cater to different learning needs:
+
+- **AI-Powered Assistance:** An integrated AI helper to solve doubts and answer questions.
+- **Question Bank:** Access a rich repository of questions for various subjects and classes.
+- **MCQ & Written Tests:** Practice with Multiple Choice Questions and written tests, and even generate your own custom tests.
+- **PDF & Book Reader:** In-app PDF viewer to read downloaded papers and books.
+- **Download Manager:** Easily download and manage educational materials for offline access.
+- **Bookmarks:** Save important questions and materials for quick review.
+- **Class-Specific Content:** Dedicated sections for different classes and competitive exams (SSC, HSC, University Admission, etc.).
+- **Online Resources:** Access to online classes, video lectures, blogs, and newspapers.
+- **Study Tools:** Includes formula pages, guidebooks, and suggestion papers.
+- **User-Friendly Interface:** A clean and intuitive UI with light and dark mode support.
+- **And much more...**
+
+### 🛠️ Tech Stack & Dependencies
+
+#### Core Framework & Language
+- **Framework:** Flutter (`>=3.0.0`)
+- **Language:** Dart (`>=3.5.4 <4.0.0`)
+
+#### Key Dependencies
+- **UI & Core:**
+  - `flutter/cupertino_icons`: For iOS-style icons.
+  - `provider`: For state management.
+- **File & Device Access:**
+  - `flutter_pdfview`: To render PDF files.
+  - `path_provider` / `open_file` / `file_picker`: For handling files and storage.
+  - `permission_handler`: To request and manage device permissions.
+  - `image_picker`: For selecting images from the gallery or camera.
+- **Networking & Data:**
+  - `http`: For making HTTP requests to APIs.
+  - `webview_flutter`: To display web content within the app.
+  - `shared_preferences`: For storing simple data locally.
+  - `connectivity_plus`: To check network connectivity status.
+- **Utilities:**
+  - `url_launcher`: To open URLs in the device's default browser.
+  - `share_plus`: For sharing content with other apps.
+  - `logger`: For enhanced logging and debugging.
+  - `youtube_player_flutter`: For playing YouTube videos in-app.
+  - `pdf` & `printing`: For creating and printing PDF documents.
+  - `flutter_tts`: For text-to-speech functionality.
+  - `bijoy_helper`: For Bengali text support.
+
+### 📂 Project Structure
+
+The project follows a standard Flutter application structure:
+
+```
+/
+├── android/          # Android native project
+├── ios/              # iOS native project
+├── lib/              # Main application source code (Dart)
+│   ├── main.dart     # App entry point
+│   ├── config/       # App configuration
+│   ├── constants/    # App-wide constants (colors, etc.)
+│   ├── models/       # Data models
+│   ├── pages/        # UI screens/pages
+│   ├── providers/    # State management providers
+│   ├── services/     # Business logic and services
+│   └── widgets/      # Reusable UI components
+├── assets/           # Static assets (images, fonts, etc.)
+├── pubspec.yaml      # Project metadata and dependencies
+└── README.md         # This file
+```
+
+### 🏁 Getting Started
+
+Follow these instructions to get a copy of the project up and running on your local machine for development and testing purposes.
+
+#### Prerequisites
+
+- **Flutter SDK:** Ensure you have Flutter installed. For instructions, see the [official Flutter documentation](https://flutter.dev/docs/get-started/install).
+- **IDE:** An IDE like Android Studio or VS Code with the Flutter plugin.
+
+#### Installation & Setup
+
+1. **Clone the repository:**
+   ```sh
+   git clone https://github.com/Pi-Dev-0/Pi-QBank.git
+   ```
+2. **Navigate to the project directory:**
+   ```sh
+   cd Pi-QBank
+   ```
+3. **Install dependencies:**
+   ```sh
+   flutter pub get
+   ```
+4. **Run the application:**
+   ```sh
+   flutter run
+   ```
+
+---
+
 ### 📝 Latest Blog Posts
 
 <!-- BLOG-POST-LIST:START -->
@@ -94,7 +195,7 @@
 </p>
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=pi-dev-0&show_icons=true&theme=tokyonight" alt="GitHub Stats" />
-</p>
+p>
 <p align="center">
   <img src="https://github-readme-streak-stats.herokuapp.com/?user=pi-dev-0&theme=tokyonight" alt="GitHub Streak" />
 </p>
