@@ -61,6 +61,10 @@ android {
         multiDexEnabled true
     }
 
+    packagingOptions {
+        exclude "lib/x86_64/**"
+    }
+
     buildTypes {
         release {
             // Enables code shrinking, obfuscation, and optimization
