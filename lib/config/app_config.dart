@@ -4,7 +4,6 @@ class AppConfig {
   static const String baseUrl =
       String.fromEnvironment('BASE_URL', defaultValue: '');
   static const String endpointApi = String.fromEnvironment('ENDPOINT_API');
-  static const String fileIoApiKey = String.fromEnvironment('FILE_IO_API_KEY');
   static const String notificationApi =
       String.fromEnvironment('NOTIFICATION_API');
   static const String youtubeApiKey = String.fromEnvironment('YOUTUBE_API_KEY');
@@ -79,7 +78,6 @@ class AppConfig {
     return apiKey.isNotEmpty &&
         baseUrl.isNotEmpty &&
         endpointApi.isNotEmpty &&
-        fileIoApiKey.isNotEmpty &&
         notificationApi.isNotEmpty;
   }
 }

@@ -14,6 +14,7 @@ class NewspaperListPage extends StatefulWidget {
 class _NewspaperListPageState extends State<NewspaperListPage> {
 
   final List<Map<String, dynamic>> newsChannels = const [
+    {'name': 'Google News', 'url': 'https://news.google.com/home?hl=bn&gl=BD&ceid=BD:bn', 'hiddenElements':['.YtXOzd.Au3bp.kbeFSb.lMgtcc']},
     {'name': 'Daily Amardesh', 'url': 'https://www.dailyamardesh.com/', 'hiddenElements': ['.bg-gray-50',]},
     {'name': 'Prothom Alo', 'url': 'https://www.prothomalo.com/', 'hiddenElements': ['.adsBox', '.web-interstitial-ad', '#anchor-ad', 'TjeAm', '.bvT29', '.dfp-ad-unit', '.TjeAm', '._5NJPB', '.comment-wrapper', '#footer',]},
     {'name': 'Dhaka Post', 'url': 'https://www.dhakapost.com/', 'hiddenElements': []},
