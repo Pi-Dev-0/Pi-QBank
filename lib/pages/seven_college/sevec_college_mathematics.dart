@@ -9,6 +9,7 @@ import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
 import '../../widgets/connectivity_wrapper.dart';
+import '../../widgets/loading_widget.dart';
 
 class SevecCollegeMathematicsPage extends StatefulWidget {
   const SevecCollegeMathematicsPage({super.key});
@@ -153,20 +154,7 @@ class _SevecCollegeMathematicsPageState extends State<SevecCollegeMathematicsPag
           Expanded(
             child: isLoading
                 ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading Question Papers...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: LoadingWidget(loadingText: 'Loading Question Papers...'),
                   )
                 : hasError
                     ? Center(

@@ -4,6 +4,7 @@ import 'package:pi_qbank/services/blog_service.dart';
 import 'package:pi_qbank/pages/view_post_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart'; // Import AppDrawer
+import '../widgets/loading_widget.dart'; // Import the LoadingWidget
 
 class BlogPage extends StatefulWidget {
   const BlogPage({super.key});
@@ -79,7 +80,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                   // Subtle shadow for floating effect
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha:0.07),
+                      color: Colors.black.withValues(alpha: 0.07),
                       blurRadius: 16,
                       offset: Offset(0, 4),
                     ),
@@ -100,7 +101,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                       ),
                       decoration: BoxDecoration(
                         color: (isDark ? Colors.grey[850] : Colors.white)
-                            ?.withValues(alpha:0.65),
+                            ?.withValues(alpha: 0.65),
                         borderRadius: const BorderRadius.vertical(
                           bottom: Radius.circular(25),
                         ),
@@ -130,7 +131,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                               decoration: BoxDecoration(
                                 color:
                                     (isDark ? Colors.grey[800] : Colors.white)
-                                        ?.withValues(alpha:0.85),
+                                        ?.withValues(alpha: 0.85),
                                 borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
                                   color:
@@ -206,26 +207,8 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
               future: _blogPostsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          strokeWidth: 3,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            theme.primaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Loading amazing content...',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
+                  return const Center(
+                    child: LoadingWidget(loadingText: 'Loading blog posts...'),
                   );
                 } else if (snapshot.hasError) {
                   return Center(
@@ -392,16 +375,16 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
             boxShadow: [
               BoxShadow(
                 color: isDark
-                    ? Colors.black.withValues(alpha:0.3)
-                    : Colors.grey.withValues(alpha:0.1),
+                    ? Colors.black.withValues(alpha: 0.3)
+                    : Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 0,
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
               BoxShadow(
                 color: isDark
-                    ? Colors.black.withValues(alpha:0.1)
-                    : Colors.white.withValues(alpha:0.8),
+                    ? Colors.black.withValues(alpha: 0.1)
+                    : Colors.white.withValues(alpha: 0.8),
                 spreadRadius: 0,
                 blurRadius: 10,
                 offset: const Offset(0, 1),
@@ -409,8 +392,8 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
             ],
             border: Border.all(
               color: isDark
-                  ? Colors.grey[700]!.withValues(alpha:0.3)
-                  : Colors.grey[200]!.withValues(alpha:0.5),
+                  ? Colors.grey[700]!.withValues(alpha: 0.3)
+                  : Colors.grey[200]!.withValues(alpha: 0.5),
               width: 1,
             ),
           ),
@@ -515,8 +498,9 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color:
-                              Theme.of(context).primaryColor.withValues(alpha:0.1),
+                          color: Theme.of(context)
+                              .primaryColor
+                              .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
@@ -546,7 +530,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha:0.1),
+                          color: Colors.orange.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(

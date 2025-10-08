@@ -8,6 +8,7 @@ import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
 import '../../services/data_cache_service.dart';
 import '../../widgets/error_state_widget.dart';
+import 'package:pi_qbank/widgets/loading_widget.dart'; // Import LoadingWidget
 
 class Class1MathPage extends StatefulWidget {
   const Class1MathPage({super.key});
@@ -149,22 +150,7 @@ class _Class1MathPageState extends State<Class1MathPage> {
           // Question Papers List
           Expanded(
             child: isLoading
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading Question Papers...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
+                ? const LoadingWidget()
                 : hasError
                     ? ErrorStateWidget(
                         onRetry: fetchQuestionPapers,

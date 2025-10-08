@@ -3,6 +3,7 @@ import '../widgets/custom_app_bar.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
+import '../widgets/loading_widget.dart';
 
 class SuggestionsPage extends StatefulWidget {
   const SuggestionsPage({super.key});
@@ -276,14 +277,7 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
       ),
       body: isLoading
           ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 12),
-                  Text('Loading, Suggestions...'),
-                ],
-              ),
+              child: LoadingWidget(loadingText: 'Loading Suggestions...'),
             )
           : errorMessage != null
               ? _buildErrorView()

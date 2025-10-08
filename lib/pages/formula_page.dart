@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import '../pages/pdf_viewer_page.dart';
 import '../widgets/delete_confirmation_dialog.dart';
+import '../widgets/loading_widget.dart';
 
 class FormulaPage extends StatefulWidget {
   const FormulaPage({super.key});
@@ -454,20 +455,7 @@ class _FormulaPageState extends State<FormulaPage> {
   Widget _buildFormulaList() {
     if (_isLoading) {
       return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-              'Loading Formulas...',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+        child: LoadingWidget(loadingText: 'Loading Formulas...'),
       );
     }
 

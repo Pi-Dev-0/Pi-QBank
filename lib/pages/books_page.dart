@@ -8,6 +8,7 @@ import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
 import '../services/connectivity_service.dart';
 import '../widgets/error_state_widget.dart';
+import '../widgets/loading_widget.dart';
 import 'dart:io';
 
 class BooksPage extends StatefulWidget {
@@ -332,21 +333,8 @@ class _BooksPageState extends State<BooksPage> {
                   const SizedBox(height: 16),
                   Expanded(
                     child: _isLoading
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const CircularProgressIndicator(),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Loading Books...',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        ? const Center(
+                            child: LoadingWidget(loadingText: 'Loading Books...'),
                           )
                         : ConstrainedBox(
                             constraints: BoxConstraints(

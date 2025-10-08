@@ -4,6 +4,7 @@ import '../models/video_models.dart'; // Import the new video models
 import '../widgets/custom_app_bar.dart'; // Import the custom app bar
 import '../widgets/app_drawer.dart'; // Import the app drawer
 import 'video_player_page.dart'; // Import the new video player page
+import '../widgets/loading_widget.dart'; // Import the LoadingWidget
 
 class OnlineClassPage extends StatefulWidget {
   const OnlineClassPage({super.key});
@@ -318,9 +319,7 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
             ),
             isLoading
                 ? const Expanded(
-                    child: Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    child: LoadingWidget(loadingText: 'Loading Videos...'),
                   )
                 : errorMessage != null
                     ? Center(

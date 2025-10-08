@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../widgets/custom_app_bar.dart';
 import '../pages/pdf_viewer_page.dart';
 import '../widgets/delete_confirmation_dialog.dart';
+import '../widgets/loading_widget.dart';
 
 class PdfReaderPage extends StatefulWidget {
   const PdfReaderPage({super.key});
@@ -137,54 +138,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
   }
 
   Widget _buildLoadingWidget() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withValues(alpha:0.2),
-                    Colors.blue.withValues(alpha:0.1),
-                    Colors.purple.withValues(alpha:0.1),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha:0.3),
-                  width: 1,
-                ),
-              ),
-              child: const CircularProgressIndicator(),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Loading PDF...',
-              style: TextStyle(
-                color: Colors.blue.shade700, // Changed text color
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Please wait while we prepare your document',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const Center(
+      child: LoadingWidget(loadingText: 'Loading PDF Files...'),
     );
   }
 
