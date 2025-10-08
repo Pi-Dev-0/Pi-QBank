@@ -463,7 +463,7 @@ Respond in the following JSON format:
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
-        initialValue: value,
+        value: value,
         items: items.map<DropdownMenuItem<String>>((String item) {
           return DropdownMenuItem<String>(
             value: item,

@@ -76,6 +76,28 @@ The application boasts a wide array of features to cater to different learning n
   - `flutter_tts`: For text-to-speech functionality.
   - `bijoy_helper`: For Bengali text support.
 
+### ⚙️ Application & Environment Details
+
+- **App Version Name:** `1.9.0`
+- **App Version Code:** `16`
+
+- **Flutter Version:** `3.27.0`
+- **Flutter Channel:** `stable`
+- **Flutter Framework Revision:** `8495dee1fd`
+- **Flutter Framework Date:** `2024-12-10 14:23:39 -0800`
+
+- **Dart Version:** `3.6.0`
+
+- **Android Application ID:** `com.pi.mathematics`
+- **Android Compile SDK:** `36`
+- **Android Target SDK:** `35`
+- **Android Min SDK Version:** `flutter.minSdkVersion`
+- **Android NDK Version:** `flutter.ndkVersion`
+- **Android Java Source Compatibility:** `17`
+- **Android Java Target Compatibility:** `17`
+- **Android JVM Target:** `17`
+- **Android ABI Filters (Release):** `armeabi-v7a, arm64-v8a`
+
 ### 📂 Project Structure
 
 The project follows a standard Flutter application structure:
