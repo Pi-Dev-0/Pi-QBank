@@ -217,7 +217,7 @@ Follow these instructions to get a copy of the project up and running on your lo
 </p>
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api?username=pi-dev-0&show_icons=true&theme=tokyonight" alt="GitHub Stats" />
-p>
+</p>
 <p align="center">
   <img src="https://github-readme-streak-stats.herokuapp.com/?user=pi-dev-0&theme=tokyonight" alt="GitHub Streak" />
 </p>
