@@ -160,6 +160,20 @@ class _MessManagerPageState extends State<MessManagerPage> {
   void _showMemberSelectionDialog() {
     if (!mounted || _members.isEmpty) return;
 
+    // Members who already have an expense
+    final expendedMemberIds =
+        _memberExpenses.map((e) => e.memberId).toSet();
+
+    // Filter out members who have already had an expense added
+    final availableMembers = _members
+        .where((member) => !expendedMemberIds.contains(member.id))
+        .toList();
+
+    if (availableMembers.isEmpty) {
+      _showSnackBar('সকল সদস্যের খরচ যোগ করা হয়েছে।', Colors.blue);
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -186,7 +200,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
         ),
         content: SingleChildScrollView(
           child: ListBody(
-            children: _members.map((member) {
+            children: availableMembers.map((member) {
               return GestureDetector(
                 onTap: () {
                   Navigator.of(dialogContext).maybePop();
