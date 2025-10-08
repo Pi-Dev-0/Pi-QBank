@@ -78,7 +78,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'customTraits': [],
       'isCustom': true,
       'iconCodePoint': Icons.palette.codePoint,
-      'colorValue': Colors.purple.value.toInt(),
+      'colorValue': const Color.fromARGB(255, 156, 39, 176),
     },
     {
       'name': 'AI Assistant',
@@ -92,7 +92,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         {'trait': 'Conciseness', 'value': 'High'},
       ],
       'iconCodePoint': Icons.smart_toy.codePoint,
-      'colorValue': Colors.blue.value,
+      'colorValue': const Color.fromARGB(255, 33, 150, 243),
     },
     {
       'name': 'Teacher',
@@ -106,7 +106,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         {'trait': 'Clarity', 'value': 'High'},
       ],
       'iconCodePoint': Icons.school.codePoint,
-      'colorValue': Colors.green.value,
+      'colorValue': Colors.green,
     },
     {
       'name': 'Friend',
@@ -120,7 +120,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         {'trait': 'Empathy', 'value': 'High'},
       ],
       'iconCodePoint': Icons.favorite.codePoint,
-      'colorValue': Colors.orange.value,
+      'colorValue': Colors.orange,
     },
   ];
 
@@ -247,7 +247,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           .toList(), // Deep copy custom traits
       'isCustom': true,
       'iconCodePoint': Icons.bookmark.codePoint, // Store icon as its code point
-      'colorValue': Colors.deepPurple.value, // Store color as its integer value
+      'colorValue': Colors.deepPurple, // Store color as its integer value
     };
 
     setState(() {
