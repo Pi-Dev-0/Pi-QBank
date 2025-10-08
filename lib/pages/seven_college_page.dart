@@ -183,7 +183,7 @@ class _SevenCollegePageState extends State<SevenCollegePage> {
                                 decoration: BoxDecoration(
                                   color: Theme.of(context)
                                       .primaryColor
-                                      .withOpacity(0.1),
+                                      .withValues(alpha:0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(

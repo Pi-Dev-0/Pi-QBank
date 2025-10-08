@@ -32,7 +32,7 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: gradientColors[0].withOpacity(0.4),
+                  color: gradientColors[0].withValues(alpha:0.4),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                   spreadRadius: 2,
@@ -48,7 +48,7 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
             size: isSelected ? 28 : 22, // Adjusted icon size
             color: isSelected
                 ? Colors.white
-                : gradientColors[0].withOpacity(0.7),
+                : gradientColors[0].withValues(alpha:0.7),
           ),
           const SizedBox(height: 4),
           DefaultTextStyle(
@@ -56,7 +56,7 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
               fontSize: isSelected ? 10 : 8, // Adjusted font size
               color: isSelected
                   ? Colors.white
-                  : gradientColors[0].withOpacity(0.8),
+                  : gradientColors[0].withValues(alpha:0.8),
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             ),
             child: Text(label),
@@ -75,15 +75,15 @@ class _CustomBottomNavigationBarState extends State<CustomBottomNavigationBar> {
         child: Container(
           height: MediaQuery.of(context).size.height * 0.09,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha:0.15),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha:0.2),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha:0.1),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),

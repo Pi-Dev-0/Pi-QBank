@@ -150,16 +150,16 @@ class _PdfReaderPageState extends State<PdfReaderPage>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.white.withOpacity(0.2),
-                    Colors.blue.withOpacity(0.1),
-                    Colors.purple.withOpacity(0.1),
+                    Colors.white.withValues(alpha:0.2),
+                    Colors.blue.withValues(alpha:0.1),
+                    Colors.purple.withValues(alpha:0.1),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha:0.3),
                   width: 1,
                 ),
               ),
@@ -204,11 +204,11 @@ class _PdfReaderPageState extends State<PdfReaderPage>
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha:0.9),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.orange.withOpacity(0.3),
+                    color: Colors.orange.withValues(alpha:0.3),
                     blurRadius: 20,
                     spreadRadius: 5,
                   ),
@@ -234,7 +234,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
               'Try adding some PDF files to your device',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha:0.8),
               ),
             ),
           ],
@@ -274,7 +274,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                           curve: Curves.easeOutBack,
                           child: Card(
                             elevation: 8,
-                            shadowColor: gradients[0].withOpacity(0.4),
+                            shadowColor: gradients[0].withValues(alpha:0.4),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -285,8 +285,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    gradients[0].withOpacity(0.1),
-                                    gradients[1].withOpacity(0.05),
+                                    gradients[0].withValues(alpha:0.1),
+                                    gradients[1].withValues(alpha:0.05),
                                   ],
                                 ),
                               ),
@@ -303,7 +303,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                                     borderRadius: BorderRadius.circular(16),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: gradients[0].withOpacity(0.4),
+                                        color: gradients[0].withValues(alpha:0.4),
                                         blurRadius: 8,
                                         offset: const Offset(0, 4),
                                       ),
@@ -340,7 +340,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                                             decoration: BoxDecoration(
                                               color: _getFileSizeColor(
                                                       snapshot.data!)
-                                                  .withOpacity(0.1),
+                                                  .withValues(alpha:0.1),
                                               borderRadius:
                                                   BorderRadius.circular(12),
                                               border: Border.all(
@@ -364,7 +364,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                                           padding: const EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 4),
                                           decoration: BoxDecoration(
-                                            color: Colors.grey.withOpacity(0.1),
+                                            color: Colors.grey.withValues(alpha:0.1),
                                             borderRadius:
                                                 BorderRadius.circular(12),
                                           ),
@@ -385,7 +385,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                                   children: [
                                     Container(
                                       decoration: BoxDecoration(
-                                        color: Colors.red.withOpacity(0.1),
+                                        color: Colors.red.withValues(alpha:0.1),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: IconButton(

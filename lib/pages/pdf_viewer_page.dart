@@ -121,7 +121,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha:0.5),
       builder: (context) => AnimatedBuilder(
         animation: _dialogController,
         builder: (context, child) => Transform.scale(
@@ -452,7 +452,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                                       final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
                                       return Color.lerp(startColor, endColor, segmentProgress)!;
                                     }())
-                              .withOpacity(0.6), // Semi-transparent color
+                              .withValues(alpha:0.6), // Semi-transparent color
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(15),
                             bottomLeft: Radius.circular(15),
@@ -478,7 +478,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                                         final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
                                         return Color.lerp(startColor, endColor, segmentProgress)!;
                                       }())
-                                  .withOpacity(0.8), // Subtle border
+                                  .withValues(alpha:0.8), // Subtle border
                             width: 0.4,
                           ),
                           boxShadow: [
@@ -503,7 +503,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                                           final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
                                           return Color.lerp(startColor, endColor, segmentProgress)!;
                                         }())
-                                  .withOpacity(0.4), // Shadow with dynamic color
+                                  .withValues(alpha:0.4), // Shadow with dynamic color
                               blurRadius: 10, // Increased blur for softer shadow
                               offset: const Offset(0, 4), // Adjusted offset
                             ),
@@ -618,8 +618,8 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.white.withOpacity(0.9),
-                      Colors.blue.shade50.withOpacity(0.9),
+                      Colors.white.withValues(alpha:0.9),
+                      Colors.blue.shade50.withValues(alpha:0.9),
                     ],
                   ),
                 ),

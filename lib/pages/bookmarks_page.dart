@@ -75,7 +75,7 @@ class _BookmarksPageState extends State<BookmarksPage> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                Theme.of(context).primaryColor.withOpacity(0.6),
+                                Theme.of(context).primaryColor.withValues(alpha:0.6),
                                 Theme.of(context).primaryColor,
                               ],
                               begin: Alignment.centerLeft,
@@ -84,7 +84,7 @@ class _BookmarksPageState extends State<BookmarksPage> {
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.grey.withOpacity(0.8),
+                                color: Colors.grey.withValues(alpha:0.8),
                                 spreadRadius: 1,
                                 blurRadius: 5,
                                 offset: const Offset(1, 1),

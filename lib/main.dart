@@ -400,7 +400,7 @@ class _MainScreenState extends State<MainScreen> {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
           ),
@@ -412,7 +412,7 @@ class _MainScreenState extends State<MainScreen> {
               height: 250,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
               ),
             ),
           ),
@@ -424,7 +424,7 @@ class _MainScreenState extends State<MainScreen> {
               height: 150,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
               ),
             ),
           ),
@@ -434,7 +434,7 @@ class _MainScreenState extends State<MainScreen> {
               filter: ImageFilter.blur(sigmaX: 0.5, sigmaY: 0.5),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha:0.05),
                 ),
                 child: _pages[_page],
               ),

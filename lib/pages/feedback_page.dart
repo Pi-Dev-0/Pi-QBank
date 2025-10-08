@@ -102,7 +102,7 @@ Platform: ${Theme.of(context).platform}''';
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.grey.withOpacity(0.6),
+                        color: Colors.grey.withValues(alpha:0.6),
                         spreadRadius: 4,
                         blurRadius: 8,
                         offset: const Offset(0, 3),

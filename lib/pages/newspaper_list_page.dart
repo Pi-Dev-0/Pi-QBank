@@ -142,8 +142,8 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
                   ),
                 );
               },
-              splashColor: AppColors.deepPurple.withOpacity(0.1),
-              highlightColor: AppColors.deepPurple.withOpacity(0.05),
+              splashColor: AppColors.deepPurple.withValues(alpha:0.1),
+              highlightColor: AppColors.deepPurple.withValues(alpha:0.05),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                 child: Row(

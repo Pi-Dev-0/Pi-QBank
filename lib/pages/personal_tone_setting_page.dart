@@ -78,7 +78,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'customTraits': [],
       'isCustom': true,
       'iconCodePoint': Icons.palette.codePoint,
-      'colorValue': Colors.purple.value,
+      'colorValue': Colors.purple.value.toInt(),
     },
     {
       'name': 'AI Assistant',
@@ -168,40 +168,41 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       // Load custom saved presets
       final savedPresetsJson = prefs.getStringList('custom_saved_presets');
       if (savedPresetsJson != null) {
-        _customSavedPresets = savedPresetsJson
-            .map((jsonString) {
-              final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
-              // Ensure customTraits are also correctly typed
-              if (decoded['customTraits'] != null) {
-                decoded['customTraits'] = (decoded['customTraits'] as List<dynamic>)
-                    .map((e) => Map<String, String>.from(e))
-                    .toList();
-              }
-              // Reconstruct IconData from code point
-              if (decoded['iconCodePoint'] != null) {
-                decoded['icon'] = _iconMap[decoded['iconCodePoint'] as int] ?? Icons.star;
-              } else if (decoded['icon'] is int) { // Handle cases where old data might have icon as int
-                decoded['icon'] = _iconMap[decoded['icon'] as int] ?? Icons.star;
-              }
-              // Reconstruct Color from integer value
-              if (decoded['colorValue'] != null) {
-                decoded['color'] = Color(decoded['colorValue'] as int);
-              } else if (decoded['color'] is int) { // Handle cases where old data might have color as int
-                decoded['color'] = Color(decoded['color'] as int);
-              }
-              return decoded;
-            })
-            .toList();
+        _customSavedPresets = savedPresetsJson.map((jsonString) {
+          final decoded = jsonDecode(jsonString) as Map<String, dynamic>;
+          // Ensure customTraits are also correctly typed
+          if (decoded['customTraits'] != null) {
+            decoded['customTraits'] = (decoded['customTraits'] as List<dynamic>)
+                .map((e) => Map<String, String>.from(e))
+                .toList();
+          }
+          // Reconstruct IconData from code point
+          if (decoded['iconCodePoint'] != null) {
+            decoded['icon'] =
+                _iconMap[decoded['iconCodePoint'] as int] ?? Icons.star;
+          } else if (decoded['icon'] is int) {
+            // Handle cases where old data might have icon as int
+            decoded['icon'] = _iconMap[decoded['icon'] as int] ?? Icons.star;
+          }
+          // Reconstruct Color from integer value
+          if (decoded['colorValue'] != null) {
+            decoded['color'] = Color(decoded['colorValue'] as int);
+          } else if (decoded['color'] is int) {
+            // Handle cases where old data might have color as int
+            decoded['color'] = Color(decoded['color'] as int);
+          }
+          return decoded;
+        }).toList();
       } else {
         _customSavedPresets = []; // Initialize if null
       }
       _updatePresetTonesList();
-});
+    });
   }
 
   void _updatePresetTonesList() {
     _presetTones = [..._defaultPresetTones, ..._customSavedPresets];
-}
+  }
 
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -222,7 +223,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       icon: Icons.check_circle,
       color: Colors.green.shade600,
     );
- }
+  }
 
   Future<void> _saveCustomPreset(String presetName) async {
     if (presetName.trim().isEmpty) {
@@ -241,7 +242,9 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       'relationship': _relationshipController.text,
       'language': _languageController.text,
       'purpose': _purposeController.text,
-      'customTraits': _customTraits.map((e) => Map<String, String>.from(e)).toList(), // Deep copy custom traits
+      'customTraits': _customTraits
+          .map((e) => Map<String, String>.from(e))
+          .toList(), // Deep copy custom traits
       'isCustom': true,
       'iconCodePoint': Icons.bookmark.codePoint, // Store icon as its code point
       'colorValue': Colors.deepPurple.value, // Store color as its integer value
@@ -266,7 +269,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       icon: Icons.bookmark_added,
       color: Colors.deepPurple.shade600,
     );
- }
+  }
 
   Future<void> _deleteCustomPreset(String presetName) async {
     final prefs = await SharedPreferences.getInstance();
@@ -289,7 +292,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       icon: Icons.delete_forever,
       color: Colors.red.shade600,
     );
- }
+  }
 
   void _showSnackBar({
     required String content,
@@ -373,9 +376,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
       // Only clear fields if applying the default "Custom Tone" preset
       // User-saved custom presets should populate the fields.
       // Check against the default "Custom Tone" using its serialized properties
-      if (preset['name'] == 'Custom Tone' && preset['isCustom'] == true &&
-          _getPresetIcon(preset) == Icons.palette && // Use helper for comparison
-          _getPresetColor(preset) == Colors.purple) { // Use helper for comparison
+      if (preset['name'] == 'Custom Tone' &&
+          preset['isCustom'] == true &&
+          _getPresetIcon(preset) ==
+              Icons.palette && // Use helper for comparison
+          _getPresetColor(preset) == Colors.purple) {
+        // Use helper for comparison
         _nameController.clear();
         _genderController.clear();
         _relationshipController.clear();
@@ -465,7 +471,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withOpacity(0.2),
+            color: colorScheme.primary.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -505,7 +511,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                       Text(
                         'Create the perfect tone for your conversations',
                         style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onPrimaryContainer.withOpacity(0.9),
+                          color: colorScheme.onPrimaryContainer
+                              .withValues(alpha: 0.9),
                         ),
                       ),
                     ],
@@ -550,10 +557,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
     );
   }
 
-  Widget _buildPresetListItem(Map<String, dynamic> preset, ColorScheme colorScheme,
+  Widget _buildPresetListItem(
+      Map<String, dynamic> preset, ColorScheme colorScheme,
       {bool isCustomSaved = false}) {
     final Color itemColor = _getPresetColor(preset); // Use helper to get Color
-    final IconData itemIcon = _getPresetIcon(preset); // Use helper to get IconData
+    final IconData itemIcon =
+        _getPresetIcon(preset); // Use helper to get IconData
     return GestureDetector(
       onTap: () => _applyPreset(preset),
       child: AnimatedContainer(
@@ -561,12 +570,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: itemColor.withOpacity(0.1),
+          color: itemColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: itemColor.withOpacity(0.3), width: 1),
+          border: Border.all(color: itemColor.withValues(alpha: 0.3), width: 1),
           boxShadow: [
             BoxShadow(
-              color: itemColor.withOpacity(0.2),
+              color: itemColor.withValues(alpha: 0.2),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -693,7 +702,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             _selectedModel = selectedModel;
           });
         },
-        hint: Text('Choose a model', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+        hint: Text('Choose a model',
+            style: TextStyle(color: colorScheme.onSurfaceVariant)),
         dropdownColor: colorScheme.surfaceContainerHigh,
       ),
     );
@@ -707,7 +717,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.secondary.withOpacity(0.2),
+            color: colorScheme.secondary.withValues(alpha: 0.2),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -930,7 +940,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: colorScheme.tertiary.withOpacity(0.2),
+              color: colorScheme.tertiary.withValues(alpha: 0.2),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -970,7 +980,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: colorScheme.primary.withOpacity(0.3),
+              color: colorScheme.primary.withValues(alpha: 0.3),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1009,7 +1019,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: colorScheme.secondary.withOpacity(0.3),
+              color: colorScheme.secondary.withValues(alpha: 0.3),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1017,7 +1027,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         ),
         child: ElevatedButton.icon(
           onPressed: () => _showSavePresetDialog(context),
-          icon: Icon(Icons.bookmark_add, color: colorScheme.onSecondary, size: 24),
+          icon: Icon(Icons.bookmark_add,
+              color: colorScheme.onSecondary, size: 24),
           label: Text(
             'Save as New Preset',
             style: TextStyle(
@@ -1069,7 +1080,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
             style: TextStyle(color: colorScheme.onSurface),
           ),
@@ -1089,7 +1101,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
               onPressed: () {
                 _saveCustomPreset(presetNameController.text);
@@ -1097,7 +1110,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
               },
               child: Text(
                 'Save',
-                style: TextStyle(color: colorScheme.onPrimary, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: colorScheme.onPrimary, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -1147,7 +1161,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
               onPressed: () {
                 _deleteCustomPreset(presetName);
@@ -1155,7 +1170,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
               },
               child: Text(
                 'Delete',
-                style: TextStyle(color: colorScheme.onError, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: colorScheme.onError, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -1172,7 +1188,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -1197,7 +1213,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withOpacity(0.3),
+                color: colorScheme.primary.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -1248,7 +1264,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           contentPadding:
               const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
-        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+        style: TextStyle(
+            color: colorScheme.onSurface, fontWeight: FontWeight.w500),
       ),
     );
   }

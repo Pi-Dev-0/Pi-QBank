@@ -62,7 +62,7 @@ class YearDropdown extends StatelessWidget {
                       },
                       child: Container(
                         decoration: BoxDecoration(
-                          color: isSelected ? Colors.blue.withOpacity(0.1) : Colors.grey[100],
+                          color: isSelected ? Colors.blue.withValues(alpha:0.1) : Colors.grey[100],
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: isSelected ? Colors.blue : Colors.grey[500]!,
@@ -109,19 +109,19 @@ class YearDropdown extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
+                color: Colors.grey.withValues(alpha:0.2),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
                 spreadRadius: 0,
               ),
               BoxShadow(
-                color: Colors.grey.withOpacity(0.3),
+                color: Colors.grey.withValues(alpha:0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
                 spreadRadius: 2,
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha:0.1),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
                 spreadRadius: -1,

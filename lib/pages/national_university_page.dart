@@ -187,7 +187,7 @@ class _NationalUniversityPageState extends State<NationalUniversityPage> {
                                 decoration: BoxDecoration(
                                   color: Theme.of(context)
                                       .primaryColor
-                                      .withOpacity(0.1),
+                                      .withValues(alpha:0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(

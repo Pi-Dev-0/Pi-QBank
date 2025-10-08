@@ -108,7 +108,7 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
             WebViewWidget(controller: _controller),
             if (_isLoading)
               Container(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha:0.8),
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,

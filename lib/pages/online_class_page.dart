@@ -408,7 +408,7 @@ class _OnlineClassPageState extends State<OnlineClassPage> {
                                                 Icon(
                                                   Icons.play_circle_fill,
                                                   color: Colors.white
-                                                      .withOpacity(0.8),
+                                                      .withValues(alpha:0.8),
                                                   size: 50,
                                                 ),
                                               ],

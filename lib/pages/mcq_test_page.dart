@@ -187,15 +187,15 @@ class _MCQTestPageState extends State<MCQTestPage>
                           colors: _timeIsLow
                               ? [Colors.red.shade400, Colors.red.shade600]
                               : [
-                                  Colors.white.withOpacity(0.9),
-                                  Colors.white.withOpacity(0.7)
+                                  Colors.white.withValues(alpha:0.9),
+                                  Colors.white.withValues(alpha:0.7)
                                 ],
                         ),
                         borderRadius: BorderRadius.circular(25),
                         boxShadow: [
                           BoxShadow(
                             color: (_timeIsLow ? Colors.red : Colors.black)
-                                .withOpacity(0.2),
+                                .withValues(alpha:0.2),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -287,7 +287,7 @@ class _MCQTestPageState extends State<MCQTestPage>
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha:0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -338,15 +338,15 @@ class _MCQTestPageState extends State<MCQTestPage>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Colors.black.withValues(alpha:0.06),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     ),
                   ],
                   border: Border.all(
                     color: isAnswered
-                        ? const Color(0xFF667EEA).withOpacity(0.3)
-                        : Colors.grey.withOpacity(0.1),
+                        ? const Color(0xFF667EEA).withValues(alpha:0.3)
+                        : Colors.grey.withValues(alpha:0.1),
                     width: 2,
                   ),
                 ),
@@ -360,8 +360,8 @@ class _MCQTestPageState extends State<MCQTestPage>
                           end: Alignment.bottomRight,
                           colors: isAnswered
                               ? [
-                                  const Color(0xFF667EEA).withOpacity(0.1),
-                                  const Color(0xFF764BA2).withOpacity(0.05)
+                                  const Color(0xFF667EEA).withValues(alpha:0.1),
+                                  const Color(0xFF764BA2).withValues(alpha:0.05)
                                 ]
                               : [Colors.grey.shade100, Colors.grey.shade50],
                         ),
@@ -393,7 +393,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                                   color: (isAnswered
                                           ? const Color(0xFF667EEA)
                                           : Colors.grey)
-                                      .withOpacity(0.3),
+                                      .withValues(alpha:0.3),
                                   blurRadius: 8,
                                   offset: const Offset(0, 4),
                                 ),
@@ -438,16 +438,16 @@ class _MCQTestPageState extends State<MCQTestPage>
                                   border: Border.all(
                                     color: _userAnswers[index] == option.key
                                         ? const Color(0xFF667EEA)
-                                        : Colors.grey.withOpacity(0.2),
+                                        : Colors.grey.withValues(alpha:0.2),
                                     width: 2,
                                   ),
                                   gradient: _userAnswers[index] == option.key
                                       ? LinearGradient(
                                           colors: [
                                             const Color(0xFF667EEA)
-                                                .withOpacity(0.1),
+                                                .withValues(alpha:0.1),
                                             const Color(0xFF764BA2)
-                                                .withOpacity(0.05),
+                                                .withValues(alpha:0.05),
                                           ],
                                         )
                                       : null,
@@ -495,7 +495,7 @@ class _MCQTestPageState extends State<MCQTestPage>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF667EEA).withOpacity(0.4),
+                  color: const Color(0xFF667EEA).withValues(alpha:0.4),
                   blurRadius: 15,
                   offset: const Offset(0, 8),
                 ),
@@ -541,10 +541,10 @@ class _MCQTestPageState extends State<MCQTestPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha:0.2)),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha:0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -555,7 +555,7 @@ class _MCQTestPageState extends State<MCQTestPage>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha:0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 24),
@@ -610,7 +610,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha:0.08),
                       blurRadius: 25,
                       offset: const Offset(0, 10),
                     ),
@@ -640,14 +640,14 @@ class _MCQTestPageState extends State<MCQTestPage>
                           colors: [
                             _getScoreColor(double.parse(percentage)),
                             _getScoreColor(double.parse(percentage))
-                                .withOpacity(0.7),
+                                .withValues(alpha:0.7),
                           ],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
                             color: _getScoreColor(double.parse(percentage))
-                                .withOpacity(0.4),
+                                .withValues(alpha:0.4),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -721,7 +721,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha:0.05),
                       blurRadius: 15,
                       offset: const Offset(0, 5),
                     ),
@@ -754,15 +754,15 @@ class _MCQTestPageState extends State<MCQTestPage>
                     ),
                     border: Border.all(
                       color: isCorrect
-                          ? const Color(0xFF10B981).withOpacity(0.3)
+                          ? const Color(0xFF10B981).withValues(alpha:0.3)
                           : wasAnswered
-                              ? const Color(0xFFEF4444).withOpacity(0.3)
-                              : const Color(0xFFF59E0B).withOpacity(0.3),
+                              ? const Color(0xFFEF4444).withValues(alpha:0.3)
+                              : const Color(0xFFF59E0B).withValues(alpha:0.3),
                       width: 2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha:0.04),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -799,7 +799,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                                     : wasAnswered
                                         ? const Color(0xFFEF4444)
                                         : const Color(0xFFF59E0B))
-                                .withOpacity(0.3),
+                                .withValues(alpha:0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -898,7 +898,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF667EEA).withOpacity(0.4),
+                      color: const Color(0xFF667EEA).withValues(alpha:0.4),
                       blurRadius: 15,
                       offset: const Offset(0, 8),
                     ),
@@ -944,9 +944,9 @@ class _MCQTestPageState extends State<MCQTestPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Column(
         children: [
@@ -970,7 +970,7 @@ class _MCQTestPageState extends State<MCQTestPage>
             label,
             style: TextStyle(
               fontSize: 14,
-              color: color.withOpacity(0.8),
+              color: color.withValues(alpha:0.8),
             ),
           ),
         ],
@@ -983,9 +983,9 @@ class _MCQTestPageState extends State<MCQTestPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1019,7 +1019,7 @@ class _MCQTestPageState extends State<MCQTestPage>
             explanation,
             style: TextStyle(
               fontSize: 14,
-              color: color.withOpacity(0.7),
+              color: color.withValues(alpha:0.7),
             ),
           ),
         ],

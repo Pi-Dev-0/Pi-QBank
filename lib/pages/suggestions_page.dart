@@ -114,7 +114,7 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
               color: Theme.of(context).cardColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha:0.1),
                   spreadRadius: 1,
                   blurRadius: 10,
                   offset: const Offset(0, 4),
@@ -168,7 +168,7 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
                                   color: Theme.of(context)
                                       .colorScheme
                                       .primary
-                                      .withOpacity(0.3),
+                                      .withValues(alpha:0.3),
                                   spreadRadius: 1,
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
@@ -195,7 +195,7 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
                               borderRadius: BorderRadius.circular(15),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
+                                  color: Colors.black.withValues(alpha:0.05),
                                   spreadRadius: 1,
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
@@ -388,7 +388,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                             color: Theme.of(context)
                                 .colorScheme
                                 .primary
-                                .withOpacity(0.3),
+                                .withValues(alpha:0.3),
                             spreadRadius: 1,
                             blurRadius: 4,
                             offset: const Offset(0, 2),
@@ -431,7 +431,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.25),
+                            color: Colors.black.withValues(alpha:0.25),
                             spreadRadius: 1,
                             blurRadius: 8,
                             offset: const Offset(0, 3),
