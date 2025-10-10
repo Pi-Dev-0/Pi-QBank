@@ -27,7 +27,6 @@ android {
     namespace "com.pi.mathematics"
     ndkVersion = "26.1.10909125"
     compileSdk 36
-    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
