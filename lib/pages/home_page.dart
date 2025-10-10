@@ -225,7 +225,7 @@ class HomePage extends StatelessWidget {
                 foregroundColor: Colors.white,
                 elevation: 0,
               ),
-              icon: const Icon(Icons.picture_as_pdf, size: 28),
+              icon: const Icon(Icons.picture_as_pdf, size: 28, color: Colors.white),
               label: const Text(
                 'Local PDF',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),

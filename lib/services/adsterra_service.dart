@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:pi_qbank/widgets/loading_widget.dart';
 
 class AdsterraService {
   static const String _adUrl =
@@ -108,26 +109,8 @@ class AdsterraService {
                                     );
 
                                     if (isLoading) {
-                                      return Container(
-                                        color: Colors.white,
-                                        child: Center(
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const CircularProgressIndicator(),
-                                              const SizedBox(height: 20),
-                                              Text(
-                                                'Loading Advertisement...',
-                                                style: TextStyle(
-                                                  color: Theme.of(context)
-                                                      .primaryColor,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                      return const LoadingWidget(
+                                        loadingText: 'Loading Advertisement...',
                                       );
                                     }
                                     return const SizedBox.shrink();

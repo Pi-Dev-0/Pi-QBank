@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../widgets/loading_widget.dart';
 import '../widgets/custom_app_bar.dart';
 
 class OnlinePDFViewerPage extends StatefulWidget {
@@ -28,13 +29,11 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
-            // Update loading bar.
-          },
-          onPageStarted: (String url) {
             setState(() {
               _isLoading = true;
             });
           },
+          
           onPageFinished: (String url) {
             setState(() {
               _isLoading = false;
@@ -107,22 +106,7 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
           children: [
             WebViewWidget(controller: _controller),
             if (_isLoading)
-              Container(
-                color: Colors.white.withValues(alpha:0.8),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Loading PDF...',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const LoadingWidget(progress: 0.5, loadingText: 'Loading PDF...'),
           ],
         ),
       );

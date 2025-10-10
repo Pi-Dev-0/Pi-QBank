@@ -365,7 +365,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withValues(alpha:0.1),
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -436,7 +436,11 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            icon: const Icon(Icons.cloud_download_outlined, size: 18),
+            icon: const Icon(
+              Icons.cloud_download_outlined,
+              size: 18,
+              color: Colors.white,
+            ),
             label: const Text(
               'Redownload',
               style: TextStyle(
@@ -584,11 +588,11 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       children: [
         Card(
           elevation: 8.0,
-          shadowColor: Colors.black.withValues(alpha:0.8),
+          shadowColor: Colors.black.withValues(alpha: 0.8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.0),
             side: BorderSide(
-              color: Colors.grey.withValues(alpha:0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               width: 0.2,
             ),
           ),
@@ -598,7 +602,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withValues(alpha:0.1),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12.0),
                     topRight: Radius.circular(12.0),
@@ -625,7 +629,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 0),
                             decoration: BoxDecoration(
-                              color: Colors.lightBlue.withValues(alpha:0.15),
+                              color: Colors.lightBlue.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Text(
@@ -682,7 +686,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                                 visualDensity: VisualDensity.compact,
                                 highlightColor: Theme.of(context)
                                     .primaryColor
-                                    .withValues(alpha:0.2),
+                                    .withValues(alpha: 0.2),
                               ),
                             ),
                           IconButton(
@@ -700,7 +704,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                               visualDensity: VisualDensity.compact,
                               highlightColor: Theme.of(context)
                                   .primaryColor
-                                  .withValues(alpha:0.2),
+                                  .withValues(alpha: 0.2),
                             ),
                           ),
                           if (_isFileDownloaded)
@@ -714,7 +718,8 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                               style: IconButton.styleFrom(
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 visualDensity: VisualDensity.compact,
-                                highlightColor: Colors.red.withValues(alpha:0.2),
+                                highlightColor:
+                                    Colors.red.withValues(alpha: 0.2),
                               ),
                             ),
                         ],
@@ -729,16 +734,20 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () => _viewOnlinePDF(context),
-                        icon:
-                            const Icon(Icons.remove_red_eye_outlined, size: 20),
+                        icon: const Icon(
+                          Icons.remove_red_eye_outlined,
+                          size: 20,
+                          color: Colors.white,
+                        ),
                         label: const Text('View Online',
                             style: TextStyle(fontSize: 14, letterSpacing: 0.5)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                           foregroundColor: Colors.white,
                           elevation: 6,
-                          shadowColor:
-                              Theme.of(context).primaryColor.withValues(alpha:0.5),
+                          shadowColor: Theme.of(context)
+                              .primaryColor
+                              .withValues(alpha: 0.5),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -770,6 +779,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                                     ? Icons.visibility_rounded
                                     : Icons.download_rounded,
                                 size: 20,
+                                color: _isFileDownloaded ? Colors.white : null,
                               ),
                         label: Text(
                           _isFileDownloaded
@@ -788,7 +798,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                           elevation: 6,
                           shadowColor:
                               (_isFileDownloaded ? Colors.green : Colors.grey)
-                                  .withValues(alpha:0.5),
+                                  .withValues(alpha: 0.5),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                           shape: RoundedRectangleBorder(
