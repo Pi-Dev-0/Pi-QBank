@@ -218,11 +218,11 @@ class FileUploadPageState extends State<FileUploadPage>
     IconData icon;
     
     if (isSuccess) {
-      backgroundColor = const Color(0xFF4CAF50).withValues(alpha:0.1);
+      backgroundColor = const Color(0xFF4CAF50).withOpacity(0.1);
       iconColor = const Color(0xFF4CAF50);
       icon = Icons.check_circle_rounded;
     } else { // This will now only be for error messages
-      backgroundColor = const Color(0xFFFF5722).withValues(alpha:0.1);
+      backgroundColor = const Color(0xFFFF5722).withOpacity(0.1);
       iconColor = const Color(0xFFFF5722);
       icon = Icons.error_rounded;
     }
@@ -235,10 +235,10 @@ class FileUploadPageState extends State<FileUploadPage>
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: iconColor.withValues(alpha:0.3)),
+        border: Border.all(color: iconColor.withOpacity(0.3)),
         boxShadow: [
           BoxShadow(
-            color: iconColor.withValues(alpha:0.15),
+            color: iconColor.withOpacity(0.15),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -249,7 +249,7 @@ class FileUploadPageState extends State<FileUploadPage>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha:0.1),
+              color: iconColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: iconColor, size: 24),
@@ -304,17 +304,17 @@ class FileUploadPageState extends State<FileUploadPage>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      const Color(0xFF667EEA).withValues(alpha:0.1),
-                      const Color(0xFF764BA2).withValues(alpha:0.05),
+                      const Color(0xFF667EEA).withOpacity(0.1),
+                      const Color(0xFF764BA2).withOpacity(0.05),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: const Color(0xFF667EEA).withValues(alpha:0.2),
+                    color: const Color(0xFF667EEA).withOpacity(0.2),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF667EEA).withValues(alpha:0.1),
+                      color: const Color(0xFF667EEA).withOpacity(0.1),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -325,7 +325,7 @@ class FileUploadPageState extends State<FileUploadPage>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF667EEA).withValues(alpha:0.1),
+                        color: const Color(0xFF667EEA).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -370,7 +370,7 @@ class FileUploadPageState extends State<FileUploadPage>
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha:0.08),
+                            color: Colors.black.withOpacity(0.08),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -393,15 +393,15 @@ class FileUploadPageState extends State<FileUploadPage>
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                       colors: [
-                                        const Color(0xFF4CAF50).withValues(alpha:0.05),
-                                        const Color(0xFF8BC34A).withValues(alpha:0.1),
+                                        const Color(0xFF4CAF50).withOpacity(0.05),
+                                        const Color(0xFF8BC34A).withOpacity(0.1),
                                       ],
                                     )
                                   : null,
                               border: Border.all(
                                 color: _selectedFile != null
-                                    ? const Color(0xFF4CAF50).withValues(alpha:0.3)
-                                    : Colors.grey.withValues(alpha:0.2),
+                                    ? const Color(0xFF4CAF50).withOpacity(0.3)
+                                    : Colors.grey.withOpacity(0.2),
                                 width: 2,
                               ),
                             ),
@@ -435,7 +435,7 @@ class FileUploadPageState extends State<FileUploadPage>
                                               color: (_selectedFile != null
                                                       ? const Color(0xFF4CAF50)
                                                       : const Color(0xFF667EEA))
-                                                  .withValues(alpha:0.3),
+                                                  .withOpacity(0.3),
                                               blurRadius: 15,
                                               offset: const Offset(0, 5),
                                             ),
@@ -479,7 +479,7 @@ class FileUploadPageState extends State<FileUploadPage>
                                       vertical: 8,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF4CAF50).withValues(alpha:0.1),
+                                      color: const Color(0xFF4CAF50).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
@@ -514,7 +514,7 @@ class FileUploadPageState extends State<FileUploadPage>
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blueAccent.withValues(alpha:0.3),
+                              color: Colors.blueAccent.withOpacity(0.3),
                               blurRadius: 20,
                               offset: const Offset(0, 8),
                             ),
@@ -550,7 +550,7 @@ class FileUploadPageState extends State<FileUploadPage>
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF667EEA).withValues(alpha:0.3),
+                              color: const Color(0xFF667EEA).withOpacity(0.3),
                               blurRadius: 20,
                               offset: const Offset(0, 8),
                             ),

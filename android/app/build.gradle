@@ -25,6 +25,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.pi.mathematics"
+    ndkVersion = "26.1.10909125"
     compileSdk 36
     ndkVersion = flutter.ndkVersion
 

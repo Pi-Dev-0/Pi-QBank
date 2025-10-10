@@ -81,7 +81,7 @@ class _ImageGenerationLoaderState extends State<ImageGenerationLoader>
                     Icon(
                       Icons.auto_awesome,
                       size: widget.size * 0.3,
-                      color: widget.color.withValues(alpha:0.5),
+                      color: widget.color.withOpacity(0.5),
                     )
                   ],
                 ),

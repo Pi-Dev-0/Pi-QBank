@@ -63,7 +63,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
         child: Container(
           height: appBarHeight + MediaQuery.of(context).padding.top,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha:0.15),
+            color: Colors.white.withOpacity(0.15),
           ),
           child: AppBar(
             title: Text(
@@ -72,7 +72,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
                 color: selectedColor,
                 shadows: [
                   Shadow(
-                    color: selectedColor.withValues(alpha:0.5),
+                    color: selectedColor.withOpacity(0.5),
                     offset: const Offset(0, 1),
                     blurRadius: 30,
                   ),

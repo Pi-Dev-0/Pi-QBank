@@ -127,7 +127,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                             gradient: LinearGradient(
                               colors: [
                                 Theme.of(context).primaryColor,
-                                Theme.of(context).primaryColor.withValues(alpha:0.8),
+                                Theme.of(context).primaryColor.withOpacity(0.8),
                               ],
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,
@@ -135,7 +135,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha:0.1),
+                                color: Colors.black.withOpacity(0.1),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -146,7 +146,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha:0.2),
+                                  color: Colors.white.withOpacity(0.2),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
@@ -172,7 +172,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
                                       '${subjectMap.length} subjects',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color: Colors.white.withValues(alpha:0.9),
+                                        color: Colors.white.withOpacity(0.9),
                                       ),
                                     ),
                                   ],

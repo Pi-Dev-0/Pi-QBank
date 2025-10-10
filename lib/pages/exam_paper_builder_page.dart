@@ -797,7 +797,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -872,7 +872,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha:0.1),
+                    color: color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: color, size: 24),
@@ -1039,7 +1039,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             borderRadius: BorderRadius.circular(16),
           ),
           elevation: 0,
-          shadowColor: backgroundColor.withValues(alpha:0.3),
+          shadowColor: backgroundColor.withOpacity(0.3),
         ),
       ),
     );
@@ -1064,8 +1064,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 // API Key Section
                 _buildGradientCard(
                   colors: [
-                    primaryColor.withValues(alpha:0.1),
-                    secondaryColor.withValues(alpha:0.1)
+                    primaryColor.withOpacity(0.1),
+                    secondaryColor.withOpacity(0.1)
                   ],
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -1074,7 +1074,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: primaryColor.withValues(alpha:0.1),
+                            color: primaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(Icons.vpn_key,
@@ -1131,7 +1131,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: primaryColor.withValues(alpha:0.1),
+                                color: primaryColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: const Icon(Icons.info_outline,
@@ -1217,7 +1217,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: secondaryColor.withValues(alpha:0.1),
+                        color: secondaryColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(Icons.quiz, color: secondaryColor),

@@ -294,10 +294,10 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: _timeIsLow
-                            ? [errorRed, errorRed.withValues(alpha:0.7)]
+                            ? [errorRed, errorRed.withOpacity(0.7)]
                             : [
-                                Colors.white.withValues(alpha:0.9),
-                                Colors.white.withValues(alpha:0.7)
+                                Colors.white.withOpacity(0.9),
+                                Colors.white.withOpacity(0.7)
                               ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -306,8 +306,8 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                       boxShadow: [
                         BoxShadow(
                           color: _timeIsLow
-                              ? errorRed.withValues(alpha:0.2)
-                              : Colors.black.withValues(alpha:0.15),
+                              ? errorRed.withOpacity(0.2)
+                              : Colors.black.withOpacity(0.15),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),
@@ -381,7 +381,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha:0.08),
+                  color: Colors.black.withOpacity(0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -434,10 +434,10 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
       decoration: BoxDecoration(
         color: cardWhite,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha:0.2)),
+        border: Border.all(color: color.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha:0.1),
+            color: color.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -448,7 +448,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withValues(alpha:0.1),
+              color: color.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 24),
@@ -501,15 +501,15 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.06),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
         ],
         border: Border.all(
           color: isAnswered
-              ? primaryBlue.withValues(alpha:0.3)
-              : Colors.grey.withValues(alpha:0.1),
+              ? primaryBlue.withOpacity(0.3)
+              : Colors.grey.withOpacity(0.1),
           width: 2,
         ),
       ),
@@ -523,8 +523,8 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                 end: Alignment.bottomRight,
                 colors: isAnswered
                     ? [
-                        primaryBlue.withValues(alpha:0.1),
-                        primaryPurple.withValues(alpha:0.05)
+                        primaryBlue.withOpacity(0.1),
+                        primaryPurple.withOpacity(0.05)
                       ]
                     : [Colors.grey.shade100, Colors.grey.shade50],
               ),
@@ -548,7 +548,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                     boxShadow: [
                       BoxShadow(
                         color: (isAnswered ? primaryBlue : Colors.grey)
-                            .withValues(alpha:0.3),
+                            .withOpacity(0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -643,7 +643,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: primaryBlue.withValues(alpha:0.4),
+                    color: primaryBlue.withOpacity(0.4),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
                   ),
@@ -710,7 +710,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha:0.08),
+                    color: Colors.black.withOpacity(0.08),
                     blurRadius: 25,
                     offset: const Offset(0, 10),
                   ),
@@ -740,14 +740,14 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                         colors: [
                           _getScoreColor(double.parse(percentage)),
                           _getScoreColor(double.parse(percentage))
-                              .withValues(alpha:0.7),
+                              .withOpacity(0.7),
                         ],
                       ),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
                           color: _getScoreColor(double.parse(percentage))
-                              .withValues(alpha:0.4),
+                              .withOpacity(0.4),
                           blurRadius: 20,
                           offset: const Offset(0, 8),
                         ),
@@ -815,7 +815,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha:0.05),
+                    color: Colors.black.withOpacity(0.05),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
@@ -852,15 +852,15 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                   ),
                   border: Border.all(
                     color: isCorrect
-                        ? successGreen.withValues(alpha:0.3)
+                        ? successGreen.withOpacity(0.3)
                         : isEmpty
-                            ? warningOrange.withValues(alpha:0.3)
-                            : errorRed.withValues(alpha:0.3),
+                            ? warningOrange.withOpacity(0.3)
+                            : errorRed.withOpacity(0.3),
                     width: 2,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha:0.04),
+                      color: Colors.black.withOpacity(0.04),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -876,13 +876,13 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: isCorrect
-                              ? [successGreen, successGreen.withValues(alpha:0.8)]
+                              ? [successGreen, successGreen.withOpacity(0.8)]
                               : isEmpty
                                   ? [
                                       warningOrange,
-                                      warningOrange.withValues(alpha:0.8)
+                                      warningOrange.withOpacity(0.8)
                                     ]
-                                  : [errorRed, errorRed.withValues(alpha:0.8)],
+                                  : [errorRed, errorRed.withOpacity(0.8)],
                         ),
                         shape: BoxShape.circle,
                         boxShadow: [
@@ -892,7 +892,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
                                     : isEmpty
                                         ? warningOrange
                                         : errorRed)
-                                .withValues(alpha:0.3),
+                                .withOpacity(0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -992,9 +992,9 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha:0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Column(
         children: [
@@ -1018,7 +1018,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
             label,
             style: TextStyle(
               fontSize: 14,
-              color: color.withValues(alpha:0.8),
+              color: color.withOpacity(0.8),
             ),
           ),
         ],
@@ -1031,9 +1031,9 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha:0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1078,7 +1078,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
         ),
         boxShadow: [
           BoxShadow(
-            color: primaryBlue.withValues(alpha:0.4),
+            color: primaryBlue.withOpacity(0.4),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),

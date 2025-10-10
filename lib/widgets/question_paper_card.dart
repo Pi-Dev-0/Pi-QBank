@@ -365,7 +365,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                color: Theme.of(context).primaryColor.withOpacity( 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -588,11 +588,11 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
       children: [
         Card(
           elevation: 8.0,
-          shadowColor: Colors.black.withValues(alpha: 0.8),
+          shadowColor: Colors.black.withOpacity( 0.8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.0),
             side: BorderSide(
-              color: Colors.grey.withValues(alpha: 0.1),
+              color: Colors.grey.withOpacity( 0.1),
               width: 0.2,
             ),
           ),
@@ -602,7 +602,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                  color: Theme.of(context).primaryColor.withOpacity( 0.1),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12.0),
                     topRight: Radius.circular(12.0),
@@ -629,7 +629,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 0),
                             decoration: BoxDecoration(
-                              color: Colors.lightBlue.withValues(alpha: 0.15),
+                              color: Colors.lightBlue.withOpacity( 0.15),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Text(
@@ -686,7 +686,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                                 visualDensity: VisualDensity.compact,
                                 highlightColor: Theme.of(context)
                                     .primaryColor
-                                    .withValues(alpha: 0.2),
+                                    .withOpacity( 0.2),
                               ),
                             ),
                           IconButton(
@@ -704,7 +704,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                               visualDensity: VisualDensity.compact,
                               highlightColor: Theme.of(context)
                                   .primaryColor
-                                  .withValues(alpha: 0.2),
+                                  .withOpacity( 0.2),
                             ),
                           ),
                           if (_isFileDownloaded)
@@ -719,7 +719,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 visualDensity: VisualDensity.compact,
                                 highlightColor:
-                                    Colors.red.withValues(alpha: 0.2),
+                                    Colors.red.withOpacity( 0.2),
                               ),
                             ),
                         ],
@@ -747,7 +747,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                           elevation: 6,
                           shadowColor: Theme.of(context)
                               .primaryColor
-                              .withValues(alpha: 0.5),
+                              .withOpacity( 0.5),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                           shape: RoundedRectangleBorder(
@@ -798,7 +798,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                           elevation: 6,
                           shadowColor:
                               (_isFileDownloaded ? Colors.green : Colors.grey)
-                                  .withValues(alpha: 0.5),
+                                  .withOpacity( 0.5),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 12),
                           shape: RoundedRectangleBorder(

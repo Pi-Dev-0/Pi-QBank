@@ -68,12 +68,12 @@ class AdsterraService {
                                   Theme.of(context).primaryColor,
                                   Theme.of(context)
                                       .primaryColor
-                                      .withValues(alpha:0.8),
+                                      .withOpacity(0.8),
                                 ],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha:0.2),
+                                  color: Colors.black.withOpacity(0.2),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
@@ -131,8 +131,8 @@ class AdsterraService {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                Colors.black.withValues(alpha:0),
-                                Colors.black.withValues(alpha:0.7),
+                                Colors.black.withOpacity(0),
+                                Colors.black.withOpacity(0.7),
                               ],
                             ),
                           ),

@@ -359,7 +359,7 @@ Respond in the following JSON format:
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.teal.withValues(alpha:0.3),
+            color: Colors.teal.withOpacity(0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -387,7 +387,7 @@ Respond in the following JSON format:
             'Generate multiple-choice questions from images using Gemini AI',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.white.withValues(alpha:0.9),
+              color: Colors.white.withOpacity(0.9),
               height: 1.4,
             ),
             textAlign: TextAlign.center,
@@ -405,7 +405,7 @@ Respond in the following JSON format:
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -528,7 +528,7 @@ Respond in the following JSON format:
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha:0.2),
+                          color: Colors.black.withOpacity(0.2),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -615,15 +615,15 @@ Respond in the following JSON format:
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: statusColor.withValues(alpha:0.05),
+        color: statusColor.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: statusColor.withValues(alpha:0.4)),
+        border: Border.all(color: statusColor.withOpacity(0.4)),
       ),
       child: Row(
         children: [
           Icon(
             success ? Icons.check_circle_outline : Icons.error_outline,
-            color: statusColor.withValues(alpha:0.6),
+            color: statusColor.withOpacity(0.6),
             size: 24,
           ),
           const SizedBox(width: 16),
@@ -636,14 +636,14 @@ Respond in the following JSON format:
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: statusColor.withValues(alpha:0.8),
+                    color: statusColor.withOpacity(0.8),
                   ),
                 ),
                 Text(
                   message,
                   style: TextStyle(
                     fontSize: 14,
-                    color: statusColor.withValues(alpha:0.6),
+                    color: statusColor.withOpacity(0.6),
                   ),
                 ),
               ],
@@ -662,7 +662,7 @@ Respond in the following JSON format:
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -751,7 +751,7 @@ Respond in the following JSON format:
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.teal.withValues(alpha:0.3),
+                color: Colors.teal.withOpacity(0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),
@@ -803,7 +803,7 @@ Respond in the following JSON format:
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha:0.05),
+                color: Colors.black.withOpacity(0.05),
                 blurRadius: 15,
                 offset: const Offset(0, 5),
               ),
@@ -846,13 +846,13 @@ Respond in the following JSON format:
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha:0.06),
+                    color: Colors.black.withOpacity(0.06),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
                 ],
                 border: Border.all(
-                  color: Colors.teal.withValues(alpha:0.3),
+                  color: Colors.teal.withOpacity(0.3),
                   width: 2,
                 ),
               ),
@@ -866,8 +866,8 @@ Respond in the following JSON format:
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Colors.teal.shade50.withValues(alpha:0.5),
-                          Colors.cyan.shade50.withValues(alpha:0.5),
+                          Colors.teal.shade50.withOpacity(0.5),
+                          Colors.cyan.shade50.withOpacity(0.5),
                         ],
                       ),
                       borderRadius: const BorderRadius.only(
@@ -890,7 +890,7 @@ Respond in the following JSON format:
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.teal.withValues(alpha:0.3),
+                                color: Colors.teal.withOpacity(0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),

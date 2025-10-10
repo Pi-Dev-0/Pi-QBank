@@ -69,7 +69,7 @@ class _NotificationIconState extends State<NotificationIcon> {
           text: url,
           style: TextStyle(
             background: Paint()
-              ..color = const Color(0xFF667eea).withValues(alpha:0.1),
+              ..color = const Color(0xFF667eea).withOpacity(0.1),
             color: Color(0xFF667eea),
             fontWeight: FontWeight.w600,
             height: 1.5,
@@ -109,7 +109,7 @@ class _NotificationIconState extends State<NotificationIcon> {
       context: context,
       barrierDismissible: true,
       barrierLabel: '',
-      barrierColor: Colors.black.withValues(alpha:0.6),
+      barrierColor: Colors.black.withOpacity(0.6),
       transitionDuration: Duration.zero,
       transitionBuilder: (context, a1, a2, widget) {
         return widget;
@@ -129,11 +129,11 @@ class _NotificationIconState extends State<NotificationIcon> {
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(
                   width: 2,
-                  color: Colors.white.withValues(alpha:0.8),
+                  color: Colors.white.withOpacity(0.8),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withValues(alpha:0.15),
+                    color: Colors.grey.withOpacity(0.15),
                     blurRadius: 40,
                     offset: const Offset(0, 20),
                     spreadRadius: 0,
@@ -272,20 +272,20 @@ class _NotificationIconState extends State<NotificationIcon> {
                                     decoration: BoxDecoration(
                                       color: isSeen
                                           ? Colors.white
-                                          : Theme.of(context).colorScheme.primary.withValues(alpha:0.05),
+                                          : Theme.of(context).colorScheme.primary.withOpacity(0.05),
                                       borderRadius:
                                           BorderRadius.circular(20),
                                       border: Border.all(
                                         color: isSeen
                                             ? Colors.grey[200]!
-                                            : Theme.of(context).colorScheme.primary.withValues(alpha:0.3),
+                                            : Theme.of(context).colorScheme.primary.withOpacity(0.3),
                                         width: 2,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
                                           color: isSeen
-                                              ? Colors.grey.withValues(alpha:0.1)
-                                              : Theme.of(context).colorScheme.primary.withValues(alpha:0.15),
+                                              ? Colors.grey.withOpacity(0.1)
+                                              : Theme.of(context).colorScheme.primary.withOpacity(0.15),
                                           blurRadius: 15,
                                           offset: const Offset(0, 8),
                                         ),
@@ -320,7 +320,7 @@ class _NotificationIconState extends State<NotificationIcon> {
                                                 color: (isSeen
                                                         ? Colors.grey[400]!
                                                         : Theme.of(context).colorScheme.primary)
-                                                    .withValues(alpha:0.3),
+                                                    .withOpacity(0.3),
                                                 blurRadius: 8,
                                                 offset: const Offset(0, 4),
                                               ),
@@ -388,7 +388,7 @@ class _NotificationIconState extends State<NotificationIcon> {
                                               borderRadius:
                                                   BorderRadius.circular(16),
                                               border: Border.all(
-                                                color: Theme.of(context).colorScheme.primary.withValues(alpha:0.1),
+                                                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                                                 width: 1,
                                               ),
                                             ),
@@ -437,7 +437,7 @@ class _NotificationIconState extends State<NotificationIcon> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Theme.of(context).colorScheme.primary.withValues(alpha:0.4),
+                            color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                             spreadRadius: 2,
@@ -488,7 +488,7 @@ class _NotificationIconState extends State<NotificationIcon> {
               size: 28,
               color: widget.iconColor ?? (_hasUnseenNotifications
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface.withValues(alpha:0.7)),
+                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.7)),
             ),
             onPressed: () => _showNotificationsDialog(context),
             tooltip: 'Notifications',

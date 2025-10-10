@@ -679,7 +679,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
                     color: colorScheme.surface,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha:0.1),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, -2),
                       ),
@@ -984,7 +984,7 @@ class ChatMessage extends StatelessWidget {
           borderRadius: BorderRadius.circular(12.0),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha:0.20),
+              color: Colors.black.withOpacity(0.20),
               spreadRadius: 1,
               blurRadius: 4,
               offset: const Offset(0, 2),

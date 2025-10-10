@@ -339,7 +339,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.withValues(alpha:0.3),
+            color: Colors.purple.withOpacity(0.3),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -367,7 +367,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             'Upload an image and let AI generate short or broad questions for you',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.white.withValues(alpha:0.9),
+              color: Colors.white.withOpacity(0.9),
               height: 1.4,
             ),
             textAlign: TextAlign.center,
@@ -385,7 +385,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -498,7 +498,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -601,15 +601,15 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: statusColor.withValues(alpha:0.05),
+        color: statusColor.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: statusColor.withValues(alpha:0.4)),
+        border: Border.all(color: statusColor.withOpacity(0.4)),
       ),
       child: Row(
         children: [
           Icon(
             isError ? Icons.error_outline : Icons.check_circle_outline,
-            color: statusColor.withValues(alpha:0.6),
+            color: statusColor.withOpacity(0.6),
             size: 24,
           ),
           const SizedBox(width: 16),
@@ -622,7 +622,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: statusColor.withValues(alpha:0.8),
+                    color: statusColor.withOpacity(0.8),
                   ),
                 ),
                 Text(
@@ -631,7 +631,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                       : 'Questions are ready! Expand each question to reveal its answer.',
                   style: TextStyle(
                     fontSize: 14,
-                    color: statusColor.withValues(alpha:0.6),
+                    color: statusColor.withOpacity(0.6),
                   ),
                 ),
               ],
@@ -650,7 +650,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 20,
             offset: const Offset(0, 4),
           ),
@@ -743,7 +743,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.purple.withValues(alpha:0.3),
+                  color: Colors.purple.withOpacity(0.3),
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
@@ -862,7 +862,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha:0.2),
+                          color: Colors.black.withOpacity(0.2),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1010,7 +1010,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha:0.08),
+                color: Colors.black.withOpacity(0.08),
                 blurRadius: 20,
                 offset: const Offset(0, 4),
               ),
@@ -1070,13 +1070,13 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha:0.06),
+                    color: Colors.black.withOpacity(0.06),
                     blurRadius: 15,
                     offset: const Offset(0, 5),
                   ),
                 ],
                 border: Border.all(
-                  color: Colors.grey.withValues(alpha:0.1),
+                  color: Colors.grey.withOpacity(0.1),
                   width: 2,
                 ),
               ),
@@ -1094,7 +1094,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.blue.withValues(alpha:0.3),
+                          color: Colors.blue.withOpacity(0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         ),

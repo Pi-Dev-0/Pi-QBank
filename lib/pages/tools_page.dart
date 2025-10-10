@@ -214,7 +214,7 @@ class ToolsPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -238,7 +238,7 @@ class ToolsPage extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12), // Reduced padding
                   decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha:0.1),
+                    color: accentColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12), // Reduced radius
                   ),
                   child:
@@ -286,7 +286,7 @@ class ToolsPage extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4), // Reduced padding
                   decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha:0.1),
+                    color: accentColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(

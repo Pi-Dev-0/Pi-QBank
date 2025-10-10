@@ -26,7 +26,7 @@ class ConnectivityWrapper extends StatefulWidget {
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha:0.1),
+                color: Colors.red.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -100,7 +100,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha:0.1),
+              color: Colors.red.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(

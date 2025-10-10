@@ -76,7 +76,7 @@ class _AppDrawerState extends State<AppDrawer>
                         boxShadow: [
                           BoxShadow(
                             color:
-                                Theme.of(context).primaryColor.withValues(alpha:0.3),
+                                Theme.of(context).primaryColor.withOpacity(0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -92,7 +92,7 @@ class _AppDrawerState extends State<AppDrawer>
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha:0.2),
+                                  color: Colors.black.withOpacity(0.2),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
@@ -108,7 +108,7 @@ class _AppDrawerState extends State<AppDrawer>
                                 child: CircleAvatar(
                                   radius: 32,
                                   backgroundColor:
-                                      Colors.white.withValues(alpha:0.9),
+                                      Colors.white.withOpacity(0.9),
                                   child: const CircleAvatar(
                                     radius: 30,
                                     backgroundImage:
@@ -126,7 +126,7 @@ class _AppDrawerState extends State<AppDrawer>
                               fontWeight: FontWeight.bold,
                               shadows: [
                                 Shadow(
-                                  color: Colors.black.withValues(alpha:0.3),
+                                  color: Colors.black.withOpacity(0.3),
                                   offset: const Offset(0, 2),
                                   blurRadius: 4,
                                 ),
@@ -140,7 +140,7 @@ class _AppDrawerState extends State<AppDrawer>
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha:0.15),
+                              color: Colors.white.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(15),
                             ),
                             child: const Text(
@@ -232,14 +232,14 @@ class _AppDrawerState extends State<AppDrawer>
                                   boxShadow: [
                                     BoxShadow(
                                       color: const Color(0xFF4776E6)
-                                          .withValues(alpha:0.3),
+                                          .withOpacity(0.3),
                                       blurRadius: 12,
                                       offset: const Offset(0, 4),
                                       spreadRadius: 0,
                                     ),
                                     BoxShadow(
                                       color: const Color(0xFF8E54E9)
-                                          .withValues(alpha:0.2),
+                                          .withOpacity(0.2),
                                       blurRadius: 8,
                                       offset: const Offset(-2, -2),
                                       spreadRadius: 0,
@@ -250,9 +250,9 @@ class _AppDrawerState extends State<AppDrawer>
                                   color: Colors.transparent,
                                   child: InkWell(
                                     borderRadius: BorderRadius.circular(25),
-                                    splashColor: Colors.white.withValues(alpha:0.2),
+                                    splashColor: Colors.white.withOpacity(0.2),
                                     highlightColor:
-                                        Colors.white.withValues(alpha:0.1),
+                                        Colors.white.withOpacity(0.1),
                                     onTap: () {
                                       Navigator.pop(context);
                                       Navigator.pushNamed(
@@ -271,7 +271,7 @@ class _AppDrawerState extends State<AppDrawer>
                                             padding: const EdgeInsets.all(8),
                                             decoration: BoxDecoration(
                                               color:
-                                                  Colors.white.withValues(alpha:0.2),
+                                                  Colors.white.withOpacity(0.2),
                                               borderRadius:
                                                   BorderRadius.circular(12),
                                             ),
@@ -310,7 +310,7 @@ class _AppDrawerState extends State<AppDrawer>
                         borderRadius: BorderRadius.circular(15),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha:0.1),
+                            color: Colors.black.withOpacity(0.1),
                             blurRadius: 15,
                             offset: const Offset(0, 4),
                             spreadRadius: 2,
@@ -347,7 +347,7 @@ class _AppDrawerState extends State<AppDrawer>
                         borderRadius: BorderRadius.circular(15),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha:0.1),
+                            color: Colors.black.withOpacity(0.1),
                             blurRadius: 15,
                             offset: const Offset(0, 4),
                             spreadRadius: 2,
@@ -374,7 +374,7 @@ class _AppDrawerState extends State<AppDrawer>
                                 color: Theme.of(context)
                                     .colorScheme
                                     .primaryContainer
-                                    .withValues(alpha:0.2),
+                                    .withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: Theme.of(context)
@@ -407,7 +407,7 @@ class _AppDrawerState extends State<AppDrawer>
                                     color: Theme.of(context)
                                         .colorScheme
                                         .primaryContainer
-                                        .withValues(alpha:0.3),
+                                        .withOpacity(0.3),
                                   ),
                                   ListTile(
                                     leading: const Icon(Icons.menu_book),
@@ -431,7 +431,7 @@ class _AppDrawerState extends State<AppDrawer>
                                     color: Theme.of(context)
                                         .colorScheme
                                         .primaryContainer
-                                        .withValues(alpha:0.3),
+                                        .withOpacity(0.3),
                                   ),
                                   ListTile(
                                     leading:
@@ -465,7 +465,7 @@ class _AppDrawerState extends State<AppDrawer>
                         boxShadow: [
                           BoxShadow(
                             color:
-                                Theme.of(context).primaryColor.withValues(alpha:0.2),
+                                Theme.of(context).primaryColor.withOpacity(0.2),
                             blurRadius: 20,
                             offset: const Offset(0, 4),
                             spreadRadius: 2,
@@ -482,10 +482,10 @@ class _AppDrawerState extends State<AppDrawer>
                                 colors: [
                                   Theme.of(context)
                                       .primaryColor
-                                      .withValues(alpha:0.2),
+                                      .withOpacity(0.2),
                                   Theme.of(context)
                                       .primaryColor
-                                      .withValues(alpha:0.05),
+                                      .withOpacity(0.05),
                                 ],
                               ),
                               borderRadius: const BorderRadius.vertical(
@@ -502,7 +502,7 @@ class _AppDrawerState extends State<AppDrawer>
                                     size: 80,
                                     color: Theme.of(context)
                                         .primaryColor
-                                        .withValues(alpha:0.1),
+                                        .withOpacity(0.1),
                                   ),
                                 ),
                                 ListTile(
@@ -515,7 +515,7 @@ class _AppDrawerState extends State<AppDrawer>
                                     decoration: BoxDecoration(
                                       color: Theme.of(context)
                                           .primaryColor
-                                          .withValues(alpha:0.1),
+                                          .withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Icon(
@@ -537,7 +537,7 @@ class _AppDrawerState extends State<AppDrawer>
                                     style: TextStyle(
                                       color: Theme.of(context)
                                           .primaryColor
-                                          .withValues(alpha:0.7),
+                                          .withOpacity(0.7),
                                     ),
                                   ),
                                   trailing: Icon(

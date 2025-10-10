@@ -122,7 +122,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha:0.5),
+      barrierColor: Colors.black.withOpacity(0.5),
       builder: (context) => AnimatedBuilder(
         animation: _dialogController,
         builder: (context, child) => Transform.scale(
@@ -453,7 +453,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                                       final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
                                       return Color.lerp(startColor, endColor, segmentProgress)!;
                                     }())
-                              .withValues(alpha:0.6), // Semi-transparent color
+                              .withOpacity(0.6), // Semi-transparent color
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(15),
                             bottomLeft: Radius.circular(15),
@@ -479,7 +479,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                                         final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
                                         return Color.lerp(startColor, endColor, segmentProgress)!;
                                       }())
-                                  .withValues(alpha:0.8), // Subtle border
+                                  .withOpacity(0.8), // Subtle border
                             width: 0.4,
                           ),
                           boxShadow: [
@@ -504,7 +504,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                                           final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
                                           return Color.lerp(startColor, endColor, segmentProgress)!;
                                         }())
-                                  .withValues(alpha:0.4), // Shadow with dynamic color
+                                  .withOpacity(0.4), // Shadow with dynamic color
                               blurRadius: 10, // Increased blur for softer shadow
                               offset: const Offset(0, 4), // Adjusted offset
                             ),
