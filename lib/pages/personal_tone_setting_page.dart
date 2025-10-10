@@ -340,7 +340,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   // Helper to get Color from a preset map
   Color _getPresetColor(Map<String, dynamic> preset) {
     if (preset.containsKey('colorValue')) {
-      return Color(preset['colorValue'] as int);
+      return Color((preset['colorValue'] as Color).value);
     }
     // Fallback for default presets that might still have 'color' directly
     return preset['color'] as Color? ?? Colors.grey;
@@ -437,9 +437,11 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             position: _slideAnimation,
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   _buildWelcomeCard(textTheme, colorScheme),
                   const SizedBox(height: 20),
                   _buildPresetTonesCard(textTheme, colorScheme),
@@ -454,7 +456,9 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                   const SizedBox(height: 20),
                   _buildSavePresetButton(textTheme, colorScheme),
                   const SizedBox(height: 20),
-                ],
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -464,6 +468,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   }
 
   Widget _buildWelcomeCard(TextTheme textTheme, ColorScheme colorScheme) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -471,7 +477,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withValues(alpha: 0.2),
+            color: colorScheme.primary.withAlpha((0.2 * 255).toInt()),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -506,13 +512,15 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                         style: textTheme.headlineSmall?.copyWith(
                           color: colorScheme.onPrimaryContainer,
                           fontWeight: FontWeight.bold,
+                          fontSize: isSmallScreen ? 18 : 24,
                         ),
                       ),
                       Text(
                         'Create the perfect tone for your conversations',
                         style: textTheme.bodyMedium?.copyWith(
                           color: colorScheme.onPrimaryContainer
-                              .withValues(alpha: 0.9),
+                              .withAlpha((0.9 * 255).toInt()),
+                          fontSize: isSmallScreen ? 12 : 14,
                         ),
                       ),
                     ],
@@ -570,12 +578,12 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: itemColor.withValues(alpha: 0.1),
+          color: itemColor.withAlpha((0.1 * 255).toInt()),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: itemColor.withValues(alpha: 0.3), width: 1),
+          border: Border.all(color: itemColor.withAlpha((0.3 * 255).toInt()), width: 1),
           boxShadow: [
             BoxShadow(
-              color: itemColor.withValues(alpha: 0.2),
+              color: itemColor.withAlpha((0.2 * 255).toInt()),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -717,7 +725,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.secondary.withValues(alpha: 0.2),
+            color: colorScheme.secondary.withAlpha((0.2 * 255).toInt()),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -844,6 +852,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
 
   Widget _buildCustomTraitRow(
       int index, Map<String, String> trait, ColorScheme colorScheme) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 600;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -888,45 +898,85 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  decoration: InputDecoration(
-                    labelText: 'Trait Name',
-                    hintText: 'e.g., Favorite Color',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+          isSmallScreen
+              ? Column(
+                  children: [
+                    TextFormField(
+                      decoration: InputDecoration(
+                        labelText: 'Trait Name',
+                        hintText: 'e.g., Favorite Color',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: colorScheme.surface,
+                        prefixIcon:
+                            Icon(Icons.label, color: colorScheme.primary),
+                      ),
+                      onChanged: (value) => trait['trait'] = value,
+                      controller: TextEditingController(text: trait['trait']),
+                      style: TextStyle(color: colorScheme.onSurface),
                     ),
-                    filled: true,
-                    fillColor: colorScheme.surface,
-                    prefixIcon: Icon(Icons.label, color: colorScheme.primary),
-                  ),
-                  onChanged: (value) => trait['trait'] = value,
-                  controller: TextEditingController(text: trait['trait']),
-                  style: TextStyle(color: colorScheme.onSurface),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  decoration: InputDecoration(
-                    labelText: 'Trait Value',
-                    hintText: 'e.g., Blue',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      decoration: InputDecoration(
+                        labelText: 'Trait Value',
+                        hintText: 'e.g., Blue',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: colorScheme.surface,
+                        prefixIcon:
+                            Icon(Icons.star, color: colorScheme.primary),
+                      ),
+                      onChanged: (value) => trait['value'] = value,
+                      controller: TextEditingController(text: trait['value']),
+                      style: TextStyle(color: colorScheme.onSurface),
                     ),
-                    filled: true,
-                    fillColor: colorScheme.surface,
-                    prefixIcon: Icon(Icons.star, color: colorScheme.primary),
-                  ),
-                  onChanged: (value) => trait['value'] = value,
-                  controller: TextEditingController(text: trait['value']),
-                  style: TextStyle(color: colorScheme.onSurface),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        decoration: InputDecoration(
+                          labelText: 'Trait Name',
+                          hintText: 'e.g., Favorite Color',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
+                          prefixIcon:
+                              Icon(Icons.label, color: colorScheme.primary),
+                        ),
+                        onChanged: (value) => trait['trait'] = value,
+                        controller: TextEditingController(text: trait['trait']),
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        decoration: InputDecoration(
+                          labelText: 'Trait Value',
+                          hintText: 'e.g., Blue',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
+                          prefixIcon:
+                              Icon(Icons.star, color: colorScheme.primary),
+                        ),
+                        onChanged: (value) => trait['value'] = value,
+                        controller: TextEditingController(text: trait['value']),
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -980,7 +1030,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: colorScheme.primary.withValues(alpha: 0.3),
+              color: colorScheme.primary.withAlpha((0.3 * 255).toInt()),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1019,7 +1069,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: colorScheme.secondary.withValues(alpha: 0.3),
+              color: colorScheme.secondary.withAlpha((0.3 * 255).toInt()),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1213,7 +1263,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: colorScheme.primary.withValues(alpha: 0.3),
+                color: colorScheme.primary.withAlpha((0.3 * 255).toInt()),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),

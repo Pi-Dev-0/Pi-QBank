@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/loading_widget.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../widgets/custom_app_bar.dart';
 
@@ -612,66 +613,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
             ),
             _buildScrollHandler(),
             if (_isLoading)
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha:0.9),
-                      Colors.blue.shade50.withValues(alpha:0.9),
-                    ],
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.blue.shade400,
-                              Colors.purple.shade400,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.shade200,
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                          strokeWidth: 3,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Loading PDF...',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.blue.shade700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Please wait while we prepare your document',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const LoadingWidget(loadingText: 'Loading PDF...',),
           ],
         ),
       );
