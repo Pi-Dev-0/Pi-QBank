@@ -81,12 +81,12 @@ The application boasts a wide array of features to cater to different learning n
 - **App Version Name:** `1.9.0`
 - **App Version Code:** `16`
 
-- **Flutter Version:** `3.27.0`
+- **Flutter Version:** `3.24.5`
 - **Flutter Channel:** `stable`
-- **Flutter Framework Revision:** `8495dee1fd`
-- **Flutter Framework Date:** `2024-12-10 14:23:39 -0800`
+- **Flutter Framework Revision:** `dec2ee5c1f`
+- **Flutter Framework Date:** `2024-11-13 11:13:06 -0800`
 
-- **Dart Version:** `3.6.0`
+- **Dart Version:** `3.5.4`
 
 - **Android Application ID:** `com.pi.mathematics`
 - **Android Compile SDK:** `36`
