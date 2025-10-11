@@ -309,7 +309,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
             }
           }
         } else {
-          debugPrint('API Error for $questionType questions: ${response.statusCode}');
+          debugPrint(
+              'API Error for $questionType questions: ${response.statusCode}');
         }
       } catch (e) {
         debugPrint('Error generating $questionType questions from images: $e');
@@ -358,14 +359,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               }
               final List<dynamic> jsonList = json.decode(jsonString);
               _creativeSrojonshilQuestions.addAll(
-                  jsonList.map((e) => SrojonshilQuestion.fromJson(e))
-                      .toList());
+                  jsonList.map((e) => SrojonshilQuestion.fromJson(e)).toList());
             } catch (e) {
               debugPrint('Error parsing creative questions JSON: $e');
             }
           }
         } else {
-          debugPrint('API Error for creative questions: ${response.statusCode}');
+          debugPrint(
+              'API Error for creative questions: ${response.statusCode}');
         }
       } catch (e) {
         debugPrint('Error generating creative questions from images: $e');
@@ -541,27 +542,29 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                                     ),
                                     pw.SizedBox(height: 5),
                                     ...question.subQuestions.map(
-                                      (subQ) => pw.Row(
-                                        mainAxisAlignment:
-                                            pw.MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          pw.Expanded(
-                                            child: pw.Text(
-                                              unicodeToBijoy(
-                                                  '${subQ.label}) ${subQ.text}'),
+                                      (subQ) => pw.Padding(
+                                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                                        child: pw.Row(
+                                          mainAxisAlignment:
+                                              pw.MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            pw.Expanded(
+                                              child: pw.Text(
+                                                unicodeToBijoy(
+                                                    '${subQ.label}) ${subQ.text}'),
+                                                style: pw.TextStyle(
+                                                    fontSize: 12, font: font),
+                                              ),
+                                            ),
+                                            pw.Text(
+                                              unicodeToBijoy('(${subQ.marks})'),
                                               style: pw.TextStyle(
                                                   fontSize: 12, font: font),
                                             ),
-                                          ),
-                                          pw.Text(
-                                            unicodeToBijoy('(${subQ.marks})'),
-                                            style: pw.TextStyle(
-                                                fontSize: 12, font: font),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                          ],
+                                        ),
+                                      ), // Add line spacing here
+                                )],
                                 ),
                               );
                             },
@@ -595,27 +598,29 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                                     ),
                                     pw.SizedBox(height: 5),
                                     ...question.subQuestions.map(
-                                      (subQ) => pw.Row(
-                                        mainAxisAlignment:
-                                            pw.MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          pw.Expanded(
-                                            child: pw.Text(
-                                              unicodeToBijoy(
-                                                  '${subQ.label}) ${subQ.text}'),
+                                      (subQ) => pw.Padding(
+                                        padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
+                                        child: pw.Row(
+                                          mainAxisAlignment:
+                                              pw.MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            pw.Expanded(
+                                              child: pw.Text(
+                                                unicodeToBijoy(
+                                                    '${subQ.label}) ${subQ.text}'),
+                                                style: pw.TextStyle(
+                                                    fontSize: 12, font: font),
+                                              ),
+                                            ),
+                                            pw.Text(
+                                              unicodeToBijoy('(${subQ.marks})'),
                                               style: pw.TextStyle(
                                                   fontSize: 12, font: font),
                                             ),
-                                          ),
-                                          pw.Text(
-                                            unicodeToBijoy('(${subQ.marks})'),
-                                            style: pw.TextStyle(
-                                                fontSize: 12, font: font),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                          ],
+                                        ),
+                                      ),// Add line spacing here
+                                )],
                                 ),
                               );
                             },
@@ -725,7 +730,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   Future<void> _generateAnswerPDF() async {
     final answersPdf = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
+    final fontData =
+        await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
     final font = pw.Font.ttf(fontData);
     final boldFont = font;
 
@@ -1709,7 +1715,6 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       ),
     );
   }
-
 
   @override
   void dispose() {
