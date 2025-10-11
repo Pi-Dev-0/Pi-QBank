@@ -124,7 +124,7 @@ flutter:
         - asset: assets/fonts/SutonnyMJ Regular.ttf # Assuming this file will be added by the user
     - family: Kalpurush
       fonts:
-        - asset: assets/fonts/kalpurush.ttf # Assuming this file will be added by the user
+        - asset: assets/fonts/Kalpurush.ttf # Assuming this file will be added by the user
 
   # Add flutter_launcher_icons configuration
 flutter_icons:
