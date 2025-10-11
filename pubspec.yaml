@@ -118,6 +118,9 @@ flutter:
     - assets/fonts/
 
   fonts:
+    - family: SuttonnyMJ
+      fonts:
+        - asset: assets/fonts/SutonnyMJ Regular.ttf # Assuming this file will be added by the user
     - family: Kalpurush
       fonts:
         - asset: assets/fonts/Kalpurush.ttf # Assuming this file will be added by the user

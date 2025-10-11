@@ -421,7 +421,6 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   Future<void> _generateQuestionPDF() async {
     final pdf = pw.Document();
 
-    // Load SutonnyMJ font
     final fontData =
         await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
     final font = pw.Font.ttf(fontData);
@@ -708,7 +707,6 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   Future<void> _generateAnswerPDF() async {
     final answersPdf = pw.Document();
 
-    // Load SutonnyMJ font
     final fontData = await rootBundle.load('assets/fonts/Kalpurush.ttf');
     final font = pw.Font.ttf(fontData);
     final boldFont = font;
