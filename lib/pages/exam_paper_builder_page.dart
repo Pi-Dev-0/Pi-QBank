@@ -12,6 +12,7 @@ import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import '../widgets/custom_app_bar.dart';
 import 'package:bijoy_helper/bijoy_helper.dart' as bh; // Added for Bijoy conversion
 import '../models/srojonshil_question.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ExamPaperBuilderPage extends StatefulWidget {
   const ExamPaperBuilderPage({super.key});
@@ -33,6 +34,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   final TextEditingController _instituteController = TextEditingController();
   final TextEditingController _totalMarksController = TextEditingController();
   final TextEditingController _directionsController = TextEditingController();
+  final TextEditingController _templateNameController = TextEditingController();
 
   // Question count controllers
   final TextEditingController _creativeSrojonshilCountController =
@@ -192,7 +194,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     ]
   }
 ]
-শুধুমাত্র JSON অ্যারে আউটপুট করুন, অন্য কোন টেক্সট বা ব্যাখ্যা নয়।''';
+শুধুমাত্র JSON অ্যারে আউটপুট করুন, অন্য কোন টেক্সট বা ব্যাখ্যা নয়.''';
         break;
       case 'short':
         prompt =
@@ -201,7 +203,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 প্রশ্ন: [প্রশ্ন]
 উত্তর: [উত্তর]
 
-প্রতিটি প্রশ্ন ও উত্তর আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর], ২. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর])। প্রশ্ন ও উত্তর বাংলায় লিখুন।''';
+প্রতিটি প্রশ্ন ও উত্তর আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর], ২. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর])। প্রশ্ন ও উত্তর বাংলায় লিখুন.''';
         break;
       case 'mcq':
         prompt =
@@ -218,7 +220,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 ঘ) [অপশন ঘ]
 সঠিক উত্তর: [সঠিক অপশন, যেমন ক)]
 
-প্রতিটি প্রশ্ন আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন: [প্রশ্ন]..., ২. প্রশ্ন: [প্রশ্ন]...)। প্রশ্ন, অপশন এবং সঠিক উত্তর সব বাংলায় লিখুন।''';
+প্রতিটি প্রশ্ন আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন: [প্রশ্ন]..., ২. প্রশ্ন: [প্রশ্ন]...)। প্রশ্ন, অপশন এবং সঠিক উত্তর সব বাংলায় লিখুন.''';
         break;
     }
 
@@ -304,7 +306,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
               for (String qText in rawQuestions) {
                 if (questionType == 'short') {
-                  final questionMatch =
+                  final questionMatch = 
                       RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
                           .firstMatch(qText);
                   if (questionMatch != null) {
@@ -315,7 +317,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     answers.add('উত্তর পাওয়া যায়নি');
                   }
                 } else if (questionType == 'mcq') {
-                  final questionMatch =
+                  final questionMatch = 
                       RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true)
                           .firstMatch(qText);
                   if (questionMatch != null) {
@@ -1354,6 +1356,26 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                       ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _showLoadTemplateDialog,
+                          icon: const Icon(Icons.folder_open),
+                          label: const Text('টেমপ্লেট লোড করুন'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: Color(0xFF6C63FF),
+                            side: const BorderSide(color: Color(0xFF6C63FF)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ],
             ),
@@ -1631,32 +1653,144 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   }
 
   void _saveTemplate() {
-    // You can implement saving exam templates for reuse
+    _templateNameController.clear();
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        return AlertDialog(
+          title: Text('টেমপ্লেট সংরক্ষণ'),
+          content: TextFormField(
+            controller: _templateNameController,
+            decoration: InputDecoration(
+              labelText: 'টেমপ্লেটের নাম',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text('বাতিল'),
+            ),
+            TextButton(
+              onPressed: () async {
+                if (_templateNameController.text.isEmpty) {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(content: Text('টেমপ্লেটের নাম দিন')),
+                  );
+                  return;
+                }
+                final navigator = Navigator.of(dialogContext);
+                final templateName = _templateNameController.text;
+                final prefs = await SharedPreferences.getInstance();
+                final templateData = {
+                  'institute': _instituteController.text,
+                  'subject': _subjectController.text,
+                  'totalMarks': _totalMarksController.text,
+                  'examTime': _examTimeController.text,
+                  'directions': _directionsController.text,
+                  'creativeSrojonshil': _creativeSrojonshil,
+                  'shortSangkhipto': _shortSangkhipto,
+                  'mcqMultipleChoice': _mcqMultipleChoice,
+                  'creativeSrojonshilCount':
+                      _creativeSrojonshilCountController.text,
+                  'shortSangkhiptoCount': _shortSangkhiptoCountController.text,
+                  'mcqCount': _mcqCountController.text,
+                };
+                final jsonString = json.encode(templateData);
+                await prefs.setString('exam_template_$templateName', jsonString);
+
+                navigator.pop();
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(
+                      content: Text('টেমপ্লেট "$templateName" সংরক্ষিত হয়েছে!')),
+                );
+              },
+              child: Text('সংরক্ষণ'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _loadTemplate(String templateName) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final prefs = await SharedPreferences.getInstance();
+    final jsonString = prefs.getString('exam_template_$templateName');
+    if (jsonString != null) {
+      final templateData = json.decode(jsonString);
+      if (!mounted) return;
+      setState(() {
+        _instituteController.text = templateData['institute'] ?? '';
+        _subjectController.text = templateData['subject'] ?? '';
+        _totalMarksController.text = templateData['totalMarks'] ?? '';
+        _examTimeController.text = templateData['examTime'] ?? '৩ ঘন্টা';
+        _directionsController.text = templateData['directions'] ??
+            'নির্দেশনা: সব প্রশ্নের উত্তর দিতে হবে। প্রতিটি প্রশ্নের উত্তর আলাদা খাতায় লিখতে হবে।';
+        _creativeSrojonshil = templateData['creativeSrojonshil'] ?? false;
+        _shortSangkhipto = templateData['shortSangkhipto'] ?? false;
+        _mcqMultipleChoice = templateData['mcqMultipleChoice'] ?? false;
+        _creativeSrojonshilCountController.text =
+            templateData['creativeSrojonshilCount'] ?? '1';
+        _shortSangkhiptoCountController.text =
+            templateData['shortSangkhiptoCount'] ?? '1';
+        _mcqCountController.text = templateData['mcqCount'] ?? '1';
+      });
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('টেমপ্লেট "$templateName" লোড হয়েছে!')),
+      );
+    }
+  }
+
+  void _showLoadTemplateDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return; // Add this check
+    final keys = prefs.getKeys();
+    final templateKeys =
+        keys.where((key) => key.startsWith('exam_template_')).toList();
+    final templateNames = templateKeys
+        .map((key) => key.substring('exam_template_'.length))
+        .toList();
+
+    if (templateNames.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('কোনো টেমপ্লেট পাওয়া যায়নি'),
+          content: Text('এখনো কোনো টেমপ্লেট সংরক্ষণ করা হয়নি।'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('ঠিক আছে'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('টেমপ্লেট সংরক্ষণ'),
-        content: TextFormField(
-          decoration: InputDecoration(
-            labelText: 'টেমপ্লেটের নাম',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('বাতিল'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('টেমপ্লেট সংরক্ষিত হয়েছে!')),
+        title: Text('টেমপ্লেট লোড করুন'),
+        content: SizedBox(
+          width: double.maxFinite, // Changed from double.minPositive to allow the list to expand
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: templateNames.length,
+            itemBuilder: (context, index) {
+              final templateName = templateNames[index];
+              return ListTile(
+                title: Text(templateName),
+                onTap: () {
+                  Navigator.pop(context);
+                  _loadTemplate(templateName);
+                },
               );
             },
-            child: Text('সংরক্ষণ'),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1669,6 +1803,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     _instituteController.dispose();
     _totalMarksController.dispose();
     _directionsController.dispose();
+    _templateNameController.dispose();
     _creativeSrojonshilCountController.dispose();
     _shortSangkhiptoCountController.dispose();
     _mcqCountController.dispose();
