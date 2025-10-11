@@ -166,7 +166,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     switch (questionType) {
       case 'creative':
         prompt =
-            '''এই ছবি থেকে বাংলায় $countটি সৃজনশীল প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্ন নিম্নলিখিত JSON ফরম্যাটে হবে:
+            '''এই ছবি থেকে বাংলায় ঠিক $count টি সৃজনশীল প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্ন নিম্নলিখিত JSON ফরম্যাটে হবে:
 [
   {
     "question_number": 1,
@@ -199,7 +199,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
         break;
       case 'short':
         prompt =
-            '''এই ছবি থেকে বাংলায় $countটি সংক্ষিপ্ত প্রশ্ন এবং তার উত্তর তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত।
+            '''এই ছবি থেকে বাংলায় ঠিক $count টি সংক্ষিপ্ত প্রশ্ন এবং তার উত্তর তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত।
 ফরম্যাট:
 প্রশ্ন: [প্রশ্ন]
 উত্তর: [উত্তর]
@@ -208,7 +208,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
         break;
       case 'mcq':
         prompt =
-            '''এই ছবি থেকে বাংলায় $countটি বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
+            '''এই ছবি থেকে বাংলায় ঠিক $count টি বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
 ১. প্রশ্ন
 ২. চারটি অপশন (ক, খ, গ, ঘ)
 ৩. সঠিক উত্তর নির্দেশ করুন
