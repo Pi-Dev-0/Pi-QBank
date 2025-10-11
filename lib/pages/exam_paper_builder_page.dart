@@ -648,7 +648,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               ...List.generate(
                 _shortSangkhiptoQuestions.length,
                 (index) => pw.Container(
-                  margin: pw.EdgeInsets.only(bottom: 15),
+                  margin: pw.EdgeInsets.only(bottom: 6), // Decreased from 15 to 8
                   child: pw.Text(
                     unicodeToBijoy(
                         '${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
