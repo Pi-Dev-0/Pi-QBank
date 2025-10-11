@@ -709,8 +709,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     final answersPdf = pw.Document();
 
     // Load SutonnyMJ font
-    final fontData =
-        await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
+    final fontData = await rootBundle.load('assets/fonts/Kalpurush.ttf');
     final font = pw.Font.ttf(fontData);
     final boldFont = font;
 
