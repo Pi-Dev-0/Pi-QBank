@@ -41,7 +41,8 @@ const postConversionMap = {
   '\\[ঃ': '\\[:',
   '  ': ' ',
   'অা': 'আ',
-  '্‌্‌': '্‌'
+  '্‌্‌': '্‌',
+  'ড়': 'ড়' // Fix for isolated Nukta in 'ড়'
 };
 
 const _mainChars = {
