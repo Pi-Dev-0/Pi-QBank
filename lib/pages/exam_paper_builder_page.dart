@@ -199,16 +199,16 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
         break;
       case 'short':
         prompt =
-            '''এই ছবি থেকে বাংলায় ঠিক $count টি সংক্ষিপ্ত প্রশ্ন এবং তার উত্তর তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত।
-ফরম্যাট:
-প্রশ্ন: [প্রশ্ন]
-উত্তর: [উত্তর]
-
-প্রতিটি প্রশ্ন ও উত্তর আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর], ২. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর])। প্রশ্ন ও উত্তর বাংলায় লিখুন.''';
+            '''এই ছবিগুলো থেকে বাংলায় ঠিক $count টি সংক্ষিপ্ত প্রশ্ন এবং তার উত্তর তৈরি করুন। প্রতিটি প্রশ্ন ২-৫ নম্বরের হবে এবং উত্তর ৫০-১০০ শব্দের মধ্যে হওয়া উচিত।
+ ফরম্যাট:
+ প্রশ্ন: [প্রশ্ন]
+ উত্তর: [উত্তর]
+ 
+ প্রতিটি প্রশ্ন ও উত্তর আলাদাভাবে ক্রমিক নম্বর দিয়ে শুরু করুন (যেমন: ১. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর], ২. প্রশ্ন: [প্রশ্ন]\nউত্তর: [উত্তর])। প্রশ্ন ও উত্তর বাংলায় লিখুন.''';
         break;
       case 'mcq':
         prompt =
-            '''এই ছবি থেকে বাংলায় ঠিক $count টি বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
+            '''এই ছবিগুলো থেকে বাংলায় ঠিক $count টি বহুনির্বাচনি প্রশ্ন (MCQ) তৈরি করুন। প্রতিটি প্রশ্নে:
 ১. প্রশ্ন
 ২. চারটি অপশন (ক, খ, গ, ঘ)
 ৩. সঠিক উত্তর নির্দেশ করুন
@@ -225,22 +225,27 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
         break;
     }
 
-    for (File image in images) {
+    if (questionType == 'short' || questionType == 'mcq') {
+      // Combine all images for a single API call for 'short' and 'mcq' questions
+      List<Map<String, dynamic>> parts = [];
+      for (File image in images) {
+        try {
+          final imageBytes = await image.readAsBytes();
+          final base64Image = base64Encode(imageBytes);
+          parts.add({
+            "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
+          });
+        } catch (e) {
+          debugPrint('Error processing image for $questionType question: $e');
+        }
+      }
+      parts.add({"text": prompt});
+
+      List<Map<String, dynamic>> contents = [
+        {"role": "user", "parts": parts}
+      ];
+
       try {
-        final imageBytes = await image.readAsBytes();
-        final base64Image = base64Encode(imageBytes);
-
-        List<Map<String, dynamic>> contents = [];
-        contents.add({
-          "role": "user",
-          "parts": [
-            {
-              "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
-            },
-            {"text": prompt}
-          ]
-        });
-
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
@@ -255,104 +260,115 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 jsonResponse['candidates'][0]['content']['parts'][0]['text'];
             debugPrint('Raw API Reply (Diagnostic): $reply');
 
-            if (questionType == 'creative') {
-              try {
-                String jsonString = reply.trim();
-                debugPrint(
-                    'Diagnostic: JSON string before markdown removal: $jsonString');
-                // Remove markdown code block fences if present
-                if (jsonString.startsWith('```json') &&
-                    jsonString.endsWith('```')) {
-                  jsonString =
-                      jsonString.substring(7, jsonString.length - 3).trim();
-                  debugPrint(
-                      'Diagnostic: JSON string after markdown removal: $jsonString');
-                } else {
-                  debugPrint('Diagnostic: No markdown fences found.');
-                }
+            // Process the reply for short and mcq questions
+            List<String> rawQuestions = [];
+            final questionStartRegex = RegExp(r'[০-৯]+\.', dotAll: true);
+            final startMatches = questionStartRegex.allMatches(reply).toList();
 
-                // Attempt to parse the JSON
-                final List<dynamic> jsonList = json.decode(jsonString);
-                _creativeSrojonshilQuestions = jsonList
-                    .map((e) => SrojonshilQuestion.fromJson(e))
-                    .toList();
-                debugPrint(
-                    'Diagnostic: Successfully parsed ${_creativeSrojonshilQuestions.length} creative questions.');
-                return {
-                  'questions': [],
-                  'answers': []
-                }; // Creative questions are handled directly
-              } catch (e) {
-                debugPrint('Error parsing creative questions JSON: $e');
-                debugPrint(
-                    'Diagnostic: Failed JSON string: $reply'); // Print the problematic reply
-                _creativeSrojonshilQuestions = []; // Clear on error
-                return {'questions': [], 'answers': []};
-              }
-            } else {
-              // This block handles 'short' and 'mcq' question types
-              List<String> rawQuestions = [];
-              // Use Bengali numerals in regex
-              final questionStartRegex = RegExp(r'[০-৯]+\.', dotAll: true);
-
-              final startMatches =
-                  questionStartRegex.allMatches(reply).toList();
-
+            if (startMatches.isEmpty) {
               debugPrint(
-                  'Diagnostic: Number of question start matches: ${startMatches.length}');
-
-              if (startMatches.isEmpty) {
-                debugPrint(
-                    'No question start matches found in reply with diagnostic regex.');
-                return {'questions': [], 'answers': []};
-              }
-
+                  'No question start matches found in reply for $questionType questions.');
+            } else {
               for (int i = 0; i < startMatches.length; i++) {
                 final start = startMatches[i].start;
                 int end;
                 if (i + 1 < startMatches.length) {
                   end = startMatches[i + 1].start;
                 } else {
-                  end = reply
-                      .length; // Last question goes to the end of the reply
+                  end = reply.length;
                 }
                 String qText = reply.substring(start, end).trim();
-                debugPrint('Diagnostic: Extracted $questionType qText: $qText');
                 rawQuestions.add(qText);
               }
+            }
 
-              for (String qText in rawQuestions) {
-                if (questionType == 'short') {
-                  final questionMatch =
-                      RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
-                          .firstMatch(qText);
-                  if (questionMatch != null) {
-                    questions.add(questionMatch.group(1)!.trim());
-                    answers.add(questionMatch.group(2)!.trim());
-                  } else {
-                    questions.add(qText);
-                    answers.add('উত্তর পাওয়া যায়নি');
-                  }
-                } else if (questionType == 'mcq') {
-                  final questionMatch = RegExp(
-                          r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)',
-                          dotAll: true)
-                      .firstMatch(qText);
-                  if (questionMatch != null) {
-                    questions.add(
-                        '${questionMatch.group(1)!.trim()}\n${questionMatch.group(2)!.trim()}');
-                    answers.add(questionMatch.group(3)!.trim());
-                  } else {
-                    questions.add(qText);
-                    answers.add('সঠিক উত্তর পাওয়া যায়নি');
-                  }
+            for (String qText in rawQuestions) {
+              if (questionType == 'short') {
+                final questionMatch =
+                    RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
+                        .firstMatch(qText);
+                if (questionMatch != null) {
+                  questions.add(questionMatch.group(1)!.trim());
+                  answers.add(questionMatch.group(2)!.trim());
+                } else {
+                  questions.add(qText);
+                  answers.add('উত্তর পাওয়া যায়নি');
+                }
+              } else if (questionType == 'mcq') {
+                final questionMatch = RegExp(
+                        r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)',
+                        dotAll: true)
+                    .firstMatch(qText);
+                if (questionMatch != null) {
+                  questions.add(
+                      '${questionMatch.group(1)!.trim()}\n${questionMatch.group(2)!.trim()}');
+                  answers.add(questionMatch.group(3)!.trim());
+                } else {
+                  questions.add(qText);
+                  answers.add('সঠিক উত্তর পাওয়া যায়নি');
                 }
               }
             }
           }
+        } else {
+          debugPrint('API Error for $questionType questions: ${response.statusCode}');
         }
       } catch (e) {
-        debugPrint('Error generating question from image: $e');
+        debugPrint('Error generating $questionType questions from images: $e');
+      }
+    } else {
+      // Original logic for creative, one image per API call
+      for (File image in images) {
+        try {
+          final imageBytes = await image.readAsBytes();
+          final base64Image = base64Encode(imageBytes);
+
+          List<Map<String, dynamic>> contents = [];
+          contents.add({
+            "role": "user",
+            "parts": [
+              {
+                "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
+              },
+              {"text": prompt}
+            ]
+          });
+
+          final response = await http.post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({"contents": contents}),
+          );
+
+          if (response.statusCode == 200) {
+            final jsonResponse = json.decode(response.body);
+            if (jsonResponse['candidates'] != null &&
+                jsonResponse['candidates'].isNotEmpty) {
+              final reply =
+                  jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+              debugPrint('Raw API Reply (Diagnostic): $reply');
+
+              if (questionType == 'creative') {
+                try {
+                  String jsonString = reply.trim();
+                  if (jsonString.startsWith('```json') &&
+                      jsonString.endsWith('```')) {
+                    jsonString =
+                        jsonString.substring(7, jsonString.length - 3).trim();
+                  }
+                  final List<dynamic> jsonList = json.decode(jsonString);
+                  _creativeSrojonshilQuestions.addAll(
+                      jsonList.map((e) => SrojonshilQuestion.fromJson(e))
+                          .toList());
+                } catch (e) {
+                  debugPrint('Error parsing creative questions JSON: $e');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error generating question from image: $e');
+        }
       }
     }
 
@@ -707,7 +723,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   Future<void> _generateAnswerPDF() async {
     final answersPdf = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/Kalpurush.ttf');
+    final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
     final font = pw.Font.ttf(fontData);
     final boldFont = font;
 
