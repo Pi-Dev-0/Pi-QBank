@@ -316,59 +316,61 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       } catch (e) {
         debugPrint('Error generating $questionType questions from images: $e');
       }
-    } else {
-      // Original logic for creative, one image per API call
+    } else if (questionType == 'creative') {
+      // Combine all images for a single API call for 'creative' questions
+      List<Map<String, dynamic>> parts = [];
       for (File image in images) {
         try {
           final imageBytes = await image.readAsBytes();
           final base64Image = base64Encode(imageBytes);
-
-          List<Map<String, dynamic>> contents = [];
-          contents.add({
-            "role": "user",
-            "parts": [
-              {
-                "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
-              },
-              {"text": prompt}
-            ]
+          parts.add({
+            "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
           });
+        } catch (e) {
+          debugPrint('Error processing image for creative question: $e');
+        }
+      }
+      parts.add({"text": prompt});
 
-          final response = await http.post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({"contents": contents}),
-          );
+      List<Map<String, dynamic>> contents = [
+        {"role": "user", "parts": parts}
+      ];
 
-          if (response.statusCode == 200) {
-            final jsonResponse = json.decode(response.body);
-            if (jsonResponse['candidates'] != null &&
-                jsonResponse['candidates'].isNotEmpty) {
-              final reply =
-                  jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-              debugPrint('Raw API Reply (Diagnostic): $reply');
+      try {
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({"contents": contents}),
+        );
 
-              if (questionType == 'creative') {
-                try {
-                  String jsonString = reply.trim();
-                  if (jsonString.startsWith('```json') &&
-                      jsonString.endsWith('```')) {
-                    jsonString =
-                        jsonString.substring(7, jsonString.length - 3).trim();
-                  }
-                  final List<dynamic> jsonList = json.decode(jsonString);
-                  _creativeSrojonshilQuestions.addAll(
-                      jsonList.map((e) => SrojonshilQuestion.fromJson(e))
-                          .toList());
-                } catch (e) {
-                  debugPrint('Error parsing creative questions JSON: $e');
-                }
+        if (response.statusCode == 200) {
+          final jsonResponse = json.decode(response.body);
+          if (jsonResponse['candidates'] != null &&
+              jsonResponse['candidates'].isNotEmpty) {
+            final reply =
+                jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+            debugPrint('Raw API Reply (Diagnostic): $reply');
+
+            try {
+              String jsonString = reply.trim();
+              if (jsonString.startsWith('```json') &&
+                  jsonString.endsWith('```')) {
+                jsonString =
+                    jsonString.substring(7, jsonString.length - 3).trim();
               }
+              final List<dynamic> jsonList = json.decode(jsonString);
+              _creativeSrojonshilQuestions.addAll(
+                  jsonList.map((e) => SrojonshilQuestion.fromJson(e))
+                      .toList());
+            } catch (e) {
+              debugPrint('Error parsing creative questions JSON: $e');
             }
           }
-        } catch (e) {
-          debugPrint('Error generating question from image: $e');
+        } else {
+          debugPrint('API Error for creative questions: ${response.statusCode}');
         }
+      } catch (e) {
+        debugPrint('Error generating creative questions from images: $e');
       }
     }
 
