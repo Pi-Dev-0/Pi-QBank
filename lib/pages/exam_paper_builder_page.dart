@@ -380,17 +380,19 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   Future<void> _generateQuestions() async {
     setState(() {
       _isGenerating = true;
+      _creativeSrojonshilQuestions = []; // Clear previous creative questions
+      _shortSangkhiptoQuestions = []; // Clear previous short questions
+      _shortSangkhiptoAnswers = []; // Clear previous short answers
+      _mcqQuestions = []; // Clear previous MCQ questions
+      _mcqAnswers = []; // Clear previous MCQ answers
     });
 
     try {
       if (_creativeSrojonshil && _creativeSrojonshilImages.isNotEmpty) {
         final int count =
             int.tryParse(_creativeSrojonshilCountController.text) ?? 1;
-        // _creativeSrojonshilQuestions is populated directly within _generateQuestionsAndAnswersFromImages
         await _generateQuestionsAndAnswersFromImages(
             _creativeSrojonshilImages, 'creative', count); // Pass count
-      } else {
-        _creativeSrojonshilQuestions = [];
       }
 
       if (_shortSangkhipto && _shortSangkhiptoImages.isNotEmpty) {
@@ -1392,8 +1394,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                   const SizedBox(height: 16),
                   _buildAnimatedButton(
                     text: 'প্রশ্নপত্র PDF তৈরি করুন',
-                    onPressed: (_hasGeneratedQuestions() &&
-                            _formKey.currentState?.validate() == true)
+                    onPressed: (_hasGeneratedQuestions())
                         ? _generateQuestionPDF
                         : null,
                     backgroundColor: primaryColor,
@@ -1403,7 +1404,6 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                   _buildAnimatedButton(
                     text: 'উত্তরপত্র PDF তৈরি করুন',
                     onPressed: (_hasGeneratedQuestions() &&
-                            _formKey.currentState?.validate() == true &&
                             (_shortSangkhiptoAnswers.isNotEmpty ||
                                 _mcqAnswers.isNotEmpty))
                         ? _generateAnswerPDF
