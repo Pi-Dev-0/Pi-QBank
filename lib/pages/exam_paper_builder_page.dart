@@ -10,7 +10,7 @@ import 'dart:convert';
 import '../config/app_config.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import '../widgets/custom_app_bar.dart';
-import 'package:bijoy_helper/bijoy_helper.dart' as bh; // Added for Bijoy conversion
+import '../bijoy_helper/bijoy_helper.dart' as bh; // Using local bijoy_helper
 import '../models/srojonshil_question.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -142,7 +142,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   }
 
   Future<Map<String, dynamic>> _generateQuestionsAndAnswersFromImages(
-      List<File> images, String questionType, int count) async { // Added count parameter
+      List<File> images, String questionType, int count) async {
+    // Added count parameter
     String? apiKey =
         await getApiKey(); // Try to get API key from SharedPreferences
 
@@ -250,29 +251,41 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
           final jsonResponse = json.decode(response.body);
           if (jsonResponse['candidates'] != null &&
               jsonResponse['candidates'].isNotEmpty) {
-            final reply = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+            final reply =
+                jsonResponse['candidates'][0]['content']['parts'][0]['text'];
             debugPrint('Raw API Reply (Diagnostic): $reply');
 
             if (questionType == 'creative') {
               try {
                 String jsonString = reply.trim();
-                debugPrint('Diagnostic: JSON string before markdown removal: $jsonString');
+                debugPrint(
+                    'Diagnostic: JSON string before markdown removal: $jsonString');
                 // Remove markdown code block fences if present
-                if (jsonString.startsWith('```json') && jsonString.endsWith('```')) {
-                  jsonString = jsonString.substring(7, jsonString.length - 3).trim();
-                  debugPrint('Diagnostic: JSON string after markdown removal: $jsonString');
+                if (jsonString.startsWith('```json') &&
+                    jsonString.endsWith('```')) {
+                  jsonString =
+                      jsonString.substring(7, jsonString.length - 3).trim();
+                  debugPrint(
+                      'Diagnostic: JSON string after markdown removal: $jsonString');
                 } else {
                   debugPrint('Diagnostic: No markdown fences found.');
                 }
 
                 // Attempt to parse the JSON
                 final List<dynamic> jsonList = json.decode(jsonString);
-                _creativeSrojonshilQuestions = jsonList.map((e) => SrojonshilQuestion.fromJson(e)).toList();
-                debugPrint('Diagnostic: Successfully parsed ${_creativeSrojonshilQuestions.length} creative questions.');
-                return {'questions': [], 'answers': []}; // Creative questions are handled directly
+                _creativeSrojonshilQuestions = jsonList
+                    .map((e) => SrojonshilQuestion.fromJson(e))
+                    .toList();
+                debugPrint(
+                    'Diagnostic: Successfully parsed ${_creativeSrojonshilQuestions.length} creative questions.');
+                return {
+                  'questions': [],
+                  'answers': []
+                }; // Creative questions are handled directly
               } catch (e) {
                 debugPrint('Error parsing creative questions JSON: $e');
-                debugPrint('Diagnostic: Failed JSON string: $reply'); // Print the problematic reply
+                debugPrint(
+                    'Diagnostic: Failed JSON string: $reply'); // Print the problematic reply
                 _creativeSrojonshilQuestions = []; // Clear on error
                 return {'questions': [], 'answers': []};
               }
@@ -282,12 +295,15 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               // Use Bengali numerals in regex
               final questionStartRegex = RegExp(r'[০-৯]+\.', dotAll: true);
 
-              final startMatches = questionStartRegex.allMatches(reply).toList();
+              final startMatches =
+                  questionStartRegex.allMatches(reply).toList();
 
-              debugPrint('Diagnostic: Number of question start matches: ${startMatches.length}');
+              debugPrint(
+                  'Diagnostic: Number of question start matches: ${startMatches.length}');
 
               if (startMatches.isEmpty) {
-                debugPrint('No question start matches found in reply with diagnostic regex.');
+                debugPrint(
+                    'No question start matches found in reply with diagnostic regex.');
                 return {'questions': [], 'answers': []};
               }
 
@@ -297,7 +313,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 if (i + 1 < startMatches.length) {
                   end = startMatches[i + 1].start;
                 } else {
-                  end = reply.length; // Last question goes to the end of the reply
+                  end = reply
+                      .length; // Last question goes to the end of the reply
                 }
                 String qText = reply.substring(start, end).trim();
                 debugPrint('Diagnostic: Extracted $questionType qText: $qText');
@@ -306,7 +323,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
               for (String qText in rawQuestions) {
                 if (questionType == 'short') {
-                  final questionMatch = 
+                  final questionMatch =
                       RegExp(r'প্রশ্ন:\s*(.*?)\nউত্তর:\s*(.*)', dotAll: true)
                           .firstMatch(qText);
                   if (questionMatch != null) {
@@ -317,9 +334,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     answers.add('উত্তর পাওয়া যায়নি');
                   }
                 } else if (questionType == 'mcq') {
-                  final questionMatch = 
-                      RegExp(r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)', dotAll: true)
-                          .firstMatch(qText);
+                  final questionMatch = RegExp(
+                          r'প্রশ্ন:\s*(.*?)\n(.*?)\nসঠিক উত্তর:\s*(.*)',
+                          dotAll: true)
+                      .firstMatch(qText);
                   if (questionMatch != null) {
                     questions.add(
                         '${questionMatch.group(1)!.trim()}\n${questionMatch.group(2)!.trim()}');
@@ -348,7 +366,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
     try {
       if (_creativeSrojonshil && _creativeSrojonshilImages.isNotEmpty) {
-        final int count = int.tryParse(_creativeSrojonshilCountController.text) ?? 1;
+        final int count =
+            int.tryParse(_creativeSrojonshilCountController.text) ?? 1;
         // _creativeSrojonshilQuestions is populated directly within _generateQuestionsAndAnswersFromImages
         await _generateQuestionsAndAnswersFromImages(
             _creativeSrojonshilImages, 'creative', count); // Pass count
@@ -357,7 +376,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       }
 
       if (_shortSangkhipto && _shortSangkhiptoImages.isNotEmpty) {
-        final int count = int.tryParse(_shortSangkhiptoCountController.text) ?? 1;
+        final int count =
+            int.tryParse(_shortSangkhiptoCountController.text) ?? 1;
         final result = await _generateQuestionsAndAnswersFromImages(
             _shortSangkhiptoImages, 'short', count); // Pass count
         _shortSangkhiptoQuestions = result['questions']!;
@@ -398,12 +418,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     }
   }
 
-
   Future<void> _generateQuestionPDF() async {
     final pdf = pw.Document();
 
     // Load SutonnyMJ font
-    final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
+    final fontData =
+        await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
     final font = pw.Font.ttf(fontData);
     final boldFont = font;
 
@@ -422,20 +442,29 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                   pw.Text(
                     unicodeToBijoy(_instituteController.text),
                     style: pw.TextStyle(
-                        fontSize: 18, fontWeight: pw.FontWeight.bold, font: boldFont),
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                        font: boldFont),
                   ),
                   pw.SizedBox(height: 10),
                   pw.Text(
                     unicodeToBijoy('বিষয়: ${_subjectController.text}'),
                     style: pw.TextStyle(
-                        fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold,
+                        font: boldFont),
                   ),
                   pw.SizedBox(height: 5),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text(unicodeToBijoy('সময়: ${_examTimeController.text}'), style: pw.TextStyle(font: font)),
-                      pw.Text(unicodeToBijoy('পূর্ণমান: ${_totalMarksController.text}'), style: pw.TextStyle(font: font)),
+                      pw.Text(
+                          unicodeToBijoy('সময়: ${_examTimeController.text}'),
+                          style: pw.TextStyle(font: font)),
+                      pw.Text(
+                          unicodeToBijoy(
+                              'পূর্ণমান: ${_totalMarksController.text}'),
+                          style: pw.TextStyle(font: font)),
                     ],
                   ),
                   pw.SizedBox(height: 20),
@@ -448,8 +477,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Center(
                 child: pw.Text(
                   unicodeToBijoy(_directionsController.text),
-                  style:
-                      pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic, font: font),
+                  style: pw.TextStyle(
+                      fontSize: 12, fontStyle: pw.FontStyle.italic, font: font),
                 ),
               ),
               pw.SizedBox(height: 20),
@@ -461,8 +490,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Center(
                 child: pw.Text(
                   unicodeToBijoy('সৃজনশীল প্রশ্ন'),
-                  style:
-                      pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                  style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont),
                 ),
               ),
               pw.SizedBox(height: 10),
@@ -477,30 +508,38 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                           children: List.generate(
                             (_creativeSrojonshilQuestions.length / 2).ceil(),
                             (index) {
-                              final question = _creativeSrojonshilQuestions[index];
+                              final question =
+                                  _creativeSrojonshilQuestions[index];
                               return pw.Container(
                                 margin: pw.EdgeInsets.only(bottom: 20),
                                 child: pw.Column(
-                                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      pw.CrossAxisAlignment.start,
                                   children: [
                                     pw.Text(
-                                      unicodeToBijoy('${question.questionNumber}. ${question.stem}'),
-                                      style: pw.TextStyle(fontSize: 12, font: boldFont),
+                                      unicodeToBijoy(
+                                          '${question.questionNumber}. ${question.stem}'),
+                                      style: pw.TextStyle(
+                                          fontSize: 12, font: boldFont),
                                     ),
                                     pw.SizedBox(height: 5),
                                     ...question.subQuestions.map(
                                       (subQ) => pw.Row(
-                                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            pw.MainAxisAlignment.spaceBetween,
                                         children: [
                                           pw.Expanded(
                                             child: pw.Text(
-                                              unicodeToBijoy('${subQ.label}) ${subQ.text}'),
-                                              style: pw.TextStyle(fontSize: 12, font: font),
+                                              unicodeToBijoy(
+                                                  '${subQ.label}) ${subQ.text}'),
+                                              style: pw.TextStyle(
+                                                  fontSize: 12, font: font),
                                             ),
                                           ),
                                           pw.Text(
                                             unicodeToBijoy('(${subQ.marks})'),
-                                            style: pw.TextStyle(fontSize: 12, font: font),
+                                            style: pw.TextStyle(
+                                                fontSize: 12, font: font),
                                           ),
                                         ],
                                       ),
@@ -519,31 +558,42 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                           children: List.generate(
                             _creativeSrojonshilQuestions.length ~/ 2,
                             (index) {
-                              final actualIndex = (_creativeSrojonshilQuestions.length / 2).ceil() + index;
-                              final question = _creativeSrojonshilQuestions[actualIndex];
+                              final actualIndex =
+                                  (_creativeSrojonshilQuestions.length / 2)
+                                          .ceil() +
+                                      index;
+                              final question =
+                                  _creativeSrojonshilQuestions[actualIndex];
                               return pw.Container(
                                 margin: pw.EdgeInsets.only(bottom: 20),
                                 child: pw.Column(
-                                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                  crossAxisAlignment:
+                                      pw.CrossAxisAlignment.start,
                                   children: [
                                     pw.Text(
-                                      unicodeToBijoy('${question.questionNumber}. ${question.stem}'),
-                                      style: pw.TextStyle(fontSize: 12, font: boldFont),
+                                      unicodeToBijoy(
+                                          '${question.questionNumber}. ${question.stem}'),
+                                      style: pw.TextStyle(
+                                          fontSize: 12, font: boldFont),
                                     ),
                                     pw.SizedBox(height: 5),
                                     ...question.subQuestions.map(
                                       (subQ) => pw.Row(
-                                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            pw.MainAxisAlignment.spaceBetween,
                                         children: [
                                           pw.Expanded(
                                             child: pw.Text(
-                                              unicodeToBijoy('${subQ.label}) ${subQ.text}'),
-                                              style: pw.TextStyle(fontSize: 12, font: font),
+                                              unicodeToBijoy(
+                                                  '${subQ.label}) ${subQ.text}'),
+                                              style: pw.TextStyle(
+                                                  fontSize: 12, font: font),
                                             ),
                                           ),
                                           pw.Text(
                                             unicodeToBijoy('(${subQ.marks})'),
-                                            style: pw.TextStyle(fontSize: 12, font: font),
+                                            style: pw.TextStyle(
+                                                fontSize: 12, font: font),
                                           ),
                                         ],
                                       ),
@@ -566,8 +616,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Center(
                 child: pw.Text(
                   unicodeToBijoy('সংক্ষিপ্ত প্রশ্ন'),
-                  style:
-                      pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                  style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont),
                 ),
               ),
               pw.SizedBox(height: 10),
@@ -576,7 +628,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 (index) => pw.Container(
                   margin: pw.EdgeInsets.only(bottom: 15),
                   child: pw.Text(
-                    unicodeToBijoy('${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
+                    unicodeToBijoy(
+                        '${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
                     style: pw.TextStyle(fontSize: 12, font: font),
                   ),
                 ),
@@ -588,8 +641,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Center(
                 child: pw.Text(
                   unicodeToBijoy('বহুনির্বাচনি প্রশ্ন'),
-                  style:
-                      pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                  style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont),
                 ),
               ),
               pw.SizedBox(height: 10),
@@ -606,7 +661,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                             (index) => pw.Container(
                               margin: pw.EdgeInsets.only(bottom: 15),
                               child: pw.Text(
-                                unicodeToBijoy('${index + 1}. ${_mcqQuestions[index]}'),
+                                unicodeToBijoy(
+                                    '${index + 1}. ${_mcqQuestions[index]}'),
                                 style: pw.TextStyle(fontSize: 12, font: font),
                               ),
                             ),
@@ -620,11 +676,13 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                           children: List.generate(
                             _mcqQuestions.length ~/ 2,
                             (index) {
-                              final actualIndex = (_mcqQuestions.length / 2).ceil() + index;
+                              final actualIndex =
+                                  (_mcqQuestions.length / 2).ceil() + index;
                               return pw.Container(
                                 margin: pw.EdgeInsets.only(bottom: 15),
                                 child: pw.Text(
-                                  unicodeToBijoy('${actualIndex + 1}. ${_mcqQuestions[actualIndex]}'),
+                                  unicodeToBijoy(
+                                      '${actualIndex + 1}. ${_mcqQuestions[actualIndex]}'),
                                   style: pw.TextStyle(fontSize: 12, font: font),
                                 ),
                               );
@@ -651,7 +709,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     final answersPdf = pw.Document();
 
     // Load SutonnyMJ font
-    final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
+    final fontData =
+        await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
     final font = pw.Font.ttf(fontData);
     final boldFont = font;
 
@@ -669,19 +728,25 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                   pw.Text(
                     unicodeToBijoy(_instituteController.text),
                     style: pw.TextStyle(
-                        fontSize: 18, fontWeight: pw.FontWeight.bold, font: boldFont),
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                        font: boldFont),
                   ),
                   pw.SizedBox(height: 10),
                   pw.Text(
                     unicodeToBijoy('বিষয়: ${_subjectController.text}'),
                     style: pw.TextStyle(
-                        fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold,
+                        font: boldFont),
                   ),
                   pw.SizedBox(height: 20),
                   pw.Text(
                     unicodeToBijoy('উত্তরপত্র'),
                     style: pw.TextStyle(
-                        fontSize: 20, fontWeight: pw.FontWeight.bold, font: boldFont),
+                        fontSize: 20,
+                        fontWeight: pw.FontWeight.bold,
+                        font: boldFont),
                   ),
                   pw.SizedBox(height: 20),
                 ],
@@ -691,8 +756,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.Center(
                 child: pw.Text(
                   unicodeToBijoy('সংক্ষিপ্ত প্রশ্নের উত্তর'),
-                  style:
-                      pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                  style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      font: boldFont),
                 ),
               ),
               pw.SizedBox(height: 10),
@@ -705,7 +772,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     children: [
                       pw.Text(
                         unicodeToBijoy('প্রশ্ন ${index + 1}.'),
-                        style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, font: font),
+                        style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                            font: font),
                       ),
                       pw.Text(
                         unicodeToBijoy(_shortSangkhiptoAnswers[index]),
@@ -720,8 +790,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               pw.SizedBox(height: 20),
               pw.Text(
                 unicodeToBijoy('বহুনির্বাচনি প্রশ্নের উত্তর'),
-                style:
-                    pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, font: boldFont),
+                style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                    font: boldFont),
               ),
               pw.SizedBox(height: 10),
               ...List.generate(
@@ -733,7 +805,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     children: [
                       pw.Text(
                         unicodeToBijoy('প্রশ্ন ${index + 1}.'),
-                        style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, font: font),
+                        style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                            font: font),
                       ),
                       pw.Text(
                         unicodeToBijoy(_mcqAnswers[index]),
@@ -1314,7 +1389,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                     text: 'উত্তরপত্র PDF তৈরি করুন',
                     onPressed: (_hasGeneratedQuestions() &&
                             _formKey.currentState?.validate() == true &&
-                            (_shortSangkhiptoAnswers.isNotEmpty || _mcqAnswers.isNotEmpty))
+                            (_shortSangkhiptoAnswers.isNotEmpty ||
+                                _mcqAnswers.isNotEmpty))
                         ? _generateAnswerPDF
                         : null,
                     backgroundColor: secondaryColor,
@@ -1423,12 +1499,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                           children: [
                             Text(
                               '${question.questionNumber}. ${question.stem}',
-                              style: const TextStyle(fontWeight: FontWeight.bold), // Bold for stem
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold), // Bold for stem
                             ),
                             const SizedBox(height: 4), // Small gap after stem
                             ...question.subQuestions.map(
                               (subQ) => Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Text(
@@ -1525,11 +1603,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                               child: Column(
                                 children: [
                                   TextFormField(
-                                    initialValue: _creativeSrojonshilQuestions[index].toDisplayString(),
+                                    initialValue:
+                                        _creativeSrojonshilQuestions[index]
+                                            .toDisplayString(),
                                     maxLines: 5,
                                     readOnly: true, // Make it read-only for now
                                     decoration: const InputDecoration(
-                                      labelText: 'সৃজনশীল প্রশ্ন (সম্পাদনা বর্তমানে সমর্থিত নয়)',
+                                      labelText:
+                                          'সৃজনশীল প্রশ্ন (সম্পাদনা বর্তমানে সমর্থিত নয়)',
                                       border: OutlineInputBorder(),
                                     ),
                                     // onChanged: (value) {
@@ -1698,12 +1779,14 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                   'mcqCount': _mcqCountController.text,
                 };
                 final jsonString = json.encode(templateData);
-                await prefs.setString('exam_template_$templateName', jsonString);
+                await prefs.setString(
+                    'exam_template_$templateName', jsonString);
 
                 navigator.pop();
                 scaffoldMessenger.showSnackBar(
                   SnackBar(
-                      content: Text('টেমপ্লেট "$templateName" সংরক্ষিত হয়েছে!')),
+                      content:
+                          Text('টেমপ্লেট "$templateName" সংরক্ষিত হয়েছে!')),
                 );
               },
               child: Text('সংরক্ষণ'),
@@ -1775,7 +1858,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       builder: (context) => AlertDialog(
         title: Text('টেমপ্লেট লোড করুন'),
         content: SizedBox(
-          width: double.maxFinite, // Changed from double.minPositive to allow the list to expand
+          width: double
+              .maxFinite, // Changed from double.minPositive to allow the list to expand
           child: ListView.builder(
             shrinkWrap: true,
             itemCount: templateNames.length,
