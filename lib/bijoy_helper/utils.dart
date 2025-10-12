@@ -7,7 +7,7 @@ String doCharMap(String text, Map<String, String> charMap) {
   return text;
 }
 
-int mb_strlen(String str) {
+int mbStrlen(String str) {
   return str.length;
 }
 
@@ -23,6 +23,6 @@ String subString(String string, int frm, int to) {
   return string.substring(frm, to);
 }
 
-String preg_replace(String srcKey, String keyVal, String text) {
+String pregReplace(String srcKey, String keyVal, String text) {
   return text.replaceAll(RegExp(srcKey), keyVal);
 }

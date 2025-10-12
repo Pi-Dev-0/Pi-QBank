@@ -86,11 +86,11 @@ class Unicode {
     //
     // #global proConversionMap
     //
-    // #for (i = 0; i < mb_strlen(str); ++i)
+    // #for (i = 0; i < mbStrlen(str); ++i)
 
     int i = 0;
-    while (i < mb_strlen(str)) {
-      if (i < (mb_strlen(str) - 1) && mbCharAt(str, i) == 'র' &&
+    while (i < mbStrlen(str)) {
+      if (i < (mbStrlen(str) - 1) && mbCharAt(str, i) == 'র' &&
           isBanglaHalant(mbCharAt(str, i + 1)) &&
           isBanglaHalant(mbCharAt(str, i - 1))) {
         int j = 1;
@@ -113,7 +113,7 @@ class Unicode {
         temp += mbCharAt(str, i);
         temp += mbCharAt(str, i + 1);
         temp += subString(str, i - j, i);
-        temp += subString(str, i + 2, mb_strlen(str));
+        temp += subString(str, i + 2, mbStrlen(str));
         str = temp;
         i += 1;
         continue;
@@ -123,8 +123,8 @@ class Unicode {
     str = doCharMap(str, proConversionMap);
 
     i = 0;
-    while (i < mb_strlen(str)) {
-      if (i < mb_strlen(str) - 1 && mbCharAt(str, i) == 'র' &&
+    while (i < mbStrlen(str)) {
+      if (i < mbStrlen(str) - 1 && mbCharAt(str, i) == 'র' &&
           isBanglaHalant(mbCharAt(str, i + 1)) &&
           !isBanglaHalant(mbCharAt(str, i - 1)) &&
           isBanglaHalant(mbCharAt(str, i + 2))) {
@@ -148,7 +148,7 @@ class Unicode {
         temp += mbCharAt(str, i);
         temp += mbCharAt(str, i + 1);
         temp += subString(str, i - j, i);
-        temp += subString(str, i + 2, mb_strlen(str));
+        temp += subString(str, i + 2, mbStrlen(str));
         str = temp;
         i += 1;
         continue;
@@ -157,17 +157,17 @@ class Unicode {
       // #  for 'Vowel + HALANT + Consonant' it should be 'HALANT + Consonant + Vowel'
       if (i > 0 && mbCharAt(str, i) == '\u09CD' &&
           (isBanglaKar(mbCharAt(str, i - 1)) ||
-              isBanglaNukta(mbCharAt(str, i - 1))) && i < mb_strlen(str) - 1) {
+              isBanglaNukta(mbCharAt(str, i - 1))) && i < mbStrlen(str) - 1) {
         String temp = subString(str, 0, i - 1);
         temp += mbCharAt(str, i);
         temp += mbCharAt(str, i + 1);
         temp += mbCharAt(str, i - 1);
-        temp += subString(str, i + 2, mb_strlen(str));
+        temp += subString(str, i + 2, mbStrlen(str));
         str = temp;
       }
 
       // #  for 'RA (\u09B0) + HALANT + Vowel' it should be 'Vowel + RA (\u09B0) + HALANT'
-      if (i > 0 && i < mb_strlen(str) - 1 && mbCharAt(str, i) == '\u09CD' &&
+      if (i > 0 && i < mbStrlen(str) - 1 && mbCharAt(str, i) == '\u09CD' &&
           mbCharAt(str, i - 1) == '\u09B0' &&
           mbCharAt(str, i - 2) != '\u09CD' &&
           isBanglaKar(mbCharAt(str, i + 1))) {
@@ -175,20 +175,20 @@ class Unicode {
         temp += mbCharAt(str, i + 1);
         temp += mbCharAt(str, i - 1);
         temp += mbCharAt(str, i);
-        temp += subString(str, i + 2, mb_strlen(str));
+        temp += subString(str, i + 2, mbStrlen(str));
         str = temp;
       }
 
 
       // #  Change pre-kar to post format suitable for unicode
-      if (i < mb_strlen(str) - 1 && isBanglaPreKar(mbCharAt(str, i)) &&
+      if (i < mbStrlen(str) - 1 && isBanglaPreKar(mbCharAt(str, i)) &&
           isSpace(mbCharAt(str, i + 1)) == false) {
         var temp = subString(str, 0, i);
         int j = 1;
 
-        while ((i + j) < mb_strlen(str) - 1 &&
+        while ((i + j) < mbStrlen(str) - 1 &&
             isBanglaBanjonborno(mbCharAt(str, i + j))) {
-          if ((i + j) < mb_strlen(str) &&
+          if ((i + j) < mbStrlen(str) &&
               isBanglaHalant(mbCharAt(str, i + j + 1))) {
             j += 2;
           } else {
@@ -211,19 +211,19 @@ class Unicode {
           temp += mbCharAt(str, i);
         }
 
-        temp += subString(str, i + j + l + 1, mb_strlen(str));
+        temp += subString(str, i + j + l + 1, mbStrlen(str));
         str = temp;
         i += j;
       }
 
 
       // #  nukta should be placed after kars
-      if (i < mb_strlen(str) - 1 && isBanglaNukta(mbCharAt(str, i)) &&
+      if (i < mbStrlen(str) - 1 && isBanglaNukta(mbCharAt(str, i)) &&
           isBanglaPostKar(mbCharAt(str, i + 1))) {
         var temp = subString(str, 0, i);
         temp += mbCharAt(str, i + 1);
         temp += mbCharAt(str, i);
-        temp += subString(str, i + 2, mb_strlen(str));
+        temp += subString(str, i + 2, mbStrlen(str));
         str = temp;
       }
 
@@ -240,8 +240,8 @@ class Unicode {
     var cY = 0;
     var i = 0;
 
-    while (i < mb_strlen(str)){
-      if(i<mb_strlen(str) && isBanglaPreKar(mbCharAt(str,i))){
+    while (i < mbStrlen(str)){
+      if(i<mbStrlen(str) && isBanglaPreKar(mbCharAt(str,i))){
         var j=1;
         while (isBanglaBanjonborno(mbCharAt(str,i-j))){
           if ((i-j)<0){
@@ -260,7 +260,7 @@ class Unicode {
         var R = subString(str,0, i-j);
         R += mbCharAt(str,i);
         R += subString(str,i-j, i);
-        R += subString(str,i+1, mb_strlen(str));
+        R += subString(str,i+1, mbStrlen(str));
         str = R;
 
         cY= i+1;
@@ -269,7 +269,7 @@ class Unicode {
       }
 
 
-      if (i<(mb_strlen(str)-1) && isBanglaHalant(mbCharAt(str,i)) && mbCharAt(str,i-1)=='র' &&  !isBanglaHalant(mbCharAt(str,i-2))) {
+      if (i<(mbStrlen(str)-1) && isBanglaHalant(mbCharAt(str,i)) && mbCharAt(str,i-1)=='র' &&  !isBanglaHalant(mbCharAt(str,i-2))) {
         var j=1;
         var aZ=0;
 
@@ -293,7 +293,7 @@ class Unicode {
         R += subString(str, i+1, i+j+1);
         R += mbCharAt(str, i-1);
         R += mbCharAt(str, i);
-        R += subString(str, i+j+aZ+1, mb_strlen(str));
+        R += subString(str, i+j+aZ+1, mbStrlen(str));
 
         str = R;
 
@@ -315,23 +315,23 @@ class Unicode {
     // Handle REF
     // Rule: REF should be placed after the banjonborno/juktokkor
     int i = 0;
-    while (i < mb_strlen(str)) {
-      if (i < mb_strlen(str) - 1 && isBanglaRef(mbCharAt(str, i))) {
+    while (i < mbStrlen(str)) {
+      if (i < mbStrlen(str) - 1 && isBanglaRef(mbCharAt(str, i))) {
         // Move the REF after the banjonborno/juktokkor
 
         // Find the first banjonborno position after the REF
         var j = 1;
         while (!isBanglaBanjonborno(mbCharAt(str, i + j))) {
-          if (i + j >= mb_strlen(str)) {
+          if (i + j >= mbStrlen(str)) {
             break;
           }
           j += 1;
         }
 
-        if(i+j < mb_strlen(str)){
+        if(i+j < mbStrlen(str)){
           // Now find the last position of the banjonborno/juktokkor
           var k = 1;
-          while ((isBanglaHalant(mbCharAt(str, i + j + k)) || mbCharAt(str, i + j + k) == '&') && i + j + k < mb_strlen(str) - 1 && !isBanglaKar(mbCharAt(str, i + j + k + 1))){
+          while ((isBanglaHalant(mbCharAt(str, i + j + k)) || mbCharAt(str, i + j + k) == '&') && i + j + k < mbStrlen(str) - 1 && !isBanglaKar(mbCharAt(str, i + j + k + 1))){
             k += 2;
           }
 
@@ -340,7 +340,7 @@ class Unicode {
           temp += subString(str, i + 1, i + j);
           temp += subString(str, i + j, i + j + k);  // Add the banjonborno/juktokkor
           temp += mbCharAt(str, i);      // Add the REF
-          temp += subString(str, i + j + k, mb_strlen(str));
+          temp += subString(str, i + j + k, mbStrlen(str));
           str = temp;
           i += j + k + 1;
         }else {
@@ -375,29 +375,29 @@ class Unicode {
 
     var pattern = 'ো';
     var replacement = 'ো';
-    srcString = preg_replace(pattern, replacement, srcString);
+    srcString = pregReplace(pattern, replacement, srcString);
 
     pattern = 'ৌ';
     replacement = 'ৌ';
-    srcString = preg_replace(pattern, replacement, srcString);
+    srcString = pregReplace(pattern, replacement, srcString);
 
     pattern = 'য়';
     replacement = 'q'; // 'h়';
-    srcString = preg_replace(pattern, replacement, srcString);
+    srcString = pregReplace(pattern, replacement, srcString);
 
     // This is not working for 'নিয়ন্ত্রণ'
     // Fix the issue for 'বৈচিত্র্য'
     // pattern = 'ত্র';
     // replacement = 'Î';
-    // srcString = preg_replace(pattern, replacement, srcString);
+    // srcString = pregReplace(pattern, replacement, srcString);
 
     pattern = '্র্য';
     replacement = 'ª¨';
-    srcString = preg_replace(pattern, replacement, srcString);
+    srcString = pregReplace(pattern, replacement, srcString);
 
     pattern = 'র্';
     replacement = '©';
-    srcString = preg_replace(pattern, replacement, srcString);
+    srcString = pregReplace(pattern, replacement, srcString);
 
     //# make correction
     srcString = reArranceUnicodeTextForASCI(srcString);
