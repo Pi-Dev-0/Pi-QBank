@@ -108,7 +108,7 @@ class FileUploadPageState extends State<FileUploadPage>
     // Double check file size before upload
     if (_selectedFile!.size > _maxFileSize) {
       setState(() {
-        _uploadStatus = 'File size exceeds 25MB limit';
+        _uploadStatus = 'File size exceeds 10MB limit';
         _selectedFile = null;
       });
       _clearStatus();
@@ -345,7 +345,7 @@ class FileUploadPageState extends State<FileUploadPage>
                     ),
                     const SizedBox(height: 12),
                     const Text(
-                      '📏 Maximum file size: 25MB\n📁 Supported files: All formats\n🔒 Files will be stored securely',
+                      '📏 Maximum file size: 10MB\n📁 Supported files: All formats\n🔒 Files will be stored securely',
                       style: TextStyle(
                         color: Color(0xFF4A5568),
                         height: 1.6,
