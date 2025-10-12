@@ -447,6 +447,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
     pdf.addPage(
       pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.copyWith(
+          marginBottom: 0.2 * PdfPageFormat.cm,
+        ),
         theme: pw.ThemeData.withFont(
           base: font,
           bold: boldFont,
@@ -661,6 +664,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
     answersPdf.addPage(
       pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.copyWith(
+          marginBottom: 0.2 * PdfPageFormat.cm,
+        ),
         theme: pw.ThemeData.withFont(
           base: font,
           bold: boldFont,
