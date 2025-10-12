@@ -515,121 +515,50 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 ),
               ),
               pw.SizedBox(height: 10),
-              pw.Column(
-                children: [
-                  pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: List.generate(
-                            (_creativeSrojonshilQuestions.length / 2).ceil(),
-                            (index) {
-                              final question =
-                                  _creativeSrojonshilQuestions[index];
-                              return pw.Container(
-                                margin: pw.EdgeInsets.only(bottom: 20),
-                                child: pw.Column(
-                                  crossAxisAlignment:
-                                      pw.CrossAxisAlignment.start,
-                                  children: [
-                                    pw.Text(
-                                      unicodeToBijoy(
-                                          '${question.questionNumber}. ${question.stem}'),
-                                      style: pw.TextStyle(
-                                          fontSize: 12, font: boldFont),
-                                    ),
-                                    pw.SizedBox(height: 5),
-                                    ...question.subQuestions.map(
-                                      (subQ) => pw.Padding(
-                                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
-                                        child: pw.Row(
-                                          mainAxisAlignment:
-                                              pw.MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            pw.Expanded(
-                                              child: pw.Text(
-                                                unicodeToBijoy(
-                                                    '${subQ.label}) ${subQ.text}'),
-                                                style: pw.TextStyle(
-                                                    fontSize: 12, font: font),
-                                              ),
-                                            ),
-                                            pw.Text(
-                                              unicodeToBijoy('(${subQ.marks})'),
-                                              style: pw.TextStyle(
-                                                  fontSize: 12, font: font),
-                                            ),
-                                          ],
-                                        ),
-                                      ), // Add line spacing here
-                                )],
+              ...List.generate(
+                _creativeSrojonshilQuestions.length,
+                (index) {
+                  final question = _creativeSrojonshilQuestions[index];
+                  return pw.Container(
+                    margin: const pw.EdgeInsets.only(bottom: 20),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          unicodeToBijoy(
+                              '${question.questionNumber}. ${question.stem}'),
+                          style: pw.TextStyle(fontSize: 12, font: boldFont),
+                        ),
+                        pw.SizedBox(height: 5),
+                        ...question.subQuestions.map(
+                          (subQ) => pw.Padding(
+                            padding:
+                                const pw.EdgeInsets.symmetric(vertical: 2),
+                            child: pw.Row(
+                              mainAxisAlignment:
+                                  pw.MainAxisAlignment.spaceBetween,
+                              children: [
+                                pw.Expanded(
+                                  child: pw.Text(
+                                    unicodeToBijoy(
+                                        '${subQ.label}) ${subQ.text}'),
+                                    style:
+                                        pw.TextStyle(fontSize: 12, font: font),
+                                  ),
                                 ),
-                              );
-                            },
+                                pw.Text(
+                                  unicodeToBijoy('(${subQ.marks})'),
+                                  style:
+                                      pw.TextStyle(fontSize: 12, font: font),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      pw.SizedBox(width: 20), // Space between columns
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: List.generate(
-                            _creativeSrojonshilQuestions.length ~/ 2,
-                            (index) {
-                              final actualIndex =
-                                  (_creativeSrojonshilQuestions.length / 2)
-                                          .ceil() +
-                                      index;
-                              final question =
-                                  _creativeSrojonshilQuestions[actualIndex];
-                              return pw.Container(
-                                margin: pw.EdgeInsets.only(bottom: 20),
-                                child: pw.Column(
-                                  crossAxisAlignment:
-                                      pw.CrossAxisAlignment.start,
-                                  children: [
-                                    pw.Text(
-                                      unicodeToBijoy(
-                                          '${question.questionNumber}. ${question.stem}'),
-                                      style: pw.TextStyle(
-                                          fontSize: 12, font: boldFont),
-                                    ),
-                                    pw.SizedBox(height: 5),
-                                    ...question.subQuestions.map(
-                                      (subQ) => pw.Padding(
-                                        padding: const pw.EdgeInsets.symmetric(vertical: 2.5),
-                                        child: pw.Row(
-                                          mainAxisAlignment:
-                                              pw.MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            pw.Expanded(
-                                              child: pw.Text(
-                                                unicodeToBijoy(
-                                                    '${subQ.label}) ${subQ.text}'),
-                                                style: pw.TextStyle(
-                                                    fontSize: 12, font: font),
-                                              ),
-                                            ),
-                                            pw.Text(
-                                              unicodeToBijoy('(${subQ.marks})'),
-                                              style: pw.TextStyle(
-                                                  fontSize: 12, font: font),
-                                            ),
-                                          ],
-                                        ),
-                                      ),// Add line spacing here
-                                )],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
 
@@ -670,51 +599,46 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 ),
               ),
               pw.SizedBox(height: 10),
-              pw.Column(
-                children: [
-                  pw.Row(
+              ...List.generate(
+                (_mcqQuestions.length / 2).ceil(),
+                (index) {
+                  final int firstIndex = index * 2;
+                  final int? secondIndex =
+                      (firstIndex + 1) < _mcqQuestions.length
+                          ? (firstIndex + 1)
+                          : null;
+
+                  return pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
                       pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: List.generate(
-                            (_mcqQuestions.length / 2).ceil(),
-                            (index) => pw.Container(
-                              margin: pw.EdgeInsets.only(bottom: 15),
-                              child: pw.Text(
-                                unicodeToBijoy(
-                                    '${index + 1}. ${_mcqQuestions[index]}'),
-                                style: pw.TextStyle(fontSize: 12, font: font),
-                              ),
+                        child: pw.Padding(
+                          padding: const pw.EdgeInsets.only(bottom: 10, right: 10),
+                          child: pw.Text(
+                            unicodeToBijoy(
+                                '${firstIndex + 1}. ${_mcqQuestions[firstIndex]}'),
+                            style: pw.TextStyle(fontSize: 12, font: font),
+                          ),
+                        ),
+                      ),
+                      if (secondIndex != null)
+                        pw.Expanded(
+                          child: pw.Padding(
+                            padding: const pw.EdgeInsets.only(bottom: 10, left: 10),
+                            child: pw.Text(
+                              unicodeToBijoy(
+                                  '${secondIndex + 1}. ${_mcqQuestions[secondIndex]}'),
+                              style: pw.TextStyle(fontSize: 12, font: font),
                             ),
                           ),
                         ),
-                      ),
-                      pw.SizedBox(width: 20), // Space between columns
-                      pw.Expanded(
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: List.generate(
-                            _mcqQuestions.length ~/ 2,
-                            (index) {
-                              final actualIndex =
-                                  (_mcqQuestions.length / 2).ceil() + index;
-                              return pw.Container(
-                                margin: pw.EdgeInsets.only(bottom: 15),
-                                child: pw.Text(
-                                  unicodeToBijoy(
-                                      '${actualIndex + 1}. ${_mcqQuestions[actualIndex]}'),
-                                  style: pw.TextStyle(fontSize: 12, font: font),
-                                ),
-                              );
-                            },
-                          ),
+                      if (secondIndex == null)
+                        pw.Expanded(
+                          child: pw.Container(),
                         ),
-                      ),
                     ],
-                  ),
-                ],
+                  );
+                },
               ),
             ],
           ];
