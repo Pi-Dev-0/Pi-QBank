@@ -592,6 +592,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
 
             // MCQ Questions
             if (_mcqMultipleChoice && _mcqQuestions.isNotEmpty) ...[
+              pw.SizedBox(height: 20),
               pw.Center(
                 child: pw.Text(
                   unicodeToBijoy('বহুনির্বাচনি প্রশ্ন'),
