@@ -523,7 +523,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 (index) {
                   final question = _creativeSrojonshilQuestions[index];
                   return pw.Container(
-                    margin: const pw.EdgeInsets.only(bottom: 20),
+                    margin: const pw.EdgeInsets.only(bottom: 12),
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
@@ -611,171 +611,88 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                       (firstIndex + 1) < _mcqQuestions.length
                           ? (firstIndex + 1)
                           : null;
-
                                     return pw.Row(
-
                                       crossAxisAlignment: pw.CrossAxisAlignment.start,
-
                                       children: [
-
                                         pw.Expanded(
-
                                           child: pw.Padding(
-
                                             padding:
-
                                                 const pw.EdgeInsets.only(bottom: 10, right: 10),
-
                                             child: pw.Column(
-
                                               crossAxisAlignment: pw.CrossAxisAlignment.start,
-
                                               children: [
-
                                                 pw.Text(
-
                                                   unicodeToBijoy(
-
                                                       '${firstIndex + 1}. ${_mcqQuestions[firstIndex].split('\n').first}'),
-
                                                   style: pw.TextStyle(fontSize: 12, font: font),
-
                                                 ),
-
                                                 pw.SizedBox(height: 3),
-
                                                 pw.Column(
-
                                                   crossAxisAlignment:
-
                                                       pw.CrossAxisAlignment.start,
-
                                                   children: _mcqQuestions[firstIndex]
-
                                                       .split('\n')
-
                                                       .sublist(1)
-
                                                       .map(
-
                                                         (option) => pw.Padding(
-
                                                           padding:
-
                                                               const pw.EdgeInsets.only(top: 3),
-
                                                           child: pw.Text(
-
                                                             unicodeToBijoy(option),
-
                                                             style: pw.TextStyle(
-
                                                                 fontSize: 12, font: font),
-
                                                           ),
-
                                                         ),
-
                                                       )
-
                                                       .toList(),
-
                                                 ),
-
                                               ],
-
                                             ),
-
                                           ),
-
                                         ),
-
                                         if (secondIndex != null)
-
                                           pw.Expanded(
-
                                             child: pw.Padding(
-
                                               padding:
-
                                                   const pw.EdgeInsets.only(bottom: 10, left: 10),
-
                                               child: pw.Column(
-
                                                 crossAxisAlignment: pw.CrossAxisAlignment.start,
-
                                                 children: [
-
                                                   pw.Text(
-
                                                     unicodeToBijoy(
-
                                                         '${secondIndex + 1}. ${_mcqQuestions[secondIndex].split('\n').first}'),
-
                                                     style:
-
                                                         pw.TextStyle(fontSize: 12, font: font),
-
                                                   ),
-
                                                   pw.SizedBox(height: 5),
-
                                                   pw.Column(
-
                                                     crossAxisAlignment:
-
                                                         pw.CrossAxisAlignment.start,
-
                                                     children: _mcqQuestions[secondIndex]
-
                                                         .split('\n')
-
                                                         .sublist(1)
-
                                                         .map(
-
                                                           (option) => pw.Padding(
-
                                                             padding:
-
                                                                 const pw.EdgeInsets.only(top: 3),
-
                                                             child: pw.Text(
-
                                                               unicodeToBijoy(option),
-
                                                               style: pw.TextStyle(
-
                                                                   fontSize: 12, font: font),
-
                                                             ),
-
                                                           ),
-
                                                         )
-
                                                         .toList(),
-
                                                   ),
-
                                                 ],
-
                                               ),
-
                                             ),
-
                                           ),
-
                                         if (secondIndex == null)
-
                                           pw.Expanded(
-
                                             child: pw.Container(),
-
                                           ),
-
                                       ],
-
                                     );
                 },
               ),
