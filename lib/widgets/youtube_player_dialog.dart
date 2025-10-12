@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 void showYoutubePlayerDialog(BuildContext context, String videoId) {
@@ -98,16 +99,30 @@ class _YoutubePlayerDialogContentState
             children: [
               Offstage(
                 offstage: showThumbnail,
-                child: YoutubePlayer(
-                  controller: _controller,
-                  showVideoProgressIndicator: true,
-                  progressIndicatorColor: Theme.of(context).colorScheme.primary,
-                  progressColors: ProgressBarColors(
-                    playedColor: Theme.of(context).colorScheme.primary,
-                    handleColor: Theme.of(context).colorScheme.primary,
+                child: YoutubePlayerBuilder(
+                  onExitFullScreen: () {
+                    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+                  },
+                  player: YoutubePlayer(
+                    controller: _controller,
+                    showVideoProgressIndicator: true,
+                    progressIndicatorColor:
+                        Theme.of(context).colorScheme.primary,
+                    progressColors: ProgressBarColors(
+                      playedColor: Theme.of(context).colorScheme.primary,
+                      handleColor: Theme.of(context).colorScheme.primary,
+                    ),
+                    bottomActions: [
+                      CurrentPosition(),
+                      ProgressBar(isExpanded: true),
+                      FullScreenButton(),
+                    ],
+                    onReady: () {
+                      // Optional: anything to do when player is ready
+                    },
                   ),
-                  onReady: () {
-                    // Optional: anything to do when player is ready
+                  builder: (context, player) {
+                    return player;
                   },
                 ),
               ),
