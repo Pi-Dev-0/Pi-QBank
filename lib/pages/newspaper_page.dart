@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:pi_qbank/pages/newspaper_list_page.dart';
 import 'package:pi_qbank/widgets/loading_widget.dart'; // Import the new LoadingWidget
 
 class NewspaperPage extends StatefulWidget {

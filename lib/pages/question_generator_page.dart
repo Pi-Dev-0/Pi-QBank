@@ -25,6 +25,11 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
   String _selectedLanguage = 'English';
   final List<Map<String, String>> _generatedQuestions = [];
   String _generatedTopic = ''; // New state for the generated topic
+
+  // MCQ state
+  List<Map<String, dynamic>> _generatedMcqs = [];
+  final Map<int, bool> _answerVisibility = {};
+
   late ScrollController _scrollController; // Declare ScrollController
 
   late AnimationController _animationController;
@@ -76,6 +81,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             _selectedImageMimeType = image.mimeType;
             _aiResponse = '';
             _generatedTopic = ''; // Reset topic
+            _generatedMcqs.clear();
+            _answerVisibility.clear();
           });
         } else {
           throw Exception('Selected image file does not exist');
@@ -116,6 +123,32 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
           return '$topicInstruction$languageInstructionএই ছবি সম্পর্কে $questionsCount টি বিস্তারিত উত্তর প্রশ্ন তৈরি করুন যার জন্য বিস্তারিত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ৫-২০ বাক্যের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
         }
         return '$topicInstruction${languageInstruction}Generate $questionsCount broad answer questions about this image that require detailed explanations. Each answer should be 5-20 sentences. Each answer must start on a new line with "Answer:".';
+      case 'MCQ':
+        final String mcqLanguageInstruction = _selectedLanguage == 'বাংলা'
+            ? 'Generate questions and answers strictly in Bengali (Bangla) language.'
+            : 'Generate questions and answers strictly in English language.';
+        return '''
+$mcqLanguageInstruction Generate $questionsCount multiple choice questions about this image with 4 options each. 
+Each question must also include the correct answer.
+Respond in the following JSON format:
+
+{
+  "topic": "A concise topic/title for these MCQs in $_selectedLanguage",
+  "questions": [
+    {
+      "question": "Question text?",
+      "options": {
+        "A": "Option A",
+        "B": "Option B",
+        "C": "Option C",
+        "D": "Option D"
+      },
+      "correct_answer": "A"
+    },
+    ...
+  ]
+}
+''';
       default:
         return '$topicInstruction${languageInstruction}Generate questions about this image.';
     }
@@ -128,6 +161,9 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
       _isProcessingImage = true;
       _aiResponse = 'Processing image...';
       _generatedTopic = ''; // Clear topic on new generation
+      _generatedQuestions.clear();
+      _generatedMcqs.clear();
+      _answerVisibility.clear();
     });
 
     try {
@@ -227,7 +263,11 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
               jsonResponse['candidates'][0]['content']['parts'][0]['text'];
           setState(() {
             _aiResponse = reply;
-            _parseGeneratedQuestions(); // Call parsing after response is set
+            if (_selectedQuestionType == 'MCQ') {
+              _parseGeneratedMcqs(reply);
+            } else {
+              _parseGeneratedQuestions();
+            }
           });
           // Scroll to top after questions are generated
           _scrollController.animateTo(
@@ -265,6 +305,11 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
 
   @override
   Widget build(BuildContext context) {
+    bool showInputForm =
+        (_generatedQuestions.isEmpty && _generatedMcqs.isEmpty) ||
+            _isProcessingImage ||
+            _aiResponse.contains('Error');
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: CustomAppBar(
@@ -284,9 +329,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    if (_aiResponse.isEmpty ||
-                        _isProcessingImage ||
-                        _aiResponse.contains('Error')) ...[
+                    if (showInputForm) ...[
                       // Header Section
                       _buildHeaderSection(),
                       const SizedBox(height: 24),
@@ -302,17 +345,17 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                       // Question Settings Section
                       _buildQuestionSettingsSection(),
                       const SizedBox(height: 32),
+
+                      // Action Buttons Section
+                      _buildActionButtonsSection(),
                     ],
 
-                    // Action Buttons Section
-                    _buildActionButtonsSection(),
-
                     // AI Response Display
-                    if (_aiResponse.isNotEmpty &&
-                        !_isProcessingImage &&
-                        !_aiResponse.contains('Error')) ...[
-                      const SizedBox(height: 24),
-                      _buildAIResponseSection(),
+                    if (!showInputForm) ...[
+                      if (_selectedQuestionType == 'MCQ')
+                        _buildMCQResponseSection()
+                      else
+                        _buildAIResponseSection(),
                     ],
                   ],
                 ),
@@ -364,7 +407,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
           ),
           const SizedBox(height: 8),
           Text(
-            'Upload an image and let AI generate short or broad questions for you',
+            'Upload an image and let AI generate questions for you',
             style: TextStyle(
               fontSize: 16,
               color: Colors.white.withOpacity(0.9),
@@ -426,7 +469,7 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
             label: 'Question Type',
             icon: Icons.assignment_outlined,
             value: _selectedQuestionType,
-            items: ['Short Question', 'Broad Question'],
+            items: ['Short Question', 'Broad Question', 'MCQ'],
             onChanged: (String? newValue) {
               setState(() {
                 _selectedQuestionType = newValue;
@@ -730,61 +773,55 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     return Column(
       children: [
         // Generate Button
-        if (_aiResponse.isEmpty ||
-            _isProcessingImage ||
-            _aiResponse.contains('Error')) ...[
-          Container(
-            width: double.infinity,
-            height: 56,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.purple.shade600, Colors.purple.shade800],
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.purple.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+        Container(
+          width: double.infinity,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.purple.shade600, Colors.purple.shade800],
             ),
-            child: ElevatedButton.icon(
-              onPressed: (_selectedImage != null &&
-                      _selectedQuestionType != null &&
-                      _numberOfQuestions != null &&
-                      _numberOfQuestions! > 0 &&
-                      !_isProcessingImage)
-                  ? _sendImageToGemini
-                  : null,
-              icon: _isProcessingImage
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Icon(Icons.auto_awesome, size: 24),
-              label: Text(
-                _isProcessingImage ? 'Generating...' : 'Generate Questions',
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.purple.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                shadowColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+            ],
+          ),
+          child: ElevatedButton.icon(
+            onPressed: (_selectedImage != null &&
+                    _selectedQuestionType != null &&
+                    _numberOfQuestions != null &&
+                    _numberOfQuestions! > 0 &&
+                    !_isProcessingImage)
+                ? _sendImageToGemini
+                : null,
+            icon: _isProcessingImage
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Icon(Icons.auto_awesome, size: 24),
+            label: Text(
+              _isProcessingImage ? 'Generating...' : 'Generate Questions',
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
             ),
           ),
-        ],
-
-        // No global "Show Answers" button needed with ExpansionTile
+        ),
       ],
     );
   }
@@ -874,6 +911,9 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                         setState(() {
                           _selectedImage = null;
                           _aiResponse = '';
+                          _generatedMcqs.clear();
+                          _generatedQuestions.clear();
+                          _answerVisibility.clear();
                         });
                       },
                       style: IconButton.styleFrom(
@@ -888,6 +928,31 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
         ],
       ),
     );
+  }
+
+  void _parseGeneratedMcqs(String response) {
+    try {
+      String cleanedResponse =
+          response.replaceAll('```json\n', '').replaceAll('```', '').trim();
+      final Map<String, dynamic> decodedResponse = json.decode(cleanedResponse);
+      _generatedTopic = decodedResponse['topic'] ?? 'Generated MCQs';
+      _generatedMcqs =
+          List<Map<String, dynamic>>.from(decodedResponse['questions'] ?? []);
+      for (int i = 0; i < _generatedMcqs.length; i++) {
+        _answerVisibility[i] = false;
+      }
+    } catch (e) {
+      setState(() {
+        _aiResponse = 'Error parsing MCQs: ${e.toString()}';
+        _generatedMcqs = [];
+      });
+    }
+  }
+
+  void _toggleAnswerVisibility(int index) {
+    setState(() {
+      _answerVisibility[index] = !(_answerVisibility[index] ?? false);
+    });
   }
 
   void _parseGeneratedQuestions() {
@@ -1175,6 +1240,221 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
                     ),
                   ],
                 ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMCQResponseSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              _generatedTopic.isNotEmpty ? _generatedTopic : 'Generated MCQs',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _generatedMcqs.length,
+          itemBuilder: (context, index) {
+            final mcq = _generatedMcqs[index];
+            final questionText = mcq['question'] as String? ?? 'No question text provided';
+            final options = mcq['options'] as Map<String, dynamic>? ?? {};
+            final correctAnswerKey = mcq['correct_answer'] as String? ?? '';
+            final correctAnswerText = options[correctAnswerKey] as String? ?? 'Not available';
+            final isAnswerVisible = _answerVisibility[index] ?? false;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white,
+                    Colors.grey.shade50,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+                border: Border.all(
+                  color: Colors.teal.withOpacity(0.3),
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.teal.shade50.withOpacity(0.5),
+                          Colors.cyan.shade50.withOpacity(0.5),
+                        ],
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(18),
+                        topRight: Radius.circular(18),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.teal.shade600,
+                                Colors.cyan.shade600,
+                              ],
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.teal.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              _selectedLanguage == 'বাংলা'
+                                  ? _convertToBengaliNumber(index + 1)
+                                  : '${index + 1}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            questionText,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1F2937),
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: options.entries.map((option) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          child: Text(
+                            '${option.key}. ${option.value ?? ''}',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 8.0),
+                    child: ElevatedButton.icon(
+                      onPressed: () => _toggleAnswerVisibility(index),
+                      icon: Icon(
+                        isAnswerVisible
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        isAnswerVisible ? 'Hide Answer' : 'Show Answer',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade600,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                      ),
+                    ),
+                  ),
+                  if (isAnswerVisible)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle_outline,
+                                color: Colors.green.shade700),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Correct Answer: $correctAnswerKey. $correctAnswerText',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
             );
           },
