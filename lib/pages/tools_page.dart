@@ -7,6 +7,8 @@ import 'package:pi_qbank/pages/mcq_generator_page.dart'; // Import MCQGeneratorP
 import 'package:pi_qbank/pages/question_generator_page.dart'; // Import QuestionGeneratorPage
 import 'package:pi_qbank/pages/mess_manager_page.dart'; // Import MessManagerPage
 import 'package:pi_qbank/pages/newspaper_list_page.dart'; // Import NewspaperListPage
+// Import youtube_player_flutter
+import 'package:pi_qbank/widgets/youtube_player_dialog.dart'; // Import YoutubePlayerDialog
 // Import ExamPaperBuilderPage
 import '../widgets/app_drawer.dart'; // Import AppDrawer
 
@@ -64,8 +66,7 @@ class ToolsPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'To get full access to all features, simply add your own API key. '
-                    'This gives you complete control over your usage and costs.',
+                    'To get full access to all features, simply add your own API key. ',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade700,
@@ -73,20 +74,47 @@ class ToolsPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      showApiKeyDialog(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade600,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            showApiKeyDialog(context);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade600,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Setup API Key'),
+                        ),
                       ),
-                    ),
-                    child: const Text('Setup API Key'),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Replace with your actual YouTube video ID
+                            const String videoId = 'YOUR_GEMINI_API_KEY_VIDEO_ID';
+                            showYoutubePlayerDialog(context, videoId);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade600,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Get API Key?'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -314,3 +342,4 @@ class ToolsPage extends StatelessWidget {
     );
   }
 }
+
