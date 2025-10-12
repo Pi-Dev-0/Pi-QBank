@@ -3,7 +3,6 @@ import 'package:pi_qbank/pages/exam_paper_builder_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/pages/prepare_short_test_page.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
-import 'package:pi_qbank/pages/mcq_generator_page.dart'; // Import MCQGeneratorPage
 import 'package:pi_qbank/pages/question_generator_page.dart'; // Import QuestionGeneratorPage
 import 'package:pi_qbank/pages/mess_manager_page.dart'; // Import MessManagerPage
 import 'package:pi_qbank/pages/newspaper_list_page.dart'; // Import NewspaperListPage
@@ -142,21 +141,6 @@ class ToolsPage extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const PrepareShortTestPage(),
-                      ),
-                    );
-                  },
-                ),
-                _buildToolCard(
-                  context,
-                  Icons.quiz_outlined,
-                  'MCQ Generator',
-                  'Generate multiple choice questions',
-                  Colors.green,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MCQGeneratorPage(),
                       ),
                     );
                   },
