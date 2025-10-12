@@ -106,10 +106,7 @@ class _NewspaperPageState extends State<NewspaperPage> {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                    builder: (context) => const NewspaperListPage()),
-              );
+              Navigator.of(context).pop();
             },
           ),
         ),
