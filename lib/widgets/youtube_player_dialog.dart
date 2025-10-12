@@ -23,10 +23,12 @@ class YoutubePlayerDialogContent extends StatefulWidget {
   const YoutubePlayerDialogContent({super.key, required this.videoId});
 
   @override
-  State<YoutubePlayerDialogContent> createState() => _YoutubePlayerDialogContentState();
+  State<YoutubePlayerDialogContent> createState() =>
+      _YoutubePlayerDialogContentState();
 }
 
-class _YoutubePlayerDialogContentState extends State<YoutubePlayerDialogContent> {
+class _YoutubePlayerDialogContentState
+    extends State<YoutubePlayerDialogContent> {
   late YoutubePlayerController _controller;
 
   @override
@@ -35,11 +37,13 @@ class _YoutubePlayerDialogContentState extends State<YoutubePlayerDialogContent>
     _controller = YoutubePlayerController(
       initialVideoId: widget.videoId,
       flags: const YoutubePlayerFlags(
-        autoPlay: true,
+        autoPlay: false,
         mute: false,
       ),
     );
   }
+
+  bool _isPlaying = false;
 
   @override
   void dispose() {
@@ -66,14 +70,51 @@ class _YoutubePlayerDialogContentState extends State<YoutubePlayerDialogContent>
               },
             ),
           ),
-          YoutubePlayer(
-            controller: _controller,
-            showVideoProgressIndicator: true,
-            progressIndicatorColor: Colors.blueAccent,
-            onReady: () {
-              // _controller.addListener(listener);
-            },
-          ),
+          _isPlaying
+              ? YoutubePlayer(
+                  controller: _controller,
+                  showVideoProgressIndicator: true,
+                  progressIndicatorColor: Colors.blueAccent,
+                  onReady: () {
+                    // _controller.addListener(listener);
+                  },
+                )
+              : GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isPlaying = true;
+                      _controller.play(); // Start playing when thumbnail is tapped
+                    });
+                  },
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          'https://img.youtube.com/vi/${widget.videoId}/hqdefault.jpg', // Direct thumbnail URL
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: 200, // Adjust height as needed
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                            color: Colors.grey,
+                            height: 200,
+                            child: const Center(
+                              child: Icon(Icons.broken_image,
+                                  color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.play_circle_filled,
+                        color: Colors.white,
+                        size: 60.0,
+                      ),
+                    ],
+                  ),
+                ),
         ],
       ),
     );

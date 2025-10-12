@@ -99,7 +99,7 @@ class ToolsPage extends StatelessWidget {
                         child: ElevatedButton(
                           onPressed: () {
                             // Replace with your actual YouTube video ID
-                            const String videoId = 'YOUR_GEMINI_API_KEY_VIDEO_ID';
+                            const String videoId = 'o8iyrtQyrZM';
                             showYoutubePlayerDialog(context, videoId);
                           },
                           style: ElevatedButton.styleFrom(
