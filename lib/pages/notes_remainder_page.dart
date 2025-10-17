@@ -3,18 +3,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../widgets/delete_confirmation_dialog.dart';
 import '../widgets/custom_app_bar.dart';
+import 'package:intl/intl.dart';
 
 class Note {
   String title;
   String content;
   Color color;
+  bool isPinned;
+  DateTime creationDate;
 
-  Note({required this.title, required this.content, this.color = Colors.white});
+  Note(
+      {required this.title,
+      required this.content,
+      this.color = Colors.white,
+      required this.creationDate,
+      this.isPinned = false});
 
   Map<String, dynamic> toJson() => {
         'title': title,
         'content': content,
         'color': color.value,
+        'isPinned': isPinned,
+        'creationDate': creationDate.toIso8601String(),
       };
 
   factory Note.fromJson(Map<String, dynamic> json) {
@@ -22,6 +32,8 @@ class Note {
       title: json['title'] as String,
       content: json['content'] as String,
       color: json['color'] != null ? Color(json['color'] as int) : Colors.white,
+      isPinned: json['isPinned'] as bool? ?? false,
+      creationDate: DateTime.parse(json['creationDate'] as String),
     );
   }
 }
@@ -50,14 +62,24 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
   }
 
   List<Note> get _filteredNotes {
-    if (_searchQuery.isEmpty) {
-      return _notes;
+    List<Note> notesToFilter = _notes;
+    if (_searchQuery.isNotEmpty) {
+      notesToFilter = _notes
+          .where((note) =>
+              note.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              note.content.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
     }
-    return _notes
-        .where((note) =>
-            note.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            note.content.toLowerCase().contains(_searchQuery.toLowerCase()))
-        .toList();
+
+    notesToFilter.sort((a, b) {
+      if (a.isPinned && !b.isPinned) {
+        return -1;
+      } else if (!a.isPinned && b.isPinned) {
+        return 1;
+      }
+      return 0;
+    });
+    return notesToFilter;
   }
 
   Future<void> _loadNotes() async {
@@ -91,6 +113,16 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
       } else {
         _notes.insert(0, note);
       }
+    });
+    _saveNotes();
+  }
+
+  void _togglePinStatus(Note note) {
+    setState(() {
+      note.isPinned = !note.isPinned;
+      // Re-add the note to trigger re-sorting in _filteredNotes
+      _notes.remove(note);
+      _notes.insert(0, note);
     });
     _saveNotes();
   }
@@ -207,6 +239,7 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
           note: _filteredNotes[i],
           onTap: () => _navigateToNotePage(_filteredNotes[i], i),
           onDelete: () => _deleteNote(i),
+          onPinToggle: () => _togglePinStatus(_filteredNotes[i]),
         ),
       );
     }
@@ -218,12 +251,14 @@ class NoteCard extends StatelessWidget {
   final Note note;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback onPinToggle;
 
   const NoteCard({
     super.key,
     required this.note,
     required this.onTap,
     required this.onDelete,
+    required this.onPinToggle,
   });
 
   @override
@@ -260,11 +295,31 @@ class NoteCard extends StatelessWidget {
                   maxLines: 10,
                   overflow: TextOverflow.ellipsis,
                 ),
+              const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.delete, size: 20, color: Colors.brown),
+                    icon: Icon(
+                      note.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      size: 20,
+                      color: note.isPinned ? Colors.blue : Colors.grey,
+                    ),
+                    onPressed: onPinToggle,
+                  ),
+                  Expanded(
+                    child: Text(
+                      DateFormat('dd MMM yyyy').format(note.creationDate),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon:
+                        const Icon(Icons.delete, size: 20, color: Colors.brown),
                     onPressed: onDelete,
                   ),
                 ],
@@ -325,6 +380,8 @@ class _NoteEditPageState extends State<NoteEditPage> {
       title: _titleController.text,
       content: _contentController.text,
       color: _noteColor,
+      isPinned: widget.note?.isPinned ?? false,
+      creationDate: widget.note?.creationDate ?? DateTime.now(),
     );
     Navigator.pop(context, newNote);
   }
