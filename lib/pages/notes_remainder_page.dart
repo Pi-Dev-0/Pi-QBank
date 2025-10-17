@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:pi_qbank/widgets/custom_app_bar.dart';
-import 'package:intl/intl.dart'; // For date formatting
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert'; // For JSON encoding/decoding
+import 'dart:convert';
 
 class Note {
-  String text;
-  DateTime? reminder;
+  String title;
+  String content;
+  Color color;
 
-  Note(this.text, {this.reminder});
+  Note({required this.title, required this.content, this.color = Colors.white});
 
   Map<String, dynamic> toJson() => {
-        'text': text,
-        'reminder': reminder?.toIso8601String(),
+        'title': title,
+        'content': content,
+        'color': color.value,
       };
 
   factory Note.fromJson(Map<String, dynamic> json) {
     return Note(
-      json['text'] as String,
-      reminder: json['reminder'] != null ? DateTime.parse(json['reminder'] as String) : null,
+      title: json['title'] as String,
+      content: json['content'] as String,
+      color: json['color'] != null ? Color(json['color'] as int) : Colors.white,
     );
   }
 }
@@ -32,29 +33,41 @@ class NotesRemainderPage extends StatefulWidget {
 
 class _NotesRemainderPageState extends State<NotesRemainderPage> {
   final List<Note> _notes = [];
-  final TextEditingController _noteController = TextEditingController();
-  int? _editingIndex;
-  DateTime? _selectedReminderDateTime;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadNotes();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text;
+      });
+    });
+  }
+
+  List<Note> get _filteredNotes {
+    if (_searchQuery.isEmpty) {
+      return _notes;
+    }
+    return _notes
+        .where((note) =>
+            note.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+            note.content.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
   }
 
   Future<void> _loadNotes() async {
     final prefs = await SharedPreferences.getInstance();
-    final notesStringList = prefs.getStringList('notes_list');
+    final notesStringList = prefs.getStringList('notes_list_v2');
     if (notesStringList != null) {
       setState(() {
-        _notes.clear(); // Clear existing notes before loading
+        _notes.clear();
         for (var noteJson in notesStringList) {
           try {
             _notes.add(Note.fromJson(jsonDecode(noteJson)));
           } catch (e) {
-            // Handle parsing errors, e.g., if old data is not in JSON format
-            // For now, we'll just print the error and skip the malformed note.
-            // In a real app, you might want to log this or migrate data.
             print('Error decoding note: $e - $noteJson');
           }
         }
@@ -64,33 +77,20 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
 
   Future<void> _saveNotes() async {
     final prefs = await SharedPreferences.getInstance();
-    final notesStringList = _notes.map((note) => jsonEncode(note.toJson())).toList();
-    await prefs.setStringList('notes_list', notesStringList);
+    final notesStringList =
+        _notes.map((note) => jsonEncode(note.toJson())).toList();
+    await prefs.setStringList('notes_list_v2', notesStringList);
   }
 
-  void _addNote() {
-    if (_noteController.text.isNotEmpty) {
-      setState(() {
-        if (_editingIndex != null) {
-          _notes[_editingIndex!].text = _noteController.text;
-          _notes[_editingIndex!].reminder = _selectedReminderDateTime;
-          _editingIndex = null;
-        } else {
-          _notes.add(Note(_noteController.text, reminder: _selectedReminderDateTime));
-        }
-        _noteController.clear();
-        _selectedReminderDateTime = null;
-      });
-      _saveNotes();
-    }
-  }
-
-  void _editNote(int index) {
+  void _addOrUpdateNote(Note note, [int? index]) {
     setState(() {
-      _noteController.text = _notes[index].text;
-      _selectedReminderDateTime = _notes[index].reminder;
-      _editingIndex = index;
+      if (index != null) {
+        _notes[index] = note;
+      } else {
+        _notes.insert(0, note);
+      }
     });
+    _saveNotes();
   }
 
   void _deleteNote(int index) {
@@ -100,143 +100,298 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
     _saveNotes();
   }
 
-  Future<void> _selectReminderDateTime(BuildContext context) async {
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _selectedReminderDateTime ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2101),
+  void _navigateToNotePage([Note? note, int? index]) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NoteEditPage(note: note),
+      ),
     );
-    if (pickedDate != null) {
-      final TimeOfDay? pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(_selectedReminderDateTime ?? DateTime.now()),
-      );
-      if (pickedTime != null) {
-        setState(() {
-          _selectedReminderDateTime = DateTime(
-            pickedDate.year,
-            pickedDate.month,
-            pickedDate.day,
-            pickedTime.hour,
-            pickedTime.minute,
-          );
-        });
-      }
+
+    if (result != null && result is Note) {
+      _addOrUpdateNote(result, index);
     }
   }
 
   @override
   void dispose() {
-    _noteController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(
-        title: 'Notes & Remainder',
+      appBar: AppBar(
+        title: const Text('Notes'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(kToolbarHeight),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search notes...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30.0),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Colors.grey[200],
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              ),
+            ),
+          ),
+        ),
+      ),
+      body: _buildNotesGrid(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _navigateToNotePage(),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildNotesGrid() {
+    if (_filteredNotes.isEmpty) {
+      return Center(
+        child: Text(
+          _searchQuery.isEmpty ? 'No notes yet.' : 'No notes found.',
+          style: const TextStyle(fontSize: 18, color: Colors.grey),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: Column(children: _buildNoteColumn(0))),
+          const SizedBox(width: 8),
+          Expanded(child: Column(children: _buildNoteColumn(1))),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildNoteColumn(int columnIndex) {
+    final List<Widget> columnItems = [];
+    for (int i = columnIndex; i < _filteredNotes.length; i += 2) {
+      columnItems.add(
+        NoteCard(
+          note: _filteredNotes[i],
+          onTap: () => _navigateToNotePage(_filteredNotes[i], i),
+          onDelete: () => _deleteNote(i),
+        ),
+      );
+    }
+    return columnItems;
+  }
+}
+
+class NoteCard extends StatelessWidget {
+  final Note note;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const NoteCard({
+    super.key,
+    required this.note,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: note.color,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12.0),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12.0),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (note.title.isNotEmpty)
+                Text(
+                  note.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              if (note.title.isNotEmpty && note.content.isNotEmpty)
+                const SizedBox(height: 8),
+              if (note.content.isNotEmpty)
+                Text(
+                  note.content,
+                  style: const TextStyle(fontSize: 14),
+                  maxLines: 10,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.delete, size: 20, color: Colors.brown),
+                    onPressed: onDelete,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class NoteEditPage extends StatefulWidget {
+  final Note? note;
+
+  const NoteEditPage({super.key, this.note});
+
+  @override
+  State<NoteEditPage> createState() => _NoteEditPageState();
+}
+
+class _NoteEditPageState extends State<NoteEditPage> {
+  late TextEditingController _titleController;
+  late TextEditingController _contentController;
+  late Color _noteColor;
+  final List<Color> _colorPalette = [
+    Colors.white,
+    Colors.red[100]!,
+    Colors.blue[100]!,
+    Colors.green[100]!,
+    Colors.yellow[100]!,
+    Colors.orange[100]!,
+    Colors.purple[100]!,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.note?.title ?? '');
+    _contentController =
+        TextEditingController(text: widget.note?.content ?? '');
+    _noteColor = widget.note?.color ?? Colors.white;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  void _saveAndExit() {
+    if (_titleController.text.isEmpty && _contentController.text.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
+    final newNote = Note(
+      title: _titleController.text,
+      content: _contentController.text,
+      color: _noteColor,
+    );
+    Navigator.pop(context, newNote);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _noteColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _saveAndExit,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.palette),
+            onPressed: _showColorPalette,
+          ),
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _saveAndExit,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             TextField(
-              controller: _noteController,
-              style: TextStyle(color: Colors.black87),
-              decoration: InputDecoration(
-                labelText: _editingIndex == null ? 'New Note' : 'Edit Note',
-                labelStyle: TextStyle(color: Colors.grey[700]),
-                filled: true,
-                fillColor: Colors.grey[200],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                  borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2.0),
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _editingIndex == null ? Icons.add : Icons.check,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  onPressed: _addNote,
-                ),
+              controller: _titleController,
+              decoration: const InputDecoration.collapsed(
+                hintText: 'Title',
               ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 8.0),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _selectedReminderDateTime == null
-                        ? 'No reminder set'
-                        : 'Reminder: ${DateFormat('yyyy-MM-dd – hh:mm a').format(_selectedReminderDateTime!)}',
-                    style: TextStyle(color: Colors.grey[700]),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.calendar_today, color: Theme.of(context).primaryColor),
-                  onPressed: () => _selectReminderDateTime(context),
-                ),
-                if (_selectedReminderDateTime != null)
-                  IconButton(
-                    icon: Icon(Icons.clear, color: Colors.redAccent),
-                    onPressed: () {
-                      setState(() {
-                        _selectedReminderDateTime = null;
-                      });
-                    },
-                  ),
-              ],
-            ),
-            SizedBox(height: 16.0),
+            const SizedBox(height: 16),
             Expanded(
-              child: ListView.builder(
-                itemCount: _notes.length,
-                itemBuilder: (context, index) {
-                  final note = _notes[index];
-                  return Card(
-                    elevation: 4.0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    margin: EdgeInsets.symmetric(vertical: 8.0),
-                    child: ListTile(
-                      title: Text(
-                        note.text,
-                        style: TextStyle(fontSize: 16.0, color: Colors.black87),
-                      ),
-                      subtitle: note.reminder != null
-                          ? Text(
-                              'Reminder: ${DateFormat('yyyy-MM-dd – hh:mm a').format(note.reminder!)}',
-                              style: TextStyle(fontSize: 12.0, color: Colors.grey[600]),
-                            )
-                          : null,
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.edit, color: Colors.blueAccent),
-                            onPressed: () => _editNote(index),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.delete, color: Colors.redAccent),
-                            onPressed: () => _deleteNote(index),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+              child: TextField(
+                controller: _contentController,
+                decoration: const InputDecoration.collapsed(
+                  hintText: 'Note',
+                ),
+                maxLines: null,
+                expands: true,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showColorPalette() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Container(
+          height: 100,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: _colorPalette
+                .map((color) => GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _noteColor = color;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: CircleAvatar(
+                        backgroundColor: color,
+                        radius: 20,
+                        child: _noteColor == color
+                            ? const Icon(Icons.check, color: Colors.black)
+                            : null,
+                      ),
+                    ))
+                .toList(),
+          ),
+        );
+      },
     );
   }
 }
