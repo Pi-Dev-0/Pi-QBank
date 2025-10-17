@@ -92,7 +92,7 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
           try {
             _notes.add(Note.fromJson(jsonDecode(noteJson)));
           } catch (e) {
-            print('Error decoding note: $e - $noteJson');
+            // Ignore errors
           }
         }
       });
@@ -440,7 +440,7 @@ class _NoteEditPageState extends State<NoteEditPage> {
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        return Container(
+        return SizedBox(
           height: 100,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
