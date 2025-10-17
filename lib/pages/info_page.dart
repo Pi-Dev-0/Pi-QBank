@@ -3,7 +3,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../widgets/custom_app_bar.dart';
 import 'privacy_policy_page.dart';
 import 'terms_of_service_page.dart';
-import 'feedback_page.dart';
 
 class InfoPage extends StatelessWidget {
   const InfoPage({super.key});
@@ -74,7 +73,6 @@ class InfoPage extends StatelessWidget {
                     const InfoRow(title: 'Living', value: 'Dhaka, Bangladesh'),
                     const InfoRow(title: 'College', value: 'Dhaka College'),
                     const InfoRow(title: 'Subject', value: 'Mathematics'),
-                    const InfoRow(title: 'Session', value: '2020-2021'),
                     const SizedBox(height: 24),
                     const Center(
                       child: Text(
@@ -116,22 +114,6 @@ class InfoPage extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => const TermsOfServicePage(),
-                        ),
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.feedback_outlined,
-                          color: Colors.blue),
-                      title: const Text('Send Feedback',
-                          textAlign: TextAlign.center),
-                      subtitle: const Text('Help us improve Pi-QBank',
-                          textAlign: TextAlign.center),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const FeedbackPage(),
                         ),
                       ),
                     ),

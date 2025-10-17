@@ -564,6 +564,15 @@ class _AppDrawerState extends State<AppDrawer>
                           ),
                           const Divider(height: 1, indent: 70, endIndent: 20),
                           ListTile(
+                            leading: const Icon(Icons.feedback),
+                            title: const Text('Send Feedback'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushNamed(context, '/feedback');
+                            },
+                          ),
+                          const Divider(height: 1, indent: 70, endIndent: 20),
+                          ListTile(
                             leading: const Icon(Icons.share),
                             title: const Text('Tell a Friend'),
                             onTap: () {

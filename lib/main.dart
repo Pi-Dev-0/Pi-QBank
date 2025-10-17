@@ -137,6 +137,7 @@ import 'pages/pdf_reader_page.dart';
 import 'pages/tools_page.dart';
 import 'pages/blog_page.dart';
 import 'widgets/custom_bottom_navigation_bar.dart';
+import 'pages/feedback_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -172,6 +173,7 @@ class MyApp extends StatelessWidget {
         );
       },
       routes: {
+        '/feedback': (context) => const FeedbackPage(),
         '/upload': (context) => const FileUploadPage(),
         '/formula': (context) => const FormulaPage(),
         '/class1': (context) => const Class1Page(),
