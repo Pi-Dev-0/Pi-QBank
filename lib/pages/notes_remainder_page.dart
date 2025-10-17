@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../widgets/delete_confirmation_dialog.dart';
 
 class Note {
   String title;
@@ -93,11 +94,23 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
     _saveNotes();
   }
 
-  void _deleteNote(int index) {
-    setState(() {
-      _notes.removeAt(index);
-    });
-    _saveNotes();
+  void _deleteNote(int index) async {
+    final confirmed = await showDeleteConfirmationDialog(
+      context: context,
+      title: 'Delete Note',
+      message: 'Are you sure you want to delete this note?',
+      paperTitle: _notes[index].title,
+      paperSubtitle: _notes[index].content.length > 100
+          ? '${_notes[index].content.substring(0, 100)}...'
+          : _notes[index].content,
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _notes.removeAt(index);
+      });
+      _saveNotes();
+    }
   }
 
   void _navigateToNotePage([Note? note, int? index]) async {
