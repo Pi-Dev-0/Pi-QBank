@@ -6,6 +6,7 @@ import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import 'package:pi_qbank/pages/question_generator_page.dart'; // Import QuestionGeneratorPage
 import 'package:pi_qbank/pages/mess_manager_page.dart'; // Import MessManagerPage
 import 'package:pi_qbank/pages/newspaper_list_page.dart'; // Import NewspaperListPage
+import 'package:pi_qbank/pages/notes_remainder_page.dart'; // Import NotesRemainderPage
 
 import 'package:pi_qbank/widgets/youtube_player_dialog.dart'; // Import YoutubePlayerDialog
 // Import ExamPaperBuilderPage
@@ -201,6 +202,21 @@ class ToolsPage extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const NewspaperListPage(),
+                      ),
+                    );
+                  },
+                ),
+                _buildToolCard(
+                  context,
+                  Icons.note_alt_outlined, // Icon for Notes & Remainder
+                  'Notes & Remainder',
+                  'Manage your notes and set reminders',
+                  Colors.indigo, // Choose an appropriate color
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotesRemainderPage(),
                       ),
                     );
                   },
