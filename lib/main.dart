@@ -46,7 +46,6 @@ import 'pages/gst_page.dart';
 import 'pages/medical_page.dart';
 import 'pages/seven_college_admission_page.dart';
 import 'pages/bookmarks_page.dart';
-import 'pages/app_manual_page.dart';
 import 'pages/downloaded_papers_page.dart';
 import 'pages/file_upload_page.dart';
 import 'pages/ssc/bangla_first_paper.dart';
@@ -204,7 +203,6 @@ class MyApp extends StatelessWidget {
         '/nursing_admission': (context) => const NursingAdmissionPage(),
         '/nursing': (context) => const NursingPage(),
         '/books': (context) => const BooksPage(),
-        '/manual': (context) => const AppManualPage(),
         '/class1_bangla': (context) => const Class1BanglaPage(),
         '/class1_english': (context) => const Class1EnglishPage(),
         '/class1_math': (context) => const Class1MathPage(),
@@ -242,7 +240,6 @@ class MyApp extends StatelessWidget {
             const SevenCollegeAdmissionPage(),
         '/bookmarks': (context) => const BookmarksPage(),
         '/downloaded': (context) => const DownloadedPapersPage(),
-        '/app-manual': (context) => const AppManualPage(),
         '/pdf_reader': (context) => const PdfReaderPage(),
 
         // SSC Subject Routes
