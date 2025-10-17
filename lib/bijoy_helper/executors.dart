@@ -1,4 +1,4 @@
-part of bijoy_helper;
+part of 'bijoy_helper.dart';
 
 
 String _toBijoy(String unicodeStr) {

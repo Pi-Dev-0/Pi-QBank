@@ -1,4 +1,4 @@
-part of bijoy_helper;
+part of 'bijoy_helper.dart';
 
 String doCharMap(String text, Map<String, String> charMap) {
   charMap.forEach((srcKey, keyVal) {

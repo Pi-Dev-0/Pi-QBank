@@ -1,4 +1,4 @@
-part of bijoy_helper;
+part of 'bijoy_helper.dart';
 
 const _preConversionMap = {
   ' +': ' ',

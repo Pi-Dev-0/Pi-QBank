@@ -1,4 +1,4 @@
-part of bijoy_helper;
+part of 'bijoy_helper.dart';
 
 /// Represents a segment of text with information about its language type
 class TextSegment {
