@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../widgets/delete_confirmation_dialog.dart';
+import '../widgets/custom_app_bar.dart';
 
 class Note {
   String title;
@@ -135,12 +136,13 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notes'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(kToolbarHeight),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      appBar: const CustomAppBar(
+        title: 'Notes',
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -164,9 +166,9 @@ class _NotesRemainderPageState extends State<NotesRemainderPage> {
               ),
             ),
           ),
-        ),
+          Expanded(child: _buildNotesGrid()),
+        ],
       ),
-      body: _buildNotesGrid(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateToNotePage(),
         child: const Icon(Icons.add),
