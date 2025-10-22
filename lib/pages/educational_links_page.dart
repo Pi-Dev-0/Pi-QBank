@@ -26,7 +26,7 @@ class _EducationalLinksPageState extends State<EducationalLinksPage> {
     },
     {
       'title': 'Education Board Results',
-      'url': 'http://www.educationboardresults.gov.bd/',
+      'url': 'https://www.eboardresults.com/v2/home',
       'favicon': _getFaviconUrl('http://www.educationboardresults.gov.bd/')
     },
     {
