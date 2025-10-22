@@ -19,16 +19,56 @@ class _EducationalLinksPageState extends State<EducationalLinksPage> {
   }
 
   late final List<Map<String, dynamic>> educationalLinks = [
-    {'title': 'Education Board Results', 'url': 'http://www.educationboardresults.gov.bd/', 'favicon': _getFaviconUrl('http://www.educationboardresults.gov.bd/')},
-    {'title': 'Directorate of Primary Education', 'url': 'http://www.dpe.gov.bd/', 'favicon': _getFaviconUrl('http://www.dpe.gov.bd/')},
-    {'title': 'Ministry of Education', 'url': 'https://moedu.gov.bd/', 'favicon': _getFaviconUrl('https://moedu.gov.bd/')},
-    {'title': 'University Grants Commission', 'url': 'http://www.ugc.gov.bd/', 'favicon': _getFaviconUrl('http://www.ugc.gov.bd/')},
-    {'title': 'National University', 'url': 'http://www.nu.ac.bd/', 'favicon': _getFaviconUrl('http://www.nu.ac.bd/')},
-    {'title': 'Bangladesh Open University', 'url': 'http://www.bou.ac.bd/', 'favicon': _getFaviconUrl('http://www.bou.ac.bd/')},
-    {'title': 'Dhaka University', 'url': 'http://www.du.ac.bd/', 'favicon': _getFaviconUrl('http://www.du.ac.bd/')},
-    {'title': 'Bangladesh Technical Education Board', 'url': 'http://www.bteb.gov.bd/', 'favicon': _getFaviconUrl('http://www.bteb.gov.bd/')},
-    {'title': 'NTRCA', 'url': 'http://www.ntrca.gov.bd/', 'favicon': _getFaviconUrl('http://www.ntrca.gov.bd/')},
-    {'title': 'Teachers Portal', 'url': 'http://www.teachers.gov.bd/', 'favicon': _getFaviconUrl('http://www.teachers.gov.bd/')},
+    {
+      'title': '7 College',
+      "url": 'https://student.7college.du.ac.bd/',
+      'favicon': _getFaviconUrl('https://student.7college.du.ac.bd/')
+    },
+    {
+      'title': 'Education Board Results',
+      'url': 'http://www.educationboardresults.gov.bd/',
+      'favicon': _getFaviconUrl('http://www.educationboardresults.gov.bd/')
+    },
+    {
+      'title': 'Directorate of Primary Education',
+      'url': 'http://www.dpe.gov.bd/',
+      'favicon': _getFaviconUrl('http://www.dpe.gov.bd/')
+    },
+    {
+      'title': 'University Grants Commission',
+      'url': 'http://www.ugc.gov.bd/',
+      'favicon': _getFaviconUrl('http://www.ugc.gov.bd/')
+    },
+    {
+      'title': 'National University',
+      'url': 'http://www.nu.ac.bd/',
+      'favicon': _getFaviconUrl('http://www.nu.ac.bd/')
+    },
+    {
+      'title': 'Bangladesh Open University',
+      'url': 'http://www.bou.ac.bd/',
+      'favicon': _getFaviconUrl('http://www.bou.ac.bd/')
+    },
+    {
+      'title': 'Dhaka University',
+      'url': 'http://www.du.ac.bd/',
+      'favicon': _getFaviconUrl('http://www.du.ac.bd/')
+    },
+    {
+      'title': 'Bangladesh Technical Education Board',
+      'url': 'http://www.bteb.gov.bd/',
+      'favicon': _getFaviconUrl('http://www.bteb.gov.bd/')
+    },
+    {
+      'title': 'NTRCA',
+      'url': 'http://www.ntrca.gov.bd/',
+      'favicon': _getFaviconUrl('http://www.ntrca.gov.bd/')
+    },
+    {
+      'title': 'Teachers Portal',
+      'url': 'http://www.teachers.gov.bd/',
+      'favicon': _getFaviconUrl('http://www.teachers.gov.bd/')
+    },
   ];
 
   Set<String> _favoriteEducationalLinks = {};
@@ -43,14 +83,15 @@ class _EducationalLinksPageState extends State<EducationalLinksPage> {
   Future<void> _loadFavorites() async {
     _prefs = await SharedPreferences.getInstance();
     setState(() {
-      _favoriteEducationalLinks = _prefs.getStringList('favoriteEducationalLinks')?.toSet() ?? {};
+      _favoriteEducationalLinks =
+          _prefs.getStringList('favoriteEducationalLinks')?.toSet() ?? {};
     });
   }
 
   Future<void> _saveFavorites() async {
-    await _prefs.setStringList('favoriteEducationalLinks', _favoriteEducationalLinks.toList());
+    await _prefs.setStringList(
+        'favoriteEducationalLinks', _favoriteEducationalLinks.toList());
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -90,10 +131,22 @@ class _EducationalLinksPageState extends State<EducationalLinksPage> {
             ),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => _WebViewScreen(
+                      title: link['title']!,
+                      url: link['url']!,
+                    ),
+                  ),
+                );
+              },
               splashColor: AppColors.deepPurple.withOpacity(0.1),
               highlightColor: AppColors.deepPurple.withOpacity(0.05),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                 child: Row(
                   children: [
                     ClipRRect(
@@ -122,7 +175,9 @@ class _EducationalLinksPageState extends State<EducationalLinksPage> {
                     IconButton(
                       icon: Icon(
                         isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: isFavorite ? AppColors.redError : AppColors.lightGrey,
+                        color: isFavorite
+                            ? AppColors.redError
+                            : AppColors.lightGrey,
                       ),
                       onPressed: () {
                         setState(() {
@@ -192,7 +247,8 @@ class _WebViewScreenState extends State<_WebViewScreen> {
           },
         ),
       )
-      ..setUserAgent("Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36")
+      ..setUserAgent(
+          "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36")
       ..loadRequest(
         Uri.parse(widget.url),
       );
@@ -208,7 +264,8 @@ class _WebViewScreenState extends State<_WebViewScreen> {
         children: [
           WebViewWidget(controller: controller),
           if (_isLoading)
-            LoadingWidget(progress: _progress, loadingText: 'Loading ${widget.title}...'),
+            LoadingWidget(
+                progress: _progress, loadingText: 'Loading ${widget.title}...'),
         ],
       ),
     );
