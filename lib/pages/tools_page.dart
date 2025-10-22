@@ -131,7 +131,9 @@ class _ToolsPageState extends State<ToolsPage> {
         },
       ),
     ];
-    _loadPinnedState();
+    _loadPinnedState().then((_) {
+      setState(() {});
+    });
   }
 
   Future<void> _loadPinnedState() async {
@@ -325,7 +327,8 @@ class _ToolsPageState extends State<ToolsPage> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.max,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(12),
