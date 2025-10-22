@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:pi_qbank/widgets/loading_widget.dart';
-import 'package:http/http.dart' as http;
+import 'package:pi_qbank/constants/app_colors.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EducationalLinksPage extends StatefulWidget {
   const EducationalLinksPage({super.key});
@@ -12,106 +13,134 @@ class EducationalLinksPage extends StatefulWidget {
 }
 
 class _EducationalLinksPageState extends State<EducationalLinksPage> {
-  final List<Map<String, String>> educationalLinks = [
-    {'title': 'Education Board Results', 'url': 'http://www.educationboardresults.gov.bd/'},
-    {'title': 'Directorate of Primary Education', 'url': 'http://www.dpe.gov.bd/'},
-    {'title': 'Ministry of Education', 'url': 'https://moedu.gov.bd/'},
-    {'title': 'University Grants Commission', 'url': 'http://www.ugc.gov.bd/'},
-    {'title': 'National University', 'url': 'http://www.nu.ac.bd/'},
-    {'title': 'Bangladesh Open University', 'url': 'http://www.bou.ac.bd/'},
-    {'title': 'Dhaka University', 'url': 'http://www.du.ac.bd/'},
-    {'title': 'Bangladesh Technical Education Board', 'url': 'http://www.bteb.gov.bd/'},
-    {'title': 'NTRCA', 'url': 'http://www.ntrca.gov.bd/'},
-    {'title': 'Teachers Portal', 'url': 'http://www.teachers.gov.bd/'},
+  String _getFaviconUrl(String url) {
+    final uri = Uri.parse(url);
+    return 'https://www.google.com/s2/favicons?sz=64&domain=${uri.host}';
+  }
+
+  late final List<Map<String, dynamic>> educationalLinks = [
+    {'title': 'Education Board Results', 'url': 'http://www.educationboardresults.gov.bd/', 'favicon': _getFaviconUrl('http://www.educationboardresults.gov.bd/')},
+    {'title': 'Directorate of Primary Education', 'url': 'http://www.dpe.gov.bd/', 'favicon': _getFaviconUrl('http://www.dpe.gov.bd/')},
+    {'title': 'Ministry of Education', 'url': 'https://moedu.gov.bd/', 'favicon': _getFaviconUrl('https://moedu.gov.bd/')},
+    {'title': 'University Grants Commission', 'url': 'http://www.ugc.gov.bd/', 'favicon': _getFaviconUrl('http://www.ugc.gov.bd/')},
+    {'title': 'National University', 'url': 'http://www.nu.ac.bd/', 'favicon': _getFaviconUrl('http://www.nu.ac.bd/')},
+    {'title': 'Bangladesh Open University', 'url': 'http://www.bou.ac.bd/', 'favicon': _getFaviconUrl('http://www.bou.ac.bd/')},
+    {'title': 'Dhaka University', 'url': 'http://www.du.ac.bd/', 'favicon': _getFaviconUrl('http://www.du.ac.bd/')},
+    {'title': 'Bangladesh Technical Education Board', 'url': 'http://www.bteb.gov.bd/', 'favicon': _getFaviconUrl('http://www.bteb.gov.bd/')},
+    {'title': 'NTRCA', 'url': 'http://www.ntrca.gov.bd/', 'favicon': _getFaviconUrl('http://www.ntrca.gov.bd/')},
+    {'title': 'Teachers Portal', 'url': 'http://www.teachers.gov.bd/', 'favicon': _getFaviconUrl('http://www.teachers.gov.bd/')},
   ];
 
-  final Map<String, String?> _faviconUrls = {};
+  Set<String> _favoriteEducationalLinks = {};
+  late SharedPreferences _prefs;
 
   @override
   void initState() {
     super.initState();
-    _fetchFavicons();
+    _loadFavorites();
   }
 
-  Future<void> _fetchFavicons() async {
-    for (var link in educationalLinks) {
-      final url = link['url']!;
-      try {
-        final uri = Uri.parse(url);
-        final faviconUrl = Uri.parse(
-            '${uri.scheme}://${uri.host}/favicon.ico'); // Common favicon path
-        final response = await http.head(faviconUrl);
-
-        if (response.statusCode == 200) {
-          setState(() {
-            _faviconUrls[url] = faviconUrl.toString();
-          });
-        }
-      } catch (e) {
-        // Handle error or simply ignore if favicon not found
-        // print('Error fetching favicon for $url: $e');
-      }
-    }
+  Future<void> _loadFavorites() async {
+    _prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _favoriteEducationalLinks = _prefs.getStringList('favoriteEducationalLinks')?.toSet() ?? {};
+    });
   }
 
-  void _launchURLInWebView(BuildContext context, String title, String url) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => _WebViewScreen(title: title, url: url),
-      ),
-    );
+  Future<void> _saveFavorites() async {
+    await _prefs.setStringList('favoriteEducationalLinks', _favoriteEducationalLinks.toList());
   }
+
 
   @override
   Widget build(BuildContext context) {
+    // Separate favorite and non-favorite channels
+    final List<Map<String, dynamic>> favoriteLinks = [];
+    final List<Map<String, dynamic>> nonFavoriteLinks = [];
+
+    for (var link in educationalLinks) {
+      if (_favoriteEducationalLinks.contains(link['url']!)) {
+        favoriteLinks.add(link);
+      } else {
+        nonFavoriteLinks.add(link);
+      }
+    }
+
+    // Combine them with favorites at the top
+    final List<Map<String, dynamic>> displayedLinks = [
+      ...favoriteLinks,
+      ...nonFavoriteLinks,
+    ];
+
     return Scaffold(
-      appBar: CustomAppBar(
-        title: 'Educational Links',
-      ),
+      backgroundColor: AppColors.lightBlueGrey, // Softer background color
+      appBar: CustomAppBar(title: 'Educational Links'),
       body: ListView.builder(
         padding: const EdgeInsets.all(8.0),
-        itemCount: educationalLinks.length,
+        itemCount: displayedLinks.length,
         itemBuilder: (context, index) {
-          final link = educationalLinks[index];
-          final faviconUrl = _faviconUrls[link['url']!];
-          return _buildLinkListItem(context, link['title']!, link['url']!, faviconUrl);
-        },
-      ),
-    );
-  }
-
-  Widget _buildLinkListItem(BuildContext context, String title, String url, String? faviconUrl) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: ListTile(
-        leading: faviconUrl != null
-            ? Image.network(
-                faviconUrl,
-                width: 24,
-                height: 24,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                  Icons.link,
-                  color: Theme.of(context).primaryColor,
+          final link = displayedLinks[index];
+          final isFavorite = _favoriteEducationalLinks.contains(link['url']!);
+          return Card(
+            color: AppColors.white, // Explicitly set card background to white
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              splashColor: AppColors.deepPurple.withOpacity(0.1),
+              highlightColor: AppColors.deepPurple.withOpacity(0.05),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Image.network(
+                        link['favicon']!,
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(Icons.link, color: AppColors.deepPurple);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        link['title']!,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.darkGrey,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite ? AppColors.redError : AppColors.lightGrey,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          if (isFavorite) {
+                            _favoriteEducationalLinks.remove(link['url']!);
+                          } else {
+                            _favoriteEducationalLinks.add(link['url']!);
+                          }
+                          _saveFavorites();
+                        });
+                      },
+                    ),
+                  ],
                 ),
-              )
-            : Icon(
-                Icons.link,
-                color: Theme.of(context).primaryColor,
               ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Text(url),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16.0),
-        onTap: () => _launchURLInWebView(context, title, url),
+            ),
+          );
+        },
       ),
     );
   }
@@ -121,7 +150,7 @@ class _WebViewScreen extends StatefulWidget {
   final String title;
   final String url;
 
-  const _WebViewScreen({super.key, required this.title, required this.url});
+  const _WebViewScreen({required this.title, required this.url});
 
   @override
   State<_WebViewScreen> createState() => _WebViewScreenState();
