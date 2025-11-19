@@ -9,6 +9,13 @@ import 'fill_in_the_blanks_test_page.dart';
 import 'mcq_test_page.dart';
 import 'short_question_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
+import 'package:pi_qbank/services/test_result_service.dart'; // Import TestResultService
+import 'package:pi_qbank/pages/short_question_analytics_page.dart'; // Import ShortQuestionAnalyticsPage
+import 'package:pi_qbank/models/test_result.dart'; // Import TestResult
+import 'package:pi_qbank/models/saved_test.dart'; // Import SavedTest model
+import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
+import 'package:uuid/uuid.dart'; // Import uuid for unique IDs
+import 'package:pi_qbank/pages/saved_tests_page.dart'; // Import SavedTestsPage
 
 class PrepareShortTestPage extends StatefulWidget {
   const PrepareShortTestPage({super.key});
@@ -22,11 +29,12 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
   String? _selectedTestType;
   int? _numberOfQuestions;
   int? _testTimeInMinutes;
-  XFile? _selectedImage;
-  String? _selectedImageMimeType;
+  final List<XFile> _selectedImages = [];
+  final List<String> _selectedImageMimeTypes = [];
   String _aiResponse = '';
   bool _isProcessingImage = false;
   String _selectedLanguage = 'English';
+  final Uuid _uuid = const Uuid(); // Initialize Uuid
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -60,30 +68,33 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
   Future<void> _pickImage() async {
     try {
       final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
+      final List<XFile> images = await picker.pickMultiImage(
         imageQuality: 80,
         maxWidth: 1200,
         maxHeight: 1200,
       );
 
-      if (image != null) {
-        final File file = File(image.path);
-        if (await file.exists()) {
-          setState(() {
-            _selectedImage = image;
-            _selectedImageMimeType = image.mimeType;
-            _aiResponse = '';
-          });
-        } else {
-          throw Exception('Selected image file does not exist');
+      if (images.isNotEmpty) {
+        List<XFile> validImages = [];
+        List<String> validMimeTypes = [];
+        for (XFile image in images) {
+          final File file = File(image.path);
+          if (await file.exists()) {
+            validImages.add(image);
+            validMimeTypes.add(image.mimeType ?? 'image/jpeg');
+          }
         }
+        setState(() {
+          _selectedImages.addAll(validImages);
+          _selectedImageMimeTypes.addAll(validMimeTypes);
+          _aiResponse = '';
+        });
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Error selecting image!'),
+          content: Text('Error selecting images: ${e.toString()}'),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
           shape:
@@ -98,11 +109,13 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
     final String languageInstruction = _selectedLanguage == 'বাংলা'
         ? 'Generate questions and answers strictly in Bengali (Bangla) language. '
         : 'Generate questions and answers strictly in English language. ';
+    final String imageContext = _selectedImages.length > 1
+        ? 'these images' : 'this image';
 
     switch (testType) {
       case 'MCQ Test':
         return '''
-${languageInstruction}Generate $questionsCount multiple choice questions about this image with 4 options each. 
+${languageInstruction}Generate $questionsCount multiple choice questions about $imageContext with 4 options each. 
 Respond in the following JSON format:
 
 {
@@ -123,22 +136,22 @@ Respond in the following JSON format:
 ''';
       case 'Short Question':
         if (_selectedLanguage == 'বাংলা') {
-          return '$languageInstruction এই ছবি সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
+          return '$languageInstruction এই $imageContext সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
         }
-        return '${languageInstruction}Generate $questionsCount short answer questions about this image that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
+        return '${languageInstruction}Generate $questionsCount short answer questions about $imageContext that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
       case 'Fill In the Blanks':
-        return '${languageInstruction}Generate $questionsCount fill-in-the-blank questions about this image. Format: Question with _____ for blanks, followed by the correct answer.';
+        return '${languageInstruction}Generate $questionsCount fill-in-the-blank questions about $imageContext. Format: Question with _____ for blanks, followed by the correct answer.';
       default:
-        return '${languageInstruction}Generate questions about this image suitable for a test.';
+        return '${languageInstruction}Generate questions about $imageContext suitable for a test.';
     }
   }
 
   Future<void> _sendImageToGemini() async {
-    if (_selectedImage == null || _selectedTestType == null) return;
+    if (_selectedImages.isEmpty || _selectedTestType == null) return;
 
     setState(() {
       _isProcessingImage = true;
-      _aiResponse = 'Processing image...';
+      _aiResponse = 'Processing images...';
     });
 
     try {
@@ -164,33 +177,36 @@ Respond in the following JSON format:
 
       List<Map<String, dynamic>> parts = [];
 
-      final bytes = await _selectedImage!.readAsBytes();
-      const int maxImageSize = 15 * 1024 * 1024;
-      if (bytes.length > maxImageSize) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-                'Image too large. Please choose a smaller image (max 15MB).'),
-            backgroundColor: Colors.orange.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-        setState(() {
-          _isProcessingImage = false;
-        });
-        return;
-      }
-
-      final base64Image = base64Encode(bytes);
-      parts.add({
-        "inline_data": {
-          "mime_type": _selectedImageMimeType ?? 'image/jpeg',
-          "data": base64Image
+      for (int i = 0; i < _selectedImages.length; i++) {
+        final image = _selectedImages[i];
+        final mimeType = _selectedImageMimeTypes[i];
+        final bytes = await image.readAsBytes();
+        const int maxImageSize = 15 * 1024 * 1024;
+        if (bytes.length > maxImageSize) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Image ${i + 1} is too large. Please choose smaller images (max 15MB each).'),
+              backgroundColor: Colors.orange.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+          setState(() {
+            _isProcessingImage = false;
+          });
+          return;
         }
-      });
+        final base64Image = base64Encode(bytes);
+        parts.add({
+          "inline_data": {
+            "mime_type": mimeType,
+            "data": base64Image
+          }
+        });
+      }
 
       String prompt = _getAIInstructions(_selectedTestType!);
       parts.add({"text": prompt});
@@ -201,26 +217,18 @@ Respond in the following JSON format:
       contents.add({
         "role": "user",
         "parts": [
-          {"text": "Analyze the provided image and generate questions based on it."}
+          {"text": "Analyze the provided images and generate questions based on them."}
         ]
       });
       contents.add({
         "role": "model",
         "parts": [
-          {"text": "Understood. I will analyze the image and prepare questions."}
+          {"text": "Understood. I will analyze the images and prepare questions."}
         ]
       });
 
-      // Add the current image and prompt
-      List<Map<String, dynamic>> currentParts = [];
-      currentParts.add({
-        "inline_data": {
-          "mime_type": _selectedImageMimeType ?? 'image/jpeg',
-          "data": base64Image
-        }
-      });
-      currentParts.add({"text": prompt});
-      contents.add({"role": "user", "parts": currentParts});
+      // Add the current images and prompt
+      contents.add({"role": "user", "parts": parts});
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -286,6 +294,9 @@ Respond in the following JSON format:
                   children: <Widget>[
                     // Header Section
                     _buildHeaderSection(),
+                    const SizedBox(height: 24),
+                    // Analytics Button
+                    _buildAnalyticsButton(),
                     const SizedBox(height: 24),
 
                     // Configuration Section
@@ -362,6 +373,96 @@ Respond in the following JSON format:
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAnalyticsButton() {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.orange.shade600, Colors.deepOrange.shade800],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              final List<TestResult> results = await TestResultService.loadTestResults();
+              if (!mounted) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ShortQuestionAnalyticsPage(
+                    testResults: results,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.analytics_outlined, size: 24),
+            label: const Text(
+              'View All Test Analytics',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.teal.shade600, Colors.cyan.shade800],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.teal.withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SavedTestsPage()),
+              );
+            },
+            icon: const Icon(Icons.save_alt_outlined, size: 24),
+            label: const Text(
+              'View Saved Tests',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -524,7 +625,7 @@ Respond in the following JSON format:
           _buildImagePickerCard(),
 
           // AI Processing Status
-          if (_selectedImage != null) ...[
+          if (_selectedImages.isNotEmpty) ...[
             const SizedBox(height: 20),
             if (_isProcessingImage)
               _buildProcessingIndicator()
@@ -560,7 +661,7 @@ Respond in the following JSON format:
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Processing Image...',
+                  'Processing Images...',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -568,7 +669,7 @@ Respond in the following JSON format:
                   ),
                 ),
                 Text(
-                  'AI is analyzing your image to generate questions',
+                  'AI is analyzing your images to generate questions',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.blue.shade600,
@@ -615,7 +716,7 @@ Respond in the following JSON format:
                 ),
                 Text(
                   isError
-                      ? 'Please try again with a different image'
+                      ? 'Please try again with different images'
                       : 'Questions are ready! Configure settings below to start test.',
                   style: TextStyle(
                     fontSize: 14,
@@ -747,7 +848,7 @@ Respond in the following JSON format:
             ],
           ),
           child: ElevatedButton.icon(
-            onPressed: (_selectedImage != null &&
+            onPressed: (_selectedImages.isNotEmpty &&
                     _selectedTestType != null &&
                     !_isProcessingImage)
                 ? _sendImageToGemini
@@ -777,11 +878,46 @@ Respond in the following JSON format:
           ),
         ),
 
-        // Start Test Button
+        // Save Test Button
         if (_aiResponse.isNotEmpty &&
             !_isProcessingImage &&
             !_aiResponse.contains('Error')) ...[
           const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.orange.shade600, Colors.deepOrange.shade800],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _saveTest,
+              icon: const Icon(Icons.save, size: 24),
+              label: const Text(
+                'Save Test for Later',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Start Test Button
           Container(
             width: double.infinity,
             height: 56,
@@ -810,7 +946,7 @@ Respond in the following JSON format:
                       testPage = MCQTestPage(
                         numberOfQuestions: _numberOfQuestions!,
                         testTimeInMinutes: _testTimeInMinutes!,
-                        selectedImage: _selectedImage,
+                        selectedImages: _selectedImages,
                         aiResponse: _aiResponse,
                         language: _selectedLanguage,
                       );
@@ -819,7 +955,7 @@ Respond in the following JSON format:
                       testPage = ShortQuestionPage(
                         numberOfQuestions: _numberOfQuestions!,
                         testTimeInMinutes: _testTimeInMinutes!,
-                        selectedImage: _selectedImage,
+                        selectedImages: _selectedImages,
                         aiResponse: _aiResponse,
                         language: _selectedLanguage,
                       );
@@ -830,6 +966,7 @@ Respond in the following JSON format:
                         testTimeInMinutes: _testTimeInMinutes!,
                         aiResponse: _aiResponse,
                         language: _selectedLanguage,
+                        selectedImages: _selectedImages,
                       );
                       break;
                     default:
@@ -838,6 +975,7 @@ Respond in the following JSON format:
                         testTimeInMinutes: _testTimeInMinutes!,
                         aiResponse: _aiResponse,
                         language: _selectedLanguage,
+                        selectedImages: _selectedImages,
                       );
                   }
                   Navigator.push(
@@ -885,7 +1023,7 @@ Respond in the following JSON format:
       ),
       child: Column(
         children: [
-          if (_selectedImage == null)
+          if (_selectedImages.isEmpty)
             InkWell(
               onTap: _pickImage,
               borderRadius: BorderRadius.circular(16),
@@ -909,7 +1047,7 @@ Respond in the following JSON format:
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Tap to Upload Image',
+                      'Tap to Upload Images',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -918,7 +1056,7 @@ Respond in the following JSON format:
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Support JPG, PNG, GIF (Max 15MB)',
+                      'Support JPG, PNG, GIF (Max 15MB per image)',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade500,
@@ -929,50 +1067,122 @@ Respond in the following JSON format:
               ),
             )
           else
-            Stack(
+            Column(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.file(
-                    File(_selectedImage!.path),
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _selectedImages.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.file(
+                                File(_selectedImages[index].path),
+                                height: 180,
+                                width: 180,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 5,
+                              right: 5,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.close, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedImages.removeAt(index);
+                                      _selectedImageMimeTypes.removeAt(index);
+                                      _aiResponse = '';
+                                    });
+                                  },
+                                  style: IconButton.styleFrom(
+                                    foregroundColor: Colors.grey.shade700,
+                                    padding: const EdgeInsets.all(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () {
-                        setState(() {
-                          _selectedImage = null;
-                          _aiResponse = '';
-                        });
-                      },
-                      style: IconButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        padding: const EdgeInsets.all(8),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
+                ElevatedButton.icon(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  label: const Text('Add More Images'),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: Colors.blue.shade600,
+                    backgroundColor: Colors.blue.shade50,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 12),
               ],
             ),
         ],
+      ),
+    );
+  }
+  Future<void> _saveTest() async {
+    if (_selectedTestType == null ||
+        _numberOfQuestions == null ||
+        _testTimeInMinutes == null ||
+        _testTimeInMinutes! <= 0 ||
+        _aiResponse.isEmpty ||
+        _aiResponse.contains('Error')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Cannot save test. Please generate questions first and ensure all fields are valid.'),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+
+    final savedTest = SavedTest(
+      id: _uuid.v4(), // Generate a unique ID
+      testType: _selectedTestType!,
+      numberOfQuestions: _numberOfQuestions!,
+      testTimeInMinutes: _testTimeInMinutes!,
+      imagePaths: _selectedImages.map((xFile) => xFile.path).toList(),
+      aiResponse: _aiResponse,
+      language: _selectedLanguage,
+      savedDate: DateTime.now(),
+    );
+
+    await SavedTestService.saveTest(savedTest);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Test saved successfully!'),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

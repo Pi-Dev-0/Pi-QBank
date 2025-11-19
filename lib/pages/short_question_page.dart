@@ -2,21 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'package:pi_qbank/pages/tools_page.dart';
+import 'package:pi_qbank/models/test_result.dart'; // Import TestResult
+import 'package:pi_qbank/services/test_result_service.dart'; // Import TestResultService
+import 'package:pi_qbank/pages/short_question_analytics_page.dart'; // Import ShortQuestionAnalyticsPage
+import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
 
 class ShortQuestionPage extends StatefulWidget {
   final int numberOfQuestions;
   final int testTimeInMinutes;
-  final XFile? selectedImage;
+  final List<XFile>? selectedImages;
   final String aiResponse;
   final String language;
+  final String? savedTestId; // New: Optional ID for saved tests
 
   const ShortQuestionPage({
     super.key,
     required this.numberOfQuestions,
     required this.testTimeInMinutes,
-    this.selectedImage,
+    this.selectedImages,
     required this.aiResponse,
     required this.language,
+    this.savedTestId, // New: Initialize savedTestId
   });
 
   @override
@@ -148,13 +154,53 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
     });
   }
 
-  void _submitTest() {
+  Future<void> _submitTest() async {
     if (_isSubmitted) return;
 
     _isSubmitted = true;
     _timer.cancel();
     _resultAnimationController.forward();
     setState(() {});
+
+    int correctCount = 0;
+    List<Map<String, dynamic>> questionsAndAnswers = [];
+
+    for (int i = 0; i < questions.length; i++) {
+      final questionData = questions[i];
+      final userAnswer = answerControllers[i]?.text ?? '';
+      final correctAnswer = questionData['answer'] ?? '';
+      final isCorrect = _isAnswerCorrect(userAnswer, correctAnswer);
+
+      if (isCorrect) {
+        correctCount++;
+      }
+
+      questionsAndAnswers.add({
+        'question': questionData['question'],
+        'correctAnswer': correctAnswer,
+        'userAnswer': userAnswer,
+        'isCorrect': isCorrect,
+      });
+    }
+
+    final testResult = TestResult(
+      testId: DateTime.now().millisecondsSinceEpoch.toString(),
+      testType: 'Short Question',
+      timestamp: DateTime.now(),
+      score: correctCount,
+      totalQuestions: questions.length,
+      timeTakenInSeconds: (widget.testTimeInMinutes * 60) - remainingTimeInSeconds,
+      language: widget.language,
+      questionsAndAnswers: questionsAndAnswers,
+      imagePaths: widget.selectedImages?.map((e) => e.path).toList() ?? [],
+    );
+
+    TestResultService.saveTestResult(testResult);
+
+    // If this test was loaded from a saved test, delete it after completion
+    if (widget.savedTestId != null) {
+      await SavedTestService.deleteTest(widget.savedTestId!);
+    }
   }
 
   @override
@@ -862,6 +908,77 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
                 ),
                 child: ElevatedButton.icon(
                   onPressed: () {
+                    final testResult = TestResult(
+                      testId: DateTime.now().millisecondsSinceEpoch.toString(),
+                      testType: 'Short Question',
+                      timestamp: DateTime.now(),
+                      score: questions
+                          .where((q) => _isAnswerCorrect(
+                              answerControllers[questions.indexOf(q)]?.text ??
+                                  '',
+                              q['answer'] ?? ''))
+                          .length,
+                      totalQuestions: questions.length,
+                      timeTakenInSeconds:
+                          (widget.testTimeInMinutes * 60) - remainingTimeInSeconds,
+                      language: widget.language,
+                      questionsAndAnswers: questions.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final questionData = entry.value;
+                        final userAnswer = answerControllers[index]?.text ?? '';
+                        final correctAnswer = questionData['answer'] ?? '';
+                        final isCorrect = _isAnswerCorrect(userAnswer, correctAnswer);
+                        return {
+                          'question': questionData['question'],
+                          'correctAnswer': correctAnswer,
+                          'userAnswer': userAnswer,
+                          'isCorrect': isCorrect,
+                        };
+                      }).toList(),
+                      imagePaths:
+                          widget.selectedImages?.map((e) => e.path).toList() ?? [],
+                    );
+                    _navigateToAnalyticsPage(testResult);
+                  },
+                  icon: const Icon(Icons.analytics_rounded, color: Colors.white),
+                  label: Text(
+                    widget.language == 'বাংলা'
+                        ? 'বিশ্লেষণ দেখুন'
+                        : 'View Analytics',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    minimumSize: const Size(double.infinity, 55),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16), // Add some space
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(15),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF667EEA).withOpacity(0.4),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () {
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
@@ -893,6 +1010,17 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToAnalyticsPage(TestResult testResult) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ShortQuestionAnalyticsPage(
+          testResults: [testResult], // Pass a list containing the single test result
         ),
       ),
     );

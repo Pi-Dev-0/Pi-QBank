@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'package:pi_qbank/pages/tools_page.dart';
+import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
 
 class FillInTheBlanksTestPage extends StatefulWidget {
   final int numberOfQuestions;
   final int testTimeInMinutes;
   final String aiResponse;
   final String language;
+  final List<XFile>? selectedImages;
+  final String? savedTestId; // New: Optional ID for saved tests
 
   const FillInTheBlanksTestPage({
     super.key,
@@ -14,6 +18,8 @@ class FillInTheBlanksTestPage extends StatefulWidget {
     required this.testTimeInMinutes,
     required this.aiResponse,
     required this.language,
+    this.selectedImages,
+    this.savedTestId, // New: Initialize savedTestId
   });
 
   @override
@@ -200,7 +206,7 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
     return normalized;
   }
 
-  void _submitTest() {
+  Future<void> _submitTest() async {
     _fillInTheBlanksResults.clear();
 
     // Very aggressive regex to remove ALL occurrences of "Answer:" or "উত্তর:"
@@ -231,6 +237,11 @@ class _FillInTheBlanksTestPageState extends State<FillInTheBlanksTestPage>
     setState(() {
       _testSubmitted = true;
     });
+
+    // If this test was loaded from a saved test, delete it after completion
+    if (widget.savedTestId != null) {
+      await SavedTestService.deleteTest(widget.savedTestId!);
+    }
   }
 
   @override

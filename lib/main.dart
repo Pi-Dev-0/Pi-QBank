@@ -138,6 +138,9 @@ import 'pages/tools_page.dart';
 import 'pages/blog_page.dart';
 import 'widgets/custom_bottom_navigation_bar.dart';
 import 'pages/feedback_page.dart';
+import 'pages/question_bank_content.dart';
+import 'pages/guide_book.dart';
+import 'pages/notes_remainder_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -173,6 +176,9 @@ class MyApp extends StatelessWidget {
         );
       },
       routes: {
+        '/question_bank_content': (context) => const QuestionBankContent(),
+        '/guide_book': (context) => const GuideBookPage(),
+        '/notes_remainder': (context) => const NotesRemainderPage(),
         '/feedback': (context) => const FeedbackPage(),
         '/upload': (context) => const FileUploadPage(),
         '/formula': (context) => const FormulaPage(),

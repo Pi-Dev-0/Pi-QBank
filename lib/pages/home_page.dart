@@ -1,242 +1,169 @@
 import 'package:flutter/material.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/custom_app_bar.dart';
+// Import the new QuestionBankContent
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
-    final List<Map<String, dynamic>> educationLevels = [
-      {
-        'title': 'Primary Education',
-        'items': [
-          {'name': 'Class 1', 'icon': Icons.filter_1, 'route': '/class1'},
-          {'name': 'Class 2', 'icon': Icons.filter_2, 'route': '/class2'},
-          {'name': 'Class 3', 'icon': Icons.filter_3, 'route': '/class3'},
-          {'name': 'Class 4', 'icon': Icons.filter_4, 'route': '/class4'},
-          {'name': 'Class 5', 'icon': Icons.filter_5, 'route': '/class5'},
-        ]
-      },
-      {
-        'title': 'Secondary Education',
-        'items': [
-          {'name': 'Class 6', 'icon': Icons.filter_6, 'route': '/class6'},
-          {'name': 'Class 7', 'icon': Icons.filter_7, 'route': '/class7'},
-          {'name': 'Class 8', 'icon': Icons.filter_8, 'route': '/class8'},
-          {'name': 'SSC', 'icon': Icons.school, 'route': '/ssc'},
-        ]
-      },
-      {
-        'title': 'Higher Education',
-        'items': [
-          {'name': 'HSC', 'icon': Icons.school, 'route': '/hsc'},
-          {
-            'name': '7 College',
-            'icon': Icons.account_balance,
-            'route': '/seven_college',
-          },
-          {
-            'name': 'National University',
-            'icon': Icons.account_balance,
-            'route': '/national_university',
-          },
-          {
-            'name': 'Nursing',
-            'icon': Icons.medical_services,
-            'route': '/nursing',
-          }
-        ]
-      },
-      {
-        'title': 'Admission',
-        'items': [
-          {'name': 'GST', 'icon': Icons.assignment, 'route': '/gst'},
-          {
-            'name': '7 College',
-            'icon': Icons.account_balance,
-            'route': '/seven_college_admission'
-          },
-          {
-            'name': 'Engineering',
-            'icon': Icons.engineering,
-            'route': '/engineering_universities'
-          },
-          {
-            'name': 'University',
-            'icon': Icons.school_outlined,
-            'route': '/universities'
-          },
-          {
-            'name': 'Nursing',
-            'icon': Icons.medical_services,
-            'route': '/nursing_admission'
-          },
-          {
-            'name': 'Medical',
-            'icon': Icons.local_hospital,
-            'route': '/medical'
-          },
-        ]
-      },
-    ];
-
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: const CustomAppBar(title: 'Pi-Mathematics'),
       drawer: const AppDrawer(),
-      body: ListView(
+      body: GridView.count(
         padding: const EdgeInsets.all(16),
+        crossAxisCount: 2,
+        childAspectRatio: 0.9,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
         children: [
-          // Education Levels
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: educationLevels.length,
-            itemBuilder: (context, sectionIndex) {
-              final section = educationLevels[sectionIndex];
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Center(
-                      child: Text(
-                        section['title'],
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: isLandscape ? 3 : 2,
-                      childAspectRatio: isLandscape ? 2 : 1.5,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 10,
-                    ),
-                    itemCount: section['items'].length,
-                    itemBuilder: (context, itemIndex) {
-                      final item = section['items'][itemIndex];
-                      return Card(
-                        elevation: 4,
-                        child: InkWell(
-                          onTap: () {
-                            if (item['route'] != null) {
-                              Navigator.pushNamed(context, item['route']);
-                            }
-                          },
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                item['icon'],
-                                size: isLandscape ? 28 : 32,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                item['name'],
-                                style: TextStyle(
-                                  fontSize: isLandscape ? 14 : 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              );
-            },
+          _buildMainMenuItem(
+            context,
+            'Question Bank',
+            'Practice with a vast collection of questions',
+            Icons.question_answer,
+            Colors.blue,
+            '/question_bank_content',
           ),
-
-          // Books Section
-          const SizedBox(height: 24),
-          const Divider(
-            thickness: 1,
-            color: Colors.grey,
+          _buildMainMenuItem(
+            context,
+            'Books',
+            'Access a library of educational books',
+            Icons.menu_book,
+            Colors.green,
+            '/books',
           ),
-          const SizedBox(height: 24),
-          Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: InkWell(
-              onTap: () {
-                Navigator.pushNamed(context, '/books');
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.menu_book,
-                      size: 40,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Books',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          _buildMainMenuItem(
+            context,
+            'Guides & Solutions',
+            'Find detailed guides and solutions',
+            Icons.lightbulb,
+            Colors.orange,
+            '/guide_book',
           ),
-          // --- Add PDF Reader Button Below ---
-          const SizedBox(height: 24),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.blue,
-                  Colors.purple,
-                  Colors.pinkAccent,
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.picture_as_pdf, size: 28, color: Colors.white),
-              label: const Text(
-                'Local PDF',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              onPressed: () {
-                Navigator.pushNamed(context, '/pdf_reader');
-              },
-            ),
+          _buildMainMenuItem(
+            context,
+            'Hand Notes',
+            'Review concise and helpful hand notes',
+            Icons.note,
+            Colors.purple,
+            '/notes_remainder',
           ),
-          const SizedBox(height: 16),
+          _buildMainMenuItem(
+            context,
+            'Formula',
+            'Browse essential formulas for various subjects',
+            Icons.functions,
+            Colors.red,
+            '/formula',
+          ),
+          _buildMainMenuItem(
+            context,
+            'Suggestions',
+            'Get tips and suggestions for better learning',
+            Icons.tips_and_updates,
+            Colors.teal,
+            '/suggestions',
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMainMenuItem(BuildContext context, String title,
+      String description, IconData icon, Color accentColor, String route) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () {
+            Navigator.pushNamed(context, route);
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, size: 24, color: accentColor),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade800,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Flexible(
+                  child: Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      height: 1.2,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Explore',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(Icons.arrow_forward, size: 10, color: accentColor),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

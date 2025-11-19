@@ -24,6 +24,8 @@ class AppConfig {
   static const String class8Api = String.fromEnvironment('CLASS8_API');
   static const String sscApi = String.fromEnvironment('SSC_API');
   static const String hscApi = String.fromEnvironment('HSC_API');
+  static const String aiQuestionGenerator =
+      String.fromEnvironment('AI_QUESTION_GENERATOR');
   static const String formulaApi = String.fromEnvironment('FORMULA_API');
   static const String suggestionApi = String.fromEnvironment('SUGGESTION_API');
   static const String sevenCollegeAdmissionApi =

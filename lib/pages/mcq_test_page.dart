@@ -3,21 +3,26 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:pi_qbank/pages/tools_page.dart';
+import 'package:pi_qbank/models/test_result.dart'; // Import TestResult
+import 'package:pi_qbank/services/test_result_service.dart'; // Import TestResultService
+import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
 
 class MCQTestPage extends StatefulWidget {
   final int numberOfQuestions;
   final int testTimeInMinutes;
-  final XFile? selectedImage;
+  final List<XFile>? selectedImages;
   final String aiResponse;
   final String language;
+  final String? savedTestId; // New: Optional ID for saved tests
 
   const MCQTestPage({
     super.key,
     required this.numberOfQuestions,
     required this.testTimeInMinutes,
-    this.selectedImage,
+    this.selectedImages,
     required this.aiResponse,
     required this.language,
+    this.savedTestId, // New: Initialize savedTestId
   });
 
   @override
@@ -108,13 +113,20 @@ class _MCQTestPageState extends State<MCQTestPage>
     }
   }
 
-  void _submitTest() {
+  Future<void> _submitTest() async {
     _mcqResults.clear();
+    int correctCount = 0;
+    List<Map<String, dynamic>> questionsAndAnswers = [];
+
     for (int i = 0; i < _mcqQuestions.length; i++) {
       final question = _mcqQuestions[i];
       final selectedOption = _userAnswers[i];
       final correctAnswer = question['correct_answer'];
       final isCorrect = selectedOption == correctAnswer;
+
+      if (isCorrect) {
+        correctCount++;
+      }
 
       _mcqResults.add({
         'question': question['question'],
@@ -123,6 +135,33 @@ class _MCQTestPageState extends State<MCQTestPage>
         'is_correct': isCorrect,
         'options': question['options'],
       });
+
+      questionsAndAnswers.add({
+        'question': question['question'],
+        'correctAnswer': correctAnswer,
+        'userAnswer': selectedOption,
+        'isCorrect': isCorrect,
+        'options': question['options'], // Add MCQ options here
+      });
+    }
+
+    final testResult = TestResult(
+      testId: DateTime.now().millisecondsSinceEpoch.toString(),
+      testType: 'MCQ Test',
+      timestamp: DateTime.now(),
+      score: correctCount,
+      totalQuestions: _mcqQuestions.length,
+      timeTakenInSeconds: (widget.testTimeInMinutes * 60) - _remainingSeconds,
+      language: widget.language,
+      questionsAndAnswers: questionsAndAnswers,
+      imagePaths: widget.selectedImages?.map((e) => e.path).toList() ?? [],
+    );
+
+    TestResultService.saveTestResult(testResult);
+
+    // If this test was loaded from a saved test, delete it after completion
+    if (widget.savedTestId != null) {
+      await SavedTestService.deleteTest(widget.savedTestId!);
     }
 
     setState(() {
@@ -940,37 +979,46 @@ class _MCQTestPageState extends State<MCQTestPage>
   }
 
   Widget _buildStatisticCard(
-      String value, String label, IconData icon, Color color) {
+      String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
-            label,
+            value,
             style: TextStyle(
-              fontSize: 14,
-              color: color.withOpacity(0.8),
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

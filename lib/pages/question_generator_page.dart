@@ -6,6 +6,7 @@ import 'dart:convert';
 import '../config/app_config.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
+import 'package:pi_qbank/services/question_generator_google_sheet_service.dart';
 
 class QuestionGeneratorPage extends StatefulWidget {
   const QuestionGeneratorPage({super.key});
@@ -18,13 +19,14 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     with TickerProviderStateMixin {
   String? _selectedQuestionType; // Changed from _selectedTestType
   int? _numberOfQuestions;
-  XFile? _selectedImage;
-  String? _selectedImageMimeType;
+  final List<XFile> _selectedImages = [];
+  final List<String> _selectedImageMimeTypes = [];
   String _aiResponse = '';
   bool _isProcessingImage = false;
   String _selectedLanguage = 'English';
   final List<Map<String, String>> _generatedQuestions = [];
   String _generatedTopic = ''; // New state for the generated topic
+  String? _selectedClass; // New state for selected class
 
   // MCQ state
   List<Map<String, dynamic>> _generatedMcqs = [];
@@ -66,33 +68,36 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
   Future<void> _pickImage() async {
     try {
       final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
+      final List<XFile> images = await picker.pickMultiImage(
         imageQuality: 80,
         maxWidth: 1200,
         maxHeight: 1200,
       );
 
-      if (image != null) {
-        final File file = File(image.path);
-        if (await file.exists()) {
-          setState(() {
-            _selectedImage = image;
-            _selectedImageMimeType = image.mimeType;
-            _aiResponse = '';
-            _generatedTopic = ''; // Reset topic
-            _generatedMcqs.clear();
-            _answerVisibility.clear();
-          });
-        } else {
-          throw Exception('Selected image file does not exist');
+      if (images.isNotEmpty) {
+        List<XFile> validImages = [];
+        List<String> validMimeTypes = [];
+        for (XFile image in images) {
+          final File file = File(image.path);
+          if (await file.exists()) {
+            validImages.add(image);
+            validMimeTypes.add(image.mimeType ?? 'image/jpeg');
+          }
         }
+        setState(() {
+          _selectedImages.addAll(validImages);
+          _selectedImageMimeTypes.addAll(validMimeTypes);
+          _aiResponse = '';
+          _generatedTopic = ''; // Reset topic
+          _generatedMcqs.clear();
+          _answerVisibility.clear();
+        });
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Error selecting image!'),
+          content: Text('Error selecting images: ${e.toString()}'),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
           shape:
@@ -107,28 +112,30 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     final String languageInstruction = _selectedLanguage == 'বাংলা'
         ? 'Generate questions and answers strictly in Bengali (Bangla) language. '
         : 'Generate questions and answers strictly in English language. ';
+    final String imageContext = _selectedImages.length > 1
+        ? 'these images' : 'this image';
 
     String topicInstruction = _selectedLanguage == 'বাংলা'
-        ? 'এই ছবির উপর ভিত্তি করে একটি উপযুক্ত বিষয় বা শিরোনাম তৈরি করুন এবং আপনার প্রতিক্রিয়ার শুরুতে "বিষয়:" দিয়ে শুরু করুন। তারপর, '
-        : 'Generate a suitable topic or title based on this image and start your response with "Topic: [Your Topic]". Then, ';
+        ? 'এই $imageContext উপর ভিত্তি করে একটি উপযুক্ত বিষয় বা শিরোনাম তৈরি করুন এবং আপনার প্রতিক্রিয়ার শুরুতে "বিষয়:" দিয়ে শুরু করুন। তারপর, '
+        : 'Generate a suitable topic or title based on $imageContext and start your response with "Topic: [Your Topic]". Then, ';
 
     switch (questionType) {
       case 'Short Question':
         if (_selectedLanguage == 'বাংলা') {
-          return '$topicInstruction$languageInstructionএই ছবি সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
+          return '$topicInstruction$languageInstructionএই $imageContext সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
         }
-        return '$topicInstruction${languageInstruction}Generate $questionsCount short answer questions about this image that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
+        return '$topicInstruction${languageInstruction}Generate $questionsCount short answer questions about $imageContext that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
       case 'Broad Question':
         if (_selectedLanguage == 'বাংলা') {
-          return '$topicInstruction$languageInstructionএই ছবি সম্পর্কে $questionsCount টি বিস্তারিত উত্তর প্রশ্ন তৈরি করুন যার জন্য বিস্তারিত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ৫-২০ বাক্যের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
+          return '$topicInstruction$languageInstructionএই $imageContext সম্পর্কে $questionsCount টি বিস্তারিত উত্তর প্রশ্ন তৈরি করুন যার জন্য বিস্তারিত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ৫-২০ বাক্যের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
         }
-        return '$topicInstruction${languageInstruction}Generate $questionsCount broad answer questions about this image that require detailed explanations. Each answer should be 5-20 sentences. Each answer must start on a new line with "Answer:".';
+        return '$topicInstruction${languageInstruction}Generate $questionsCount broad answer questions about $imageContext that require detailed explanations. Each answer should be 5-20 sentences. Each answer must start on a new line with "Answer:".';
       case 'MCQ':
         final String mcqLanguageInstruction = _selectedLanguage == 'বাংলা'
             ? 'Generate questions and answers strictly in Bengali (Bangla) language.'
             : 'Generate questions and answers strictly in English language.';
         return '''
-$mcqLanguageInstruction Generate $questionsCount multiple choice questions about this image with 4 options each. 
+$mcqLanguageInstruction Generate $questionsCount multiple choice questions about $imageContext with 4 options each. 
 Each question must also include the correct answer.
 Respond in the following JSON format:
 
@@ -150,16 +157,16 @@ Respond in the following JSON format:
 }
 ''';
       default:
-        return '$topicInstruction${languageInstruction}Generate questions about this image.';
+        return '$topicInstruction${languageInstruction}Generate questions about $imageContext.';
     }
   }
 
   Future<void> _sendImageToGemini() async {
-    if (_selectedImage == null || _selectedQuestionType == null) return;
+    if (_selectedImages.isEmpty || _selectedQuestionType == null) return;
 
     setState(() {
       _isProcessingImage = true;
-      _aiResponse = 'Processing image...';
+      _aiResponse = 'Processing images...';
       _generatedTopic = ''; // Clear topic on new generation
       _generatedQuestions.clear();
       _generatedMcqs.clear();
@@ -188,33 +195,36 @@ Respond in the following JSON format:
 
       List<Map<String, dynamic>> parts = [];
 
-      final bytes = await _selectedImage!.readAsBytes();
-      const int maxImageSize = 15 * 1024 * 1024;
-      if (bytes.length > maxImageSize) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-                'Image too large. Please choose a smaller image (max 15MB).'),
-            backgroundColor: Colors.orange.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-        setState(() {
-          _isProcessingImage = false;
-        });
-        return;
-      }
-
-      final base64Image = base64Encode(bytes);
-      parts.add({
-        "inline_data": {
-          "mime_type": _selectedImageMimeType ?? 'image/jpeg',
-          "data": base64Image
+      for (int i = 0; i < _selectedImages.length; i++) {
+        final image = _selectedImages[i];
+        final mimeType = _selectedImageMimeTypes[i];
+        final bytes = await image.readAsBytes();
+        const int maxImageSize = 15 * 1024 * 1024;
+        if (bytes.length > maxImageSize) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Image ${i + 1} is too large. Please choose smaller images (max 15MB each).'),
+              backgroundColor: Colors.orange.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+          setState(() {
+            _isProcessingImage = false;
+          });
+          return;
         }
-      });
+        final base64Image = base64Encode(bytes);
+        parts.add({
+          "inline_data": {
+            "mime_type": mimeType,
+            "data": base64Image
+          }
+        });
+      }
 
       String prompt = _getAIInstructions(_selectedQuestionType!);
       parts.add({"text": prompt});
@@ -226,7 +236,7 @@ Respond in the following JSON format:
         "parts": [
           {
             "text":
-                "Analyze the provided image and generate questions based on it."
+                "Analyze the provided images and generate questions based on them."
           }
         ]
       });
@@ -235,18 +245,13 @@ Respond in the following JSON format:
         "parts": [
           {
             "text":
-                "Understood. I will analyze the image and prepare questions."
+                "Understood. I will analyze the images and prepare questions."
           }
         ]
       });
 
       List<Map<String, dynamic>> currentParts = [];
-      currentParts.add({
-        "inline_data": {
-          "mime_type": _selectedImageMimeType ?? 'image/jpeg',
-          "data": base64Image
-        }
-      });
+      currentParts.addAll(parts); // Add all image parts
       currentParts.add({"text": prompt});
       contents.add({"role": "user", "parts": currentParts});
       final response = await http.post(
@@ -579,7 +584,7 @@ Respond in the following JSON format:
           _buildImagePickerCard(),
 
           // AI Processing Status
-          if (_selectedImage != null) ...[
+          if (_selectedImages.isNotEmpty) ...[
             const SizedBox(height: 20),
             if (_isProcessingImage)
               _buildProcessingIndicator()
@@ -790,7 +795,7 @@ Respond in the following JSON format:
             ],
           ),
           child: ElevatedButton.icon(
-            onPressed: (_selectedImage != null &&
+            onPressed: (_selectedImages.isNotEmpty &&
                     _selectedQuestionType != null &&
                     _numberOfQuestions != null &&
                     _numberOfQuestions! > 0 &&
@@ -835,7 +840,7 @@ Respond in the following JSON format:
       ),
       child: Column(
         children: [
-          if (_selectedImage == null)
+          if (_selectedImages.isEmpty)
             InkWell(
               onTap: _pickImage,
               borderRadius: BorderRadius.circular(16),
@@ -859,7 +864,7 @@ Respond in the following JSON format:
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Tap to Upload Image',
+                      'Tap to Upload Images',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -868,7 +873,7 @@ Respond in the following JSON format:
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Support JPG, PNG, GIF (Max 15MB)',
+                      'Support JPG, PNG, GIF (Max 15MB per image)',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade500,
@@ -879,50 +884,81 @@ Respond in the following JSON format:
               ),
             )
           else
-            Stack(
+            Column(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.file(
-                    File(_selectedImage!.path),
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _selectedImages.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.file(
+                                File(_selectedImages[index].path),
+                                height: 180,
+                                width: 180,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 5,
+                              right: 5,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  icon: const Icon(Icons.close, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedImages.removeAt(index);
+                                      _selectedImageMimeTypes.removeAt(index);
+                                      _aiResponse = '';
+                                      _generatedMcqs.clear();
+                                      _generatedQuestions.clear();
+                                      _answerVisibility.clear();
+                                    });
+                                  },
+                                  style: IconButton.styleFrom(
+                                    foregroundColor: Colors.grey.shade700,
+                                    padding: const EdgeInsets.all(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.close, size: 20),
-                      onPressed: () {
-                        setState(() {
-                          _selectedImage = null;
-                          _aiResponse = '';
-                          _generatedMcqs.clear();
-                          _generatedQuestions.clear();
-                          _answerVisibility.clear();
-                        });
-                      },
-                      style: IconButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        padding: const EdgeInsets.all(8),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
+                ElevatedButton.icon(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  label: const Text('Add More Images'),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: Colors.blue.shade600,
+                    backgroundColor: Colors.blue.shade50,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 12),
               ],
             ),
         ],
@@ -1459,7 +1495,398 @@ Respond in the following JSON format:
             );
           },
         ),
+        // Upload to Server Button
+        if (_aiResponse.isNotEmpty &&
+            !_isProcessingImage &&
+            !_aiResponse.contains('Error')) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.deepPurple.shade600, Colors.purple.shade800],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.deepPurple.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _uploadTestToServer, // New method for uploading
+              icon: const Icon(Icons.cloud_upload, size: 24),
+              label: const Text(
+                'Upload to Server',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
+
+  Future<void> _uploadTestToServer() async {
+    if (_generatedQuestions.isEmpty && _generatedMcqs.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No questions generated to upload.'),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+    await _showUploadDialog();
+  }
+
+  Future<void> _showUploadDialog() async {
+    String? tempSelectedClass = _selectedClass;
+    String?
+        tempSelectedSubject; // New state for subject selection within the dialog
+    final TextEditingController chapterController = TextEditingController();
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'Upload Questions to Server',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    // Class Dropdown
+                    _buildPickerButton(
+                      label: 'Select Class',
+                      icon: Icons.school_outlined,
+                      value: tempSelectedClass,
+                      onTap: () {
+                        _showSelectionDialog(
+                          context: context,
+                          title: 'Select Class',
+                          items: List.generate(12, (i) => 'Class ${i + 1}'),
+                          selectedItem: tempSelectedClass,
+                          onItemSelected: (value) {
+                            setState(() {
+                              tempSelectedClass = value;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    // Subject Dropdown
+                    _buildPickerButton(
+                      label: 'Select Subject',
+                      icon: Icons.menu_book_outlined,
+                      value: tempSelectedSubject,
+                      onTap: () {
+                        _showSelectionDialog(
+                          context: context,
+                          title: 'Select Subject',
+                          items: [
+                            'Physics',
+                            'Chemistry',
+                            'Math',
+                            'Biology',
+                            'English',
+                            'Bangla'
+                          ],
+                          selectedItem: tempSelectedSubject,
+                          onItemSelected: (value) {
+                            setState(() {
+                              tempSelectedSubject = value;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    // Chapter Text Field
+                    _buildStylishTextField(
+                      label: 'Chapter Name',
+                      icon: Icons.bookmark_outline,
+                      keyboardType: TextInputType.text,
+                      onChanged: (value) {
+                        chapterController.text = value;
+                      },
+                    ),
+                    const SizedBox(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: <Widget>[
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            final String subject = tempSelectedSubject ?? '';
+                            final String chapter =
+                                chapterController.text.trim();
+                            if (tempSelectedClass != null &&
+                                subject.isNotEmpty &&
+                                chapter.isNotEmpty) {
+                              Navigator.of(context).pop();
+                              _uploadQuestions(
+                                  tempSelectedClass!, subject, chapter);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                      'Please select a Class, Subject, and enter a Chapter.'),
+                                  backgroundColor: Colors.red.shade600,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple.shade600,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 12),
+                          ),
+                          child: const Text('Upload'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSelectionDialog({
+    required BuildContext context,
+    required String title,
+    required List<String> items,
+    required String? selectedItem,
+    required ValueChanged<String> onItemSelected,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        elevation: 8,
+        title: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: items.map((item) {
+              return GestureDetector(
+                onTap: () {
+                  onItemSelected(item);
+                  Navigator.of(dialogContext).pop();
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: selectedItem == item
+                        ? Colors.blue.shade100
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: selectedItem == item
+                          ? Colors.blue
+                          : Colors.grey.shade300,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    item,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: selectedItem == item
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: selectedItem == item
+                          ? Colors.blue.shade900
+                          : Colors.black87,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPickerButton({
+    required String label,
+    required IconData icon,
+    required String? value,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          color: Colors.grey.shade50,
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(icon, color: Colors.purple.shade600),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label == 'Select Class' && value != null
+                    ? value
+                    : value ?? label,
+                style: TextStyle(
+                  fontSize: 16,
+                  color:
+                      value != null ? Colors.black87 : Colors.grey.shade600,
+                ),
+              ),
+            ),
+            Icon(Icons.keyboard_arrow_down, color: Colors.purple.shade600),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _uploadQuestions(String selectedClass, String subject, String chapter) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Uploading questions for Class: $selectedClass, Subject: $subject, Chapter: $chapter...'),
+        backgroundColor: Colors.blue.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    String result;
+    if (_selectedQuestionType == 'MCQ') {
+      result = await QuestionGeneratorGoogleSheetService.uploadQuestions(
+        className: selectedClass,
+        subject: subject,
+        chapter: chapter,
+        questionType: _selectedQuestionType!,
+        language: _selectedLanguage,
+        generatedTopic: _generatedTopic,
+        generatedQuestions: [], // Not applicable for MCQ
+        generatedMcqs: _generatedMcqs,
+      );
+    } else {
+      result = await QuestionGeneratorGoogleSheetService.uploadQuestions(
+        className: selectedClass,
+        subject: subject,
+        chapter: chapter,
+        questionType: _selectedQuestionType!,
+        language: _selectedLanguage,
+        generatedTopic: _generatedTopic,
+        generatedQuestions: _generatedQuestions,
+        generatedMcqs: [], // Not applicable for Short/Broad
+      );
+    }
+
+    if (!mounted) return;
+    if (result == 'SUCCESS') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Questions uploaded successfully!'),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload questions: $result'),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
 }
+
