@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'pages/home_page.dart';
@@ -141,7 +142,7 @@ import 'pages/feedback_page.dart';
 import 'pages/question_bank_content.dart';
 import 'pages/guide_book.dart';
 import 'pages/notes_remainder_page.dart';
-
+import 'pages/hand_notes/hand_notes_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -192,7 +193,8 @@ class MyApp extends StatelessWidget {
         '/class8': (context) => const Class8Page(),
         '/ssc': (context) => const SSCPage(),
         '/hsc': (context) => const HSCPage(),
-        '/seven_college_mathematics': (context) => const SevecCollegeMathematicsPage(),
+        '/seven_college_mathematics': (context) =>
+            const SevecCollegeMathematicsPage(),
         '/info': (context) => const InfoPage(),
         '/national_university': (context) => const NationalUniversityPage(),
         '/national_university/mathematics': (context) =>
@@ -249,6 +251,7 @@ class MyApp extends StatelessWidget {
         '/bookmarks': (context) => const BookmarksPage(),
         '/downloaded': (context) => const DownloadedPapersPage(),
         '/pdf_reader': (context) => const PdfReaderPage(),
+        '/hand_notes': (context) => const HandNotesPage(),
 
         // SSC Subject Routes
         '/ssc_bangla_1st': (context) => const SSCBanglaFirstPaper(),
@@ -383,69 +386,88 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: false,
-      bottomNavigationBar: CustomBottomNavigationBar(
-        currentPageIndex: _page,
-        onPageSelected: (index) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
+        if (didPop) {
+          return;
+        }
+        final navigator = Navigator.of(context);
+        if (navigator.canPop()) {
+          navigator.pop();
+        } else if (_page != 2) {
           setState(() {
-            _page = index;
+            _page = 2;
           });
-        },
-        navGradients: _navGradients,
-      ),
-      body: Stack(
-        children: [
-          // Animated background blur circles
-          Positioned(
-            top: -50,
-            right: -50,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity( 0.1 ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -80,
-            left: -80,
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.08),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 100,
-            left: -30,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.06),
-              ),
-            ),
-          ),
-          // Main content with subtle blur overlay
-          ClipRRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 0.5, sigmaY: 0.5),
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        extendBody: false,
+        bottomNavigationBar: CustomBottomNavigationBar(
+          currentPageIndex: _page,
+          onPageSelected: (index) {
+            FocusManager.instance.primaryFocus?.unfocus(); // Unfocus keyboard
+            setState(() {
+              _page = index;
+            });
+          },
+          navGradients: _navGradients,
+        ),
+        body: Stack(
+          children: [
+            // Animated background blur circles
+            Positioned(
+              top: -50,
+              right: -50,
               child: Container(
+                width: 200,
+                height: 200,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.1),
                 ),
-                child: _pages[_page],
               ),
             ),
-          ),
-        ],
+            Positioned(
+              bottom: -80,
+              left: -80,
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.08),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 100,
+              left: -30,
+              child: Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.06),
+                ),
+              ),
+            ),
+            // Main content with subtle blur overlay
+            ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 0.5, sigmaY: 0.5),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                  ),
+                  child: _pages[_page],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

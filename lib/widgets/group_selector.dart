@@ -14,37 +14,65 @@ class GroupSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Row(
-        children: groups.map((group) {
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: selectedGroup == group
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.white,
-                  foregroundColor:
-                      selectedGroup == group ? Colors.white : Colors.black87,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  elevation: 8,
-                  shadowColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.8),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: groups.map((group) {
+            final isSelected = selectedGroup == group;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey.shade100,
+                    foregroundColor: isSelected ? Colors.white : Colors.black87,
+                    elevation: isSelected ? 4 : 0,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      side: BorderSide(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.transparent,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  onPressed: () => onGroupChanged(group),
+                  child: Text(
+                    group,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
                   ),
                 ),
-                onPressed: () => onGroupChanged(group),
-                child: Text(
-                  group,
-                  style: const TextStyle(fontSize: 13),
-                ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
-} 
+}

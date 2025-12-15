@@ -23,8 +23,10 @@ class AIPage extends StatefulWidget {
   State<AIPage> createState() => _AIPageState();
 }
 
-class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+class _AIPageState extends State<AIPage>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode(); // Add FocusNode
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _isLoading = false;
@@ -46,11 +48,10 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
   String _toneLanguage = '';
   String _tonePurpose = '';
   List<Map<String, String>> _customTraits = [];
-  String _selectedModel = 'gemini-2.5-flash-preview-05-20'; // Default model
+  String _selectedModel = 'gemini-2.5-flash-preview-09-2025'; // Default model
   // Removed _customApiKey as it will be fetched directly
 
   // Image generation state
-  bool _isGeneratingImage = false;
 
   @override
   void initState() {
@@ -119,7 +120,8 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
       await flutterTts.speak(text);
     }
     flutterTts.setCompletionHandler(() {
-      if (mounted) { // Add mounted check
+      if (mounted) {
+        // Add mounted check
         setState(() {
           _speakingMessageIndex = null;
         });
@@ -129,7 +131,8 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
 
   Future _stop() async {
     await flutterTts.stop();
-    if (mounted) { // Add mounted check
+    if (mounted) {
+      // Add mounted check
       setState(() {
         _speakingMessageIndex = null;
       });
@@ -148,7 +151,6 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
       _messages.clear();
       _selectedImage = null;
       _isLoading = false;
-      _isGeneratingImage = false;
       _speakingMessageIndex = null;
       _isShowingHistory = false;
       _currentChatIndex = null; // Ensure a new blank chat
@@ -159,22 +161,27 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
 
   Future<void> _saveCurrentChat() async {
     if (_messages.isNotEmpty) {
-      final chatMessageModels = _messages.map((msg) => ChatMessageModel(
-        text: msg.text,
-        isUser: msg.isUser,
-        imagePath: msg.imagePath,
-        base64Image: msg.base64Image,
-        userImageBase64: msg.userImageBase64,
-      )).toList();
+      final chatMessageModels = _messages
+          .map((msg) => ChatMessageModel(
+                text: msg.text,
+                isUser: msg.isUser,
+                imagePath: msg.imagePath,
+                base64Image: msg.base64Image,
+                userImageBase64: msg.userImageBase64,
+              ))
+          .toList();
 
       if (_currentChatIndex != null) {
         // Update existing chat
-        await _chatHistoryService.updateChat(_currentChatIndex!, chatMessageModels);
+        await _chatHistoryService.updateChat(
+            _currentChatIndex!, chatMessageModels);
       } else {
         // Save as a new chat
-        final newChatIndex = await _chatHistoryService.saveChat(chatMessageModels);
+        final newChatIndex =
+            await _chatHistoryService.saveChat(chatMessageModels);
         setState(() {
-          _currentChatIndex = newChatIndex; // Set the current chat index to the newly saved chat
+          _currentChatIndex =
+              newChatIndex; // Set the current chat index to the newly saved chat
         });
       }
       await _loadChatHistory(); // Reload history after saving/updating
@@ -187,7 +194,6 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
       _messages.clear();
       _selectedImage = null;
       _isLoading = false;
-      _isGeneratingImage = false;
       _speakingMessageIndex = null;
       _isShowingHistory = false; // Ensure we are on the current chat view
       _currentChatIndex = null; // Reset to null for a new chat
@@ -201,15 +207,15 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
       _currentChatIndex = index; // Set the current chat index
       _messages.clear();
       _messages.addAll(_chatHistory[index].map((model) => ChatMessage(
-        text: model.text,
-        isUser: model.isUser,
-        imagePath: model.imagePath,
-        base64Image: model.base64Image,
-        userImageBase64: model.userImageBase64,
-        onSpeak: (text) => _speak(text),
-        onStop: _stop,
-        isSpeaking: false,
-      )));
+            text: model.text,
+            isUser: model.isUser,
+            imagePath: model.imagePath,
+            base64Image: model.base64Image,
+            userImageBase64: model.userImageBase64,
+            onSpeak: (text) => _speak(text),
+            onStop: _stop,
+            isSpeaking: false,
+          )));
       _isShowingHistory = false; // Switch back to current chat view
     });
     _scrollToBottom();
@@ -234,13 +240,15 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
         _customTraits = [];
       }
       _selectedModel = prefs.getString('selected_model') ??
-          'gemini-2.5-flash-preview-05-20'; // Default to gemini-2.5-flash-preview-05-20 if not found
+          'gemma-3-27b-it'; // Default to gemma-3-27b-it if not found
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this); // Remove observer
+    _focusNode.unfocus(); // Unfocus first
+    _focusNode.dispose(); // Then dispose
     _scrollController.dispose();
     _controller.dispose();
     _stop(); // Stop TTS when disposing
@@ -305,112 +313,134 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
     _scrollToBottom();
 
     try {
-      final String model = _selectedImage != null
-          ? 'gemini-2.0-flash' // Model for image chat
-          : _selectedModel; // Use selected model for text chat
+      String primaryModel = _selectedModel;
+      if (_selectedImage != null) {
+        if (!_selectedModel.startsWith('gemini') ||
+            _selectedModel == 'gemini-2.0-flash') {
+          primaryModel = 'gemini-2.5-flash-preview-09-2025';
+        }
+      }
 
-      // Use custom API key if provided, otherwise fall back to default
-      final String? savedApiKey =
-          await getApiKey(); // Get API key from dialog's shared preferences
+      // Define fallback models
+      List<String> modelsToTry = [primaryModel];
+      if (_selectedImage != null) {
+        modelsToTry.addAll([
+          'gemini-2.5-flash-preview-09-2025',
+          'gemini-2.0-flash',
+          'gemini-1.5-flash',
+          'gemini-1.5-pro'
+        ]);
+      } else {
+        modelsToTry.addAll([
+          'gemini-2.0-flash',
+          'gemini-1.5-flash',
+          'gemma-3-27b-it',
+          'gemini-2.0-flash-lite'
+        ]);
+      }
+      // Remove duplicates
+      modelsToTry = modelsToTry.toSet().toList();
+
+      final String? savedApiKey = await getApiKey();
       final String apiKey = savedApiKey != null && savedApiKey.isNotEmpty
           ? savedApiKey
           : AppConfig.geminiApiKey;
 
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
+      http.Response? finalResponse;
+      String? usedModel;
 
-      List<Map<String, dynamic>> contents = [];
+      for (var model in modelsToTry) {
+        try {
+          debugPrint('Trying model: $model');
+          final url = Uri.parse(
+              'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
 
-      // Construct the persona prompt from settings
-      String personaPrompt = "You are a real human being.";
-
-      if (_toneName.isNotEmpty) {
-        personaPrompt += " Your name is $_toneName.";
-      }
-      if (_toneGender.isNotEmpty) {
-        personaPrompt += " You identify as $_toneGender.";
-      }
-
-      // Directly assign the AI's role based on the 'relationship' setting
-      if (_toneRelationship.isNotEmpty) {
-        personaPrompt += " Your role is $_toneRelationship.";
-      }
-
-      if (_toneLanguage.isNotEmpty) {
-        personaPrompt +=
-            " Always respond strictly in $_toneLanguage."; // Emphasize strict language
-      }
-      if (_tonePurpose.isNotEmpty) {
-        personaPrompt += " Your main purpose is $_tonePurpose.";
-      }
-      if (_customTraits.isNotEmpty) {
-        personaPrompt +=
-            " Additionally, consider these specific traits and integrate them into your responses:";
-        for (var trait in _customTraits) {
-          if (trait['trait'] != null &&
-              trait['value'] != null &&
-              trait['trait']!.isNotEmpty &&
-              trait['value']!.isNotEmpty) {
-            personaPrompt += " ${trait['trait']}: ${trait['value']}.";
+          List<Map<String, dynamic>> contents = [];
+          String personaPrompt = "You are a real human being.";
+          if (_toneName.isNotEmpty) {
+            personaPrompt += " Your name is $_toneName.";
           }
-        }
-      }
-
-      // Add the persona prompt as an initial user message to set the context
-      // The model's immediate response acknowledges this setup.
-      contents.add({
-        "role": "user",
-        "parts": [
-          {"text": personaPrompt}
-        ]
-      });
-      contents.add({
-        "role": "model",
-        "parts": [
-          {
-            "text":
-                "Understood. I will adhere to these guidelines. How can I assist you today?"
+          if (_toneGender.isNotEmpty) {
+            personaPrompt += " You identify as $_toneGender.";
           }
-        ]
-      });
-
-      // Add all messages to the conversation history, including the current user message
-      for (var msg in _messages) {
-        List<Map<String, dynamic>> msgParts = [];
-        msgParts.add({"text": msg.text});
-
-        if (msg.userImageBase64 != null) {
-          // Use pre-encoded base64 if available
-          msgParts.add({
-            "inline_data": {
-              "mime_type": "image/jpeg",
-              "data": msg.userImageBase64
+          if (_toneRelationship.isNotEmpty) {
+            personaPrompt += " Your role is $_toneRelationship.";
+          }
+          if (_toneLanguage.isNotEmpty) {
+            personaPrompt += " Always respond strictly in $_toneLanguage.";
+          }
+          if (_tonePurpose.isNotEmpty) {
+            personaPrompt += " Your main purpose is $_tonePurpose.";
+          }
+          if (_customTraits.isNotEmpty) {
+            personaPrompt += " Additionally, consider these traits:";
+            for (var trait in _customTraits) {
+              if (trait['trait']?.isNotEmpty == true &&
+                  trait['value']?.isNotEmpty == true) {
+                personaPrompt += " ${trait['trait']}: ${trait['value']}.";
+              }
             }
+          }
+
+          contents.add({
+            "role": "user",
+            "parts": [
+              {"text": personaPrompt}
+            ]
           });
-        } else if (msg.imagePath != null) {
-          // Fallback for older messages or if userImageBase64 wasn't set
-          final bytes = await File(msg.imagePath!).readAsBytes();
-          final base64Image = base64Encode(bytes);
-          msgParts.add({
-            "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
+          contents.add({
+            "role": "model",
+            "parts": [
+              {"text": "Understood. I will help you."}
+            ]
           });
+
+          for (var msg in _messages) {
+            List<Map<String, dynamic>> msgParts = [];
+            msgParts.add({"text": msg.text});
+            if (msg.userImageBase64 != null) {
+              msgParts.add({
+                "inline_data": {
+                  "mime_type": "image/jpeg",
+                  "data": msg.userImageBase64
+                }
+              });
+            } else if (msg.imagePath != null) {
+              final bytes = await File(msg.imagePath!).readAsBytes();
+              final base64Image = base64Encode(bytes);
+              msgParts.add({
+                "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
+              });
+            }
+            contents.add(
+                {"role": msg.isUser ? "user" : "model", "parts": msgParts});
+          }
+
+          final response = await http.post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({"contents": contents}),
+          );
+
+          if (response.statusCode == 200) {
+            finalResponse = response;
+            usedModel = model;
+            break; // Success! Stop trying.
+          } else {
+            debugPrint('Model $model failed with ${response.statusCode}');
+          }
+        } catch (e) {
+          debugPrint('Model $model threw exception: $e');
         }
-        contents
-            .add({"role": msg.isUser ? "user" : "model", "parts": msgParts});
       }
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({"contents": contents}),
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
+      if (finalResponse != null && finalResponse.statusCode == 200) {
+        final jsonResponse = json.decode(finalResponse.body);
         if (jsonResponse['candidates'] != null &&
             jsonResponse['candidates'].isNotEmpty) {
           final reply =
               jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+          if (!mounted) return;
           setState(() {
             _messages.add(ChatMessage(
                 text: reply,
@@ -418,123 +448,42 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
                 onSpeak: (text) => _speak(text),
                 onStop: _stop,
                 isSpeaking: false));
+            if (usedModel != null) {
+              _selectedModel = usedModel;
+            }
           });
-          await _saveCurrentChat(); // Save after AI response
+          await _saveCurrentChat();
         } else {
-          throw Exception('Invalid response format or empty candidates');
+          throw Exception('Invalid response format');
         }
       } else {
+        // If we get here, all models failed.
+        // Try to provide a helpful error from the last attempt if possible
+        if (finalResponse != null && finalResponse.statusCode == 429) {
+          throw Exception(
+              'All models are busy (Quota Exceeded). Please try again later.');
+        }
         throw Exception(
-            'Something went wrong! Consider using your own API key.');
+            'Failed to get a response from any model. Please check your connection or API key.');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _messages.add(ChatMessage(
-            text: 'Something went wrong! Consider using your own API Key.',
-            isUser: false));
+            text: e.toString().contains('Exception:')
+                ? e.toString().replaceAll('Exception: ', '')
+                : 'Something went wrong! $e',
+            isUser: false,
+            isError: true));
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-        _selectedImage = null;
-      });
-      _scrollToBottom();
-    }
-  }
-
-  Future<void> _generateImage() async {
-    if (_controller.text.isEmpty) return;
-
-    setState(() {
-      _isGeneratingImage = true;
-      _messages.add(ChatMessage(
-          text: "Generating image...", isUser: false, showLoader: true));
-    });
-    _scrollToBottom(); // Add scroll after showing loader
-
-    try {
-      final String? savedApiKey =
-          await getApiKey(); // Get API key from dialog's shared preferences
-      final String apiKey = savedApiKey != null && savedApiKey.isNotEmpty
-          ? savedApiKey
-          : AppConfig.geminiApiKey;
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=$apiKey');
-
-      final requestBody = {
-        "contents": [
-          {
-            "parts": [
-              {"text": _controller.text}
-            ]
-          }
-        ],
-        "generationConfig": {
-          "temperature": 0.4,
-          "topP": 1,
-          "topK": 32,
-          "maxOutputTokens": 2048,
-          "responseModalities": ["TEXT", "IMAGE"]
-        }
-      };
-
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(requestBody),
-      );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body);
-        final contentParts = jsonResponse['candidates'][0]['content']['parts'];
-
-        String generatedText = '';
-        String? base64Image;
-
-        for (var part in contentParts) {
-          if (part.containsKey('text')) {
-            generatedText = part['text'];
-          } else if (part.containsKey('inlineData') &&
-              part['inlineData'].containsKey('data')) {
-            base64Image = part['inlineData']['data'];
-          }
-        }
-
+      if (mounted) {
         setState(() {
-          // Remove the loading message
-          _messages.removeLast();
-          // Add the final message with image
-          _messages.add(ChatMessage(
-            text: generatedText.isNotEmpty ? generatedText : "Generated image:",
-            isUser: false,
-            base64Image: base64Image,
-            onSpeak: (text) => _speak(text),
-            onStop: _stop,
-            isSpeaking: false,
-          ));
-          _scrollToBottom(); // Add scroll after adding generated image
+          _isLoading = false;
+          _selectedImage = null;
         });
-      } else {
-        throw Exception('Failed to generate image!');
-      }
-    } catch (e) {
-      setState(() {
-        // Remove the loading message first
-        _messages.removeLast();
-        // Then add the error message
-        _messages.add(ChatMessage(
-            text: 'Failed to generate image. Consider using your own API Key.',
-            isUser: false,
-            onSpeak: (text) => _speak(text),
-            onStop: _stop,
-            isSpeaking: false));
         _scrollToBottom();
-      });
-    } finally {
-      setState(() {
-        _isGeneratingImage = false;
-        _controller.clear();
-      });
+      }
     }
   }
 
@@ -547,7 +496,9 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
         title: '${_toneName.isNotEmpty ? _toneName : 'AI Chat'} ',
         actions: [
           IconButton(
-            icon: Icon(_isShowingHistory ? Icons.chat : Icons.history), // Toggle icon based on view
+            icon: Icon(_isShowingHistory
+                ? Icons.chat
+                : Icons.history), // Toggle icon based on view
             onPressed: () async {
               if (!_isShowingHistory) {
                 // If switching to show history, save current chat
@@ -561,7 +512,6 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
                   _currentChatIndex = null;
                   _selectedImage = null;
                   _isLoading = false;
-                  _isGeneratingImage = false;
                   _speakingMessageIndex = null;
                 }
               });
@@ -593,12 +543,14 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
                 child: _isShowingHistory
                     ? (_isHistoryLoaded
                         ? ListView.builder(
-                            itemCount: _chatHistory.length + 1, // +1 for New Chat option
+                            itemCount: _chatHistory.length +
+                                1, // +1 for New Chat option
                             padding: const EdgeInsets.all(12.0),
                             itemBuilder: (context, index) {
                               if (index == 0) {
                                 return Card(
-                                  margin: const EdgeInsets.symmetric(vertical: 8.0),
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 8.0),
                                   child: ListTile(
                                     leading: const Icon(Icons.add_comment),
                                     title: const Text('New Chat'),
@@ -606,20 +558,24 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
                                   ),
                                 );
                               }
-                              final chat = _chatHistory[index - 1]; // Adjust index for history list
+                              final chat = _chatHistory[
+                                  index - 1]; // Adjust index for history list
                               // Display a summary of the chat
                               return Card(
-                                margin: const EdgeInsets.symmetric(vertical: 8.0),
+                                margin:
+                                    const EdgeInsets.symmetric(vertical: 8.0),
                                 child: ListTile(
                                   title: Text(
                                       'Chat ${(_chatHistory.length - (index - 1))}: ${chat.first.text.substring(0, chat.first.text.length > 50 ? 50 : chat.first.text.length)}...'),
-                                  subtitle: Text(
-                                      '${chat.length} messages'),
-                                  onTap: () => _viewChatHistory(index - 1), // Pass the actual index
+                                  subtitle: Text('${chat.length} messages'),
+                                  onTap: () => _viewChatHistory(
+                                      index - 1), // Pass the actual index
                                   trailing: IconButton(
                                     icon: const Icon(Icons.delete),
                                     onPressed: () async {
-                                      await _chatHistoryService.deleteChatAtIndex(index - 1); // Adjust index for actual history list
+                                      await _chatHistoryService
+                                          .deleteChatAtIndex(index -
+                                              1); // Adjust index for actual history list
                                       _loadChatHistory(); // Reload history after deleting
                                     },
                                   ),
@@ -627,7 +583,9 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
                               );
                             },
                           )
-                        : const Center(child: CircularProgressIndicator())) // Show loader while history loads
+                        : const Center(
+                            child:
+                                CircularProgressIndicator())) // Show loader while history loads
                     : ListView.builder(
                         controller: _scrollController,
                         itemCount: _messages.length,
@@ -685,97 +643,116 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
                       ),
                     ],
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(25),
-                            color: colorScheme.surfaceContainerHighest,
-                          ),
-                          child: TextField(
-                            controller: _controller,
-                            maxLines: 3, // Allow up to 3 lines
-                            minLines: 1, // Start with at least 1 line
-                            decoration: InputDecoration(
-                              hintText: 'Type your message...',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(25),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
-                              ),
-                              prefixIcon: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (_selectedImage != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 8.0),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          CircleAvatar(
-                                            backgroundImage: FileImage(
-                                                File(_selectedImage!.path)),
-                                            radius: 18,
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.close),
-                                            onPressed: () {
-                                              setState(() {
-                                                _selectedImage = null;
-                                              });
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  else
-                                    IconButton(
-                                      icon: const Icon(Icons.image),
-                                      onPressed: _isLoading ? null : _pickImage,
-                                    ),
-                                  if (_selectedImage ==
-                                      null) // Only show auto_awesome when no image is selected
-                                    IconButton(
-                                      icon: const Icon(Icons.auto_awesome),
-                                      onPressed: _isLoading || _isGeneratingImage
-                                          ? null
-                                          : _generateImage,
-                                      tooltip: 'Generate Image',
-                                    ),
-                                ],
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            bottom: 8.0, left: 12.0, right: 12.0),
+                        child: Row(
+                          children: [
+                            Icon(Icons.smart_toy,
+                                size: 16,
+                                color: colorScheme.primary.withOpacity(0.7)),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Using: $_selectedModel',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            onSubmitted: (_) => _sendMessage(),
-                          ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: colorScheme.primary,
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: _isLoading
-                                ? null
-                                : _sendMessage, // Call _sendMessage without image parameter
-                            customBorder: const CircleBorder(),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Icon(
-                                Icons.send_rounded,
-                                color: colorScheme.onPrimary,
-                                size: 24,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(25),
+                                color: colorScheme.surfaceContainerHighest,
+                              ),
+                              child: TextField(
+                                focusNode: _focusNode,
+                                controller: _controller,
+                                maxLines: 3, // Allow up to 3 lines
+                                minLines: 1, // Start with at least 1 line
+                                decoration: InputDecoration(
+                                  hintText: 'Type your message...',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
+                                  prefixIcon: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_selectedImage != null)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(left: 8.0),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              CircleAvatar(
+                                                backgroundImage: FileImage(
+                                                    File(_selectedImage!.path)),
+                                                radius: 18,
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(Icons.close),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _selectedImage = null;
+                                                  });
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      else
+                                        IconButton(
+                                          icon: const Icon(Icons.image),
+                                          onPressed:
+                                              _isLoading ? null : _pickImage,
+                                        ),
+                                      /* Image generation button removed */
+                                    ],
+                                  ),
+                                ),
+                                onSubmitted: (_) => _sendMessage(),
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: colorScheme.primary,
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _isLoading
+                                    ? null
+                                    : _sendMessage, // Call _sendMessage without image parameter
+                                customBorder: const CircleBorder(),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Icon(
+                                    Icons.send_rounded,
+                                    color: colorScheme.onPrimary,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -787,6 +764,7 @@ class _AIPageState extends State<AIPage> with SingleTickerProviderStateMixin, Wi
     );
   }
 }
+
 class ChatMessage extends StatelessWidget {
   final String text;
   final bool isUser;
@@ -795,23 +773,25 @@ class ChatMessage extends StatelessWidget {
   final String? base64Image;
   final bool showLoader;
   final Function(String text)? onSpeak;
-    final Function()? onStop;
-    final bool isSpeaking;
-    final String? userImageBase64; // New field for user's base64 image
+  final Function()? onStop;
+  final bool isSpeaking;
+  final String? userImageBase64; // New field for user's base64 image
+  final bool isError; // New field for error messages
 
-    const ChatMessage({
-      super.key,
-      required this.text,
-      required this.isUser,
-      this.imagePath,
-      this.generatedImageUrls,
-      this.base64Image,
-      this.showLoader = false,
-      this.onSpeak,
-      this.onStop,
-      this.isSpeaking = false,
-      this.userImageBase64, // Initialize new field
-    });
+  const ChatMessage({
+    super.key,
+    required this.text,
+    required this.isUser,
+    this.imagePath,
+    this.generatedImageUrls,
+    this.base64Image,
+    this.showLoader = false,
+    this.onSpeak,
+    this.onStop,
+    this.isSpeaking = false,
+    this.userImageBase64, // Initialize new field
+    this.isError = false, // Initialize new field
+  });
 
   List<TextSpan> _formatText(String text, BuildContext context) {
     final List<TextSpan> spans = [];
@@ -980,7 +960,11 @@ class ChatMessage extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.85,
         ),
         decoration: BoxDecoration(
-          color: isUser ? Colors.blue : Colors.grey[300],
+          color: isUser
+              ? Colors.blue
+              : isError
+                  ? Colors.red.shade100 // different color for error
+                  : Colors.grey[300],
           borderRadius: BorderRadius.circular(12.0),
           boxShadow: [
             BoxShadow(
@@ -1074,7 +1058,13 @@ class ChatMessage extends StatelessWidget {
                 isUser
                     ? Text(text, style: const TextStyle(color: Colors.white))
                     : SelectableText.rich(
-                        TextSpan(children: _formatText(text, context)),
+                        TextSpan(
+                            children: _formatText(text, context),
+                            style: TextStyle(
+                              color: isError
+                                  ? Colors.red.shade900
+                                  : Colors.black, // Dark text for error
+                            )),
                         onTap: () {},
                       ),
                 if (!isUser && !showLoader && text.isNotEmpty)

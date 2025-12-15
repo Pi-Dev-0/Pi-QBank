@@ -26,6 +26,20 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
   String _selectedGroup = 'Science';
   final _cacheService = DataCacheService();
 
+  // Color palette for cards
+  final List<Color> _cardColors = const [
+    Colors.purple,
+    Colors.orange,
+    Colors.blue,
+    Colors.red,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+    Colors.cyan,
+    Colors.amber,
+    Colors.deepOrange,
+  ];
+
   final List<String> examYears = List.generate(
     DateTime.now().year - 2015 + 1,
     (index) => (DateTime.now().year - index).toString(),
@@ -102,85 +116,113 @@ class _SevenCollegeAdmissionPageState extends State<SevenCollegeAdmissionPage> {
     return Scaffold(
       appBar: const CustomAppBar(title: '7 College Admission'),
       drawer: const AppDrawer(),
-      body: Column(
-        children: [
-          // Group Selection
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-            child: GroupSelector(
-              selectedGroup: _selectedGroup,
-              groups: groups,
-              onGroupChanged: (value) =>
-                  setState(() => _selectedGroup = value ?? ''),
-            ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade50,
+              Colors.purple.shade50,
+            ],
           ),
-
-          // Exam Year Selection
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8.0),
-              child: ExamYearSelector(
-                selectedYear: _selectedExamYear,
-                examYears: examYears,
-                onYearChanged: (value) =>
-                    setState(() => _selectedExamYear = value ?? ''),
+        ),
+        child: Column(
+          children: [
+            // Group Selection
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+              child: GroupSelector(
+                selectedGroup: _selectedGroup,
+                groups: groups,
+                onGroupChanged: (value) =>
+                    setState(() => _selectedGroup = value ?? ''),
               ),
             ),
-          ),
 
-          // Question Papers List
-          Expanded(
-            child: isLoading
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading Question Papers...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+            // Exam Year Selection
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8.0),
+                child: ExamYearSelector(
+                  selectedYear: _selectedExamYear,
+                  examYears: examYears,
+                  onYearChanged: (value) =>
+                      setState(() => _selectedExamYear = value ?? ''),
+                ),
+              ),
+            ),
+
+            // Question Papers List
+            Expanded(
+              child: isLoading
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text(
+                            'Loading Question Papers...',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                : hasError
-                    ? ErrorStateWidget(
-                        onRetry: fetchQuestionPapers,
-                      )
-                    : filteredPapers.isEmpty
-                        ? const Center(child: Text('No question papers found'))
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(8),
-                            itemCount: filteredPapers.length,
-                            itemBuilder: (context, index) {
-                              final paper = filteredPapers[index];
-                              final key = ValueKey(
-                                  '${paper['examYear']}_${paper['title']}_$_selectedGroup');
-                              return KeyedSubtree(
-                                key: key,
-                                child: QuestionPaperCard(
-                                  key: ValueKey(
-                                      '${paper['examYear']}_${paper['title']}_$_selectedGroup'),
-                                  title: paper['title']?.toString() ?? '',
-                                  subtitle: paper['subtitle']?.toString() ?? '',
-                                  year: paper['examYear']?.toString() ?? '',
-                                  examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl:
-                                      paper['downloadUrl']?.toString() ?? '',
-                                  category: 'Seven College',
-                                ),
-                              );
-                            },
-                          ),
-          ),
-        ],
+                        ],
+                      ),
+                    )
+                  : hasError
+                      ? ErrorStateWidget(
+                          onRetry: fetchQuestionPapers,
+                        )
+                      : filteredPapers.isEmpty
+                          ? const Center(
+                              child: Text('No question papers found'))
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(8),
+                              itemCount: filteredPapers.length,
+                              itemBuilder: (context, index) {
+                                final paper = filteredPapers[index];
+                                final key = ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedGroup');
+                                final color =
+                                    _cardColors[index % _cardColors.length];
+
+                                return Theme(
+                                  data: Theme.of(context).copyWith(
+                                    primaryColor: color,
+                                    colorScheme: ColorScheme.fromSeed(
+                                      seedColor: color,
+                                      primary: color,
+                                    ),
+                                  ),
+                                  child: KeyedSubtree(
+                                    key: key,
+                                    child: QuestionPaperCard(
+                                      key: ValueKey(
+                                          '${paper['examYear']}_${paper['title']}_$_selectedGroup'),
+                                      title: paper['title']?.toString() ?? '',
+                                      subtitle:
+                                          paper['subtitle']?.toString() ?? '',
+                                      year: paper['examYear']?.toString() ?? '',
+                                      examYear:
+                                          paper['examYear']?.toString() ?? '',
+                                      downloadUrl:
+                                          paper['downloadUrl']?.toString() ??
+                                              '',
+                                      category: 'Seven College',
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+            ),
+          ],
+        ),
       ),
     );
   }

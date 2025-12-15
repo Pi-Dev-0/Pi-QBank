@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import '../widgets/app_drawer.dart';
+// import '../widgets/app_drawer.dart';
 import '../widgets/question_paper_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
@@ -25,6 +25,20 @@ class _BooksPageState extends State<BooksPage> {
   bool _showConnectivityWrapper = false;
 
   Map<String, List<Map<String, dynamic>>> classSubjects = {};
+
+  // Color palette for book cards
+  final List<Color> _cardColors = [
+    Colors.purple,
+    Colors.orange,
+    Colors.blue,
+    Colors.red,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+    Colors.cyan,
+    Colors.amber,
+    Colors.deepOrange,
+  ];
 
   // Hardcoded encryption key for Books API
   static const String _encryptionKey =
@@ -263,120 +277,200 @@ class _BooksPageState extends State<BooksPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CustomAppBar(title: 'Books'),
-      drawer: const AppDrawer(),
-      body: _showConnectivityWrapper
-          ? ErrorStateWidget(
-              onRetry: _retryFetchBooksData,
-            )
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Container(
-                    width: MediaQuery.of(context).size.width * 0.7,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.3),
-                          spreadRadius: 2,
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          spreadRadius: 0,
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: InkWell(
-                      onTap: _showClassSelectionDialog,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            const Text(
-                              'Select Class:',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black54,
-                              ),
+    if (_isLoading) {
+      return const Scaffold(
+        body: LoadingWidget(loadingText: 'Loading Books...'),
+      );
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
+        if (didPop) return;
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: const CustomAppBar(title: 'Books'),
+        // drawer: const AppDrawer(), // Removed to show back button
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.blue.shade50,
+                Colors.purple.shade50,
+              ],
+            ),
+          ),
+          child: _showConnectivityWrapper
+              ? ErrorStateWidget(
+                  onRetry: _retryFetchBooksData,
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: MediaQuery.of(context).size.width * 0.8,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.white, Colors.blue.shade50],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(15),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(0.1),
+                              spreadRadius: 2,
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                            Expanded(
-                              child: Center(
-                                child: Text(
-                                  selectedClass ?? 'Choose',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                  textAlign: TextAlign.center,
+                          ],
+                          border: Border.all(
+                            color: Colors.blue.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: InkWell(
+                          onTap: _showClassSelectionDialog,
+                          borderRadius: BorderRadius.circular(15),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.school_rounded,
+                                  color: Colors.blue,
+                                  size: 20,
                                 ),
                               ),
-                            ),
-                            const Icon(Icons.arrow_drop_down),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _isLoading
-                        ? const Center(
-                            child: LoadingWidget(loadingText: 'Loading Books...'),
-                          )
-                        : ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxHeight:
-                                  MediaQuery.of(context).size.height * 0.7,
-                            ),
-                            child: subjects.isEmpty
-                                ? Center(
-                                    child: Text(
-                                      'No books available for ${selectedClass ?? 'this class'}',
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Selected Class',
                                       style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 16,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey.shade600,
                                       ),
                                     ),
-                                  )
-                                : ListView.builder(
-                                    shrinkWrap: true,
-                                    itemCount: subjects.length,
-                                    itemBuilder: (context, index) {
-                                      final book = subjects[index];
-                                      final key = ValueKey('${book['title']}');
-                                      return KeyedSubtree(
-                                        key: key,
-                                        child: QuestionPaperCard(
-                                          key: key,
-                                          title: book['title'],
-                                          subtitle: book['subtitle'] ?? '',
-                                          year: book['year'] ?? '',
-                                          examYear: book['examYear'] ?? '',
-                                          downloadUrl:
-                                              book['downloadUrl'] ?? '',
-                                          category: 'Books',
-                                        ),
-                                      );
-                                    },
-                                  ),
+                                    Text(
+                                      selectedClass ?? 'Tap to choose',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.blue),
+                            ],
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: MediaQuery.of(context).size.height * 0.7,
+                          ),
+                          child: subjects.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.library_books_outlined,
+                                        size: 64,
+                                        color: Colors.grey.shade400,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No books available',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (selectedClass != null)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 8),
+                                          child: Text(
+                                            'for $selectedClass',
+                                            style: TextStyle(
+                                              color: Colors.grey[500],
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                )
+                              : ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: subjects.length,
+                                  padding: const EdgeInsets.only(bottom: 20),
+                                  itemBuilder: (context, index) {
+                                    final book = subjects[index];
+                                    final key = ValueKey('${book['title']}');
+                                    final color =
+                                        _cardColors[index % _cardColors.length];
+
+                                    return Theme(
+                                      data: Theme.of(context).copyWith(
+                                        primaryColor: color,
+                                        colorScheme: ColorScheme.fromSeed(
+                                          seedColor: color,
+                                          primary: color,
+                                        ),
+                                      ),
+                                      child: Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 8.0),
+                                        child: KeyedSubtree(
+                                          key: key,
+                                          child: QuestionPaperCard(
+                                            key: key,
+                                            title: book['title'],
+                                            subtitle: book['subtitle'] ?? '',
+                                            year: book['year'] ?? '',
+                                            examYear: book['examYear'] ?? '',
+                                            downloadUrl:
+                                                book['downloadUrl'] ?? '',
+                                            category: 'Books',
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+        ),
+      ),
     );
   }
 }

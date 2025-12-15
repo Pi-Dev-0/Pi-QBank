@@ -189,7 +189,8 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
       timestamp: DateTime.now(),
       score: correctCount,
       totalQuestions: questions.length,
-      timeTakenInSeconds: (widget.testTimeInMinutes * 60) - remainingTimeInSeconds,
+      timeTakenInSeconds:
+          (widget.testTimeInMinutes * 60) - remainingTimeInSeconds,
       language: widget.language,
       questionsAndAnswers: questionsAndAnswers,
       imagePaths: widget.selectedImages?.map((e) => e.path).toList() ?? [],
@@ -919,15 +920,17 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
                               q['answer'] ?? ''))
                           .length,
                       totalQuestions: questions.length,
-                      timeTakenInSeconds:
-                          (widget.testTimeInMinutes * 60) - remainingTimeInSeconds,
+                      timeTakenInSeconds: (widget.testTimeInMinutes * 60) -
+                          remainingTimeInSeconds,
                       language: widget.language,
-                      questionsAndAnswers: questions.asMap().entries.map((entry) {
+                      questionsAndAnswers:
+                          questions.asMap().entries.map((entry) {
                         final index = entry.key;
                         final questionData = entry.value;
                         final userAnswer = answerControllers[index]?.text ?? '';
                         final correctAnswer = questionData['answer'] ?? '';
-                        final isCorrect = _isAnswerCorrect(userAnswer, correctAnswer);
+                        final isCorrect =
+                            _isAnswerCorrect(userAnswer, correctAnswer);
                         return {
                           'question': questionData['question'],
                           'correctAnswer': correctAnswer,
@@ -936,11 +939,13 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
                         };
                       }).toList(),
                       imagePaths:
-                          widget.selectedImages?.map((e) => e.path).toList() ?? [],
+                          widget.selectedImages?.map((e) => e.path).toList() ??
+                              [],
                     );
                     _navigateToAnalyticsPage(testResult);
                   },
-                  icon: const Icon(Icons.analytics_rounded, color: Colors.white),
+                  icon:
+                      const Icon(Icons.analytics_rounded, color: Colors.white),
                   label: Text(
                     widget.language == 'বাংলা'
                         ? 'বিশ্লেষণ দেখুন'
@@ -1020,7 +1025,9 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
       context,
       MaterialPageRoute(
         builder: (context) => ShortQuestionAnalyticsPage(
-          testResults: [testResult], // Pass a list containing the single test result
+          testResults: [
+            testResult
+          ], // Pass a list containing the single test result
         ),
       ),
     );
@@ -1034,8 +1041,10 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
 
   String _stripMarkdown(String text) {
     // Remove bold (**text**) and italics (*text*)
-    String strippedText = text.replaceAll(RegExp(r'\*\*([^\*]+)\*\*'), r'\1'); // bold
-    strippedText = strippedText.replaceAll(RegExp(r'\*([^\*]+)\*'), r'\1');   // italics
+    String strippedText =
+        text.replaceAll(RegExp(r'\*\*([^\*]+)\*\*'), r'\1'); // bold
+    strippedText =
+        strippedText.replaceAll(RegExp(r'\*([^\*]+)\*'), r'\1'); // italics
     // Remove any remaining single asterisks that might be part of the text but not markdown
     strippedText = strippedText.replaceAll(RegExp(r'\*'), '');
     // Remove leading/trailing spaces
@@ -1171,7 +1180,9 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
           const SizedBox(height: 8),
           Text(
             value.isEmpty
-                ? (widget.language == 'বাংলা' ? 'উত্তর দেওয়া হয়নি' : 'Not Answered')
+                ? (widget.language == 'বাংলা'
+                    ? 'উত্তর দেওয়া হয়নি'
+                    : 'Not Answered')
                 : value,
             style: TextStyle(
               fontSize: 16,

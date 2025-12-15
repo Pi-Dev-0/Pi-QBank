@@ -155,7 +155,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
     }
 
     final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=$apiKey');
 
     List<String> questions = [];
     List<String> answers = [];
@@ -535,8 +535,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                         pw.SizedBox(height: 5),
                         ...question.subQuestions.map(
                           (subQ) => pw.Padding(
-                            padding:
-                                const pw.EdgeInsets.symmetric(vertical: 2),
+                            padding: const pw.EdgeInsets.symmetric(vertical: 2),
                             child: pw.Row(
                               mainAxisAlignment:
                                   pw.MainAxisAlignment.spaceBetween,
@@ -551,8 +550,7 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                                 ),
                                 pw.Text(
                                   unicodeToBijoy('(${subQ.marks})'),
-                                  style:
-                                      pw.TextStyle(fontSize: 12, font: font),
+                                  style: pw.TextStyle(fontSize: 12, font: font),
                                 ),
                               ],
                             ),
@@ -580,7 +578,8 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               ...List.generate(
                 _shortSangkhiptoQuestions.length,
                 (index) => pw.Container(
-                  margin: pw.EdgeInsets.only(bottom: 6), // Decreased from 15 to 8
+                  margin:
+                      pw.EdgeInsets.only(bottom: 6), // Decreased from 15 to 8
                   child: pw.Text(
                     unicodeToBijoy(
                         '${index + 1}. ${_shortSangkhiptoQuestions[index]}'),
@@ -611,89 +610,87 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                       (firstIndex + 1) < _mcqQuestions.length
                           ? (firstIndex + 1)
                           : null;
-                                    return pw.Row(
-                                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                      children: [
-                                        pw.Expanded(
-                                          child: pw.Padding(
-                                            padding:
-                                                const pw.EdgeInsets.only(bottom: 10, right: 10),
-                                            child: pw.Column(
-                                              crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                              children: [
-                                                pw.Text(
-                                                  unicodeToBijoy(
-                                                      '${firstIndex + 1}. ${_mcqQuestions[firstIndex].split('\n').first}'),
-                                                  style: pw.TextStyle(fontSize: 12, font: font),
-                                                ),
-                                                pw.SizedBox(height: 3),
-                                                pw.Column(
-                                                  crossAxisAlignment:
-                                                      pw.CrossAxisAlignment.start,
-                                                  children: _mcqQuestions[firstIndex]
-                                                      .split('\n')
-                                                      .sublist(1)
-                                                      .map(
-                                                        (option) => pw.Padding(
-                                                          padding:
-                                                              const pw.EdgeInsets.only(top: 3),
-                                                          child: pw.Text(
-                                                            unicodeToBijoy(option),
-                                                            style: pw.TextStyle(
-                                                                fontSize: 12, font: font),
-                                                          ),
-                                                        ),
-                                                      )
-                                                      .toList(),
-                                                ),
-                                              ],
-                                            ),
+                  return pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Padding(
+                          padding:
+                              const pw.EdgeInsets.only(bottom: 10, right: 10),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(
+                                unicodeToBijoy(
+                                    '${firstIndex + 1}. ${_mcqQuestions[firstIndex].split('\n').first}'),
+                                style: pw.TextStyle(fontSize: 12, font: font),
+                              ),
+                              pw.SizedBox(height: 3),
+                              pw.Column(
+                                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                children: _mcqQuestions[firstIndex]
+                                    .split('\n')
+                                    .sublist(1)
+                                    .map(
+                                      (option) => pw.Padding(
+                                        padding:
+                                            const pw.EdgeInsets.only(top: 3),
+                                        child: pw.Text(
+                                          unicodeToBijoy(option),
+                                          style: pw.TextStyle(
+                                              fontSize: 12, font: font),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (secondIndex != null)
+                        pw.Expanded(
+                          child: pw.Padding(
+                            padding:
+                                const pw.EdgeInsets.only(bottom: 10, left: 10),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text(
+                                  unicodeToBijoy(
+                                      '${secondIndex + 1}. ${_mcqQuestions[secondIndex].split('\n').first}'),
+                                  style: pw.TextStyle(fontSize: 12, font: font),
+                                ),
+                                pw.SizedBox(height: 5),
+                                pw.Column(
+                                  crossAxisAlignment:
+                                      pw.CrossAxisAlignment.start,
+                                  children: _mcqQuestions[secondIndex]
+                                      .split('\n')
+                                      .sublist(1)
+                                      .map(
+                                        (option) => pw.Padding(
+                                          padding:
+                                              const pw.EdgeInsets.only(top: 3),
+                                          child: pw.Text(
+                                            unicodeToBijoy(option),
+                                            style: pw.TextStyle(
+                                                fontSize: 12, font: font),
                                           ),
                                         ),
-                                        if (secondIndex != null)
-                                          pw.Expanded(
-                                            child: pw.Padding(
-                                              padding:
-                                                  const pw.EdgeInsets.only(bottom: 10, left: 10),
-                                              child: pw.Column(
-                                                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                                children: [
-                                                  pw.Text(
-                                                    unicodeToBijoy(
-                                                        '${secondIndex + 1}. ${_mcqQuestions[secondIndex].split('\n').first}'),
-                                                    style:
-                                                        pw.TextStyle(fontSize: 12, font: font),
-                                                  ),
-                                                  pw.SizedBox(height: 5),
-                                                  pw.Column(
-                                                    crossAxisAlignment:
-                                                        pw.CrossAxisAlignment.start,
-                                                    children: _mcqQuestions[secondIndex]
-                                                        .split('\n')
-                                                        .sublist(1)
-                                                        .map(
-                                                          (option) => pw.Padding(
-                                                            padding:
-                                                                const pw.EdgeInsets.only(top: 3),
-                                                            child: pw.Text(
-                                                              unicodeToBijoy(option),
-                                                              style: pw.TextStyle(
-                                                                  fontSize: 12, font: font),
-                                                            ),
-                                                          ),
-                                                        )
-                                                        .toList(),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        if (secondIndex == null)
-                                          pw.Expanded(
-                                            child: pw.Container(),
-                                          ),
-                                      ],
-                                    );
+                                      )
+                                      .toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (secondIndex == null)
+                        pw.Expanded(
+                          child: pw.Container(),
+                        ),
+                    ],
+                  );
                 },
               ),
             ],
@@ -1440,6 +1437,12 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
   }
 
   void _showGeneratedQuestions() {
+    // Debug: Print question counts
+    debugPrint('=== Question Counts ===');
+    debugPrint('Creative: ${_creativeSrojonshilQuestions.length}');
+    debugPrint('Short: ${_shortSangkhiptoQuestions.length}');
+    debugPrint('MCQ: ${_mcqQuestions.length}');
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1453,7 +1456,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
               children: [
                 if (_creativeSrojonshilQuestions.isNotEmpty) ...[
                   Text('সৃজনশীল প্রশ্ন:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  SizedBox(height: 8),
                   ...List.generate(
                     _creativeSrojonshilQuestions.length,
                     (index) {
@@ -1494,7 +1499,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 ],
                 if (_shortSangkhiptoQuestions.isNotEmpty) ...[
                   Text('সংক্ষিপ্ত প্রশ্ন:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  SizedBox(height: 8),
                   ...List.generate(
                     _shortSangkhiptoQuestions.length,
                     (index) => Padding(
@@ -1507,7 +1514,9 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                 ],
                 if (_mcqQuestions.isNotEmpty) ...[
                   Text('বহুনির্বাচনি প্রশ্ন:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  SizedBox(height: 8),
                   ...List.generate(
                     _mcqQuestions.length,
                     (index) => Padding(
@@ -1563,46 +1572,180 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                         // Creative Questions Edit
                         ListView.builder(
                           itemCount: _creativeSrojonshilQuestions.length,
-                          itemBuilder: (context, index) => Card(
-                            child: Padding(
-                              padding: EdgeInsets.all(8),
-                              child: Column(
-                                children: [
-                                  TextFormField(
-                                    initialValue:
-                                        _creativeSrojonshilQuestions[index]
-                                            .toDisplayString(),
-                                    maxLines: 5,
-                                    readOnly: true, // Make it read-only for now
-                                    decoration: const InputDecoration(
-                                      labelText:
-                                          'সৃজনশীল প্রশ্ন (সম্পাদনা বর্তমানে সমর্থিত নয়)',
-                                      border: OutlineInputBorder(),
+                          itemBuilder: (context, index) {
+                            final question =
+                                _creativeSrojonshilQuestions[index];
+                            return Card(
+                              margin: EdgeInsets.all(8),
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Question number header
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'প্রশ্ন ${question.questionNumber}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: Icon(Icons.delete,
+                                              color: Colors.red),
+                                          onPressed: () {
+                                            setState(() {
+                                              _creativeSrojonshilQuestions
+                                                  .removeAt(index);
+                                            });
+                                          },
+                                        ),
+                                      ],
                                     ),
-                                    // onChanged: (value) {
-                                    //   // Direct modification of SrojonshilQuestion object from string is complex
-                                    //   // A more robust UI would be needed for editing structured data
-                                    // },
-                                  ),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      IconButton(
-                                        icon: Icon(Icons.delete,
-                                            color: Colors.red),
-                                        onPressed: () {
-                                          setState(() {
-                                            _creativeSrojonshilQuestions
-                                                .removeAt(index);
-                                          });
-                                        },
+                                    SizedBox(height: 8),
+                                    // Stem editing
+                                    TextFormField(
+                                      initialValue: question.stem,
+                                      maxLines: 3,
+                                      decoration: InputDecoration(
+                                        labelText: 'উদ্দীপক',
+                                        border: OutlineInputBorder(),
+                                        filled: true,
+                                        fillColor: Colors.blue.shade50,
                                       ),
-                                    ],
-                                  ),
-                                ],
+                                      onChanged: (value) {
+                                        // Update the stem directly
+                                        _creativeSrojonshilQuestions[index] =
+                                            SrojonshilQuestion(
+                                          questionNumber:
+                                              question.questionNumber,
+                                          stem: value,
+                                          subQuestions: question.subQuestions,
+                                        );
+                                      },
+                                    ),
+                                    SizedBox(height: 12),
+                                    // Sub-questions editing
+                                    Text(
+                                      'উপ-প্রশ্নসমূহ:',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    ...List.generate(
+                                      question.subQuestions.length,
+                                      (subIndex) {
+                                        final subQ =
+                                            question.subQuestions[subIndex];
+                                        return Padding(
+                                          padding: EdgeInsets.only(bottom: 8),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                width: 40,
+                                                padding: EdgeInsets.all(8),
+                                                child: Text(
+                                                  '${subQ.label})',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: TextFormField(
+                                                  initialValue: subQ.text,
+                                                  maxLines: 2,
+                                                  decoration: InputDecoration(
+                                                    hintText: 'প্রশ্ন লিখুন',
+                                                    border:
+                                                        OutlineInputBorder(),
+                                                    contentPadding:
+                                                        EdgeInsets.all(8),
+                                                  ),
+                                                  onChanged: (value) {
+                                                    // Update the sub-question
+                                                    final updatedSubQuestions =
+                                                        List<SubQuestion>.from(
+                                                            question
+                                                                .subQuestions);
+                                                    updatedSubQuestions[
+                                                        subIndex] = SubQuestion(
+                                                      label: subQ.label,
+                                                      text: value,
+                                                      marks: subQ.marks,
+                                                    );
+                                                    _creativeSrojonshilQuestions[
+                                                            index] =
+                                                        SrojonshilQuestion(
+                                                      questionNumber: question
+                                                          .questionNumber,
+                                                      stem: question.stem,
+                                                      subQuestions:
+                                                          updatedSubQuestions,
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                              SizedBox(width: 8),
+                                              SizedBox(
+                                                width: 60,
+                                                child: TextFormField(
+                                                  initialValue:
+                                                      subQ.marks.toString(),
+                                                  keyboardType:
+                                                      TextInputType.number,
+                                                  decoration: InputDecoration(
+                                                    labelText: 'নম্বর',
+                                                    border:
+                                                        OutlineInputBorder(),
+                                                    contentPadding:
+                                                        EdgeInsets.all(8),
+                                                  ),
+                                                  onChanged: (value) {
+                                                    final marks =
+                                                        int.tryParse(value) ??
+                                                            subQ.marks;
+                                                    final updatedSubQuestions =
+                                                        List<SubQuestion>.from(
+                                                            question
+                                                                .subQuestions);
+                                                    updatedSubQuestions[
+                                                        subIndex] = SubQuestion(
+                                                      label: subQ.label,
+                                                      text: subQ.text,
+                                                      marks: marks,
+                                                    );
+                                                    _creativeSrojonshilQuestions[
+                                                            index] =
+                                                        SrojonshilQuestion(
+                                                      questionNumber: question
+                                                          .questionNumber,
+                                                      stem: question.stem,
+                                                      subQuestions:
+                                                          updatedSubQuestions,
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         ),
                         // Short Questions Edit
                         ListView.builder(
@@ -1630,6 +1773,13 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                                           setState(() {
                                             _shortSangkhiptoQuestions
                                                 .removeAt(index);
+                                            // Also remove the corresponding answer
+                                            if (index <
+                                                _shortSangkhiptoAnswers
+                                                    .length) {
+                                              _shortSangkhiptoAnswers
+                                                  .removeAt(index);
+                                            }
                                           });
                                         },
                                       ),
@@ -1664,6 +1814,10 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
                                         onPressed: () {
                                           setState(() {
                                             _mcqQuestions.removeAt(index);
+                                            // Also remove the corresponding answer
+                                            if (index < _mcqAnswers.length) {
+                                              _mcqAnswers.removeAt(index);
+                                            }
                                           });
                                         },
                                       ),

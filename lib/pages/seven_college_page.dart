@@ -20,6 +20,19 @@ class _SevenCollegePageState extends State<SevenCollegePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Color palette for cards
+    final List<Color> cardColors = const [
+      Colors.purple,
+      Colors.orange,
+      Colors.blue,
+      Colors.red,
+      Colors.teal,
+      Colors.pink,
+      Colors.indigo,
+      Colors.cyan,
+      Colors.amber,
+      Colors.deepOrange,
+    ];
     final List<Map<String, dynamic>> items = [
       {'isHeader': true, 'name': '(Science)'},
       {
@@ -108,115 +121,159 @@ class _SevenCollegePageState extends State<SevenCollegePage> {
     return Scaffold(
       appBar: const CustomAppBar(title: 'Seven College'),
       drawer: const AppDrawer(),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: List.generate(headers.length, (index) {
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              selectedHeader == getFullHeader(headers[index])
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.white,
-                          foregroundColor:
-                              selectedHeader == getFullHeader(headers[index])
-                                  ? Colors.white
-                                  : Colors.black87,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          elevation: 8,
-                          shadowColor: Colors.black,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            selectedHeader = getFullHeader(headers[index]);
-                          });
-                        },
-                        child: Text(
-                          headers[index],
-                          style: const TextStyle(fontSize: 13),
-                        ),
-                      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade50,
+              Colors.purple.shade50,
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 12.0),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.8),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
                     ),
-                  );
-                }),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: getFilteredItems().length,
-                itemBuilder: (context, index) {
-                  final item = getFilteredItems()[index];
-                  return Container(
-                    margin: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Card(
-                      elevation: 5,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          if (item['route'] != null) {
-                            Navigator.pushNamed(context, item['route']);
-                          }
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20.0,
-                            vertical: 16.0,
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: List.generate(headers.length, (index) {
+                      final isSelected =
+                          selectedHeader == getFullHeader(headers[index]);
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey.shade100,
+                              foregroundColor:
+                                  isSelected ? Colors.white : Colors.black87,
+                              elevation: isSelected ? 4 : 0,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                                side: BorderSide(
+                                  color: isSelected
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.transparent,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                selectedHeader = getFullHeader(headers[index]);
+                              });
+                            },
+                            child: Text(
+                              headers[index],
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                              ),
+                            ),
                           ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .primaryColor
-                                      .withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  item['icon'],
-                                  size: 28,
-                                  color: Theme.of(context).primaryColor,
-                                ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: getFilteredItems().length,
+                  itemBuilder: (context, index) {
+                    final item = getFilteredItems()[index];
+                    final color = cardColors[index % cardColors.length];
+
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        primaryColor: color,
+                        colorScheme: ColorScheme.fromSeed(
+                          seedColor: color,
+                          primary: color,
+                        ),
+                      ),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Card(
+                          elevation: 4,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.all(16),
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(0.1),
+                                shape: BoxShape.circle,
                               ),
-                              const SizedBox(width: 20),
-                              Expanded(
-                                child: Text(
-                                  item['name'],
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
+                              child: Icon(
+                                item['icon'],
+                                size: 24,
+                                color: color,
                               ),
-                              Icon(
+                            ),
+                            title: Text(
+                              item['name'],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            trailing: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
                                 Icons.arrow_forward_ios,
                                 size: 16,
-                                color: Colors.grey[600],
+                                color: color,
                               ),
-                            ],
+                            ),
+                            onTap: () {
+                              if (item['route'] != null) {
+                                Navigator.pushNamed(context, item['route']);
+                              }
+                            },
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

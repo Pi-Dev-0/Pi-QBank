@@ -29,6 +29,20 @@ class _FormulaPageState extends State<FormulaPage> {
 
   List<String> _subjects = []; // Will be populated from API
 
+  // Color palette for formula cards
+  final List<Color> _cardColors = [
+    Colors.purple,
+    Colors.orange,
+    Colors.blue,
+    Colors.red,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+    Colors.cyan,
+    Colors.amber,
+    Colors.deepOrange,
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -169,233 +183,271 @@ class _FormulaPageState extends State<FormulaPage> {
     }
   }
 
-  Widget _buildFormulaCard(String title, List<Formula> formulas) {
+  Widget _buildFormulaCard(String title, List<Formula> formulas, int index) {
     // Use the first formula for download/view (assuming one per title)
     final formula = formulas.first;
     final subtitle = formula.subtitle ?? '';
+    final color = _cardColors[index % _cardColors.length];
+
     return FutureBuilder<bool>(
       future: _isFormulaDownloaded(title),
       builder: (context, snapshot) {
         final isDownloaded = snapshot.data ?? false;
         final progress = _downloadProgress[title] ?? 0.0;
 
-        return Card(
-          elevation: 4,
-          margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+        return Theme(
+          data: Theme.of(context).copyWith(
+            primaryColor: color,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: color,
+              primary: color,
+            ),
           ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            leading: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (progress > 0 && progress < 1)
-                  SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 3,
-                      backgroundColor: Colors.grey.shade300,
-                      valueColor: AlwaysStoppedAnimation(
-                        Theme.of(context).colorScheme.primary,
+          child: Card(
+            elevation: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.all(16),
+              leading: Stack(
+                alignment: Alignment.center,
+                children: [
+                  if (progress > 0 && progress < 1)
+                    SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 3,
+                        backgroundColor: Colors.grey.shade300,
+                        valueColor: AlwaysStoppedAnimation(color),
                       ),
                     ),
-                  ),
-                if (progress > 0 && progress < 1)
-                  Text(
-                    '${(progress * 100).toInt()}%',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                  if (progress > 0 && progress < 1)
+                    Text(
+                      '${(progress * 100).toInt()}%',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
                     ),
-                  ),
-                if (progress == 0 || progress == 1)
-                  Icon(
-                    isDownloaded
-                        ? Icons.check_circle
-                        : (formula.formula.startsWith('http')
-                            ? Icons.picture_as_pdf
-                            : Icons.functions),
-                    size: 32,
-                    color: isDownloaded
-                        ? Colors.green
-                        : Theme.of(context).colorScheme.primary,
-                  ),
-              ],
-            ),
-            title: Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+                  if (progress == 0 || progress == 1)
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isDownloaded
+                            ? Icons.check_circle
+                            : (formula.formula.startsWith('http')
+                                ? Icons.picture_as_pdf
+                                : Icons.functions),
+                        size: 24,
+                        color: isDownloaded ? Colors.green : color,
+                      ),
+                    ),
+                ],
               ),
-            ),
-            subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isDownloaded)
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      final shouldDelete = await showDeleteConfirmationDialog(
-                        context: context,
-                        title: 'Delete Formula',
-                        message:
-                            'Are you sure you want to delete this formula?',
-                        paperTitle: title,
-                        paperSubtitle: null,
-                      );
-                      if (shouldDelete == true) {
-                        await _deleteFormula(title);
-                      }
-                    },
-                  ),
-                Icon(
-                  isDownloaded ? Icons.download_done : Icons.arrow_forward_ios,
-                  size: 16,
-                  color: isDownloaded ? Colors.green : Colors.grey,
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
-              ],
-            ),
-            onTap: () async {
-              if (isDownloaded) {
-                final directory = await getApplicationDocumentsDirectory();
-                final filePath =
-                    '${directory.path}/${title.replaceAll(' ', '_')}.pdf';
-                Navigator.push(
-                  // ignore: use_build_context_synchronously
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PDFViewerPage(
-                      filePath: filePath,
-                      title: title,
+              ),
+              subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isDownloaded)
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () async {
+                        final shouldDelete = await showDeleteConfirmationDialog(
+                          context: context,
+                          title: 'Delete Formula',
+                          message:
+                              'Are you sure you want to delete this formula?',
+                          paperTitle: title,
+                          paperSubtitle: null,
+                        );
+                        if (shouldDelete == true) {
+                          await _deleteFormula(title);
+                        }
+                      },
+                    ),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isDownloaded
+                          ? Colors.green.withOpacity(0.1)
+                          : color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      isDownloaded
+                          ? Icons.download_done
+                          : Icons.arrow_forward_ios,
+                      size: 16,
+                      color: isDownloaded ? Colors.green : color,
                     ),
                   ),
-                );
-              } else {
-                final parentContext = context;
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                ],
+              ),
+              onTap: () async {
+                if (isDownloaded) {
+                  final directory = await getApplicationDocumentsDirectory();
+                  final filePath =
+                      '${directory.path}/${title.replaceAll(' ', '_')}.pdf';
+                  if (!mounted) return;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => PDFViewerPage(
+                        filePath: filePath,
+                        title: title,
+                      ),
                     ),
-                    title: Row(
-                      children: [
-                        Icon(
-                          Icons.book,
-                          color: Theme.of(context).colorScheme.primary,
+                  );
+                } else {
+                  final parentContext = context;
+                  final choice = await showDialog<String>(
+                    context: context,
+                    builder: (context) => Theme(
+                      data: Theme.of(context).copyWith(
+                        primaryColor: color,
+                        colorScheme: ColorScheme.fromSeed(
+                          seedColor: color,
+                          primary: color,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
+                      ),
+                      child: AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      ],
-                    ),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Choose an option to view or download this formula.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.black87,
-                            height: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        title: Row(
                           children: [
-                            ElevatedButton.icon(
-                              icon: const Icon(Icons.visibility),
-                              label: const Text('View Online'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              onPressed: () {
-                                Navigator.pop(context);
-                                if (formula.formula.startsWith('http')) {
-                                  Navigator.push(
-                                    parentContext,
-                                    MaterialPageRoute(
-                                      builder: (context) => OnlinePDFViewerPage(
-                                        pdfUrl: formula.formula,
-                                        title: title,
-                                      ),
-                                    ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('No preview available.'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              },
+                            Icon(
+                              Icons.book,
+                              color: color,
                             ),
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.download),
-                              label: const Text('Download'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor:
-                                    Theme.of(context).colorScheme.primary,
-                                side: BorderSide(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              onPressed: () async {
-                                Navigator.pop(context);
-                                if (formula.formula.startsWith('http')) {
-                                  await _downloadFormula(
-                                      formula.formula, title);
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                          'This formula is not downloadable.'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              },
                             ),
                           ],
                         ),
-                      ],
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Choose an option to view or download this formula.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.black87,
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.visibility),
+                                  label: const Text('View Online'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: color,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pop(context, 'view');
+                                  },
+                                ),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.download),
+                                  label: const Text('Download'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: color,
+                                    side: BorderSide(
+                                      color: color,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () async {
+                                    Navigator.pop(context, 'download');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              }
-            },
+                  );
+
+                  if (!mounted) return;
+
+                  if (choice == 'view') {
+                    if (formula.formula.startsWith('http')) {
+                      Navigator.push(
+                        parentContext,
+                        MaterialPageRoute(
+                          builder: (context) => OnlinePDFViewerPage(
+                            pdfUrl: formula.formula,
+                            title: title,
+                          ),
+                        ),
+                      );
+                    } else {
+                      // ignore: use_build_context_synchronously
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        const SnackBar(
+                          content: Text('No preview available.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  } else if (choice == 'download') {
+                    if (formula.formula.startsWith('http')) {
+                      await _downloadFormula(formula.formula, title);
+                    } else {
+                      // ignore: use_build_context_synchronously
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        const SnackBar(
+                          content: Text('This formula is not downloadable.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                }
+              },
+            ),
           ),
         );
       },
@@ -405,31 +457,44 @@ class _FormulaPageState extends State<FormulaPage> {
   Widget _buildSubjectSelector() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.8),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
-      child: Row(
-        children: _subjects.map((subject) {
-          final isSelected = _selectedSubject == subject;
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: _subjects.map((subject) {
+            final isSelected = _selectedSubject == subject;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isSelected
                         ? Theme.of(context).colorScheme.primary
-                        : Colors.white,
-                    foregroundColor: isSelected ? Colors.white : Colors.black,
-                    elevation: isSelected ? 8 : 2,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                        : Colors.grey.shade100,
+                    foregroundColor: isSelected ? Colors.white : Colors.black87,
+                    elevation: isSelected ? 4 : 0,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(25),
                       side: BorderSide(
                         color: isSelected
                             ? Theme.of(context).colorScheme.primary
-                            : Colors.grey.shade300,
+                            : Colors.transparent,
                         width: 1,
                       ),
                     ),
@@ -445,9 +510,9 @@ class _FormulaPageState extends State<FormulaPage> {
                   ),
                 ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -529,7 +594,7 @@ class _FormulaPageState extends State<FormulaPage> {
       itemBuilder: (context, index) {
         final title = groupedFormulas.keys.elementAt(index);
         final formulas = groupedFormulas[title]!;
-        return _buildFormulaCard(title, formulas);
+        return _buildFormulaCard(title, formulas, index);
       },
     );
   }
@@ -628,13 +693,25 @@ class _FormulaPageState extends State<FormulaPage> {
       ),
       drawer: const AppDrawer(),
       backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildSubjectSelector(),
-          Expanded(
-            child: _buildFormulaList(),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade50,
+              Colors.purple.shade50,
+            ],
           ),
-        ],
+        ),
+        child: Column(
+          children: [
+            _buildSubjectSelector(),
+            Expanded(
+              child: _buildFormulaList(),
+            ),
+          ],
+        ),
       ),
     );
   }

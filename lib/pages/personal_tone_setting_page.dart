@@ -29,13 +29,13 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   final List<String> _availableModels = [
     'gemma-3-27b-it',
     'gemma-3n-e4b-it',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
-    'gemini-2.0-flash-lite',
+    'gemini-2.5-flash-preview-09-2025',
+    'gemini-2.5-flash-image',
+    'gemini-robotics-er-1.5-preview',
     'gemini-2.0-flash',
-    'gemini-2.0-flash-preview-image-generation',
-    'gemini-2.5-flash-preview-05-20',
+    'gemini-2.0-flash-exp',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b',
   ];
 
   List<Map<String, dynamic>> _presetTones = [];
@@ -162,8 +162,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           _customTraits.add(Map<String, String>.from(jsonDecode(jsonString)));
         }
       }
-      _selectedModel =
-          prefs.getString('selected_model') ?? 'gemini-2.5-flash-preview-05-20';
+      _selectedModel = prefs.getString('selected_model') ?? 'gemma-3-27b-it';
 
       // Load custom saved presets
       final savedPresetsJson = prefs.getStringList('custom_saved_presets');
@@ -211,8 +210,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
     await prefs.setString('tone_relationship', _relationshipController.text);
     await prefs.setString('tone_language', _languageController.text);
     await prefs.setString('tone_purpose', _purposeController.text);
-    await prefs.setString(
-        'selected_model', _selectedModel ?? 'gemini-2.5-flash-preview-05-20');
+    await prefs.setString('selected_model', _selectedModel ?? 'gemma-3-27b-it');
 
     final customTraitsJson =
         _customTraits.map((trait) => jsonEncode(trait)).toList();
@@ -442,20 +440,20 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  _buildWelcomeCard(textTheme, colorScheme),
-                  const SizedBox(height: 20),
-                  _buildPresetTonesCard(textTheme, colorScheme),
-                  const SizedBox(height: 20),
-                  _buildModelSettingsCard(textTheme, colorScheme),
-                  const SizedBox(height: 20),
-                  _buildBasicInfoCard(textTheme, colorScheme),
-                  const SizedBox(height: 20),
-                  _buildCustomTraitsCard(textTheme, colorScheme),
-                  const SizedBox(height: 30),
-                  _buildSaveButton(textTheme, colorScheme),
-                  const SizedBox(height: 20),
-                  _buildSavePresetButton(textTheme, colorScheme),
-                  const SizedBox(height: 20),
+                      _buildWelcomeCard(textTheme, colorScheme),
+                      const SizedBox(height: 20),
+                      _buildPresetTonesCard(textTheme, colorScheme),
+                      const SizedBox(height: 20),
+                      _buildModelSettingsCard(textTheme, colorScheme),
+                      const SizedBox(height: 20),
+                      _buildBasicInfoCard(textTheme, colorScheme),
+                      const SizedBox(height: 20),
+                      _buildCustomTraitsCard(textTheme, colorScheme),
+                      const SizedBox(height: 30),
+                      _buildSaveButton(textTheme, colorScheme),
+                      const SizedBox(height: 20),
+                      _buildSavePresetButton(textTheme, colorScheme),
+                      const SizedBox(height: 20),
                     ],
                   );
                 },
@@ -580,7 +578,8 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         decoration: BoxDecoration(
           color: itemColor.withAlpha((0.1 * 255).toInt()),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: itemColor.withAlpha((0.3 * 255).toInt()), width: 1),
+          border: Border.all(
+              color: itemColor.withAlpha((0.3 * 255).toInt()), width: 1),
           boxShadow: [
             BoxShadow(
               color: itemColor.withAlpha((0.2 * 255).toInt()),
@@ -990,7 +989,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: colorScheme.tertiary.withOpacity( 0.2),
+              color: colorScheme.tertiary.withOpacity(0.2),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -1238,7 +1237,7 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity( 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),

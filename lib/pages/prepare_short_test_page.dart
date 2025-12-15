@@ -16,6 +16,7 @@ import 'package:pi_qbank/models/saved_test.dart'; // Import SavedTest model
 import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
 import 'package:uuid/uuid.dart'; // Import uuid for unique IDs
 import 'package:pi_qbank/pages/saved_tests_page.dart'; // Import SavedTestsPage
+import 'package:pi_qbank/widgets/view_and_edit_questions_dialog.dart';
 
 class PrepareShortTestPage extends StatefulWidget {
   const PrepareShortTestPage({super.key});
@@ -109,8 +110,8 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
     final String languageInstruction = _selectedLanguage == 'বাংলা'
         ? 'Generate questions and answers strictly in Bengali (Bangla) language. '
         : 'Generate questions and answers strictly in English language. ';
-    final String imageContext = _selectedImages.length > 1
-        ? 'these images' : 'this image';
+    final String imageContext =
+        _selectedImages.length > 1 ? 'these images' : 'this image';
 
     switch (testType) {
       case 'MCQ Test':
@@ -155,14 +156,16 @@ Respond in the following JSON format:
     });
 
     try {
-      String? apiKey = await getApiKey(); // Try to get API key from SharedPreferences
+      String? apiKey =
+          await getApiKey(); // Try to get API key from SharedPreferences
 
       if (apiKey == null || apiKey.isEmpty) {
         // If not found in SharedPreferences, use the default from AppConfig
         apiKey = AppConfig.geminiApiKey;
       }
 
-      if (apiKey.isEmpty) { // Removed unnecessary non-null assertion.
+      if (apiKey.isEmpty) {
+        // Removed unnecessary non-null assertion.
         if (!mounted) return;
         showApiKeyDialog(context); // Show dialog if API key is still not set
         setState(() {
@@ -173,7 +176,7 @@ Respond in the following JSON format:
       }
 
       final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=$apiKey');
 
       List<Map<String, dynamic>> parts = [];
 
@@ -201,10 +204,7 @@ Respond in the following JSON format:
         }
         final base64Image = base64Encode(bytes);
         parts.add({
-          "inline_data": {
-            "mime_type": mimeType,
-            "data": base64Image
-          }
+          "inline_data": {"mime_type": mimeType, "data": base64Image}
         });
       }
 
@@ -217,13 +217,19 @@ Respond in the following JSON format:
       contents.add({
         "role": "user",
         "parts": [
-          {"text": "Analyze the provided images and generate questions based on them."}
+          {
+            "text":
+                "Analyze the provided images and generate questions based on them."
+          }
         ]
       });
       contents.add({
         "role": "model",
         "parts": [
-          {"text": "Understood. I will analyze the images and prepare questions."}
+          {
+            "text":
+                "Understood. I will analyze the images and prepare questions."
+          }
         ]
       });
 
@@ -397,7 +403,8 @@ Respond in the following JSON format:
           ),
           child: ElevatedButton.icon(
             onPressed: () async {
-              final List<TestResult> results = await TestResultService.loadTestResults();
+              final List<TestResult> results =
+                  await TestResultService.loadTestResults();
               if (!mounted) return;
               Navigator.push(
                 context,
@@ -878,6 +885,46 @@ Respond in the following JSON format:
           ),
         ),
 
+        // View & Edit Button
+        if (_aiResponse.isNotEmpty &&
+            !_isProcessingImage &&
+            !_aiResponse.contains('Error')) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.purple.shade600, Colors.deepPurple.shade800],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.purple.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _viewAndEditQuestions,
+              icon: const Icon(Icons.edit_note, size: 24),
+              label: const Text(
+                'View & Edit Questions',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ],
+
         // Save Test Button
         if (_aiResponse.isNotEmpty &&
             !_isProcessingImage &&
@@ -1135,7 +1182,8 @@ Respond in the following JSON format:
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1145,6 +1193,7 @@ Respond in the following JSON format:
       ),
     );
   }
+
   Future<void> _saveTest() async {
     if (_selectedTestType == null ||
         _numberOfQuestions == null ||
@@ -1154,10 +1203,12 @@ Respond in the following JSON format:
         _aiResponse.contains('Error')) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Cannot save test. Please generate questions first and ensure all fields are valid.'),
+          content: const Text(
+              'Cannot save test. Please generate questions first and ensure all fields are valid.'),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -1185,5 +1236,154 @@ Respond in the following JSON format:
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+  }
+
+  Future<void> _viewAndEditQuestions() async {
+    if (_aiResponse.isEmpty) return;
+
+    List<Map<String, String>> parsedQuestions = [];
+
+    try {
+      // First, try to parse as JSON for MCQ tests
+      String cleanedResponse =
+          _aiResponse.replaceAll('```json', '').replaceAll('```', '').trim();
+      final jsonResponse = json.decode(cleanedResponse);
+
+      if (jsonResponse['questions'] != null) {
+        final List<dynamic> questions = jsonResponse['questions'];
+        for (var q in questions) {
+          String questionText = q['question'] ?? 'No question text';
+          Map<String, dynamic> options = q['options'] ?? {};
+          String correctAnswer = q['correct_answer'] ?? 'N/A';
+
+          String fullQuestion = questionText;
+          options.forEach((key, value) {
+            fullQuestion += '\n$key: $value';
+          });
+
+          parsedQuestions.add({
+            'question': fullQuestion,
+            'answer': correctAnswer,
+          });
+        }
+      } else {
+        throw Exception("Not a valid MCQ JSON format.");
+      }
+    } catch (e) {
+      // If JSON parsing fails, fall back to plain text parsing for Short Questions
+      try {
+        final questionBlocks = _aiResponse.trim().split(RegExp(r'\n\s*\n+'));
+
+        for (var block in questionBlocks) {
+          if (block.trim().isEmpty) continue;
+
+          String question = '';
+          String answer = '';
+          final lines = block.trim().split('\n');
+          List<String> questionLines = [];
+          bool answerFound = false;
+
+          for (var line in lines) {
+            line = line.trim();
+            if (RegExp(r'^(answer:|উত্তর:|উঃ)', caseSensitive: false)
+                .hasMatch(line)) {
+              answer = line
+                  .replaceFirst(
+                      RegExp(r'^(answer:|উত্তর:|উঃ)', caseSensitive: false), '')
+                  .trim();
+              answerFound = true;
+            } else if (!answerFound) {
+              questionLines.add(line);
+            } else {
+              answer += '\n$line';
+            }
+          }
+
+          question = questionLines.join(' ').trim();
+          question = question
+              .replaceFirst(RegExp(r'^\d+\.\s*|^[০-৯]+\.\s*'), '')
+              .trim();
+
+          if (question.isNotEmpty) {
+            parsedQuestions.add({
+              'question': _stripMarkdown(question),
+              'answer': _stripMarkdown(answer),
+            });
+          }
+        }
+      } catch (e2) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error parsing questions: ${e2.toString()}'),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+        return;
+      }
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => ViewAndEditQuestionsDialog(
+        initialQuestions: parsedQuestions,
+        selectedLanguage: _selectedLanguage,
+        selectedTestType: _selectedTestType ?? '',
+        selectedImages: _selectedImages,
+        onSave: (updatedQuestions) {
+          if (_selectedTestType == 'MCQ Test') {
+            List<Map<String, dynamic>> questionsList = [];
+            for (var q in updatedQuestions) {
+              final lines = q['question']!.split('\n');
+              final questionText = lines[0];
+              final options = <String, String>{};
+              for (int i = 1; i < lines.length; i++) {
+                final optionParts = lines[i].split(': ');
+                if (optionParts.length == 2) {
+                  options[optionParts[0]] = optionParts[1];
+                }
+              }
+              questionsList.add({
+                "question": questionText,
+                "options": options,
+                "correct_answer": q['answer'],
+              });
+            }
+            final newJsonResponse = {"questions": questionsList};
+            setState(() {
+              _aiResponse = '```json\n${json.encode(newJsonResponse)}\n```';
+              _numberOfQuestions = updatedQuestions.length;
+            });
+          } else {
+            StringBuffer newResponse = StringBuffer();
+            for (int i = 0; i < updatedQuestions.length; i++) {
+              newResponse
+                  .writeln('${i + 1}. ${updatedQuestions[i]['question']}');
+              newResponse.writeln('Answer: ${updatedQuestions[i]['answer']}');
+              newResponse.writeln();
+            }
+            setState(() {
+              _aiResponse = newResponse.toString();
+              _numberOfQuestions = updatedQuestions.length;
+            });
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_selectedLanguage == 'বাংলা'
+                  ? 'পরিবর্তনগুলো সংরক্ষণ করা হয়েছে'
+                  : 'Changes saved successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _stripMarkdown(String text) {
+    String strippedText = text.replaceAll(RegExp(r'\*\*([^\*]+)\*\*'), r'\1');
+    strippedText = strippedText.replaceAll(RegExp(r'\*([^\*]+)\*'), r'\1');
+    strippedText = strippedText.replaceAll(RegExp(r'\*'), '');
+    return strippedText.trim();
   }
 }

@@ -49,7 +49,7 @@ class HomePage extends StatelessWidget {
             'Review concise and helpful hand notes',
             Icons.note,
             Colors.purple,
-            '/notes_remainder',
+            '/hand_notes',
           ),
           _buildMainMenuItem(
             context,

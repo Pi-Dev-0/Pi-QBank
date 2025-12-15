@@ -112,8 +112,8 @@ class _QuestionGeneratorPageState extends State<QuestionGeneratorPage>
     final String languageInstruction = _selectedLanguage == 'বাংলা'
         ? 'Generate questions and answers strictly in Bengali (Bangla) language. '
         : 'Generate questions and answers strictly in English language. ';
-    final String imageContext = _selectedImages.length > 1
-        ? 'these images' : 'this image';
+    final String imageContext =
+        _selectedImages.length > 1 ? 'these images' : 'this image';
 
     String topicInstruction = _selectedLanguage == 'বাংলা'
         ? 'এই $imageContext উপর ভিত্তি করে একটি উপযুক্ত বিষয় বা শিরোনাম তৈরি করুন এবং আপনার প্রতিক্রিয়ার শুরুতে "বিষয়:" দিয়ে শুরু করুন। তারপর, '
@@ -191,7 +191,7 @@ Respond in the following JSON format:
       }
 
       final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=$apiKey');
 
       List<Map<String, dynamic>> parts = [];
 
@@ -219,10 +219,7 @@ Respond in the following JSON format:
         }
         final base64Image = base64Encode(bytes);
         parts.add({
-          "inline_data": {
-            "mime_type": mimeType,
-            "data": base64Image
-          }
+          "inline_data": {"mime_type": mimeType, "data": base64Image}
         });
       }
 
@@ -315,59 +312,72 @@ Respond in the following JSON format:
             _isProcessingImage ||
             _aiResponse.contains('Error');
 
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: CustomAppBar(
-        title: 'Question Generator',
-        centerTitle: true,
-      ),
-      body: AnimatedBuilder(
-        animation: _animationController,
-        builder: (context, child) {
-          return FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: SingleChildScrollView(
-                controller: _scrollController, // Assign ScrollController
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    if (showInputForm) ...[
-                      // Header Section
-                      _buildHeaderSection(),
-                      const SizedBox(height: 24),
+    return PopScope(
+      canPop: showInputForm,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        setState(() {
+          _generatedQuestions.clear();
+          _generatedMcqs.clear();
+          _aiResponse = '';
+          _generatedTopic = '';
+          _answerVisibility.clear();
+        });
+      },
+      child: Scaffold(
+        backgroundColor: Colors.grey.shade50,
+        appBar: CustomAppBar(
+          title: 'Question Generator',
+          centerTitle: true,
+        ),
+        body: AnimatedBuilder(
+          animation: _animationController,
+          builder: (context, child) {
+            return FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: SingleChildScrollView(
+                  controller: _scrollController, // Assign ScrollController
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      if (showInputForm) ...[
+                        // Header Section
+                        _buildHeaderSection(),
+                        const SizedBox(height: 24),
 
-                      // Configuration Section
-                      _buildConfigurationSection(),
-                      const SizedBox(height: 24),
+                        // Configuration Section
+                        _buildConfigurationSection(),
+                        const SizedBox(height: 24),
 
-                      // Image Section
-                      _buildImageSection(),
-                      const SizedBox(height: 24),
+                        // Image Section
+                        _buildImageSection(),
+                        const SizedBox(height: 24),
 
-                      // Question Settings Section
-                      _buildQuestionSettingsSection(),
-                      const SizedBox(height: 32),
+                        // Question Settings Section
+                        _buildQuestionSettingsSection(),
+                        const SizedBox(height: 32),
 
-                      // Action Buttons Section
-                      _buildActionButtonsSection(),
+                        // Action Buttons Section
+                        _buildActionButtonsSection(),
+                      ],
+
+                      // AI Response Display
+                      if (!showInputForm) ...[
+                        if (_selectedQuestionType == 'MCQ')
+                          _buildMCQResponseSection()
+                        else
+                          _buildAIResponseSection(),
+                      ],
                     ],
-
-                    // AI Response Display
-                    if (!showInputForm) ...[
-                      if (_selectedQuestionType == 'MCQ')
-                        _buildMCQResponseSection()
-                      else
-                        _buildAIResponseSection(),
-                    ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -814,8 +824,7 @@ Respond in the following JSON format:
                 : const Icon(Icons.auto_awesome, size: 24),
             label: Text(
               _isProcessingImage ? 'Generating...' : 'Generate Questions',
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
@@ -955,7 +964,8 @@ Respond in the following JSON format:
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1320,10 +1330,12 @@ Respond in the following JSON format:
           itemCount: _generatedMcqs.length,
           itemBuilder: (context, index) {
             final mcq = _generatedMcqs[index];
-            final questionText = mcq['question'] as String? ?? 'No question text provided';
+            final questionText =
+                mcq['question'] as String? ?? 'No question text provided';
             final options = mcq['options'] as Map<String, dynamic>? ?? {};
             final correctAnswerKey = mcq['correct_answer'] as String? ?? '';
-            final correctAnswerText = options[correctAnswerKey] as String? ?? 'Not available';
+            final correctAnswerText =
+                options[correctAnswerKey] as String? ?? 'Not available';
             final isAnswerVisible = _answerVisibility[index] ?? false;
 
             return Container(
@@ -1546,7 +1558,8 @@ Respond in the following JSON format:
           content: const Text('No questions generated to upload.'),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -1819,8 +1832,7 @@ Respond in the following JSON format:
                     : value ?? label,
                 style: TextStyle(
                   fontSize: 16,
-                  color:
-                      value != null ? Colors.black87 : Colors.grey.shade600,
+                  color: value != null ? Colors.black87 : Colors.grey.shade600,
                 ),
               ),
             ),
@@ -1831,11 +1843,13 @@ Respond in the following JSON format:
     );
   }
 
-  Future<void> _uploadQuestions(String selectedClass, String subject, String chapter) async {
+  Future<void> _uploadQuestions(
+      String selectedClass, String subject, String chapter) async {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Uploading questions for Class: $selectedClass, Subject: $subject, Chapter: $chapter...'),
+        content: Text(
+            'Uploading questions for Class: $selectedClass, Subject: $subject, Chapter: $chapter...'),
         backgroundColor: Colors.blue.shade600,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1874,7 +1888,8 @@ Respond in the following JSON format:
           content: const Text('Questions uploaded successfully!'),
           backgroundColor: Colors.green.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     } else {
@@ -1883,10 +1898,10 @@ Respond in the following JSON format:
           content: Text('Failed to upload questions: $result'),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
   }
 }
-

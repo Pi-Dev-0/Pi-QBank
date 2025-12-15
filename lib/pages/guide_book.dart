@@ -21,6 +21,20 @@ class _GuideBookPageState extends State<GuideBookPage> {
   bool isLoading = false;
   final Map<String, List<Map<String, dynamic>>> classGuides = {};
 
+  // Color palette for guide cards
+  final List<Color> _cardColors = [
+    Colors.purple,
+    Colors.orange,
+    Colors.blue,
+    Colors.red,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+    Colors.cyan,
+    Colors.amber,
+    Colors.deepOrange,
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -90,7 +104,7 @@ class _GuideBookPageState extends State<GuideBookPage> {
       }
     } catch (e) {
       debugPrint('Error loading guide books: $e');
-      
+
       // Check mounted before showing any dialogs
       if (!mounted) return;
 
@@ -252,137 +266,224 @@ class _GuideBookPageState extends State<GuideBookPage> {
     return Scaffold(
       appBar: const CustomAppBar(title: 'Guides'),
       drawer: const AppDrawer(),
-      body: connectivityService.isOnline
-          ? Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Container(
-                    width: MediaQuery.of(context).size.width * 0.7,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.3),
-                          spreadRadius: 2,
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade50,
+              Colors.purple.shade50,
+            ],
+          ),
+        ),
+        child: connectivityService.isOnline
+            ? Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    Container(
+                      width: MediaQuery.of(context).size.width * 0.8,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.white, Colors.blue.shade50],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          spreadRadius: 0,
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.1),
+                            spreadRadius: 2,
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: Colors.blue.withOpacity(0.2),
+                          width: 1,
                         ),
-                      ],
-                    ),
-                    child: InkWell(
-                      onTap: _showClassSelectionDialog,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
+                      ),
+                      child: InkWell(
+                        onTap: _showClassSelectionDialog,
+                        borderRadius: BorderRadius.circular(15),
                         child: Row(
                           children: [
-                            const Text(
-                              'Select Class:',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black54,
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.school_rounded,
+                                color: Colors.blue,
+                                size: 20,
                               ),
                             ),
+                            const SizedBox(width: 12),
                             Expanded(
-                              child: Center(
-                                child: Text(
-                                  selectedClass ?? 'Choose',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Selected Class',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey.shade600,
+                                    ),
                                   ),
-                                ),
+                                  Text(
+                                    selectedClass ?? 'Tap to choose',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ],
                               ),
                             ),
-                            const Icon(Icons.arrow_drop_down),
+                            const Icon(Icons.keyboard_arrow_down_rounded,
+                                color: Colors.blue),
                           ],
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: isLoading
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const CircularProgressIndicator(),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Loading Guide Books...',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 16,
+                    const SizedBox(height: 20),
+                    Expanded(
+                      child: isLoading
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const CircularProgressIndicator(),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Loading Guide Books...',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 16,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
+                            )
+                          : ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight:
+                                    MediaQuery.of(context).size.height * 0.7,
+                              ),
+                              child: guides.isEmpty
+                                  ? Center(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.menu_book_rounded,
+                                            size: 64,
+                                            color: Colors.grey.shade400,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'No guides available',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                          if (selectedClass != null)
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.only(top: 8),
+                                              child: Text(
+                                                'for $selectedClass',
+                                                style: TextStyle(
+                                                  color: Colors.grey[500],
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: guides.length,
+                                      padding:
+                                          const EdgeInsets.only(bottom: 20),
+                                      itemBuilder: (context, index) {
+                                        final guide = guides[index];
+                                        final key =
+                                            ValueKey('${guide['title']}');
+                                        final color = _cardColors[
+                                            index % _cardColors.length];
+
+                                        return Theme(
+                                          data: Theme.of(context).copyWith(
+                                            primaryColor: color,
+                                            colorScheme: ColorScheme.fromSeed(
+                                              seedColor: color,
+                                              primary: color,
+                                            ),
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(
+                                                bottom: 8.0),
+                                            child: KeyedSubtree(
+                                              key: key,
+                                              child: QuestionPaperCard(
+                                                key: key,
+                                                title: guide['title'],
+                                                subtitle: selectedClass ?? '',
+                                                year: '',
+                                                examYear: '',
+                                                downloadUrl:
+                                                    guide['downloadUrl'] ?? '',
+                                                category: 'Guide Books',
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
                             ),
-                          )
-                        : ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxHeight:
-                                  MediaQuery.of(context).size.height * 0.7,
-                            ),
-                            child: ListView.builder(
-                              shrinkWrap: true,
-                              itemCount: guides.length,
-                              itemBuilder: (context, index) {
-                                final guide = guides[index];
-                                final key = ValueKey('${guide['title']}');
-                                return KeyedSubtree(
-                                  key: key,
-                                  child: QuestionPaperCard(
-                                    key: ValueKey('${guide['title']}'),
-                                    title: guide['title'],
-                                    subtitle: selectedClass ?? '',
-                                    year: '',
-                                    examYear: '',
-                                    downloadUrl: guide['downloadUrl'] ?? '',
-                                    category: 'Guide Books',
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                  ),
-                ],
-              ),
-            )
-          : Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.signal_wifi_off,
-                        size: 48, color: Colors.red),
-                    const SizedBox(height: 8),
-                    const Text('No Internet Connection',
-                        style: TextStyle(fontSize: 18, color: Colors.red)),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
-                      onPressed: fetchData,
-                      style: ElevatedButton.styleFrom(
-                        alignment: Alignment.center,
-                      ),
                     ),
                   ],
                 ),
+              )
+            : Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.signal_wifi_off,
+                          size: 48, color: Colors.red),
+                      const SizedBox(height: 8),
+                      const Text('No Internet Connection',
+                          style: TextStyle(fontSize: 18, color: Colors.red)),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                        onPressed: fetchData,
+                        style: ElevatedButton.styleFrom(
+                          alignment: Alignment.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+      ),
     );
   }
 }

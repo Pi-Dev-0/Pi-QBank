@@ -6,6 +6,20 @@ class ClassPage extends StatelessWidget {
   final String title;
   final List<Map<String, dynamic>> subjects;
 
+  // Color palette for cards
+  final List<Color> _cardColors = const [
+    Colors.purple,
+    Colors.orange,
+    Colors.blue,
+    Colors.red,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+    Colors.cyan,
+    Colors.amber,
+    Colors.deepOrange,
+  ];
+
   const ClassPage({
     super.key,
     required this.title,
@@ -15,7 +29,7 @@ class ClassPage extends StatelessWidget {
   String _getRouteName(String className, String subjectName) {
     // Convert class name (e.g., "Class 1" to "class1")
     String classRoute = className.toLowerCase().replaceAll(' ', '');
-    
+
     // Convert subject name to route name
     String subjectRoute = '';
     switch (subjectName) {
@@ -38,7 +52,7 @@ class ClassPage extends StatelessWidget {
       case 'ইসলাম ও নৈতিক শিক্ষা':
         subjectRoute = '_religion';
         break;
-      
+
       // Secondary Classes (6-8)
       case 'বাংলা':
         subjectRoute = '_bangla';
@@ -83,57 +97,91 @@ class ClassPage extends StatelessWidget {
         subjectRoute = '_buddhist';
         break;
     }
-    
+
     return '/$classRoute$subjectRoute';
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-
     return Scaffold(
       appBar: CustomAppBar(title: title),
       drawer: const AppDrawer(),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: isLandscape ? 3 : 2,
-          childAspectRatio: isLandscape ? 2 : 1.5,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade50,
+              Colors.purple.shade50,
+            ],
+          ),
         ),
-        itemCount: subjects.length,
-        itemBuilder: (context, index) {
-          final subject = subjects[index];
-          return Card(
-            elevation: 4,
-            child: InkWell(
-              onTap: () {
-                String route = _getRouteName(title, subject['name']);
-                Navigator.pushNamed(context, route);
-              },
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    subject['icon'],
-                    size: isLandscape ? 28 : 32,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    subject['name'] ?? '',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: subjects.length,
+          itemBuilder: (context, index) {
+            final subject = subjects[index];
+            final color = _cardColors[index % _cardColors.length];
+
+            return Theme(
+              data: Theme.of(context).copyWith(
+                primaryColor: color,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: color,
+                  primary: color,
+                ),
               ),
-            ),
-          );
-        },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                child: Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        subject['icon'],
+                        size: 24,
+                        color: color,
+                      ),
+                    ),
+                    title: Text(
+                      subject['name'] ?? '',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    trailing: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: color,
+                      ),
+                    ),
+                    onTap: () {
+                      String route = _getRouteName(title, subject['name']);
+                      Navigator.pushNamed(context, route);
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

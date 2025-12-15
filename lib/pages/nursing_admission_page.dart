@@ -26,6 +26,20 @@ class _NursingAdmissionPageState extends State<NursingAdmissionPage> {
   String errorMessage = '';
   final _cacheService = DataCacheService();
 
+  // Color palette for cards
+  final List<Color> _cardColors = const [
+    Colors.purple,
+    Colors.orange,
+    Colors.blue,
+    Colors.red,
+    Colors.teal,
+    Colors.pink,
+    Colors.indigo,
+    Colors.cyan,
+    Colors.amber,
+    Colors.deepOrange,
+  ];
+
   List<String> get examYears {
     final currentYear = DateTime.now().year;
     final startYear = 2015; // Your starting year
@@ -146,92 +160,119 @@ class _NursingAdmissionPageState extends State<NursingAdmissionPage> {
     return Scaffold(
       appBar: const CustomAppBar(title: 'Nursing Admission'),
       drawer: const AppDrawer(),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: ['Diploma', 'BSC'].map((type) {
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _selectedType == type
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.white,
-                        foregroundColor: _selectedType == type
-                            ? Colors.white
-                            : Colors.black87,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        elevation: 8,
-                        shadowColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade50,
+              Colors.purple.shade50,
+            ],
+          ),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: ['Diploma', 'BSC'].map((type) {
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _selectedType == type
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.white,
+                          foregroundColor: _selectedType == type
+                              ? Colors.white
+                              : Colors.black87,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          elevation: 8,
+                          shadowColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () => setState(() => _selectedType = type),
+                        child: Text(
+                          type,
+                          style: const TextStyle(fontSize: 13),
                         ),
                       ),
-                      onPressed: () => setState(() => _selectedType = type),
-                      child: Text(
-                        type,
-                        style: const TextStyle(fontSize: 13),
-                      ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          ExamYearSelector(
-            selectedYear: _selectedExamYear,
-            examYears: examYears,
-            onYearChanged: (value) =>
-                setState(() => _selectedExamYear = value ?? ''),
-          ),
-          Expanded(
-            child: isLoading
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text(
-                          'Loading Question Papers...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+            const SizedBox(height: 8),
+            ExamYearSelector(
+              selectedYear: _selectedExamYear,
+              examYears: examYears,
+              onYearChanged: (value) =>
+                  setState(() => _selectedExamYear = value ?? ''),
+            ),
+            Expanded(
+              child: isLoading
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text(
+                            'Loading Question Papers...',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  )
-                : hasError
-                    ? ErrorStateWidget(
-                        onRetry: fetchQuestionPapers,
-                      )
-                    : filteredPapers.isEmpty
-                        ? const Center(child: Text('No question papers found'))
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(8),
-                            itemCount: filteredPapers.length,
-                            itemBuilder: (context, index) {
-                              final paper = filteredPapers[index];
-                              return QuestionPaperCard(
-                                key: ValueKey(
-                                    '${paper['examYear']}_${paper['title']}'),
-                                title: paper['title']?.toString() ?? '',
-                                subtitle: paper['subtitle']?.toString() ?? '',
-                                year: paper['examYear']?.toString() ?? '',
-                                examYear: paper['examYear']?.toString() ?? '',
-                                downloadUrl:
-                                    paper['downloadUrl']?.toString() ?? '',
-                                category: 'Nursing Admission',
-                              );
-                            },
-                          ),
-          ),
-        ],
+                        ],
+                      ),
+                    )
+                  : hasError
+                      ? ErrorStateWidget(
+                          onRetry: fetchQuestionPapers,
+                        )
+                      : filteredPapers.isEmpty
+                          ? const Center(
+                              child: Text('No question papers found'))
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(8),
+                              itemCount: filteredPapers.length,
+                              itemBuilder: (context, index) {
+                                final paper = filteredPapers[index];
+                                final color =
+                                    _cardColors[index % _cardColors.length];
+
+                                return Theme(
+                                  data: Theme.of(context).copyWith(
+                                    primaryColor: color,
+                                    colorScheme: ColorScheme.fromSeed(
+                                      seedColor: color,
+                                      primary: color,
+                                    ),
+                                  ),
+                                  child: QuestionPaperCard(
+                                    key: ValueKey(
+                                        '${paper['examYear']}_${paper['title']}'),
+                                    title: paper['title']?.toString() ?? '',
+                                    subtitle:
+                                        paper['subtitle']?.toString() ?? '',
+                                    year: paper['examYear']?.toString() ?? '',
+                                    examYear:
+                                        paper['examYear']?.toString() ?? '',
+                                    downloadUrl:
+                                        paper['downloadUrl']?.toString() ?? '',
+                                    category: 'Nursing Admission',
+                                  ),
+                                );
+                              },
+                            ),
+            ),
+          ],
+        ),
       ),
     );
   }

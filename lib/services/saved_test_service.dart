@@ -34,4 +34,16 @@ class SavedTestService {
         json.encode(savedTests.map((test) => test.toJson()).toList());
     await prefs.setString(_keySavedTests, jsonString);
   }
+
+  static Future<void> updateTest(SavedTest updatedTest) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<SavedTest> savedTests = await loadSavedTests();
+    final index = savedTests.indexWhere((test) => test.id == updatedTest.id);
+    if (index != -1) {
+      savedTests[index] = updatedTest;
+      final String jsonString =
+          json.encode(savedTests.map((test) => test.toJson()).toList());
+      await prefs.setString(_keySavedTests, jsonString);
+    }
+  }
 }

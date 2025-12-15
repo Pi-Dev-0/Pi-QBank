@@ -1,9 +1,5 @@
-library bijoy_helper;
-
 import 'dart:core';
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart';
 
 part 'conversion_maps.dart';
 
@@ -47,7 +43,8 @@ class BijoyText extends Text {
     Locale? locale,
     bool? softWrap,
     TextOverflow? overflow,
-    double? textScaleFactor,
+    @Deprecated('Use textScaler instead.') double? textScaleFactor,
+    TextScaler? textScaler,
     int? maxLines,
     bool? toBijoyIf,
     String? semanticsLabel,
@@ -67,56 +64,49 @@ class BijoyText extends Text {
             locale: locale,
             softWrap: softWrap,
             overflow: overflow,
-            textScaleFactor: textScaleFactor,
+            textScaler: textScaler ??
+                (textScaleFactor != null
+                    ? TextScaler.linear(textScaleFactor)
+                    : null),
             maxLines: maxLines,
             semanticsLabel: semanticsLabel,
             textWidthBasis: textWidthBasis,
             textHeightBehavior: textHeightBehavior);
 
   const BijoyText.rich(
-    BijoyTextSpan textSpan, {
-    Key? key,
-    TextStyle? style,
-    StrutStyle? strutStyle,
-    TextAlign? textAlign,
-    TextDirection? textDirection,
-    Locale? locale,
-    bool? softWrap,
-    TextOverflow? overflow,
-    double? textScaleFactor,
-    int? maxLines,
-    String? semanticsLabel,
-    TextWidthBasis? textWidthBasis,
-    TextHeightBehavior? textHeightBehavior,
-  }) : super.rich(textSpan,
-            key: key,
-            style: style,
-            strutStyle: strutStyle,
-            textAlign: textAlign,
-            textDirection: textDirection,
-            locale: locale,
-            softWrap: softWrap,
-            overflow: overflow,
-            textScaleFactor: textScaleFactor,
-            maxLines: maxLines,
-            semanticsLabel: semanticsLabel,
-            textWidthBasis: textWidthBasis,
-            textHeightBehavior: textHeightBehavior);
+    BijoyTextSpan super.textSpan, {
+    super.key,
+    super.style,
+    super.strutStyle,
+    super.textAlign,
+    super.textDirection,
+    super.locale,
+    super.softWrap,
+    super.overflow,
+    @Deprecated('Use textScaler instead.') double? textScaleFactor,
+    super.textScaler,
+    super.maxLines,
+    super.semanticsLabel,
+    super.textWidthBasis,
+    super.textHeightBehavior,
+  }) : super.rich(
+            // ignore: deprecated_member_use
+            textScaleFactor: textScaler == null ? textScaleFactor : null);
 }
 
 class BijoyTextSpan extends TextSpan {
   BijoyTextSpan({
     String? text,
     List<BijoyTextSpan>? children,
-    TextStyle? style,
+    super.style,
     bool? toBijoyIf,
-    GestureRecognizer? recognizer,
-    MouseCursor? mouseCursor,
-    PointerEnterEventListener? onEnter,
-    PointerExitEventListener? onExit,
+    super.recognizer,
+    super.mouseCursor,
+    super.onEnter,
+    super.onExit,
     String? semanticsLabel,
-    Locale? locale,
-    bool? spellOut,
+    super.locale,
+    super.spellOut,
   }) : super(
           text: text != null
               ? toBijoyIf != null
@@ -126,14 +116,7 @@ class BijoyTextSpan extends TextSpan {
                   : _toBijoy(text)
               : null,
           children: children,
-          style: style,
-          recognizer: recognizer,
-          mouseCursor: mouseCursor,
-          onEnter: onEnter,
-          onExit: onExit,
           semanticsLabel: semanticsLabel?.toBijoyIf(toBijoyIf ?? true),
-          locale: locale,
-          spellOut: spellOut,
         );
 }
 
@@ -152,7 +135,8 @@ class MixedBijoyText extends Text {
     Locale? locale,
     bool? softWrap,
     TextOverflow? overflow,
-    double? textScaleFactor,
+    @Deprecated('Use textScaler instead.') double? textScaleFactor,
+    TextScaler? textScaler,
     int? maxLines,
     bool? toBijoyIf,
     String? semanticsLabel,
@@ -173,7 +157,10 @@ class MixedBijoyText extends Text {
           locale: locale,
           softWrap: softWrap,
           overflow: overflow,
-          textScaleFactor: textScaleFactor,
+          textScaler: textScaler ??
+              (textScaleFactor != null
+                  ? TextScaler.linear(textScaleFactor)
+                  : null),
           maxLines: maxLines,
           semanticsLabel: semanticsLabel,
           textWidthBasis: textWidthBasis,
@@ -202,35 +189,25 @@ class MixedBijoyText extends Text {
   }
 
   const MixedBijoyText.rich(
-    MixedBijoyTextSpan textSpan, {
-    Key? key,
-    TextStyle? style,
-    StrutStyle? strutStyle,
-    TextAlign? textAlign,
-    TextDirection? textDirection,
-    Locale? locale,
-    bool? softWrap,
-    TextOverflow? overflow,
-    double? textScaleFactor,
-    int? maxLines,
-    String? semanticsLabel,
-    TextWidthBasis? textWidthBasis,
-    TextHeightBehavior? textHeightBehavior,
+    MixedBijoyTextSpan super.textSpan, {
+    super.key,
+    super.style,
+    super.strutStyle,
+    super.textAlign,
+    super.textDirection,
+    super.locale,
+    super.softWrap,
+    super.overflow,
+    @Deprecated('Use textScaler instead.') double? textScaleFactor,
+    super.textScaler,
+    super.maxLines,
+    super.semanticsLabel,
+    super.textWidthBasis,
+    super.textHeightBehavior,
     this.bijoyFontFamily,
-  }) : super.rich(textSpan,
-            key: key,
-            style: style,
-            strutStyle: strutStyle,
-            textAlign: textAlign,
-            textDirection: textDirection,
-            locale: locale,
-            softWrap: softWrap,
-            overflow: overflow,
-            textScaleFactor: textScaleFactor,
-            maxLines: maxLines,
-            semanticsLabel: semanticsLabel,
-            textWidthBasis: textWidthBasis,
-            textHeightBehavior: textHeightBehavior);
+  }) : super.rich(
+            // ignore: deprecated_member_use
+            textScaleFactor: textScaler == null ? textScaleFactor : null);
 }
 
 /// A TextSpan that handles mixed Bangla-English text with Bijoy conversion
@@ -241,15 +218,15 @@ class MixedBijoyTextSpan extends TextSpan {
   MixedBijoyTextSpan({
     String? text,
     List<MixedBijoyTextSpan>? children,
-    TextStyle? style,
+    super.style,
     bool? toBijoyIf,
-    GestureRecognizer? recognizer,
-    MouseCursor? mouseCursor,
-    PointerEnterEventListener? onEnter,
-    PointerExitEventListener? onExit,
-    String? semanticsLabel,
-    Locale? locale,
-    bool? spellOut,
+    super.recognizer,
+    super.mouseCursor,
+    super.onEnter,
+    super.onExit,
+    super.semanticsLabel,
+    super.locale,
+    super.spellOut,
     this.bijoyFontFamily,
   }) : super(
           children: text != null
@@ -260,14 +237,6 @@ class MixedBijoyTextSpan extends TextSpan {
                   bijoyFontFamily,
                 )
               : children,
-          style: style,
-          recognizer: recognizer,
-          mouseCursor: mouseCursor,
-          onEnter: onEnter,
-          onExit: onExit,
-          semanticsLabel: semanticsLabel,
-          locale: locale,
-          spellOut: spellOut,
         );
 
   static List<TextSpan> _buildMixedTextSpanChildren(
