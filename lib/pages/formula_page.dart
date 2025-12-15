@@ -597,7 +597,8 @@ class _FormulaPageState extends State<FormulaPage> {
     );
   }
 
-  Future<void> _downloadFormula(String url, String title, BuildContext context) async {
+  Future<void> _downloadFormula(
+      String url, String title, BuildContext context) async {
     final directory = await getApplicationDocumentsDirectory();
     if (!context.mounted) return; // Ensure widget is still mounted
     final filePath = '${directory.path}/${title.replaceAll(' ', '_')}.pdf';
@@ -691,24 +692,23 @@ class _FormulaPageState extends State<FormulaPage> {
       ),
       drawer: const AppDrawer(),
       backgroundColor: Colors.white,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.blue.shade50,
-              Colors.purple.shade50,
-            ],
-          ),
+      body: ClipRRect(
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(30),
         ),
-        child: Column(
-          children: [
-            _buildSubjectSelector(),
-            Expanded(
-              child: _buildFormulaList(),
+        child: Container(
+          color: Colors.white,
+          child: Container(
+            color: Colors.white,
+            child: Column(
+              children: [
+                _buildSubjectSelector(),
+                Expanded(
+                  child: _buildFormulaList(),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
