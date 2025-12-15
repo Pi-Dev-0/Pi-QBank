@@ -191,8 +191,8 @@ class _MCQTestPageState extends State<MCQTestPage>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF667EEA),
-                Color(0xFF764BA2),
+                Color.fromARGB(255, 115, 140, 230),
+                Color.fromARGB(255, 155, 100, 210),
               ],
             ),
             borderRadius: const BorderRadius.only(
@@ -201,8 +201,8 @@ class _MCQTestPageState extends State<MCQTestPage>
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF667EEA).withOpacity(0.4),
-                blurRadius: 10,
+                color: const Color(0xFF667EEA).withOpacity(0.2),
+                blurRadius: 5,
                 offset: const Offset(0, 5),
               ),
             ],
