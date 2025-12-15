@@ -285,336 +285,330 @@ class _MCQTestPageState extends State<MCQTestPage>
             ],
           ),
         ),
-        child: _testSubmitted ? _buildResultsView() : _buildTestView(),
-      ),
-    );
-  }
-
-  Widget _buildTestView() {
-    if (_mcqQuestions.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: _testSubmitted ? _buildResultsView() : Column(
           children: [
-            Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'No questions available',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white,
-                  const Color(0xFFF8FAFC),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white,
+                    const Color(0xFFF8FAFC),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildInfoCard(
-                  'Questions',
-                  '${_mcqQuestions.length}',
-                  Icons.quiz_outlined,
-                  const Color(0xFF667EEA),
-                ),
-                _buildInfoCard(
-                  'Answered',
-                  '${_userAnswers.values.where((v) => v != null).length}',
-                  Icons.check_circle_outline,
-                  const Color(0xFF10B981),
-                ),
-                _buildInfoCard(
-                  'Remaining',
-                  '${_userAnswers.values.where((v) => v == null).length}',
-                  Icons.pending_outlined,
-                  const Color(0xFFF59E0B),
-                ),
-              ],
-            ),
-          ),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _mcqQuestions.length,
-            itemBuilder: (context, index) {
-              final question = _mcqQuestions[index];
-              final isAnswered = _userAnswers[index] != null;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Colors.white,
-                      Colors.grey.shade50,
-                    ],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildInfoCard(
+                    'Questions',
+                    '${_mcqQuestions.length}',
+                    Icons.quiz_outlined,
+                    const Color(0xFF667EEA),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                  border: Border.all(
-                    color: isAnswered
-                        ? const Color(0xFF667EEA).withOpacity(0.3)
-                        : Colors.grey.withOpacity(0.1),
-                    width: 2,
+                  _buildInfoCard(
+                    'Answered',
+                    '${_userAnswers.values.where((v) => v != null).length}',
+                    Icons.check_circle_outline,
+                    const Color(0xFF10B981),
                   ),
-                ),
+                  _buildInfoCard(
+                    'Remaining',
+                    '${_userAnswers.values.where((v) => v == null).length}',
+                    Icons.pending_outlined,
+                    const Color(0xFFF59E0B),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: isAnswered
-                              ? [
-                                  const Color(0xFF667EEA).withOpacity(0.1),
-                                  const Color(0xFF764BA2).withOpacity(0.05)
-                                ]
-                              : [Colors.grey.shade100, Colors.grey.shade50],
-                        ),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(18),
-                          topRight: Radius.circular(18),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: isAnswered
-                                    ? [
-                                        const Color(0xFF667EEA),
-                                        const Color(0xFF764BA2)
-                                      ]
-                                    : [
-                                        Colors.grey.shade400,
-                                        Colors.grey.shade500
-                                      ],
-                              ),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: (isAnswered
-                                          ? const Color(0xFF667EEA)
-                                          : Colors.grey)
-                                      .withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _mcqQuestions.length,
+                      itemBuilder: (context, index) {
+                        final question = _mcqQuestions[index];
+                        final isAnswered = _userAnswers[index] != null;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 20),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white,
+                                Colors.grey.shade50,
                               ],
                             ),
-                            child: Center(
-                              child: Text(
-                                '${index + 1}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 15,
+                                offset: const Offset(0, 5),
                               ),
+                            ],
+                            border: Border.all(
+                              color: isAnswered
+                                  ? const Color(0xFF667EEA).withOpacity(0.3)
+                                  : Colors.grey.withOpacity(0.1),
+                              width: 2,
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              question['question'],
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF1F2937),
-                                height: 1.4,
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: isAnswered
+                                        ? [
+                                            const Color(0xFF667EEA).withOpacity(0.1),
+                                            const Color(0xFF764BA2).withOpacity(0.05)
+                                          ]
+                                        : [Colors.grey.shade100, Colors.grey.shade50],
+                                  ),
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(18),
+                                    topRight: Radius.circular(18),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 50,
+                                      height: 50,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: isAnswered
+                                              ? [
+                                                  const Color(0xFF667EEA),
+                                                  const Color(0xFF764BA2)
+                                                ]
+                                              : [
+                                                  Colors.grey.shade400,
+                                                  Colors.grey.shade500
+                                                ],
+                                        ),
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (isAnswered
+                                                    ? const Color(0xFF667EEA)
+                                                    : Colors.grey)
+                                                .withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '${index + 1}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        question['question'],
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF1F2937),
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
+                              Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  children: (question['options'] as Map<String, dynamic>)
+                                      .entries
+                                      .map(
+                                        (option) => Container(
+                                          margin: const EdgeInsets.symmetric(vertical: 6),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: _userAnswers[index] == option.key
+                                                  ? const Color(0xFF667EEA)
+                                                  : Colors.grey.withOpacity(0.2),
+                                              width: 2,
+                                            ),
+                                            gradient: _userAnswers[index] == option.key
+                                                ? LinearGradient(
+                                                    colors: [
+                                                      const Color(0xFF667EEA)
+                                                          .withOpacity(0.1),
+                                                      const Color(0xFF764BA2)
+                                                          .withOpacity(0.05),
+                                                    ],
+                                                  )
+                                                : null,
+                                          ),
+                                          child: RadioListTile<String>(
+                                            title: Text(
+                                              option.value,
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight:
+                                                    _userAnswers[index] == option.key
+                                                        ? FontWeight.w600
+                                                        : FontWeight.normal,
+                                                color: _userAnswers[index] == option.key
+                                                    ? const Color(0xFF667EEA)
+                                                    : const Color(0xFF374151),
+                                              ),
+                                            ),
+                                            value: option.key,
+                                            groupValue: _userAnswers[index],
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _userAnswers[index] = value;
+                                              });
+                                            },
+                                            activeColor: const Color(0xFF667EEA),
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(horizontal: 8),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(15),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF667EEA).withOpacity(0.4),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: (question['options'] as Map<String, dynamic>)
-                            .entries
-                            .map(
-                              (option) => Container(
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: _userAnswers[index] == option.key
-                                        ? const Color(0xFF667EEA)
-                                        : Colors.grey.withOpacity(0.2),
-                                    width: 2,
-                                  ),
-                                  gradient: _userAnswers[index] == option.key
-                                      ? LinearGradient(
-                                          colors: [
-                                            const Color(0xFF667EEA)
-                                                .withOpacity(0.1),
-                                            const Color(0xFF764BA2)
-                                                .withOpacity(0.05),
-                                          ],
-                                        )
-                                      : null,
-                                ),
-                                child: RadioListTile<String>(
-                                  title: Text(
-                                    option.value,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight:
-                                          _userAnswers[index] == option.key
-                                              ? FontWeight.w600
-                                              : FontWeight.normal,
-                                      color: _userAnswers[index] == option.key
-                                          ? const Color(0xFF667EEA)
-                                          : const Color(0xFF374151),
-                                    ),
-                                  ),
-                                  value: option.key,
-                                  groupValue: _userAnswers[index],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _userAnswers[index] = value;
-                                    });
-                                  },
-                                  activeColor: const Color(0xFF667EEA),
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(horizontal: 8),
-                                ),
+                      child: ElevatedButton(
+                        onPressed: _submitTest,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          minimumSize: const Size(double.infinity, 50),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.send_rounded, size: 24, color: Colors.white),
+                            SizedBox(width: 12),
+                            Text(
+                              'Submit Test',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
                               ),
-                            )
-                            .toList(),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
-              );
-            },
-          ),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF667EEA).withOpacity(0.4),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: _submitTest,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.send_rounded, size: 24, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text(
-                    'Submit Test',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+
+
 
   Widget _buildInfoCard(
       String title, String value, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Column(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: Icon(icon, color: color, size: 16),
           ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
       ),
