@@ -187,14 +187,25 @@ class _MCQTestPageState extends State<MCQTestPage>
         elevation: 0,
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF667EEA),
-                const Color(0xFF764BA2),
+                Color(0xFF667EEA),
+                Color(0xFF764BA2),
               ],
             ),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(30),
+              bottomRight: Radius.circular(30),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF667EEA).withOpacity(0.4),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
         ),
         title: _testSubmitted
@@ -214,6 +225,8 @@ class _MCQTestPageState extends State<MCQTestPage>
             : AnimatedBuilder(
                 animation: _timerAnimationController,
                 builder: (context, child) {
+                  final progress =
+                      _remainingSeconds / (widget.testTimeInMinutes * 60);
                   return Transform.scale(
                     scale: _timeIsLow
                         ? 1.0 + (_timerAnimationController.value * 0.1)
@@ -222,15 +235,18 @@ class _MCQTestPageState extends State<MCQTestPage>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: _timeIsLow
-                              ? [Colors.red.shade400, Colors.red.shade600]
-                              : [
-                                  Colors.white.withOpacity(0.9),
-                                  Colors.white.withOpacity(0.7)
-                                ],
-                        ),
                         borderRadius: BorderRadius.circular(25),
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          stops: [progress, progress],
+                          colors: [
+                            _timeIsLow
+                                ? Colors.red.shade400
+                                : Colors.white.withOpacity(0.8), // Progress color
+                            Colors.white.withOpacity(0.3), // Changed from Colors.black.withOpacity(0.1) // Background color
+                          ],
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: (_timeIsLow ? Colors.red : Colors.black)
@@ -248,7 +264,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                             size: 20,
                             color: _timeIsLow
                                 ? Colors.white
-                                : const Color(0xFF667EEA),
+                                : const Color.fromARGB(255, 90, 0, 150),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -258,7 +274,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                               fontWeight: FontWeight.bold,
                               color: _timeIsLow
                                   ? Colors.white
-                                  : const Color(0xFF667EEA),
+                                  : const Color.fromARGB(255, 90, 0, 150),
                               letterSpacing: 1.2,
                             ),
                           ),
