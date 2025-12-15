@@ -304,7 +304,7 @@ class _FormulaPageState extends State<FormulaPage> {
                   final directory = await getApplicationDocumentsDirectory();
                   final filePath =
                       '${directory.path}/${title.replaceAll(' ', '_')}.pdf';
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => PDFViewerPage(
@@ -316,7 +316,7 @@ class _FormulaPageState extends State<FormulaPage> {
                 } else {
                   final parentContext = context;
                   final choice = await showDialog<String>(
-                    context: context,
+                    context: parentContext,
                     builder: (context) => Theme(
                       data: Theme.of(context).copyWith(
                         primaryColor: color,
@@ -410,7 +410,7 @@ class _FormulaPageState extends State<FormulaPage> {
                     ),
                   );
 
-                  if (!mounted) return;
+                  if (!context.mounted) return;
 
                   if (choice == 'view') {
                     if (formula.formula.startsWith('http')) {
@@ -424,7 +424,6 @@ class _FormulaPageState extends State<FormulaPage> {
                         ),
                       );
                     } else {
-                      // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(parentContext).showSnackBar(
                         const SnackBar(
                           content: Text('No preview available.'),
@@ -434,9 +433,8 @@ class _FormulaPageState extends State<FormulaPage> {
                     }
                   } else if (choice == 'download') {
                     if (formula.formula.startsWith('http')) {
-                      await _downloadFormula(formula.formula, title);
+                      await _downloadFormula(formula.formula, title, context);
                     } else {
-                      // ignore: use_build_context_synchronously
                       ScaffoldMessenger.of(parentContext).showSnackBar(
                         const SnackBar(
                           content: Text('This formula is not downloadable.'),
@@ -599,9 +597,9 @@ class _FormulaPageState extends State<FormulaPage> {
     );
   }
 
-  Future<void> _downloadFormula(String url, String title) async {
+  Future<void> _downloadFormula(String url, String title, BuildContext context) async {
     final directory = await getApplicationDocumentsDirectory();
-    if (!mounted) return; // Ensure widget is still mounted
+    if (!context.mounted) return; // Ensure widget is still mounted
     final filePath = '${directory.path}/${title.replaceAll(' ', '_')}.pdf';
     final file = File(filePath);
 
@@ -631,7 +629,7 @@ class _FormulaPageState extends State<FormulaPage> {
             setState(() {
               _downloadProgress.remove(title); // Remove progress tracking
             });
-            if (!mounted) return; // Ensure widget is still mounted
+            if (!context.mounted) return; // Ensure widget is still mounted
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Formula downloaded successfully!'),
@@ -643,7 +641,7 @@ class _FormulaPageState extends State<FormulaPage> {
             setState(() {
               _downloadProgress.remove(title); // Remove progress tracking
             });
-            if (!mounted) return; // Ensure widget is still mounted
+            if (!context.mounted) return; // Ensure widget is still mounted
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Failed to download the formula.'),
@@ -657,7 +655,7 @@ class _FormulaPageState extends State<FormulaPage> {
         setState(() {
           _downloadProgress.remove(title); // Remove progress tracking
         });
-        if (!mounted) return; // Ensure widget is still mounted
+        if (!context.mounted) return; // Ensure widget is still mounted
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to download the formula.'),
@@ -669,7 +667,7 @@ class _FormulaPageState extends State<FormulaPage> {
       setState(() {
         _downloadProgress.remove(title); // Remove progress tracking
       });
-      if (!mounted) return; // Ensure widget is still mounted
+      if (!context.mounted) return; // Ensure widget is still mounted
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('An error occurred while downloading the formula.'),
