@@ -170,6 +170,80 @@ class _MCQTestPageState extends State<MCQTestPage>
     _resultAnimationController.forward();
   }
 
+  Future<void> _showSubmitConfirmationDialog() async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Confirm Submission',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Please review your progress before submitting.'),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoCardDialog(
+                      'Questions',
+                      '${_mcqQuestions.length}',
+                      Icons.quiz_outlined,
+                      const Color(0xFF667EEA),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildInfoCardDialog(
+                      'Answered',
+                      '${_userAnswers.values.where((v) => v != null).length}',
+                      Icons.check_circle_outline,
+                      const Color(0xFF10B981),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildInfoCardDialog(
+                      'Remaining',
+                      '${_userAnswers.values.where((v) => v == null).length}',
+                      Icons.pending_outlined,
+                      const Color(0xFFF59E0B),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF667EEA),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text('Submit Now'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _submitTest();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _timer.cancel();
@@ -326,19 +400,19 @@ class _MCQTestPageState extends State<MCQTestPage>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildInfoCard(
+                  _buildInfoCardMainPage(
                     'Questions',
                     '${_mcqQuestions.length}',
                     Icons.quiz_outlined,
                     const Color(0xFF667EEA),
                   ),
-                  _buildInfoCard(
+                  _buildInfoCardMainPage(
                     'Answered',
                     '${_userAnswers.values.where((v) => v != null).length}',
                     Icons.check_circle_outline,
                     const Color(0xFF10B981),
                   ),
-                  _buildInfoCard(
+                  _buildInfoCardMainPage(
                     'Remaining',
                     '${_userAnswers.values.where((v) => v == null).length}',
                     Icons.pending_outlined,
@@ -538,7 +612,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                         ],
                       ),
                       child: ElevatedButton(
-                        onPressed: _submitTest,
+                        onPressed: _showSubmitConfirmationDialog,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
@@ -577,7 +651,50 @@ class _MCQTestPageState extends State<MCQTestPage>
 
 
 
-  Widget _buildInfoCard(
+  Widget _buildInfoCardDialog(
+      String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCardMainPage(
       String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
