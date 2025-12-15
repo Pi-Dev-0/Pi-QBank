@@ -227,12 +227,12 @@ class _MCQTestPageState extends State<MCQTestPage>
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF667EEA),
+                backgroundColor: const Color.fromARGB(255, 120, 145, 255),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text('Submit Now'),
+              child: const Text('Submit Now', style: TextStyle(color: Colors.white)),
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 _submitTest();
