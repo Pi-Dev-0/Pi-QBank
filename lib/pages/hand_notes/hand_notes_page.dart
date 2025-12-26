@@ -610,6 +610,12 @@ class _HandNotesPageState extends State<HandNotesPage>
           (_selectedTopic == null || f.topic == _selectedTopic);
     }).toList();
 
+    if (_isLoading) {
+      return const Scaffold(
+        body: LoadingWidget(loadingText: 'Loading Notes...'),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
@@ -627,79 +633,76 @@ class _HandNotesPageState extends State<HandNotesPage>
             },
           ),
         ),
-        body: _isLoading
-            ? const Center(
-                child: LoadingWidget(loadingText: 'Fetching Notes...'))
-            : Column(
+        body: Column(
+          children: [
+            // Filters Section
+            Container(
+              padding: const EdgeInsets.only(
+                  left: 16.0, right: 16.0, top: 16.0, bottom: 8.0),
+              child: Row(
                 children: [
-                  // Filters Section
-                  Container(
-                    padding: const EdgeInsets.only(
-                        left: 16.0, right: 16.0, top: 16.0, bottom: 8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _buildFilterChip(
-                              'Class', _selectedClass, _classes, (val) {
-                            setState(() {
-                              _selectedClass = val;
-                              _selectedSubject = null;
-                              _selectedTopic = null;
-                              _updateDropdowns();
-                            });
-                          }),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildFilterChip(
-                              'Subject', _selectedSubject, _subjects, (val) {
-                            setState(() {
-                              _selectedSubject = val;
-                              _selectedTopic = null;
-                              _updateDropdowns();
-                            });
-                          }),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildFilterChip(
-                              'Topic', _selectedTopic, _topics, (val) {
-                            setState(() {
-                              _selectedTopic = val;
-                            });
-                          }),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Content Section
                   Expanded(
-                    child: filteredNotes.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.note_alt_outlined,
-                                    size: 60, color: Colors.grey[400]),
-                                const SizedBox(height: 16),
-                                Text("No notes found",
-                                    style: TextStyle(
-                                        color: Colors.grey[600], fontSize: 16)),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            physics: const BouncingScrollPhysics(),
-                            itemCount: filteredNotes.length,
-                            itemBuilder: (context, index) =>
-                                _buildNoteCard(filteredNotes[index], index),
-                          ),
+                    child: _buildFilterChip('Class', _selectedClass, _classes,
+                        (val) {
+                      setState(() {
+                        _selectedClass = val;
+                        _selectedSubject = null;
+                        _selectedTopic = null;
+                        _updateDropdowns();
+                      });
+                    }),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildFilterChip(
+                        'Subject', _selectedSubject, _subjects, (val) {
+                      setState(() {
+                        _selectedSubject = val;
+                        _selectedTopic = null;
+                        _updateDropdowns();
+                      });
+                    }),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildFilterChip('Topic', _selectedTopic, _topics,
+                        (val) {
+                      setState(() {
+                        _selectedTopic = val;
+                      });
+                    }),
                   ),
                 ],
               ),
+            ),
+
+            // Content Section
+            Expanded(
+              child: filteredNotes.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.note_alt_outlined,
+                              size: 60, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text("No notes found",
+                              style: TextStyle(
+                                  color: Colors.grey[600], fontSize: 16)),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: filteredNotes.length,
+                      itemBuilder: (context, index) =>
+                          _buildNoteCard(filteredNotes[index], index),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

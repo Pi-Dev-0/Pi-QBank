@@ -244,7 +244,8 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
             ),
           ),
           SizedBox(height: 2),
-          Text('Please Connect to the internet to continue.',
+          Text(
+            'Please Connect to the internet to continue.',
             style: TextStyle(
               fontSize: 16,
               color: Colors.grey[700],
@@ -271,29 +272,31 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        body: LoadingWidget(loadingText: 'Loading Suggestions...'),
+      );
+    }
+
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Suggestions',
       ),
-      body: isLoading
-          ? const Center(
-              child: LoadingWidget(loadingText: 'Loading Suggestions...'),
-            )
-          : errorMessage != null
-              ? _buildErrorView()
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: groupedSuggestions.length,
-                  itemBuilder: (context, index) {
-                    final className = groupedSuggestions.keys.elementAt(index);
-                    final subjects = groupedSuggestions[className]!;
-                    return _SuggestionCard(
-                      className: className,
-                      subjects: subjects,
-                      onSubjectTap: _showSubjectDialog,
-                    );
-                  },
-                ),
+      body: errorMessage != null
+          ? _buildErrorView()
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: groupedSuggestions.length,
+              itemBuilder: (context, index) {
+                final className = groupedSuggestions.keys.elementAt(index);
+                final subjects = groupedSuggestions[className]!;
+                return _SuggestionCard(
+                  className: className,
+                  subjects: subjects,
+                  onSubjectTap: _showSubjectDialog,
+                );
+              },
+            ),
     );
   }
 }
