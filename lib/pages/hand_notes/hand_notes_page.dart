@@ -205,64 +205,141 @@ class _HandNotesPageState extends State<HandNotesPage>
 
   Widget _buildFilterChip(String label, String? value, List<String> options,
       ValueChanged<String?> onChanged) {
-    return Container(
-      width: 140, // Fixed width for consistent row layout
-      margin: const EdgeInsets.only(right: 12), // Spacing between items
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    IconData getIcon() {
+      switch (label) {
+        case 'Class':
+          return Icons.school_rounded;
+        case 'Subject':
+          return Icons.menu_book_rounded;
+        case 'Topic':
+          return Icons.topic_rounded;
+        default:
+          return Icons.category_rounded;
+      }
+    }
+
+    Widget buildItemContent(String text) {
+      return Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 4),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.indigo.withOpacity(0.05),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              getIcon(),
+              size: 16,
+              color: Colors.indigo.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
             child: Text(
-              label,
+              text,
               style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo,
-                  fontSize: 12),
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          Container(
-            height: 45, // Compact height
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.indigo.withOpacity(0.2)),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.indigo.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4)),
-              ],
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 4),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.indigo,
+              fontSize: 12,
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: options.contains(value) ? value : null,
-                isExpanded: true,
-                hint: const Text("Select",
-                    style: TextStyle(fontSize: 13)), // Shorter hint
-                icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                    color: Colors.indigo, size: 20),
-                items: options.map((String item) {
-                  return DropdownMenuItem<String>(
-                    value: item,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.indigo.withOpacity(0.15)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.indigo.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: options.contains(value) ? value : null,
+              isExpanded: true,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                  color: Colors.indigo, size: 20),
+              hint: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.indigo.withOpacity(0.05),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      getIcon(),
+                      size: 16,
+                      color: Colors.indigo.withOpacity(0.8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
                     child: Text(
-                      item,
-                      style:
-                          const TextStyle(color: Colors.black87, fontSize: 13),
+                      'Select',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  );
-                }).toList(),
-                onChanged: onChanged,
+                  ),
+                ],
               ),
+              selectedItemBuilder: (BuildContext context) {
+                return options.map<Widget>((String item) {
+                  return buildItemContent(item);
+                }).toList();
+              },
+              items: options.map((String item) {
+                return DropdownMenuItem<String>(
+                  value: item,
+                  child: Text(
+                    item,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                );
+              }).toList(),
+              onChanged: onChanged,
+              dropdownColor: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              style: const TextStyle(color: Colors.black87),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -550,72 +627,79 @@ class _HandNotesPageState extends State<HandNotesPage>
             },
           ),
         ),
-        body: Column(
-          children: [
-            // Filters Section
-            Container(
-              padding: const EdgeInsets.only(
-                  left: 16.0, right: 16.0, top: 16.0, bottom: 8.0),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                child: Row(
-                  children: [
-                    _buildFilterChip('Class', _selectedClass, _classes, (val) {
-                      setState(() {
-                        _selectedClass = val;
-                        _selectedSubject = null;
-                        _selectedTopic = null;
-                        _updateDropdowns();
-                      });
-                    }),
-                    if (_classes.isNotEmpty)
-                      _buildFilterChip('Subject', _selectedSubject, _subjects,
-                          (val) {
-                        setState(() {
-                          _selectedSubject = val;
-                          _selectedTopic = null;
-                          _updateDropdowns();
-                        });
-                      }),
-                    if (_subjects.isNotEmpty)
-                      _buildFilterChip('Topic', _selectedTopic, _topics,
-                          (val) => setState(() => _selectedTopic = val)),
-                  ],
-                ),
-              ),
-            ),
-
-            // Content Section
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: LoadingWidget(loadingText: 'Fetching Notes...'))
-                  : filteredNotes.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.note_alt_outlined,
-                                  size: 60, color: Colors.grey[400]),
-                              const SizedBox(height: 16),
-                              Text("No notes found",
-                                  style: TextStyle(
-                                      color: Colors.grey[600], fontSize: 16)),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: filteredNotes.length,
-                          itemBuilder: (context, index) =>
-                              _buildNoteCard(filteredNotes[index], index),
+        body: _isLoading
+            ? const Center(
+                child: LoadingWidget(loadingText: 'Fetching Notes...'))
+            : Column(
+                children: [
+                  // Filters Section
+                  Container(
+                    padding: const EdgeInsets.only(
+                        left: 16.0, right: 16.0, top: 16.0, bottom: 8.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildFilterChip(
+                              'Class', _selectedClass, _classes, (val) {
+                            setState(() {
+                              _selectedClass = val;
+                              _selectedSubject = null;
+                              _selectedTopic = null;
+                              _updateDropdowns();
+                            });
+                          }),
                         ),
-            ),
-          ],
-        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildFilterChip(
+                              'Subject', _selectedSubject, _subjects, (val) {
+                            setState(() {
+                              _selectedSubject = val;
+                              _selectedTopic = null;
+                              _updateDropdowns();
+                            });
+                          }),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildFilterChip(
+                              'Topic', _selectedTopic, _topics, (val) {
+                            setState(() {
+                              _selectedTopic = val;
+                            });
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Content Section
+                  Expanded(
+                    child: filteredNotes.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.note_alt_outlined,
+                                    size: 60, color: Colors.grey[400]),
+                                const SizedBox(height: 16),
+                                Text("No notes found",
+                                    style: TextStyle(
+                                        color: Colors.grey[600], fontSize: 16)),
+                              ],
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: filteredNotes.length,
+                            itemBuilder: (context, index) =>
+                                _buildNoteCard(filteredNotes[index], index),
+                          ),
+                  ),
+                ],
+              ),
       ),
     );
   }
