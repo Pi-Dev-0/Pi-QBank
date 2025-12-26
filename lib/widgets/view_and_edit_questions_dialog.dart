@@ -1,17 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../config/app_config.dart';
-import '../widgets/api_key_dialog.dart';
-import '../widgets/delete_confirmation_dialog.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'delete_confirmation_dialog.dart';
 
 class ViewAndEditQuestionsDialog extends StatefulWidget {
-  final List<Map<String, String>> initialQuestions;
+  final List<Map<String, dynamic>> initialQuestions;
   final String selectedLanguage;
   final String selectedTestType;
-  final List<XFile> selectedImages;
   final Function(List<Map<String, String>>) onSave;
 
   const ViewAndEditQuestionsDialog({
@@ -19,7 +12,6 @@ class ViewAndEditQuestionsDialog extends StatefulWidget {
     required this.initialQuestions,
     required this.selectedLanguage,
     required this.selectedTestType,
-    required this.selectedImages,
     required this.onSave,
   });
 
@@ -31,282 +23,234 @@ class ViewAndEditQuestionsDialog extends StatefulWidget {
 class _ViewAndEditQuestionsDialogState
     extends State<ViewAndEditQuestionsDialog> {
   late List<Map<String, String>> _questions;
+  late List<Map<String, String>> _originalQuestions;
+  final Set<int> _editableQuestions = {};
 
   @override
   void initState() {
     super.initState();
-    _questions = List.from(widget.initialQuestions);
+    int counter = 0;
+    _questions = List.from(widget.initialQuestions.map((q) => {
+          'id': '${DateTime.now().millisecondsSinceEpoch}_${counter++}',
+          'question': q['question']?.toString() ?? '',
+          'answer': q['answer']?.toString() ?? '',
+        }));
+    // Deeply clone the original questions to separate them from _questions
+    _originalQuestions =
+        _questions.map((q) => Map<String, String>.from(q)).toList();
   }
 
-  Future<String?> _getApiKey() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('gemini_api_key');
+  bool _hasChanges() {
+    if (_questions.length != _originalQuestions.length) return true;
+    for (int i = 0; i < _questions.length; i++) {
+      if (_questions[i]['question'] != _originalQuestions[i]['question'] ||
+          _questions[i]['answer'] != _originalQuestions[i]['answer']) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  Future<void> _regenerateSingleQuestion(int index) async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      String? apiKey = await _getApiKey();
-      if (apiKey == null || apiKey.isEmpty) {
-        apiKey = AppConfig.geminiApiKey;
-      }
-
-      if (apiKey.isEmpty) {
-        if (!mounted) return;
-        Navigator.pop(context); // Close loading
-        showApiKeyDialog(context);
-        return;
-      }
-
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
-
-      List<Map<String, dynamic>> parts = [];
-
-      // Add images if available
-      if (widget.selectedImages.isNotEmpty) {
-        for (int i = 0; i < widget.selectedImages.length; i++) {
-          final image = widget.selectedImages[i];
-          final bytes = await image.readAsBytes();
-          final base64Image = base64Encode(bytes);
-          parts.add({
-            "inline_data": {
-              "mime_type": image.mimeType ?? 'image/jpeg',
-              "data": base64Image
-            }
-          });
-        }
-      }
-
-      final String languageInstruction = widget.selectedLanguage == 'বাংলা'
-          ? 'Generate a question and answer strictly in Bengali (Bangla) language. '
-          : 'Generate a question and answer strictly in English language. ';
-
-      final String currentQuestion = _questions[index]['question'] ?? '';
-      final String nonce = DateTime.now().millisecondsSinceEpoch.toString();
-
-      String prompt = '';
-
-      // Generate prompt based on test type
-      if (widget.selectedTestType == 'MCQ Test') {
-        if (widget.selectedLanguage == 'বাংলা') {
-          prompt =
-              '$languageInstruction এই ছবি সম্পর্কে ১টি বহুনির্বাচনী প্রশ্ন তৈরি করুন যার ৪টি অপশন থাকবে। নিম্নলিখিত JSON ফরম্যাটে উত্তর দিন:\n\n{\n  "question": "প্রশ্নের টেক্সট?",\n  "options": {\n    "A": "অপশন A",\n    "B": "অপশন B",\n    "C": "অপশন C",\n    "D": "অপশন D"\n  },\n  "correct_answer": "A"\n}\n\nএই প্রশ্নটি তৈরি করবেন না: "$currentQuestion" (Random: $nonce)';
-        } else {
-          prompt =
-              '${languageInstruction}Generate 1 multiple choice question about this image with 4 options. Respond in the following JSON format:\n\n{\n  "question": "Question text?",\n  "options": {\n    "A": "Option A",\n    "B": "Option B",\n    "C": "Option C",\n    "D": "Option D"\n  },\n  "correct_answer": "A"\n}\n\nDo NOT generate this question: "$currentQuestion" (Random: $nonce)';
-        }
-      } else if (widget.selectedTestType == 'Fill In the Blanks') {
-        if (widget.selectedLanguage == 'বাংলা') {
-          prompt =
-              '$languageInstruction এই ছবি সম্পর্কে ১টি শূন্যস্থান পূরণ প্রশ্ন তৈরি করুন। ফরম্যাট: শূন্যস্থানের জন্য _____ সহ প্রশ্ন, তারপর সঠিক উত্তর। প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে। এই প্রশ্নটি তৈরি করবেন না: "$currentQuestion" (Random: $nonce)';
-        } else {
-          prompt =
-              '${languageInstruction}Generate 1 fill-in-the-blank question about this image. Format: Question with _____ for blanks, followed by the correct answer on a new line starting with "Answer:". Do NOT generate this question: "$currentQuestion" (Random: $nonce)';
-        }
-      } else {
-        // Short Question (default)
-        if (widget.selectedLanguage == 'বাংলা') {
-          prompt =
-              '$languageInstruction এই ছবি সম্পর্কে ১টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে। এই প্রশ্নটি তৈরি করবেন না: "$currentQuestion" (Random: $nonce)';
-        } else {
-          prompt =
-              '${languageInstruction}Generate 1 short answer question about this image that requires brief explanation. Answer should be 1-3 words. Answer must start on a new line with "Answer:". Do NOT generate this question: "$currentQuestion" (Random: $nonce)';
-        }
-      }
-
-      parts.add({"text": prompt});
-
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          "contents": [
-            {"role": "user", "parts": parts}
-          ]
-        }),
-      );
-
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading
-
-      if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
-        if (jsonResponse['candidates'] != null &&
-            jsonResponse['candidates'].isNotEmpty) {
-          final reply =
-              jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-
-          if (widget.selectedTestType == 'MCQ Test') {
-            // Parse MCQ JSON response
-            try {
-              String cleanedReply =
-                  reply.replaceAll('```json', '').replaceAll('```', '').trim();
-              final mcqData = json.decode(cleanedReply);
-
-              String questionText = mcqData['question'] ?? '';
-              Map<String, dynamic> options = mcqData['options'] ?? {};
-              String correctAnswer = mcqData['correct_answer'] ?? 'A';
-
-              // Format as: Question\nA: Option A\nB: Option B\nC: Option C\nD: Option D
-              StringBuffer formattedQuestion = StringBuffer();
-              formattedQuestion.writeln(questionText);
-              options.forEach((key, value) {
-                formattedQuestion.writeln('$key: $value');
-              });
-
-              setState(() {
-                _questions[index] = {
-                  'question': formattedQuestion.toString().trim(),
-                  'answer': correctAnswer,
-                };
-              });
-
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(widget.selectedLanguage == 'বাংলা'
-                      ? 'প্রশ্ন পুনরায় তৈরি করা হয়েছে'
-                      : 'Question regenerated successfully'),
-                  backgroundColor: Colors.green,
+  Future<void> _handleClose() async {
+    if (_hasChanges()) {
+      final result = await showDialog<String>(
+        context: context,
+        builder: (context) => Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
-              );
-            } catch (e) {
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Failed to parse MCQ: ${e.toString()}'),
-                  backgroundColor: Colors.red,
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.save_as_rounded,
+                    color: Colors.purple.shade600,
+                    size: 32,
+                  ),
                 ),
-              );
-            }
-          } else {
-            // Parse Short Question or Fill in the Blanks response
-            String question = '';
-            String answer = '';
-            final lines = reply.trim().split('\n');
-            List<String> questionLines = [];
-            bool answerFound = false;
-
-            for (var line in lines) {
-              line = line.trim();
-              if (RegExp(r'^(answer:|উত্তর:|উঃ)', caseSensitive: false)
-                  .hasMatch(line)) {
-                answer = line
-                    .replaceFirst(
-                        RegExp(r'^(answer:|উত্তর:|উঃ)', caseSensitive: false),
-                        '')
-                    .trim();
-                answerFound = true;
-              } else if (!answerFound) {
-                questionLines.add(line);
-              } else {
-                answer += '\n$line';
-              }
-            }
-
-            question = questionLines.join(' ').trim();
-
-            if (question.isNotEmpty) {
-              setState(() {
-                _questions[index] = {
-                  'question': question,
-                  'answer': answer,
-                };
-              });
-
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(widget.selectedLanguage == 'বাংলা'
-                      ? 'প্রশ্ন পুনরায় তৈরি করা হয়েছে'
-                      : 'Question regenerated successfully'),
-                  backgroundColor: Colors.green,
+                const SizedBox(height: 20),
+                Text(
+                  widget.selectedLanguage == 'বাংলা'
+                      ? 'পরিবর্তন সংরক্ষণ করবেন?'
+                      : 'Unsaved Changes',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                 ),
-              );
-            }
-          }
-        }
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to regenerate: ${response.statusCode}'),
-            backgroundColor: Colors.red,
+                const SizedBox(height: 12),
+                Text(
+                  widget.selectedLanguage == 'বাংলা'
+                      ? 'আপনার কিছু পরিবর্তন সংরক্ষিত হয়নি। আপনি কি সেগুলো এখন সংরক্ষণ করতে চান?'
+                      : 'You have made changes to the questions. Would you like to save them before leaving?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey.shade600,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Action Buttons
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, 'save'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade600,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          widget.selectedLanguage == 'বাংলা'
+                              ? 'সংরক্ষণ করুন'
+                              : 'Save Changes',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, 'discard'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: Colors.red.shade200),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: Text(
+                              widget.selectedLanguage == 'বাংলা'
+                                  ? 'পরিবর্তন মুছে ফেলুন'
+                                  : 'Undo Changes',
+                              style: TextStyle(
+                                color: Colors.red.shade600,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, 'cancel'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: Colors.grey.shade500),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: Text(
+                              widget.selectedLanguage == 'বাংলা'
+                                  ? 'বাতিল'
+                                  : 'Cancel',
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading if error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
         ),
       );
+
+      if (result == 'save') {
+        final saveQuestions = _questions.map((q) {
+          final newQ = Map<String, String>.from(q);
+          newQ.remove('id');
+          return newQ;
+        }).toList();
+        widget.onSave(saveQuestions);
+        if (!mounted) return;
+        Navigator.pop(context);
+      } else if (result == 'discard') {
+        if (!mounted) return;
+        Navigator.pop(context);
+      }
+    } else {
+      Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      backgroundColor: Colors.transparent,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        await _handleClose();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Column(
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top + 16,
+                left: 24,
+                right: 24,
+                bottom: 24,
+              ),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [Colors.purple.shade600, Colors.deepPurple.shade600],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.edit_note,
-                        color: Colors.white, size: 24),
-                  ),
-                  const SizedBox(width: 16),
+                  Icon(Icons.edit_note, color: Colors.white, size: 28),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       widget.selectedLanguage == 'বাংলা'
-                          ? 'প্রশ্ন সম্পাদনা করুন'
+                          ? 'প্রশ্ন দেখুন ও সম্পাদনা করুন'
                           : 'View & Edit Questions',
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -320,7 +264,7 @@ class _ViewAndEditQuestionsDialogState
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _handleClose,
                   ),
                 ],
               ),
@@ -330,36 +274,32 @@ class _ViewAndEditQuestionsDialogState
             Expanded(
               child: _questions.isEmpty
                   ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.assignment_outlined,
-                              size: 64, color: Colors.grey.shade300),
-                          const SizedBox(height: 16),
-                          Text(
-                            widget.selectedLanguage == 'বাংলা'
-                                ? 'কোন প্রশ্ন পাওয়া যায়নি'
-                                : 'No questions found',
-                            style: TextStyle(
-                                color: Colors.grey.shade500, fontSize: 16),
-                          ),
-                        ],
+                      child: Text(
+                        widget.selectedLanguage == 'বাংলা'
+                            ? 'কোন প্রশ্ন নেই'
+                            : 'No questions available',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(20),
                       itemCount: _questions.length,
                       itemBuilder: (context, index) {
                         return Container(
                           margin: const EdgeInsets.only(bottom: 20),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                                color: Colors.grey.shade200, width: 1),
+                              color: Colors.grey.shade200,
+                              width: 1.5,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.grey.withOpacity(0.05),
+                                color: Colors.black.withOpacity(0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -371,99 +311,131 @@ class _ViewAndEditQuestionsDialogState
                               // Question Header
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 12),
+                                    horizontal: 20, vertical: 16),
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
+                                  color: Colors.purple.shade50,
                                   borderRadius: const BorderRadius.only(
-                                    topLeft: Radius.circular(20),
-                                    topRight: Radius.circular(20),
-                                  ),
-                                  border: Border(
-                                    bottom:
-                                        BorderSide(color: Colors.grey.shade200),
+                                    topLeft: Radius.circular(16),
+                                    topRight: Radius.circular(16),
                                   ),
                                 ),
                                 child: Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.purple.shade50,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        widget.selectedLanguage == 'বাংলা'
-                                            ? 'প্রশ্ন ${index + 1}'
-                                            : 'Question ${index + 1}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                          color: Colors.purple.shade800,
-                                        ),
-                                      ),
-                                    ),
                                     Row(
                                       children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.refresh,
-                                              color: Colors.orange, size: 20),
-                                          onPressed: () =>
-                                              _regenerateSingleQuestion(index),
-                                          tooltip:
-                                              widget.selectedLanguage == 'বাংলা'
-                                                  ? 'প্রশ্ন পরিবর্তন করুন'
-                                                  : 'Regenerate',
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.purple.shade600,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            widget.selectedLanguage == 'বাংলা'
+                                                ? 'প্রশ্ন ${index + 1}'
+                                                : 'Question ${index + 1}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              color: Colors.white,
+                                            ),
+                                          ),
                                         ),
+                                        const SizedBox(width: 12),
                                         IconButton(
-                                          icon: const Icon(Icons.delete_outline,
-                                              color: Colors.red, size: 20),
-                                          onPressed: () async {
-                                            final bool? confirmed =
-                                                await showDeleteConfirmationDialog(
-                                              context: context,
-                                              title: 'Delete Question',
-                                              message:
-                                                  'Are you sure you want to delete this question?',
-                                            );
-                                            if (confirmed == true) {
-                                              setState(() {
-                                                _questions.removeAt(index);
-                                              });
-                                            }
-                                          },
+                                          icon: Icon(
+                                            _editableQuestions.contains(index)
+                                                ? Icons.edit_off_outlined
+                                                : Icons.edit_outlined,
+                                            size: 20,
+                                            color: Colors.purple.shade700,
+                                          ),
                                           tooltip:
                                               widget.selectedLanguage == 'বাংলা'
-                                                  ? 'মুছে ফেলুন'
-                                                  : 'Delete',
+                                                  ? (_editableQuestions
+                                                          .contains(index)
+                                                      ? 'সম্পাদনা বন্ধ করুন'
+                                                      : 'সম্পাদনা করুন')
+                                                  : (_editableQuestions
+                                                          .contains(index)
+                                                      ? 'Disable Editing'
+                                                      : 'Edit Question'),
+                                          onPressed: () {
+                                            setState(() {
+                                              if (_editableQuestions
+                                                  .contains(index)) {
+                                                _editableQuestions
+                                                    .remove(index);
+                                              } else {
+                                                _editableQuestions.add(index);
+                                              }
+                                            });
+                                          },
                                         ),
                                       ],
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.delete_outline,
+                                          color: Colors.red.shade400),
+                                      onPressed: () async {
+                                        final confirm =
+                                            await showDeleteConfirmationDialog(
+                                          context: context,
+                                          title:
+                                              widget.selectedLanguage == 'বাংলা'
+                                                  ? 'প্রশ্ন মুছে ফেলবেন?'
+                                                  : 'Delete Question?',
+                                          message: widget.selectedLanguage ==
+                                                  'বাংলা'
+                                              ? 'আপনি কি নিশ্চিত যে আপনি এই প্রশ্নটি মুছে ফেলতে চান?'
+                                              : 'Are you sure you want to delete this question?',
+                                          paperTitle:
+                                              widget.selectedLanguage == 'বাংলা'
+                                                  ? 'প্রশ্ন ${index + 1}'
+                                                  : 'Question ${index + 1}',
+                                          paperSubtitle: _questions[index]
+                                              ['question'],
+                                        );
+
+                                        if (confirm == true) {
+                                          setState(() {
+                                            _questions.removeAt(index);
+                                            _editableQuestions.remove(index);
+                                          });
+                                        }
+                                      },
                                     ),
                                   ],
                                 ),
                               ),
 
-                              // Inputs
+                              // Question and Answer Fields
                               Padding(
                                 padding: const EdgeInsets.all(20),
                                 child: Column(
                                   children: [
                                     TextFormField(
                                       key: ValueKey(
-                                          _questions[index]['question']),
+                                          'q_${_questions[index]['id']}'),
                                       initialValue: _questions[index]
                                           ['question'],
-                                      maxLines: 3,
+                                      readOnly:
+                                          !_editableQuestions.contains(index),
+                                      maxLines: 5,
                                       decoration: InputDecoration(
                                         labelText:
                                             widget.selectedLanguage == 'বাংলা'
                                                 ? 'প্রশ্ন'
                                                 : 'Question',
-                                        alignLabelWithHint: true,
+                                        labelStyle: TextStyle(
+                                          color: Colors.purple.shade700,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                         border: OutlineInputBorder(
                                           borderRadius:
                                               BorderRadius.circular(12),
@@ -484,26 +456,36 @@ class _ViewAndEditQuestionsDialogState
                                               width: 2),
                                         ),
                                         filled: true,
-                                        fillColor: Colors.grey.shade50,
+                                        fillColor:
+                                            _editableQuestions.contains(index)
+                                                ? Colors.white
+                                                : Colors.grey.shade50,
                                         contentPadding:
                                             const EdgeInsets.all(16),
                                       ),
                                       onChanged: (value) {
-                                        _questions[index]['question'] = value;
+                                        setState(() {
+                                          _questions[index]['question'] = value;
+                                        });
                                       },
                                     ),
                                     const SizedBox(height: 16),
                                     TextFormField(
-                                      key:
-                                          ValueKey(_questions[index]['answer']),
+                                      key: ValueKey(
+                                          'a_${_questions[index]['id']}'),
                                       initialValue: _questions[index]['answer'],
-                                      maxLines: 2,
+                                      readOnly:
+                                          !_editableQuestions.contains(index),
+                                      maxLines: 1,
                                       decoration: InputDecoration(
                                         labelText:
                                             widget.selectedLanguage == 'বাংলা'
                                                 ? 'উত্তর'
                                                 : 'Answer',
-                                        alignLabelWithHint: true,
+                                        labelStyle: TextStyle(
+                                          color: Colors.green.shade700,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                         border: OutlineInputBorder(
                                           borderRadius:
                                               BorderRadius.circular(12),
@@ -524,12 +506,18 @@ class _ViewAndEditQuestionsDialogState
                                               width: 2),
                                         ),
                                         filled: true,
-                                        fillColor: Colors.green.shade50,
+                                        fillColor:
+                                            _editableQuestions.contains(index)
+                                                ? Colors.green.shade50
+                                                : Colors.green.shade100
+                                                    .withOpacity(0.3),
                                         contentPadding:
                                             const EdgeInsets.all(16),
                                       ),
                                       onChanged: (value) {
-                                        _questions[index]['answer'] = value;
+                                        setState(() {
+                                          _questions[index]['answer'] = value;
+                                        });
                                       },
                                     ),
                                   ],
@@ -541,58 +529,35 @@ class _ViewAndEditQuestionsDialogState
                       },
                     ),
             ),
-
-            // Footer
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
-                      foregroundColor: Colors.grey.shade700,
-                    ),
-                    child: Text(widget.selectedLanguage == 'বাংলা'
-                        ? 'বাতিল'
-                        : 'Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      widget.onSave(_questions);
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.save_outlined, size: 20),
-                    label: Text(widget.selectedLanguage == 'বাংলা'
-                        ? 'সংরক্ষণ করুন'
-                        : 'Save Changes'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple.shade600,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
+        floatingActionButton: _hasChanges()
+            ? FloatingActionButton.extended(
+                onPressed: () {
+                  final saveQuestions = _questions.map((q) {
+                    final newQ = Map<String, String>.from(q);
+                    newQ.remove('id');
+                    return newQ;
+                  }).toList();
+                  widget.onSave(saveQuestions);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.selectedLanguage == 'বাংলা'
+                          ? 'পরিবর্তনগুলো সংরক্ষণ করা হয়েছে'
+                          : 'Changes saved successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+                backgroundColor: Colors.purple.shade600,
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.save),
+                label: Text(widget.selectedLanguage == 'বাংলা'
+                    ? 'সংরক্ষণ করুন'
+                    : 'Save Changes'),
+              )
+            : null,
       ),
     );
   }

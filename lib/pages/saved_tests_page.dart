@@ -448,7 +448,6 @@ class _SavedTestsPageState extends State<SavedTestsPage> {
         initialQuestions: parsedQuestions,
         selectedLanguage: test.language,
         selectedTestType: test.testType,
-        selectedImages: test.selectedImages,
         onSave: (updatedQuestions) async {
           // Reconstruct aiResponse
           String newAiResponse;

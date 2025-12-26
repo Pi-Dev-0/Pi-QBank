@@ -1323,59 +1323,60 @@ Respond in the following JSON format:
       }
     }
 
-    await showDialog(
-      context: context,
-      builder: (context) => ViewAndEditQuestionsDialog(
-        initialQuestions: parsedQuestions,
-        selectedLanguage: _selectedLanguage,
-        selectedTestType: _selectedTestType ?? '',
-        selectedImages: _selectedImages,
-        onSave: (updatedQuestions) {
-          if (_selectedTestType == 'MCQ Test') {
-            List<Map<String, dynamic>> questionsList = [];
-            for (var q in updatedQuestions) {
-              final lines = q['question']!.split('\n');
-              final questionText = lines[0];
-              final options = <String, String>{};
-              for (int i = 1; i < lines.length; i++) {
-                final optionParts = lines[i].split(': ');
-                if (optionParts.length == 2) {
-                  options[optionParts[0]] = optionParts[1];
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ViewAndEditQuestionsDialog(
+          initialQuestions: parsedQuestions,
+          selectedLanguage: _selectedLanguage,
+          selectedTestType: _selectedTestType ?? '',
+          onSave: (updatedQuestions) {
+            if (_selectedTestType == 'MCQ Test') {
+              List<Map<String, dynamic>> questionsList = [];
+              for (var q in updatedQuestions) {
+                final lines = q['question']!.split('\n');
+                final questionText = lines[0];
+                final options = <String, String>{};
+                for (int i = 1; i < lines.length; i++) {
+                  final optionParts = lines[i].split(': ');
+                  if (optionParts.length == 2) {
+                    options[optionParts[0]] = optionParts[1];
+                  }
                 }
+                questionsList.add({
+                  "question": questionText,
+                  "options": options,
+                  "correct_answer": q['answer'],
+                });
               }
-              questionsList.add({
-                "question": questionText,
-                "options": options,
-                "correct_answer": q['answer'],
+              final newJsonResponse = {"questions": questionsList};
+              setState(() {
+                _aiResponse = '```json\n${json.encode(newJsonResponse)}\n```';
+                _numberOfQuestions = updatedQuestions.length;
+              });
+            } else {
+              StringBuffer newResponse = StringBuffer();
+              for (int i = 0; i < updatedQuestions.length; i++) {
+                newResponse
+                    .writeln('${i + 1}. ${updatedQuestions[i]['question']}');
+                newResponse.writeln('Answer: ${updatedQuestions[i]['answer']}');
+                newResponse.writeln();
+              }
+              setState(() {
+                _aiResponse = newResponse.toString();
+                _numberOfQuestions = updatedQuestions.length;
               });
             }
-            final newJsonResponse = {"questions": questionsList};
-            setState(() {
-              _aiResponse = '```json\n${json.encode(newJsonResponse)}\n```';
-              _numberOfQuestions = updatedQuestions.length;
-            });
-          } else {
-            StringBuffer newResponse = StringBuffer();
-            for (int i = 0; i < updatedQuestions.length; i++) {
-              newResponse
-                  .writeln('${i + 1}. ${updatedQuestions[i]['question']}');
-              newResponse.writeln('Answer: ${updatedQuestions[i]['answer']}');
-              newResponse.writeln();
-            }
-            setState(() {
-              _aiResponse = newResponse.toString();
-              _numberOfQuestions = updatedQuestions.length;
-            });
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_selectedLanguage == 'বাংলা'
-                  ? 'পরিবর্তনগুলো সংরক্ষণ করা হয়েছে'
-                  : 'Changes saved successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        },
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(_selectedLanguage == 'বাংলা'
+                    ? 'পরিবর্তনগুলো সংরক্ষণ করা হয়েছে'
+                    : 'Changes saved successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
