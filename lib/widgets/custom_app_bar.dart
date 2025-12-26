@@ -8,12 +8,14 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
   final bool centerTitle;
   final List<Widget>? actions;
+  final Widget? leading;
 
   const CustomAppBar({
     super.key,
     required this.title,
     this.centerTitle = true,
     this.actions,
+    this.leading,
   });
 
   @override
@@ -66,6 +68,7 @@ class _CustomAppBarState extends State<CustomAppBar> {
             color: Colors.white.withOpacity(0.15),
           ),
           child: AppBar(
+            leading: widget.leading,
             title: Text(
               widget.title,
               style: TextStyle(
