@@ -3,178 +3,99 @@ import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 void showYoutubePlayerDialog(BuildContext context, String videoId) {
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: Stack(
-            children: <Widget>[
-              YoutubePlayerDialogContent(videoId: videoId),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.close, color: Colors.white, size: 20),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (context) => YoutubePlayerScreen(videoId: videoId),
+    ),
   );
 }
 
-class YoutubePlayerDialogContent extends StatefulWidget {
+class YoutubePlayerScreen extends StatefulWidget {
   final String videoId;
 
-  const YoutubePlayerDialogContent({super.key, required this.videoId});
+  const YoutubePlayerScreen({super.key, required this.videoId});
 
   @override
-  State<YoutubePlayerDialogContent> createState() =>
-      _YoutubePlayerDialogContentState();
+  State<YoutubePlayerScreen> createState() => _YoutubePlayerScreenState();
 }
 
-class _YoutubePlayerDialogContentState
-    extends State<YoutubePlayerDialogContent> {
-  late final YoutubePlayerController _controller;
-  final ValueNotifier<bool> _showThumbnail = ValueNotifier(true);
+class _YoutubePlayerScreenState extends State<YoutubePlayerScreen> {
+  late YoutubePlayerController _controller;
 
   @override
   void initState() {
     super.initState();
+    // Allow both portrait and landscape orientations
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     _controller = YoutubePlayerController(
       initialVideoId: widget.videoId,
       flags: const YoutubePlayerFlags(
-        autoPlay: false,
+        autoPlay: true,
         mute: false,
+        enableCaption: false,
         forceHD: true,
       ),
-    )..addListener(_playerListener);
-  }
-
-  void _playerListener() {
-    if (mounted) {
-      final isPlaying = _controller.value.playerState == PlayerState.playing;
-      if (isPlaying && _showThumbnail.value) {
-        _showThumbnail.value = false;
-      } else if (_controller.value.playerState == PlayerState.ended) {
-        _showThumbnail.value = true;
-      }
-    }
+    );
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_playerListener);
+    // Reset to portrait only when leaving this screen
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
     _controller.dispose();
-    _showThumbnail.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: ValueListenableBuilder<bool>(
-        valueListenable: _showThumbnail,
-        builder: (context, showThumbnail, child) {
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              Offstage(
-                offstage: showThumbnail,
-                child: YoutubePlayerBuilder(
-                  onExitFullScreen: () {
-                    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-                  },
-                  player: YoutubePlayer(
-                    controller: _controller,
-                    showVideoProgressIndicator: true,
-                    progressIndicatorColor:
-                        Theme.of(context).colorScheme.primary,
-                    progressColors: ProgressBarColors(
-                      playedColor: Theme.of(context).colorScheme.primary,
-                      handleColor: Theme.of(context).colorScheme.primary,
-                    ),
-                    bottomActions: [
-                      CurrentPosition(),
-                      ProgressBar(isExpanded: true),
-                      FullScreenButton(),
-                    ],
-                    onReady: () {
-                      // Optional: anything to do when player is ready
-                    },
-                  ),
-                  builder: (context, player) {
-                    return player;
-                  },
-                ),
+    return YoutubePlayerBuilder(
+      player: YoutubePlayer(
+        controller: _controller,
+        showVideoProgressIndicator: true,
+        progressIndicatorColor: Colors.red,
+        topActions: <Widget>[
+          const SizedBox(width: 8.0),
+          Expanded(
+            child: Text(
+              _controller.metadata.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18.0,
               ),
-              if (showThumbnail) ...[
-                _buildThumbnail(),
-                _buildPlayButton(),
-              ],
-            ],
-          );
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+        onReady: () {
+          // Additional setup if needed
         },
       ),
-    );
-  }
-
-  Widget _buildThumbnail() {
-    return Image.network(
-      'https://img.youtube.com/vi/${widget.videoId}/hqdefault.jpg',
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-                Theme.of(context).colorScheme.primary),
+      builder: (context, player) {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          appBar: MediaQuery.of(context).orientation == Orientation.landscape
+              ? null // Hide AppBar in landscape for fullscreen feel
+              : AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+          body: Center(
+            child: player,
           ),
         );
       },
-      errorBuilder: (context, error, stackTrace) => const Center(
-        child: Icon(Icons.error_outline, color: Colors.white, size: 40),
-      ),
-    );
-  }
-
-  Widget _buildPlayButton() {
-    return GestureDetector(
-      onTap: () {
-        _controller.play();
-      },
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.6),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.play_arrow_rounded,
-          color: Colors.white,
-          size: 50.0,
-        ),
-      ),
     );
   }
 }

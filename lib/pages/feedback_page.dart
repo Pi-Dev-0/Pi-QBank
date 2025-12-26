@@ -1,5 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
 import '../widgets/custom_app_bar.dart';
 
 class FeedbackPage extends StatefulWidget {
@@ -26,43 +27,55 @@ class _FeedbackPageState extends State<FeedbackPage> {
 
   Future<void> _submitFeedback() async {
     try {
+      if (!_formKey.currentState!.validate()) return;
+
       final scaffoldMessenger = ScaffoldMessenger.of(context);
       final navigator = Navigator.of(context);
 
-      final String emailBody = '''
-From: ${_nameController.text}
-Email: ${_emailController.text}
-Type: $_feedbackType
-
-Message:
-${_feedbackController.text}
-
-Device Information:
-App Version: 1.0.0
-Platform: ${Theme.of(context).platform}''';
-
-      final Uri emailLaunchUri = Uri(
-        scheme: 'mailto',
-        path: 'pimathematics1@gmail.com',
-        query: encodeQueryParameters({
-          'subject': 'Pi-QBank $_feedbackType',
-          'body': emailBody,
-        }),
+      // Show loading snackbar
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Sending feedback...'),
+          duration: Duration(seconds: 2),
+        ),
       );
 
-      if (await canLaunchUrl(emailLaunchUri)) {
-        await launchUrl(emailLaunchUri);
+      final Map<String, dynamic> data = {
+        'name': _nameController.text,
+        'email': _emailController.text,
+        'subject': 'Pi-QBank Feedback: $_feedbackType',
+        'message': _feedbackController.text,
+        '_subject': 'Pi-QBank Feedback: $_feedbackType',
+        'device_platform': Theme.of(context).platform.toString(),
+        // You can add more technical details if needed
+      };
+
+      final response = await http.post(
+        Uri.parse('https://formspree.io/f/mvonkylk'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 200) {
         if (mounted) {
-          navigator.pop();
           scaffoldMessenger.showSnackBar(
             const SnackBar(
-              content: Text('Email client opened. Please send your feedback!'),
+              content: Text('Feedback sent successfully!'),
               backgroundColor: Colors.green,
             ),
           );
+          // Wait a brief moment before popping so the user sees the success message
+          await Future.delayed(const Duration(seconds: 1));
+          if (mounted) {
+            navigator.pop();
+          }
         }
       } else {
-        throw Exception('Could not launch email client');
+        throw Exception(
+            'Failed to submit form (Status: ${response.statusCode})');
       }
     } catch (e) {
       if (mounted) {
@@ -74,13 +87,6 @@ Platform: ${Theme.of(context).platform}''';
         );
       }
     }
-  }
-
-  String? encodeQueryParameters(Map<String, String> params) {
-    return params.entries
-        .map((e) =>
-            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-        .join('&');
   }
 
   @override
