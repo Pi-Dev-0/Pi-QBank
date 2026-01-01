@@ -28,20 +28,6 @@ class _MedicalPageState extends State<MedicalPage> {
   );
   final _cacheService = DataCacheService();
 
-  // Color palette for cards
-  final List<Color> _cardColors = const [
-    Colors.purple,
-    Colors.orange,
-    Colors.blue,
-    Colors.red,
-    Colors.teal,
-    Colors.pink,
-    Colors.indigo,
-    Colors.cyan,
-    Colors.amber,
-    Colors.deepOrange,
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -153,31 +139,19 @@ class _MedicalPageState extends State<MedicalPage> {
                             final paper = filteredPapers[index];
                             final key = ValueKey(
                                 '${paper['examYear']}_${paper['title']}');
-                            final color =
-                                _cardColors[index % _cardColors.length];
-
-                            return Theme(
-                              data: Theme.of(context).copyWith(
-                                primaryColor: color,
-                                colorScheme: ColorScheme.fromSeed(
-                                  seedColor: color,
-                                  primary: color,
-                                ),
-                              ),
-                              child: KeyedSubtree(
-                                key: key,
-                                child: QuestionPaperCard(
-                                  key: ValueKey(
-                                      '${paper['examYear']}_${paper['title']}'),
-                                  title: paper['title']?.toString() ?? '',
-                                  subtitle: paper['subtitle']?.toString() ?? '',
-                                  year: paper['examYear']?.toString() ?? '',
-                                  examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl:
-                                      paper['downloadUrl']?.toString() ?? '',
-                                  category: 'Medical',
-                                  index: index,
-                                ),
+                            return KeyedSubtree(
+                              key: key,
+                              child: QuestionPaperCard(
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}'),
+                                title: paper['title']?.toString() ?? '',
+                                subtitle: paper['subtitle']?.toString() ?? '',
+                                year: paper['examYear']?.toString() ?? '',
+                                examYear: paper['examYear']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
+                                category: 'Medical',
+                                index: index,
                               ),
                             );
                           },

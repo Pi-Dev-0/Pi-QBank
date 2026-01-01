@@ -8,6 +8,7 @@ import '../widgets/custom_app_bar.dart';
 import '../services/data_cache_service.dart';
 import '../widgets/exam_year_selector.dart';
 import '../widgets/group_selector.dart';
+import '../widgets/loading_widget.dart';
 import '../widgets/error_state_widget.dart';
 
 class GSTPage extends StatefulWidget {
@@ -24,20 +25,6 @@ class _GSTPageState extends State<GSTPage> {
   String _selectedExamYear = '';
   String _selectedGroup = 'Science';
   final _cacheService = DataCacheService();
-
-  // Color palette for cards
-  final List<Color> _cardColors = const [
-    Colors.purple,
-    Colors.orange,
-    Colors.blue,
-    Colors.red,
-    Colors.teal,
-    Colors.pink,
-    Colors.indigo,
-    Colors.cyan,
-    Colors.amber,
-    Colors.deepOrange,
-  ];
 
   final List<String> examYears = List.generate(
     DateTime.now().year - 2015 + 1,
@@ -104,6 +91,12 @@ class _GSTPageState extends State<GSTPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        body: LoadingWidget(loadingText: 'Loading Question Papers...'),
+      );
+    }
+
     final filteredPapers = questionPapers.where((paper) {
       final yearMatch = _selectedExamYear.isEmpty ||
           paper['examYear'].toString() == _selectedExamYear;
@@ -148,68 +141,37 @@ class _GSTPageState extends State<GSTPage> {
 
             // Question Papers List
             Expanded(
-              child: isLoading
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text(
-                            'Loading Question Papers...',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+              child: hasError
+                  ? ErrorStateWidget(
+                      onRetry: fetchQuestionPapers,
                     )
-                  : hasError
-                      ? ErrorStateWidget(
-                          onRetry: fetchQuestionPapers,
-                        )
-                      : filteredPapers.isEmpty
-                          ? const Center(
-                              child: Text('No question papers found'))
-                          : ListView.builder(
-                              padding: const EdgeInsets.all(8),
-                              itemCount: filteredPapers.length,
-                              itemBuilder: (context, index) {
-                                final paper = filteredPapers[index];
-                                final key = ValueKey(
-                                    '${paper['examYear']}_${paper['title']}_$_selectedGroup');
-                                final color =
-                                    _cardColors[index % _cardColors.length];
+                  : filteredPapers.isEmpty
+                      ? const Center(child: Text('No question papers found'))
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(8),
+                          itemCount: filteredPapers.length,
+                          itemBuilder: (context, index) {
+                            final paper = filteredPapers[index];
+                            final key = ValueKey(
+                                '${paper['examYear']}_${paper['title']}_$_selectedGroup');
 
-                                return Theme(
-                                  data: Theme.of(context).copyWith(
-                                    primaryColor: color,
-                                    colorScheme: ColorScheme.fromSeed(
-                                      seedColor: color,
-                                      primary: color,
-                                    ),
-                                  ),
-                                  child: KeyedSubtree(
-                                    key: key,
-                                    child: QuestionPaperCard(
-                                      key: ValueKey(
-                                          '${paper['examYear']}_${paper['title']}_$_selectedGroup'),
-                                      title: paper['title']?.toString() ?? '',
-                                      subtitle:
-                                          paper['subtitle']?.toString() ?? '',
-                                      year: paper['examYear']?.toString() ?? '',
-                                      examYear:
-                                          paper['examYear']?.toString() ?? '',
-                                      downloadUrl:
-                                          paper['downloadUrl']?.toString() ??
-                                              '',
-                                      category: 'GST',
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                            return KeyedSubtree(
+                              key: key,
+                              child: QuestionPaperCard(
+                                key: ValueKey(
+                                    '${paper['examYear']}_${paper['title']}_$_selectedGroup'),
+                                title: paper['title']?.toString() ?? '',
+                                subtitle: paper['subtitle']?.toString() ?? '',
+                                year: paper['examYear']?.toString() ?? '',
+                                examYear: paper['examYear']?.toString() ?? '',
+                                downloadUrl:
+                                    paper['downloadUrl']?.toString() ?? '',
+                                category: 'GST',
+                                index: index,
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../widgets/app_drawer.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/exam_year_selector.dart';
+import '../../widgets/loading_widget.dart';
 import '../../widgets/question_paper_card.dart';
 import '../../services/data_cache_service.dart';
 
@@ -147,14 +148,8 @@ class _HSCBanglaFirstPaperState extends State<HSCBanglaFirstPaper> {
           Expanded(
             child: isLoading
                 ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Loading question papers...'),
-                      ],
-                    ),
+                    child: LoadingWidget(
+                        loadingText: 'Loading question papers...'),
                   )
                 : hasError
                     ? const Center(
