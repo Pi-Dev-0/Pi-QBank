@@ -88,6 +88,12 @@ class _HSCBanglaFirstPaperState extends State<HSCBanglaFirstPaper> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        body: LoadingWidget(loadingText: 'Loading question papers...'),
+      );
+    }
+
     final filteredPapers = questionPapers.where((paper) {
       final typeMatch = paper['examType'].toString() == _selectedType;
       final yearMatch = _selectedExamYear.isEmpty ||
@@ -146,44 +152,38 @@ class _HSCBanglaFirstPaperState extends State<HSCBanglaFirstPaper> {
 
           // Question Papers List
           Expanded(
-            child: isLoading
+            child: hasError
                 ? const Center(
-                    child: LoadingWidget(
-                        loadingText: 'Loading question papers...'),
+                    child: Text('Failed to load question papers'),
                   )
-                : hasError
+                : filteredPapers.isEmpty
                     ? const Center(
-                        child: Text('Failed to load question papers'),
+                        child: Text('No question papers found'),
                       )
-                    : filteredPapers.isEmpty
-                        ? const Center(
-                            child: Text('No question papers found'),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0, vertical: 2.0),
-                            itemCount: filteredPapers.length,
-                            itemBuilder: (context, index) {
-                              final paper = filteredPapers[index];
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 2.0),
-                                child: QuestionPaperCard(
-                                  key: ValueKey(
-                                      '${paper['examYear']}_${paper['title']}_$_selectedType'),
-                                  title: paper['title'],
-                                  subtitle:
-                                      '${paper['subtitle']} • ${paper['examYear']}',
-                                  year: 'HSC',
-                                  examYear: paper['examYear']?.toString() ?? '',
-                                  downloadUrl:
-                                      paper['downloadUrl']?.toString() ?? '',
-                                  category: 'HSC Bangla 1st Paper',
-                                  index: index,
-                                ),
-                              );
-                            },
-                          ),
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0, vertical: 2.0),
+                        itemCount: filteredPapers.length,
+                        itemBuilder: (context, index) {
+                          final paper = filteredPapers[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                            child: QuestionPaperCard(
+                              key: ValueKey(
+                                  '${paper['examYear']}_${paper['title']}_$_selectedType'),
+                              title: paper['title'],
+                              subtitle:
+                                  '${paper['subtitle']} • ${paper['examYear']}',
+                              year: 'HSC',
+                              examYear: paper['examYear']?.toString() ?? '',
+                              downloadUrl:
+                                  paper['downloadUrl']?.toString() ?? '',
+                              category: 'HSC Bangla 1st Paper',
+                              index: index,
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
