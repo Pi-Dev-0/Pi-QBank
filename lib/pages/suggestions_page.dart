@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/app_config.dart';
 import '../widgets/loading_widget.dart';
+import '../widgets/error_state_widget.dart';
 
 class SuggestionsPage extends StatefulWidget {
   const SuggestionsPage({super.key});
@@ -225,51 +226,6 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
     );
   }
 
-  Widget _buildErrorView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.signal_wifi_off,
-            color: Colors.red,
-            size: 80,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No Internet Connection',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 2),
-          Text(
-            'Please Connect to the internet to continue.',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[700],
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: fetchSuggestions,
-            style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: Colors.blue,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 32,
-                vertical: 12,
-              ),
-            ),
-            child: Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -283,7 +239,10 @@ class _SuggestionsPageState extends State<SuggestionsPage> {
         title: 'Suggestions',
       ),
       body: errorMessage != null
-          ? _buildErrorView()
+          ? ErrorStateWidget(
+              errorMessage: errorMessage,
+              onRetry: fetchSuggestions,
+            )
           : ListView.builder(
               padding: const EdgeInsets.all(16.0),
               itemCount: groupedSuggestions.length,

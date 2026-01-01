@@ -4,6 +4,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/downloaded_paper_card.dart';
 import '../services/downloaded_papers_registry.dart';
+import '../widgets/loading_widget.dart';
 
 class DownloadedPapersPage extends StatefulWidget {
   const DownloadedPapersPage({super.key});
@@ -39,9 +40,7 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
         return !exists;
       });
 
-      // Group papers by main category and subject (no extra subgrouping except for books)
-      // Books: mainCategory > class > subject > [papers]
-      // Others: mainCategory > subject > [papers]
+      // Group papers by main category and subject
       final nested = <String, Map<String, List<DownloadedPaper>>>{};
 
       for (var paper in papers) {
@@ -51,7 +50,6 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
             : (paper.category.isEmpty ? 'General' : paper.category);
 
         if (isBook) {
-          // Books: class (subtitle) > subject (title)
           final classOrSub = paper.subtitle.isEmpty ? 'Other' : paper.subtitle;
           final subject = paper.title.isEmpty ? 'Unknown Subject' : paper.title;
           final key = '$classOrSub > $subject';
@@ -59,7 +57,6 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
           nested[mainCategory]!.putIfAbsent(key, () => []);
           nested[mainCategory]![key]!.add(paper);
         } else {
-          // Others: subject (subtitle)
           final subject =
               paper.subtitle.isEmpty ? 'Unknown Subject' : paper.subtitle;
           nested.putIfAbsent(mainCategory, () => {});
@@ -84,184 +81,223 @@ class _DownloadedPapersPageState extends State<DownloadedPapersPage> {
     }
   }
 
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.cloud_download_rounded,
+              size: 80,
+              color: Colors.blue[300],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'No Downloads Yet',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2D3436),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(
+              'Papers you download will appear here for offline access.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: const CustomAppBar(title: 'Downloaded Papers'),
       drawer: const AppDrawer(),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _downloadedPapers.isEmpty
-              ? const Center(child: Text('No downloaded papers found'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _nestedGroupedPapers.length,
-                  itemBuilder: (context, mainIndex) {
-                    final mainCategory =
-                        _nestedGroupedPapers.keys.elementAt(mainIndex);
-                    final subjectMap = _nestedGroupedPapers[mainCategory]!;
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        child: _isLoading
+            ? const LoadingWidget(loadingText: 'Loading Downloads...')
+            : _downloadedPapers.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 20),
+                    itemCount: _nestedGroupedPapers.length,
+                    itemBuilder: (context, mainIndex) {
+                      final mainCategory =
+                          _nestedGroupedPapers.keys.elementAt(mainIndex);
+                      final subjectMap = _nestedGroupedPapers[mainCategory]!;
 
-                    return Theme(
-                      data: Theme.of(context).copyWith(
-                        dividerColor: Colors.transparent,
-                        splashColor: Colors.transparent,
-                        highlightColor: Colors.transparent,
-                      ),
-                      child: ExpansionTile(
-                        key: Key(mainCategory),
-                        initiallyExpanded: false,
-                        tilePadding: EdgeInsets.zero,
-                        onExpansionChanged: (expanded) {
-                          setState(() {
-                            expandedCategory = expanded ? mainCategory : null;
-                            if (!expanded) {
-                              expandedSubCategories.remove(mainCategory);
-                            }
-                          });
-                        },
-                        title: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Theme.of(context).primaryColor,
-                                Theme.of(context).primaryColor.withOpacity(0.8),
-                              ],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.folder_rounded,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      mainCategory,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${subjectMap.length} subjects',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.white.withOpacity(0.9),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                        children: [
-                          const SizedBox(height: 12),
-                          ...subjectMap.entries.map((subjectEntry) {
-                            final papers = subjectEntry.value;
-                            return Theme(
-                              data: Theme.of(context).copyWith(
-                                dividerColor: Colors.transparent,
-                                splashColor: Colors.transparent,
-                                highlightColor: Colors.transparent,
-                              ),
-                              child: ExpansionTile(
-                                key: Key('${mainCategory}_${subjectEntry.key}'),
-                                initiallyExpanded: false,
-                                tilePadding: EdgeInsets.zero,
-                                title: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  margin: const EdgeInsets.only(left: 8),
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            dividerColor: Colors.transparent,
+                          ),
+                          child: ExpansionTile(
+                            key: Key(mainCategory),
+                            tilePadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            iconColor: Theme.of(context).primaryColor,
+                            collapsedIconColor: Colors.grey[400],
+                            title: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border:
-                                        Border.all(color: Colors.grey.shade300),
+                                    color: Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: Row(
+                                  child: Icon(
+                                    Icons.folder_copy_rounded,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Icon(
-                                        Icons.subject_rounded,
-                                        size: 20,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          subjectEntry.key,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                      Text(
+                                        mainCategory,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2D3436),
                                         ),
                                       ),
                                       Text(
-                                        '${papers.length} file(s)',
+                                        '${subjectMap.length} subjects',
                                         style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
+                                          fontSize: 13,
+                                          color: Colors.grey[600],
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 24),
-                                    child: Column(
-                                      children: papers.map((paper) {
-                                        return DownloadedPaperCard(
-                                          key: ValueKey(paper.filePath),
-                                          title: paper.title,
-                                          subtitle: paper.subtitle,
-                                          examYear: paper.examYear,
-                                          category: paper.category,
-                                          filePath: paper.filePath,
-                                          onDeleted: () {
-                                            DownloadedPapersRegistry()
-                                                .removeDownloadedPaper(
-                                                    paper.filePath);
-                                            _loadDownloadedPapers();
-                                          },
-                                        );
-                                      }).toList(),
-                                    ),
+                              ],
+                            ),
+                            children: [
+                              ...subjectMap.entries.map((subjectEntry) {
+                                final papers = subjectEntry.value;
+                                return Container(
+                                  margin:
+                                      const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F3F5),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                                  child: ExpansionTile(
+                                    key: Key(
+                                        '${mainCategory}_${subjectEntry.key}'),
+                                    tilePadding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 4),
+                                    title: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.label_important_rounded,
+                                          size: 20,
+                                          color: Colors.grey[700],
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            subjectEntry.key,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF2D3436),
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            '${papers.length}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: Theme.of(context)
+                                                  .primaryColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                            bottom: 8, left: 8, right: 8),
+                                        child: Column(
+                                          children: papers.map((paper) {
+                                            return DownloadedPaperCard(
+                                              key: ValueKey(paper.filePath),
+                                              title: paper.title,
+                                              subtitle: paper.subtitle,
+                                              examYear: paper.examYear,
+                                              category: paper.category,
+                                              filePath: paper.filePath,
+                                              onDeleted: () {
+                                                DownloadedPapersRegistry()
+                                                    .removeDownloadedPaper(
+                                                        paper.filePath);
+                                                _loadDownloadedPapers();
+                                              },
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+      ),
     );
   }
 }

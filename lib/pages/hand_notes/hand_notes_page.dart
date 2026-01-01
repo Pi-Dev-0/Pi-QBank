@@ -203,8 +203,10 @@ class _HandNotesPageState extends State<HandNotesPage>
 
   // --- UI Components ---
 
+
   Widget _buildFilterChip(String label, String? value, List<String> options,
-      ValueChanged<String?> onChanged) {
+      ValueChanged<String?> onChanged,
+      {bool enabled = true}) {
     IconData getIcon() {
       switch (label) {
         case 'Class':
@@ -250,96 +252,133 @@ class _HandNotesPageState extends State<HandNotesPage>
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 4),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.indigo,
-              fontSize: 12,
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.6,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 4),
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.indigo,
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.indigo.withOpacity(0.15)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.indigo.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: options.contains(value) ? value : null,
-              isExpanded: true,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                  color: Colors.indigo, size: 20),
-              hint: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.withOpacity(0.05),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      getIcon(),
-                      size: 16,
-                      color: Colors.indigo.withOpacity(0.8),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Select',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              selectedItemBuilder: (BuildContext context) {
-                return options.map<Widget>((String item) {
-                  return buildItemContent(item);
-                }).toList();
-              },
-              items: options.map((String item) {
-                return DropdownMenuItem<String>(
-                  value: item,
-                  child: Text(
-                    item,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
-                  ),
-                );
-              }).toList(),
-              onChanged: onChanged,
-              dropdownColor: Colors.white,
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              style: const TextStyle(color: Colors.black87),
+              border: Border.all(color: Colors.indigo.withOpacity(0.15)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.indigo.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: (enabled && options.contains(value)) ? value : null,
+                isExpanded: true,
+                menuWidth: 200,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                    color: Colors.indigo, size: 20),
+                hint: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.withOpacity(0.05),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        getIcon(),
+                        size: 16,
+                        color: Colors.indigo.withOpacity(0.8),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Select',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                selectedItemBuilder: (BuildContext context) {
+                  return options.map<Widget>((String item) {
+                    return buildItemContent(item);
+                  }).toList();
+                },
+                items: options.asMap().entries.map((entry) {
+                  final item = entry.value;
+                  final isLast = entry.key == options.length - 1;
+                  return DropdownMenuItem<String>(
+                    value: item,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 3,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Colors.indigo.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  item,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!isLast)
+                          Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: Colors.indigo.withOpacity(0.05),
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: enabled ? onChanged : null,
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                style: const TextStyle(color: Colors.black87),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -635,42 +674,53 @@ class _HandNotesPageState extends State<HandNotesPage>
         ),
         body: Column(
           children: [
-            // Filters Section
             Container(
               padding: const EdgeInsets.only(
-                  left: 16.0, right: 16.0, top: 16.0, bottom: 8.0),
+                  bottom: 16.0, left: 16.0, right: 16.0, top: 16.0),
               child: Row(
                 children: [
                   Expanded(
-                    child: _buildFilterChip('Class', _selectedClass, _classes,
-                        (val) {
-                      setState(() {
-                        _selectedClass = val;
-                        _selectedSubject = null;
-                        _selectedTopic = null;
-                        _updateDropdowns();
-                      });
-                    }),
+                    child: _buildFilterChip(
+                      'Class',
+                      _selectedClass,
+                      _classes,
+                      (val) {
+                        setState(() {
+                          _selectedClass = val;
+                          _selectedSubject = null;
+                          _selectedTopic = null;
+                          _updateDropdowns();
+                        });
+                      },
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _buildFilterChip(
-                        'Subject', _selectedSubject, _subjects, (val) {
-                      setState(() {
-                        _selectedSubject = val;
-                        _selectedTopic = null;
-                        _updateDropdowns();
-                      });
-                    }),
+                      'Subject',
+                      _selectedSubject,
+                      _subjects,
+                      (val) {
+                        setState(() {
+                          _selectedSubject = val;
+                          _selectedTopic = null;
+                          _updateDropdowns();
+                        });
+                      },
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _buildFilterChip('Topic', _selectedTopic, _topics,
-                        (val) {
-                      setState(() {
-                        _selectedTopic = val;
-                      });
-                    }),
+                    child: _buildFilterChip(
+                      'Topic',
+                      _selectedTopic,
+                      _topics,
+                      (val) {
+                        setState(() {
+                          _selectedTopic = val;
+                        });
+                      },
+                    ),
                   ),
                 ],
               ),

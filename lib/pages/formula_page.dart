@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
-import '../widgets/app_drawer.dart';
 import '../services/formula_service.dart';
 import 'package:provider/provider.dart';
 import '../services/connectivity_service.dart';
@@ -11,6 +10,7 @@ import 'package:http/http.dart' as http;
 import '../pages/pdf_viewer_page.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 import '../widgets/loading_widget.dart';
+import '../widgets/error_state_widget.dart';
 
 class FormulaPage extends StatefulWidget {
   const FormulaPage({super.key});
@@ -523,61 +523,9 @@ class _FormulaPageState extends State<FormulaPage> {
     }
 
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.signal_wifi_off,
-                size: 60,
-                color: Colors.red,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'No Internet Connection',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Please connect to the internet to continue.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: Colors.blue,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 12,
-                ),
-              ),
-              onPressed: _refreshFormulas,
-              child: const Text(
-                'Retry',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
+      return ErrorStateWidget(
+        errorMessage: _error,
+        onRetry: _refreshFormulas,
       );
     }
 
@@ -683,6 +631,10 @@ class _FormulaPageState extends State<FormulaPage> {
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Formulas',
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -690,7 +642,6 @@ class _FormulaPageState extends State<FormulaPage> {
           ),
         ],
       ),
-      drawer: const AppDrawer(),
       backgroundColor: Colors.white,
       body: ClipRRect(
         borderRadius: const BorderRadius.vertical(

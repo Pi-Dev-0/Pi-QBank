@@ -5,6 +5,7 @@ import 'package:pi_qbank/pages/view_post_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart'; // Import AppDrawer
 import '../widgets/loading_widget.dart'; // Import the LoadingWidget
+import '../widgets/error_state_widget.dart'; // Import ErrorStateWidget
 
 class BlogPage extends StatefulWidget {
   const BlogPage({super.key});
@@ -70,283 +71,261 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
-      appBar: _isSearching
-          ? PreferredSize(
-              preferredSize: Size.fromHeight(kToolbarHeight + 18),
-              child: Container(
-                decoration: BoxDecoration(
-                  // Subtle shadow for floating effect
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity( 0.07),
-                      blurRadius: 16,
-                      offset: Offset(0, 4),
+    return FutureBuilder<List<BlogPost>>(
+      future: _blogPostsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: LoadingWidget(loadingText: 'Loading blog posts...'),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
+          appBar: _isSearching
+              ? PreferredSize(
+                  preferredSize: Size.fromHeight(kToolbarHeight + 18),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.07),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(25),
+                      ),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          padding: EdgeInsets.only(
+                            top: MediaQuery.of(context).padding.top,
+                            left: 16,
+                            right: 16,
+                            bottom: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (isDark ? Colors.grey[850]! : Colors.white)
+                                .withOpacity(0.65),
+                            borderRadius: const BorderRadius.vertical(
+                              bottom: Radius.circular(25),
+                            ),
+                            border: Border(
+                              bottom: BorderSide(
+                                color:
+                                    (isDark ? Colors.white24 : Colors.black12),
+                                width: 0.7,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back),
+                                color: isDark ? Colors.white : Colors.black87,
+                                onPressed: () {
+                                  setState(() {
+                                    _isSearching = false;
+                                    _searchController.clear();
+                                    _filterBlogPosts();
+                                  });
+                                },
+                              ),
+                              Expanded(
+                                child: Container(
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: (isDark
+                                            ? Colors.grey[800]!
+                                            : Colors.white)
+                                        .withOpacity(0.85),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white12
+                                          : Colors.black12,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: TextField(
+                                    controller: _searchController,
+                                    decoration: InputDecoration(
+                                      prefixIcon: Icon(Icons.search,
+                                          color: isDark
+                                              ? Colors.white54
+                                              : Colors.grey[600],
+                                          size: 22),
+                                      hintText: 'Search blog posts...',
+                                      border: InputBorder.none,
+                                      hintStyle: TextStyle(
+                                        color: isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[600],
+                                        fontSize: 15,
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              vertical: 10),
+                                    ),
+                                    style: TextStyle(
+                                      color:
+                                          isDark ? Colors.white : Colors.black,
+                                      fontSize: 16,
+                                    ),
+                                    autofocus: true,
+                                  ),
+                                ),
+                              ),
+                              AnimatedOpacity(
+                                opacity: _searchController.text.isNotEmpty
+                                    ? 1.0
+                                    : 0.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  color: isDark ? Colors.white : Colors.black54,
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _filterBlogPosts();
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : CustomAppBar(
+                  title: 'Pi-QBank Blog',
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.search),
+                      onPressed: () {
+                        setState(() {
+                          _isSearching = true;
+                        });
+                      },
                     ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(25),
-                  ),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      padding: EdgeInsets.only(
-                        top: MediaQuery.of(context).padding.top,
-                        left: 16,
-                        right: 16,
-                        bottom: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (isDark ? Colors.grey[850] : Colors.white)
-                            ?.withOpacity( 0.65),
-                        borderRadius: const BorderRadius.vertical(
-                          bottom: Radius.circular(25),
-                        ),
-                        border: Border(
-                          bottom: BorderSide(
-                            color: (isDark ? Colors.white24 : Colors.black12),
-                            width: 0.7,
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back),
-                            color: isDark ? Colors.white : Colors.black87,
-                            onPressed: () {
-                              setState(() {
-                                _isSearching = false;
-                                _searchController.clear();
-                                _filterBlogPosts();
-                              });
-                            },
-                          ),
-                          Expanded(
-                            child: Container(
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color:
-                                    (isDark ? Colors.grey[800] : Colors.white)
-                                        ?.withOpacity( 0.85),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color:
-                                      isDark ? Colors.white12 : Colors.black12,
-                                  width: 1,
-                                ),
-                              ),
-                              child: TextField(
-                                controller: _searchController,
-                                decoration: InputDecoration(
-                                  prefixIcon: Icon(Icons.search,
-                                      color: isDark
-                                          ? Colors.white54
-                                          : Colors.grey[600],
-                                      size: 22),
-                                  hintText: 'Search blog posts...',
-                                  border: InputBorder.none,
-                                  hintStyle: TextStyle(
-                                    color: isDark
-                                        ? Colors.grey[400]
-                                        : Colors.grey[600],
-                                    fontSize: 15,
-                                  ),
-                                  contentPadding:
-                                      EdgeInsets.symmetric(vertical: 10),
-                                ),
-                                style: TextStyle(
-                                  color: isDark ? Colors.white : Colors.black,
-                                  fontSize: 16,
-                                ),
-                                autofocus: true,
-                              ),
-                            ),
-                          ),
-                          AnimatedOpacity(
-                            opacity:
-                                _searchController.text.isNotEmpty ? 1.0 : 0.0,
-                            duration: Duration(milliseconds: 200),
-                            child: IconButton(
-                              icon: const Icon(Icons.clear),
-                              color: isDark ? Colors.white : Colors.black54,
-                              onPressed: () {
-                                _searchController.clear();
-                                _filterBlogPosts();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : CustomAppBar(
-              title: 'Pi-QBank Blog',
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () {
-                    setState(() {
-                      _isSearching = true;
-                    });
-                  },
-                ),
-              ],
-            ),
-      drawer: const AppDrawer(), // Add AppDrawer to BlogPage Scaffold
-      body: Column(
-        children: [
-          Expanded(
-            child: FutureBuilder<List<BlogPost>>(
-              future: _blogPostsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: LoadingWidget(loadingText: 'Loading blog posts...'),
-                  );
-                } else if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.red[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Oops! Something went wrong',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Unable to load blog posts',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                } else if (!snapshot.hasData || _allBlogPosts.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.article_outlined,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No Stories Yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Check back soon for new content!',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                } else if (_filteredBlogPosts.isEmpty &&
-                    _searchQuery.isNotEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No results found for "$_searchQuery"',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Try a different search term.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                } else {
-                  return RefreshIndicator(
-                    onRefresh: () async {
-                      await BlogService().fetchBlogPosts().then((posts) {
-                        setState(() {
-                          _allBlogPosts = posts;
-                          _filterBlogPosts();
-                        });
-                      });
-                    },
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16.0),
-                      itemCount: _filteredBlogPosts.length,
-                      itemBuilder: (context, index) {
-                        final post = _filteredBlogPosts[index];
-                        return AnimatedBuilder(
-                          animation: _animationController,
-                          builder: (context, child) {
-                            return TweenAnimationBuilder(
-                              duration:
-                                  Duration(milliseconds: 300 + (index * 100)),
-                              tween: Tween<double>(begin: 0, end: 1),
-                              builder: (context, double value, child) {
-                                return Transform.translate(
-                                  offset: Offset(0, 50 * (1 - value)),
-                                  child: Opacity(
-                                    opacity: value,
-                                    child: child,
-                                  ),
-                                );
-                              },
-                              child: _buildBlogCard(post, context, isDark),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  );
-                }
-              },
-            ),
-          ),
-        ],
-      ),
+          drawer: const AppDrawer(),
+          body: _buildBody(snapshot, isDark),
+        );
+      },
     );
+  }
+
+  Widget _buildBody(AsyncSnapshot<List<BlogPost>> snapshot, bool isDark) {
+    if (snapshot.hasError) {
+      return ErrorStateWidget(
+        errorMessage:
+            'Unable to load blog posts. Please check your connection.',
+        onRetry: () {
+          setState(() {
+            _blogPostsFuture = BlogService().fetchBlogPosts();
+          });
+        },
+      );
+    } else if (!snapshot.hasData || _allBlogPosts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.article_outlined,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No Stories Yet',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Check back soon for new content!',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (_filteredBlogPosts.isEmpty && _searchQuery.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No results found for "$_searchQuery"',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try a different search term.',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return RefreshIndicator(
+        onRefresh: () async {
+          await BlogService().fetchBlogPosts().then((posts) {
+            setState(() {
+              _allBlogPosts = posts;
+              _filterBlogPosts();
+            });
+          });
+        },
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16.0),
+          itemCount: _filteredBlogPosts.length,
+          itemBuilder: (context, index) {
+            final post = _filteredBlogPosts[index];
+            return TweenAnimationBuilder(
+              duration: Duration(milliseconds: 300 + (index * 100)),
+              tween: Tween<double>(begin: 0, end: 1),
+              builder: (context, double value, child) {
+                return Transform.translate(
+                  offset: Offset(0, 50 * (1 - value)),
+                  child: Opacity(
+                    opacity: value,
+                    child: child,
+                  ),
+                );
+              },
+              child: _buildBlogCard(post, context, isDark),
+            );
+          },
+        ),
+      );
+    }
   }
 
   Widget _buildBlogCard(BlogPost post, BuildContext context, bool isDark) {
@@ -375,16 +354,16 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
             boxShadow: [
               BoxShadow(
                 color: isDark
-                    ? Colors.black.withOpacity( 0.3)
-                    : Colors.grey.withOpacity( 0.1),
+                    ? Colors.black.withOpacity(0.3)
+                    : Colors.grey.withOpacity(0.1),
                 spreadRadius: 0,
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
               BoxShadow(
                 color: isDark
-                    ? Colors.black.withOpacity( 0.1)
-                    : Colors.white.withOpacity( 0.8),
+                    ? Colors.black.withOpacity(0.1)
+                    : Colors.white.withOpacity(0.8),
                 spreadRadius: 0,
                 blurRadius: 10,
                 offset: const Offset(0, 1),
@@ -392,8 +371,8 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
             ],
             border: Border.all(
               color: isDark
-                  ? Colors.grey[700]!.withOpacity( 0.3)
-                  : Colors.grey[200]!.withOpacity( 0.5),
+                  ? Colors.grey[700]!.withOpacity(0.3)
+                  : Colors.grey[200]!.withOpacity(0.5),
               width: 1,
             ),
           ),
@@ -498,9 +477,8 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .primaryColor
-                              .withOpacity( 0.1),
+                          color:
+                              Theme.of(context).primaryColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
@@ -530,7 +508,7 @@ class _BlogPageState extends State<BlogPage> with TickerProviderStateMixin {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity( 0.1),
+                          color: Colors.orange.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
