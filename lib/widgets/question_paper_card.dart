@@ -32,6 +32,7 @@ class QuestionPaperCard extends StatefulWidget {
   final String examYear;
   final String downloadUrl;
   final String category;
+  final int? index;
 
   const QuestionPaperCard({
     super.key,
@@ -41,6 +42,7 @@ class QuestionPaperCard extends StatefulWidget {
     required this.examYear,
     required this.downloadUrl,
     required this.category,
+    this.index,
   });
 
   @override
@@ -582,250 +584,252 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
     }
   }
 
+  Color _getAccentColor() {
+    final colors = [
+      const Color(0xFF6C5CE7), // Indigo
+      const Color(0xFF00B894), // Teal
+      const Color(0xFFFDCB6E), // Amber
+      const Color(0xFFE84393), // Rose
+      const Color(0xFF0984E3), // Blue
+      const Color(0xFF6D214F), // Plum
+      const Color(0xFF00CEC9), // Cyan
+      const Color(0xFF6AB04C), // Green
+    ];
+    final colorIndex = widget.index != null
+        ? widget.index! % colors.length
+        : widget.title.hashCode.abs() % colors.length;
+    return colors[colorIndex];
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Card(
-          elevation: 8.0,
-          shadowColor: Colors.black.withOpacity(0.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-            side: BorderSide(
-              color: Colors.grey.withOpacity(0.1),
-              width: 0.2,
-            ),
+    final accentColor = _getAccentColor();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           ),
-          margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12.0),
-                    topRight: Radius.circular(12.0),
-                  ),
-                ),
-                padding: const EdgeInsets.fromLTRB(24, 12, 10, 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.title,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 0),
-                            decoration: BoxDecoration(
-                              color: Colors.lightBlue.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Text(
-                              widget.subtitle,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.blue,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_isDownloading && _downloadProgress > 0)
-                      Container(
-                        width: 45,
-                        height: 45,
-                        margin: const EdgeInsets.only(right: 8),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            CircularProgressIndicator(
-                              value: _downloadProgress,
-                              strokeWidth: 3,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Theme.of(context).primaryColor,
-                              ),
-                              backgroundColor: Colors.grey[200],
-                            ),
-                            Text(
-                              '${(_downloadProgress * 100).toInt()}%',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      OverflowBar(
-                        spacing: 0,
-                        overflowAlignment: OverflowBarAlignment.end,
-                        children: [
-                          if (_isFileDownloaded && _downloadedFilePath != null)
-                            IconButton(
-                              icon: const Icon(Icons.cloud_download_outlined),
-                              onPressed: () => _redownloadFile(context),
-                              tooltip: 'Redownload',
-                              color: Theme.of(context).primaryColor,
-                              style: IconButton.styleFrom(
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                                highlightColor: Theme.of(context)
-                                    .primaryColor
-                                    .withOpacity(0.2),
-                              ),
-                            ),
-                          IconButton(
-                            icon: Icon(
-                              _isBookmarked
-                                  ? Icons.bookmark_rounded
-                                  : Icons.bookmark_outline_rounded,
-                              color: _isBookmarked
-                                  ? Theme.of(context).primaryColor
-                                  : Colors.grey[600],
-                            ),
-                            onPressed: _toggleBookmark,
-                            style: IconButton.styleFrom(
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              visualDensity: VisualDensity.compact,
-                              highlightColor: Theme.of(context)
-                                  .primaryColor
-                                  .withOpacity(0.2),
-                            ),
-                          ),
-                          if (_isFileDownloaded)
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                color: Colors.redAccent,
-                              ),
-                              onPressed: _deleteDownloadedFile,
-                              tooltip: 'Delete File',
-                              style: IconButton.styleFrom(
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                                highlightColor: Colors.red.withOpacity(0.2),
-                              ),
-                            ),
-                        ],
-                      ),
-                  ],
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header Section
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 8, 12),
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.06),
+                border: Border(
+                  bottom: BorderSide(color: accentColor.withOpacity(0.1)),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => _viewOnlinePDF(context),
-                        icon: const Icon(
-                          Icons.remove_red_eye_outlined,
-                          size: 20,
-                          color: Colors.white,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2D3436),
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        label: const Text('View Online',
-                            style: TextStyle(fontSize: 14, letterSpacing: 0.5)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
-                          elevation: 6,
-                          shadowColor:
-                              Theme.of(context).primaryColor.withOpacity(0.5),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: BorderSide(
-                                color: Colors.blue.shade800,
-                                width: 1,
-                              )),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isDownloading
-                            ? null
-                            : () {
-                                if (_isFileDownloaded &&
-                                    _downloadedFilePath != null) {
-                                  _openPDF(_downloadedFilePath!, context);
-                                } else {
-                                  _downloadFile(context);
-                                }
-                              },
-                        icon: _isDownloading
-                            ? const SizedBox.shrink()
-                            : Icon(
-                                _isFileDownloaded
-                                    ? Icons.visibility_rounded
-                                    : Icons.download_rounded,
-                                size: 20,
-                                color: _isFileDownloaded ? Colors.white : null,
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: accentColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
                               ),
-                        label: Text(
-                          _isFileDownloaded
-                              ? 'View Offline'
-                              : (_isDownloading ? 'Downloading' : 'Download'),
-                          style:
-                              const TextStyle(fontSize: 14, letterSpacing: 0.5),
+                              child: Text(
+                                widget.subtitle,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: accentColor,
+                                ),
+                              ),
+                            ),
+                            if (widget.examYear.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                widget.examYear,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isFileDownloaded
-                              ? Colors.green
-                              : Colors.grey[200],
-                          foregroundColor: _isFileDownloaded
-                              ? Colors.white
-                              : Colors.grey[800],
-                          elevation: 6,
-                          shadowColor:
-                              (_isFileDownloaded ? Colors.green : Colors.grey)
-                                  .withOpacity(0.5),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: BorderSide(
-                                color: _isFileDownloaded
-                                    ? Colors.green.shade600
-                                    : Colors.grey.shade400,
-                                width: 1,
-                              )),
-                        ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
+                  _buildHeaderActions(accentColor),
+                ],
+              ),
+            ),
+            // Progress Bar (if downloading)
+            if (_isDownloading)
+              LinearProgressIndicator(
+                value: _downloadProgress,
+                backgroundColor: Colors.transparent,
+                valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                minHeight: 3,
+              ),
+            // Actions Section
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildActionButton(
+                      label: 'View Online',
+                      icon: Icons.public_rounded,
+                      onPressed: () => _viewOnlinePDF(context),
+                      color: Colors.grey[100]!,
+                      textColor: const Color(0xFF2D3436),
+                      isPrimary: false,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildActionButton(
+                      label: _isFileDownloaded
+                          ? 'View Offline'
+                          : (_isDownloading ? 'Downloading...' : 'Download'),
+                      icon: _isFileDownloaded
+                          ? Icons.visibility_rounded
+                          : Icons.file_download_rounded,
+                      onPressed: _isDownloading
+                          ? null
+                          : () {
+                              if (_isFileDownloaded &&
+                                  _downloadedFilePath != null) {
+                                _openPDF(_downloadedFilePath!, context);
+                              } else {
+                                _downloadFile(context);
+                              }
+                            },
+                      color: _isFileDownloaded
+                          ? Colors.green[50]!
+                          : accentColor.withOpacity(0.12),
+                      textColor:
+                          _isFileDownloaded ? Colors.green[700]! : accentColor,
+                      isPrimary: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Hidden Ad Trigger
+            SizedBox(
+              height: 1,
+              child: AdsterraService.showAd(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderActions(Color accentColor) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_isFileDownloaded && _downloadedFilePath != null)
+          _buildTinyIconButton(
+            icon: Icons.refresh_rounded,
+            onPressed: () => _redownloadFile(context),
+            color: accentColor.withOpacity(0.8),
+            tooltip: 'Redownload',
+          ),
+        _buildTinyIconButton(
+          icon: _isBookmarked
+              ? Icons.bookmark_rounded
+              : Icons.bookmark_outline_rounded,
+          onPressed: _toggleBookmark,
+          color: _isBookmarked ? accentColor : Colors.grey[400]!,
+          tooltip: 'Bookmark',
+        ),
+        if (_isFileDownloaded)
+          _buildTinyIconButton(
+            icon: Icons.delete_outline_rounded,
+            onPressed: _deleteDownloadedFile,
+            color: Colors.red[300]!,
+            tooltip: 'Delete',
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTinyIconButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required Color color,
+    required String tooltip,
+  }) {
+    return IconButton(
+      icon: Icon(icon, color: color, size: 22),
+      onPressed: onPressed,
+      tooltip: tooltip,
+      splashRadius: 20,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+    required Color color,
+    required Color textColor,
+    required bool isPrimary,
+  }) {
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: textColor),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
                 ),
               ),
             ],
           ),
         ),
-        Positioned(
-          bottom: 0,
-          left: 0,
-          child: SizedBox(
-            height: 1,
-            width: 1,
-            child: AdsterraService.showAd(),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

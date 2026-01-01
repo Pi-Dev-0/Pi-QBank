@@ -6,6 +6,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/question_paper_card.dart';
 import '../widgets/custom_app_bar.dart';
 import '../services/data_cache_service.dart';
+import '../widgets/loading_widget.dart';
 import '../widgets/exam_year_selector.dart';
 import '../widgets/error_state_widget.dart';
 
@@ -105,6 +106,12 @@ class _MedicalPageState extends State<MedicalPage> {
       ..sort((a, b) => int.parse(b['examYear'].toString())
           .compareTo(int.parse(a['examYear'].toString())));
 
+    if (isLoading) {
+      return const Scaffold(
+        body: LoadingWidget(loadingText: 'Loading Papers...'),
+      );
+    }
+
     return Scaffold(
       appBar: const CustomAppBar(title: 'Medical Admission'),
       drawer: const AppDrawer(),
@@ -122,83 +129,59 @@ class _MedicalPageState extends State<MedicalPage> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-              ).copyWith(top: 10.0),
-              child: SizedBox(
-                child: ExamYearSelector(
-                  selectedYear: _selectedExamYear,
-                  examYears: examYears,
-                  onYearChanged: (value) =>
-                      setState(() => _selectedExamYear = value ?? ''),
-                ),
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: ExamYearSelector(
+                selectedYear: _selectedExamYear,
+                examYears: examYears,
+                onYearChanged: (value) =>
+                    setState(() => _selectedExamYear = value ?? ''),
               ),
             ),
 
             // Question Papers List
             Expanded(
-              child: isLoading
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text(
-                            'Loading Question Papers...',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+              child: hasError
+                  ? ErrorStateWidget(
+                      onRetry: fetchQuestionPapers,
                     )
-                  : hasError
-                      ? ErrorStateWidget(
-                          onRetry: fetchQuestionPapers,
-                        )
-                      : filteredPapers.isEmpty
-                          ? const Center(
-                              child: Text('No question papers found'))
-                          : ListView.builder(
-                              padding: const EdgeInsets.all(8),
-                              itemCount: filteredPapers.length,
-                              itemBuilder: (context, index) {
-                                final paper = filteredPapers[index];
-                                final key = ValueKey(
-                                    '${paper['examYear']}_${paper['title']}');
-                                final color =
-                                    _cardColors[index % _cardColors.length];
+                  : filteredPapers.isEmpty
+                      ? const Center(child: Text('No question papers found'))
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(8),
+                          itemCount: filteredPapers.length,
+                          itemBuilder: (context, index) {
+                            final paper = filteredPapers[index];
+                            final key = ValueKey(
+                                '${paper['examYear']}_${paper['title']}');
+                            final color =
+                                _cardColors[index % _cardColors.length];
 
-                                return Theme(
-                                  data: Theme.of(context).copyWith(
-                                    primaryColor: color,
-                                    colorScheme: ColorScheme.fromSeed(
-                                      seedColor: color,
-                                      primary: color,
-                                    ),
-                                  ),
-                                  child: KeyedSubtree(
-                                    key: key,
-                                    child: QuestionPaperCard(
-                                      key: ValueKey(
-                                          '${paper['examYear']}_${paper['title']}'),
-                                      title: paper['title']?.toString() ?? '',
-                                      subtitle:
-                                          paper['subtitle']?.toString() ?? '',
-                                      year: paper['examYear']?.toString() ?? '',
-                                      examYear:
-                                          paper['examYear']?.toString() ?? '',
-                                      downloadUrl:
-                                          paper['downloadUrl']?.toString() ??
-                                              '',
-                                      category: 'Medical',
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                primaryColor: color,
+                                colorScheme: ColorScheme.fromSeed(
+                                  seedColor: color,
+                                  primary: color,
+                                ),
+                              ),
+                              child: KeyedSubtree(
+                                key: key,
+                                child: QuestionPaperCard(
+                                  key: ValueKey(
+                                      '${paper['examYear']}_${paper['title']}'),
+                                  title: paper['title']?.toString() ?? '',
+                                  subtitle: paper['subtitle']?.toString() ?? '',
+                                  year: paper['examYear']?.toString() ?? '',
+                                  examYear: paper['examYear']?.toString() ?? '',
+                                  downloadUrl:
+                                      paper['downloadUrl']?.toString() ?? '',
+                                  category: 'Medical',
+                                  index: index,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),

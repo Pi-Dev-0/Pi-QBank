@@ -15,10 +15,12 @@ class SevecCollegeMathematicsPage extends StatefulWidget {
   const SevecCollegeMathematicsPage({super.key});
 
   @override
-  State<SevecCollegeMathematicsPage> createState() => _SevecCollegeMathematicsPageState();
+  State<SevecCollegeMathematicsPage> createState() =>
+      _SevecCollegeMathematicsPageState();
 }
 
-class _SevecCollegeMathematicsPageState extends State<SevecCollegeMathematicsPage> {
+class _SevecCollegeMathematicsPageState
+    extends State<SevecCollegeMathematicsPage> {
   List<Map<String, dynamic>> questionPapers = [];
   bool isLoading = true;
   bool hasError = false;
@@ -85,7 +87,8 @@ class _SevecCollegeMathematicsPageState extends State<SevecCollegeMathematicsPag
 
           if (response.statusCode == 200) {
             // Decrypt the response body (which is Base64 encoded)
-            final decryptedBody = _xorEncryptDecrypt(response.body, _encryptionKey);
+            final decryptedBody =
+                _xorEncryptDecrypt(response.body, _encryptionKey);
             final List<dynamic> data = json.decode(decryptedBody);
             return data.map((item) => Map<String, dynamic>.from(item)).toList();
           }
@@ -154,7 +157,8 @@ class _SevecCollegeMathematicsPageState extends State<SevecCollegeMathematicsPag
           Expanded(
             child: isLoading
                 ? const Center(
-                    child: LoadingWidget(loadingText: 'Loading Question Papers...'),
+                    child: LoadingWidget(
+                        loadingText: 'Loading Question Papers...'),
                   )
                 : hasError
                     ? Center(
@@ -189,17 +193,21 @@ class _SevecCollegeMathematicsPageState extends State<SevecCollegeMathematicsPag
                             itemCount: filteredPapers.length,
                             itemBuilder: (context, index) {
                               final paper = filteredPapers[index];
-                              final key = ValueKey('${paper['year']}_${paper['examyear']}_${paper['title']}');
+                              final key = ValueKey(
+                                  '${paper['year']}_${paper['examyear']}_${paper['title']}');
                               return KeyedSubtree(
                                 key: key,
                                 child: QuestionPaperCard(
-                                  key: ValueKey('${paper['year']}_${paper['examyear']}_${paper['title']}'),
+                                  key: ValueKey(
+                                      '${paper['year']}_${paper['examyear']}_${paper['title']}'),
                                   title: paper['title']?.toString() ?? '',
                                   subtitle: paper['subtitle']?.toString() ?? '',
                                   year: paper['year']?.toString() ?? '',
                                   examYear: paper['examyear']?.toString() ?? '',
-                                  downloadUrl: paper['downloadurl']?.toString() ?? '',
+                                  downloadUrl:
+                                      paper['downloadurl']?.toString() ?? '',
                                   category: '7 College',
+                                  index: index,
                                 ),
                               );
                             },

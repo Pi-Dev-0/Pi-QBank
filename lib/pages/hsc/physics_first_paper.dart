@@ -37,7 +37,7 @@ class _HSCPhysicsFirstPaperState extends State<HSCPhysicsFirstPaper> {
   Future<void> fetchQuestionPapers() async {
     final String scriptUrl = AppConfig.hscApi;
     const String cacheKey = 'hsc_physics_first';
-    
+
     try {
       if (mounted) {
         setState(() {
@@ -51,12 +51,11 @@ class _HSCPhysicsFirstPaperState extends State<HSCPhysicsFirstPaper> {
         cacheKey,
         () async {
           final response = await http.get(Uri.parse(scriptUrl));
-          
+
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
             return (data['papers'] as List)
-                .where((paper) => 
-                    paper['subject'].toString() == 'Physics1')
+                .where((paper) => paper['subject'].toString() == 'Physics1')
                 .map((paper) => {
                       'title': paper['title'],
                       'subtitle': paper['subtitle'],
@@ -140,7 +139,8 @@ class _HSCPhysicsFirstPaperState extends State<HSCPhysicsFirstPaper> {
           ExamYearSelector(
             selectedYear: _selectedExamYear,
             examYears: examYears,
-            onYearChanged: (value) => setState(() => _selectedExamYear = value ?? ''),
+            onYearChanged: (value) =>
+                setState(() => _selectedExamYear = value ?? ''),
           ),
 
           // Question Papers List
@@ -184,6 +184,7 @@ class _HSCPhysicsFirstPaperState extends State<HSCPhysicsFirstPaper> {
                                   downloadUrl:
                                       paper['downloadUrl']?.toString() ?? '',
                                   category: 'HSC Physics 1st Paper',
+                                  index: index,
                                 ),
                               );
                             },

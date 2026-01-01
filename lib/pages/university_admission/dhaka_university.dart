@@ -174,6 +174,7 @@ class _DhakaUniversityPageState extends State<DhakaUniversityPage> {
                                   downloadUrl:
                                       paper['downloadUrl']?.toString() ?? '',
                                   category: 'GST',
+                                  index: index,
                                 ),
                               );
                             },

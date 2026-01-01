@@ -170,6 +170,7 @@ class _Class7MathPageState extends State<Class7MathPage> {
                                 downloadUrl:
                                     paper['downloadUrl']?.toString() ?? '',
                                 category: 'Class 7 Math',
+                                index: index,
                               );
                             },
                           ),
