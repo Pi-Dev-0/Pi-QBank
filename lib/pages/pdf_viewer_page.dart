@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import '../widgets/loading_widget.dart';
+
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/loading_widget.dart';
 import '../widgets/custom_app_bar.dart';
 
 class PDFViewerPage extends StatefulWidget {
@@ -21,9 +24,16 @@ class _PDFViewerPageState extends State<PDFViewerPage>
     with TickerProviderStateMixin {
   PDFViewController? _pdfViewController;
   final TextEditingController _pageController = TextEditingController();
+
   bool _isLoading = true;
+  bool _nightMode = false;
+  // _swipeHorizontal removed, defaulting to false (vertical only)
+  bool _pageSnap = true; // Toggle for smooth/continuous scrolling
+  bool _isBookmarked = false;
+
   int? _totalPages;
   int _currentPage = 1;
+
   late AnimationController _dialogController;
   late Animation<double> _dialogScaleAnimation;
   late Animation<double> _dialogOpacityAnimation;
@@ -49,6 +59,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
       parent: _dialogController,
       curve: Curves.easeOut,
     ));
+    _checkBookmarkStatus();
   }
 
   @override
@@ -56,6 +67,123 @@ class _PDFViewerPageState extends State<PDFViewerPage>
     _pageController.dispose();
     _dialogController.dispose();
     super.dispose();
+  }
+
+  // --- Bookmark Logic ---
+  Future<void> _checkBookmarkStatus() async {
+    _updateBookmarkIcon();
+  }
+
+  Future<void> _toggleBookmark() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'bookmarks_${widget.filePath.hashCode}';
+    List<String> bookmarks = prefs.getStringList(key) ?? [];
+
+    final pageString = _currentPage.toString();
+
+    if (bookmarks.contains(pageString)) {
+      bookmarks.remove(pageString);
+      _showCustomSnackBar(
+          'Bookmark removed', Colors.grey.shade700, Icons.bookmark_border);
+      setState(() => _isBookmarked = false);
+    } else {
+      bookmarks.add(pageString);
+      // Sort bookmarks numerically
+      bookmarks.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+      _showCustomSnackBar(
+          'Page $_currentPage bookmarked', Colors.blue, Icons.bookmark);
+      setState(() => _isBookmarked = true);
+    }
+
+    await prefs.setStringList(key, bookmarks);
+  }
+
+  Future<void> _updateBookmarkIcon() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'bookmarks_${widget.filePath.hashCode}';
+    List<String> bookmarks = prefs.getStringList(key) ?? [];
+    if (mounted) {
+      setState(() {
+        _isBookmarked = bookmarks.contains(_currentPage.toString());
+      });
+    }
+  }
+
+  void _showBookmarksList() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'bookmarks_${widget.filePath.hashCode}';
+    List<String> bookmarks = prefs.getStringList(key) ?? [];
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _nightMode ? const Color(0xFF1E1E1E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Bookmarks',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: _nightMode ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (bookmarks.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  'No bookmarks yet.',
+                  style: TextStyle(
+                      color: _nightMode ? Colors.grey : Colors.grey.shade600),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: bookmarks.length,
+                  itemBuilder: (context, index) {
+                    final page = int.parse(bookmarks[index]);
+                    return ListTile(
+                      leading: const Icon(Icons.bookmark, color: Colors.blue),
+                      title: Text(
+                        'Page $page',
+                        style: TextStyle(
+                            color: _nightMode ? Colors.white : Colors.black87),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pdfViewController?.setPage(page - 1);
+                      },
+                      trailing: IconButton(
+                        icon:
+                            const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () async {
+                          bookmarks.removeAt(index);
+                          await prefs.setStringList(key, bookmarks);
+
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                          _showBookmarksList(); // Re-open to refresh
+                          _updateBookmarkIcon();
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _handlePageNavigation(String value) {
@@ -84,6 +212,8 @@ class _PDFViewerPageState extends State<PDFViewerPage>
   }
 
   void _showCustomSnackBar(String message, Color color, IconData icon) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars(); // Prevent stacking
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -107,6 +237,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
           borderRadius: BorderRadius.circular(12),
         ),
         margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -115,6 +246,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
     if (_totalPages == null || _pdfViewController == null) return;
     _pageController.text = '';
 
+    // ignore: unused_local_variable
     final currentPage = await _pdfViewController!.getCurrentPage();
     if (!mounted) return;
 
@@ -134,7 +266,8 @@ class _PDFViewerPageState extends State<PDFViewerPage>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              backgroundColor: Colors.white,
+              backgroundColor:
+                  _nightMode ? const Color(0xFF1E1E1E) : Colors.white,
               title: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -150,15 +283,15 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
+                  children: const [
+                    Icon(
                       Icons.auto_stories,
                       color: Colors.white,
                       size: 28,
                     ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Navigate to Page',
+                    SizedBox(width: 12),
+                    Text(
+                      'Navigate',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -168,204 +301,74 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                   ],
                 ),
               ),
-              content: Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.blue.shade50,
-                            Colors.purple.shade50,
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.blue.shade200,
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.bookmark,
-                            color: Colors.blue.shade600,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Current: ${currentPage! + 1} of $_totalPages',
-                            style: TextStyle(
-                              color: Colors.blue.shade700,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Page $_currentPage of $_totalPages',
+                    style: TextStyle(
+                      color: _nightMode ? Colors.white70 : Colors.black87,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
-                    const SizedBox(height: 24),
-                    Container(
-                      decoration: BoxDecoration(
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _pageController,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: _nightMode ? Colors.white : Colors.black,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Enter page number',
+                      hintStyle: TextStyle(
+                        color: _nightMode ? Colors.grey : Colors.grey.shade500,
+                      ),
+                      filled: true,
+                      fillColor: _nightMode
+                          ? Colors.grey.shade900
+                          : Colors.grey.shade100,
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(15),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.shade100,
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                        borderSide: BorderSide.none,
                       ),
-                      child: TextField(
-                        controller: _pageController,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Enter page (1-$_totalPages)',
-                          hintStyle: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 14,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey.shade50,
-                          prefixIcon: Container(
-                            margin: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Colors.blue.shade400,
-                                  Colors.purple.shade400,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.article,
-                              color: Colors.white,
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
-                        ),
-                        onSubmitted: (value) {
-                          Navigator.pop(context);
-                          _handlePageNavigation(value);
-                        },
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
                       ),
                     ),
-                  ],
-                ),
+                    onSubmitted: (value) {
+                      Navigator.pop(context);
+                      _handlePageNavigation(value);
+                    },
+                  ),
+                ],
               ),
               actions: [
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 45,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.grey.shade300,
-                              width: 1,
-                            ),
-                          ),
-                          child: TextButton(
-                            onPressed: () {
-                              _dialogController.reverse();
-                              Navigator.pop(context);
-                            },
-                            style: TextButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'CANCEL',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Container(
-                          height: 45,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.blue.shade400,
-                                Colors.purple.shade400,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.blue.shade200,
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              _dialogController.reverse();
-                              Navigator.pop(context);
-                              _handlePageNavigation(_pageController.text);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.rocket_launch,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'GO',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                TextButton(
+                  onPressed: () {
+                    _dialogController.reverse();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('CANCEL'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _dialogController.reverse();
+                    Navigator.pop(context);
+                    _handlePageNavigation(_pageController.text);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
                   ),
+                  child: const Text('GO'),
                 ),
               ],
             ),
@@ -378,243 +381,295 @@ class _PDFViewerPageState extends State<PDFViewerPage>
   }
 
   Widget _buildScrollHandler() {
-  if (_totalPages == null) return const SizedBox();
+    if (_totalPages == null || _totalPages! <= 1) return const SizedBox();
 
-  return Positioned(
-    right: 8,
-    top: 0,
-    bottom: 0,
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final totalHeight = constraints.maxHeight;
-        final thumbHeight = (_totalPages! > 0)
-            ? (totalHeight / _totalPages!).clamp(30.0, totalHeight * 0.9)
-            : 30.0;
+    return Positioned(
+      top: 0,
+      bottom: 0,
+      right: 4,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final totalLength = constraints.maxHeight;
+          final thumbLength = (_totalPages! > 0)
+              ? (totalLength / _totalPages!).clamp(40.0, totalLength * 0.9)
+              : 40.0;
 
-        double getThumbPositionFromPage() {
-          return ((_currentPage - 1) / (_totalPages! - 1)) *
-              (totalHeight - thumbHeight);
-        }
+          double getThumbPositionFromPage() {
+            if (_totalPages! <= 1) return 0.0;
+            return ((_currentPage - 1) / (_totalPages! - 1)) *
+                (totalLength - thumbLength);
+          }
 
-        double thumbPosition = getThumbPositionFromPage();
+          double thumbPosition = getThumbPositionFromPage();
 
-        return StatefulBuilder(
-          builder: (context, setThumbState) {
-            return GestureDetector(
-              onVerticalDragUpdate: (details) {
-                if (_pdfViewController == null || _totalPages! <= 1) return;
-
-                // Update thumb position
-                thumbPosition += details.delta.dy;
-                thumbPosition = thumbPosition.clamp(0.0, totalHeight - thumbHeight);
-
-                // Convert to page number
-                int newPage = ((thumbPosition / (totalHeight - thumbHeight)) *
-                            (_totalPages! - 1))
-                        .round() +
-                    1;
-
-                if (newPage != _currentPage) {
-                  setState(() => _currentPage = newPage);
-                  _pdfViewController!.setPage(newPage - 1);
-                }
-
-                // Update local thumb state
-                setThumbState(() {});
-              },
-              child: SizedBox(
-                width: 40,
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: thumbPosition,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        height: thumbHeight,
-                        decoration: BoxDecoration(
-                          color: (_totalPages! <= 1
-                                  ? Colors.blue.shade700
-                                  : () {
-                                      final List<Color> gradientColors = [
-                                        Colors.red.shade700,
-                                        Colors.orange.shade700,
-                                        Colors.yellow.shade700,
-                                        Colors.green.shade700,
-                                        Colors.blue.shade700,
-                                        Colors.purple.shade700,
-                                      ];
-                                      final int colorCount = gradientColors.length;
-                                      final double progress = (_currentPage - 1) / (_totalPages! - 1);
-                                      final double clampedProgress = progress.clamp(0.0, 1.0);
-                                      final int segmentIndex = (clampedProgress * (colorCount - 1)).floor();
-                                      final double segmentProgress = (clampedProgress * (colorCount - 1)) - segmentIndex;
-                                      final Color startColor = gradientColors[segmentIndex];
-                                      final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
-                                      return Color.lerp(startColor, endColor, segmentProgress)!;
-                                    }())
-                              .withOpacity(0.6), // Semi-transparent color
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(15),
-                            bottomLeft: Radius.circular(15),
-                          ),
-                          border: Border.all(
-                            color: (_totalPages! <= 1
-                                    ? Colors.blue.shade700
-                                    : () {
-                                        final List<Color> gradientColors = [
-                                          Colors.red.shade700,
-                                          Colors.orange.shade700,
-                                          Colors.yellow.shade700,
-                                          Colors.green.shade700,
-                                          Colors.blue.shade700,
-                                          Colors.purple.shade700,
-                                        ];
-                                        final int colorCount = gradientColors.length;
-                                        final double progress = (_currentPage - 1) / (_totalPages! - 1);
-                                        final double clampedProgress = progress.clamp(0.0, 1.0);
-                                        final int segmentIndex = (clampedProgress * (colorCount - 1)).floor();
-                                        final double segmentProgress = (clampedProgress * (colorCount - 1)) - segmentIndex;
-                                        final Color startColor = gradientColors[segmentIndex];
-                                        final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
-                                        return Color.lerp(startColor, endColor, segmentProgress)!;
-                                      }())
-                                  .withOpacity(0.8), // Subtle border
-                            width: 0.4,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: (_totalPages! <= 1
-                                      ? Colors.blue.shade700
-                                      : () {
-                                          final List<Color> gradientColors = [
-                                            Colors.red.shade700,
-                                            Colors.orange.shade700,
-                                            Colors.yellow.shade700,
-                                            Colors.green.shade700,
-                                            Colors.blue.shade700,
-                                            Colors.purple.shade700,
-                                          ];
-                                          final int colorCount = gradientColors.length;
-                                          final double progress = (_currentPage - 1) / (_totalPages! - 1);
-                                          final double clampedProgress = progress.clamp(0.0, 1.0);
-                                          final int segmentIndex = (clampedProgress * (colorCount - 1)).floor();
-                                          final double segmentProgress = (clampedProgress * (colorCount - 1)) - segmentIndex;
-                                          final Color startColor = gradientColors[segmentIndex];
-                                          final Color endColor = gradientColors[(segmentIndex + 1).clamp(0, colorCount - 1)];
-                                          return Color.lerp(startColor, endColor, segmentProgress)!;
-                                        }())
-                                  .withOpacity(0.4), // Shadow with dynamic color
-                              blurRadius: 10, // Increased blur for softer shadow
-                              offset: const Offset(0, 4), // Adjusted offset
+          return StatefulBuilder(
+            builder: (context, setThumbState) {
+              return GestureDetector(
+                onVerticalDragUpdate: (details) {
+                  _handleDrag(details.delta.dy, totalLength, thumbLength,
+                      setThumbState);
+                },
+                child: Container(
+                  width: 30,
+                  height: totalLength,
+                  color: Colors.transparent, // Hit test target
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: thumbPosition,
+                        right: 0,
+                        child: Container(
+                          width: 24,
+                          height: thumbLength,
+                          decoration: BoxDecoration(
+                              color: (_nightMode
+                                      ? Colors.blue.shade200
+                                      : Colors.blue.shade600)
+                                  .withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$_currentPage',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
                             ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '$_currentPage',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
-        );
-      },
-    ),
-  );
-}
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 
+  void _handleDrag(double delta, double totalLength, double thumbLength,
+      StateSetter setThumbState) {
+    if (_pdfViewController == null || _totalPages! <= 1) return;
+
+    double currentThumbPos =
+        ((_currentPage - 1) / (_totalPages! - 1)) * (totalLength - thumbLength);
+    double newThumbPos = currentThumbPos + delta;
+    newThumbPos = newThumbPos.clamp(0.0, totalLength - thumbLength);
+
+    int newPage =
+        ((newThumbPos / (totalLength - thumbLength)) * (_totalPages! - 1))
+                .round() +
+            1;
+
+    if (newPage != _currentPage) {
+      if (mounted) setState(() => _currentPage = newPage);
+      _pdfViewController!.setPage(newPage - 1);
+    }
+    setThumbState(() {});
+  }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: CustomAppBar(
-          title: widget.title,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.search),
-              iconSize: 24,
-              onPressed: _showPageDialog,
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor:
+          _nightMode ? const Color(0xFF121212) : Colors.grey.shade100,
+      appBar: CustomAppBar(
+        title: widget.title,
+        actions: [
+          IconButton(
+            icon: Icon(_isBookmarked ? Icons.bookmark : Icons.bookmark_border),
+            onPressed: _toggleBookmark,
+          ),
+          IconButton(
+            icon: const Icon(Icons.share, size: 22),
+            onPressed: () {
+              Share.shareXFiles([XFile(widget.filePath)],
+                  text: 'Sharing PDF: ${widget.title}');
+            },
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              Expanded(
+                child: Container(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _nightMode ? Colors.black : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: PDFView(
+                      key: Key(
+                          'pdf_view_$_pageSnap'), // Force recreation to apply settings
+                      filePath: widget.filePath,
+                      defaultPage: _currentPage > 0
+                          ? _currentPage - 1
+                          : 0, // Restore page
+                      enableSwipe: true,
+                      swipeHorizontal: false,
+                      autoSpacing: _pageSnap, // Auto-spacing only in snap mode
+                      pageFling: true, // Keep fling enabled for better feel
+                      pageSnap: _pageSnap, // Toggle snap
+                      nightMode: _nightMode,
+                      fitPolicy: FitPolicy.WIDTH,
+                      onRender: (pages) {
+                        setState(() {
+                          _totalPages = pages;
+                          _isLoading = false;
+                        });
+                        _updateBookmarkIcon();
+                      },
+                      onError: (error) {
+                        setState(() => _isLoading = false);
+                        _showCustomSnackBar(
+                          'Error: $error',
+                          Colors.red.shade400,
+                          Icons.error,
+                        );
+                      },
+                      onPageError: (page, error) {
+                        setState(() => _isLoading = false);
+                        _showCustomSnackBar(
+                          'Page Error: $error',
+                          Colors.orange.shade400,
+                          Icons.warning,
+                        );
+                      },
+                      onViewCreated: (controller) {
+                        _pdfViewController = controller;
+                      },
+                      onPageChanged: (page, total) {
+                        if (page != null) {
+                          setState(() {
+                            _currentPage = page + 1;
+                          });
+                          _updateBookmarkIcon();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              _buildBottomControls(),
+            ],
+          ),
+          if (_totalPages != null && _totalPages! > 1) _buildScrollHandler(),
+          if (_isLoading)
+            const LoadingWidget(
+              loadingText: 'Loading PDF...',
             ),
-          ],
-        ),
-        body: Stack(
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomControls() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: _nightMode ? const Color(0xFF1E1E1E) : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.grey.shade50,
-                    Colors.blue.shade50,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.all(8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: PDFView(
-                  filePath: widget.filePath,
-                  enableSwipe: true,
-                  swipeHorizontal: false,
-                  autoSpacing: false,
-                  pageFling: true,
-                  pageSnap: true,
-                  defaultPage: 0,
-                  fitPolicy: FitPolicy.WIDTH,
-                  preventLinkNavigation: false,
-                  onRender: (pages) {
-                    setState(() {
-                      _totalPages = pages;
-                      _isLoading = false;
-                    });
-                  },
-                  onError: (error) {
-                    setState(() {
-                      _isLoading = false;
-                    });
-                    _showCustomSnackBar(
-                      'Error loading PDF: $error',
-                      Colors.red.shade400,
-                      Icons.error,
-                    );
-                  },
-                  onPageError: (page, error) {
-                    setState(() {
-                      _isLoading = false;
-                    });
-                    _showCustomSnackBar(
-                      'Page Error: $error',
-                      Colors.orange.shade400,
-                      Icons.warning,
-                    );
-                  },
-                  onViewCreated: (PDFViewController pdfViewController) {
-                    _pdfViewController = pdfViewController;
-                  },
-                  onPageChanged: (int? page, int? total) {
-                    if (page != null) {
-                      setState(() {
-                        _currentPage = page + 1;
-                      });
-                    }
-                  },
-                ),
-              ),
+            _buildControlButton(
+              icon: Icons.bookmarks_outlined,
+              label: 'Bookmarks',
+              onTap: _showBookmarksList,
             ),
-            _buildScrollHandler(),
-            if (_isLoading)
-              const LoadingWidget(loadingText: 'Loading PDF...',),
+            _buildControlButton(
+              icon: _nightMode ? Icons.light_mode : Icons.dark_mode,
+              label: _nightMode ? 'Light' : 'Dark',
+              onTap: () {
+                setState(() => _nightMode = !_nightMode);
+              },
+            ),
+            _buildControlButton(
+              icon: _pageSnap ? Icons.grid_off : Icons.grid_on,
+              label: _pageSnap ? 'Smooth' : 'Snap',
+              onTap: () {
+                setState(() {
+                  _pageSnap = !_pageSnap;
+                });
+                _showCustomSnackBar(
+                    _pageSnap
+                        ? 'Page Snapping Enabled'
+                        : 'Smooth Scrolling Enabled',
+                    Colors.blue,
+                    Icons.touch_app);
+              },
+            ),
+            _buildControlButton(
+              icon: Icons.search,
+              label: 'Find',
+              onTap: _showPageDialog,
+            ),
           ],
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final color = _nightMode ? Colors.white : Colors.black87;
+
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
