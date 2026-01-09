@@ -254,123 +254,200 @@ class _PDFViewerPageState extends State<PDFViewerPage>
 
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withOpacity(0.6), // Darker barrier
       builder: (context) => AnimatedBuilder(
         animation: _dialogController,
         builder: (context, child) => Transform.scale(
           scale: _dialogScaleAnimation.value,
           child: Opacity(
             opacity: _dialogOpacityAnimation.value,
-            child: AlertDialog(
-              elevation: 20,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              backgroundColor:
-                  _nightMode ? const Color(0xFF1E1E1E) : Colors.white,
-              title: Container(
-                padding: const EdgeInsets.all(16),
+            child: Dialog(
+              backgroundColor: Colors.transparent, // Use Container color
+              elevation: 0,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 400),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.blue.shade400,
-                      Colors.purple.shade400,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(
-                      Icons.auto_stories,
-                      color: Colors.white,
-                      size: 28,
+                  color: _nightMode ? const Color(0xFF1E1E1E) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
-                    SizedBox(width: 12),
-                    Text(
-                      'Navigate',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // --- Header ---
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                      decoration: BoxDecoration(
+                        color: _nightMode
+                            ? Colors.white.withOpacity(0.05)
+                            : Colors.blue.shade50.withOpacity(0.5),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.find_in_page_rounded,
+                            size: 48,
+                            color: _nightMode
+                                ? Colors.blue.shade300
+                                : Colors.blue.shade600,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Go to Page',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: _nightMode ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Current: $_currentPage / $_totalPages',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _nightMode
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // --- Content ---
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 24),
+                          TextField(
+                            controller: _pageController,
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            autofocus: true,
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: _nightMode ? Colors.white : Colors.black87,
+                              letterSpacing: 2,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: '#',
+                              hintStyle: TextStyle(
+                                color: _nightMode
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade300,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 16,
+                                horizontal: 16,
+                              ),
+                              enabledBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: _nightMode
+                                      ? Colors.grey.shade700
+                                      : Colors.grey.shade300,
+                                  width: 2,
+                                ),
+                              ),
+                              focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: _nightMode
+                                      ? Colors.blue.shade300
+                                      : Colors.blue.shade600,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            onSubmitted: (value) {
+                              Navigator.pop(context);
+                              _handlePageNavigation(value);
+                            },
+                          ),
+                          const SizedBox(height: 32),
+
+                          // --- Actions ---
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () {
+                                    _dialogController.reverse();
+                                    Navigator.pop(context);
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    overlayColor: _nightMode
+                                        ? Colors.white10
+                                        : Colors.black12,
+                                  ),
+                                  child: Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: _nightMode
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    _dialogController.reverse();
+                                    Navigator.pop(context);
+                                    _handlePageNavigation(_pageController.text);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _nightMode
+                                        ? Colors.blue.shade700
+                                        : Colors.blue.shade600,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    elevation: 0,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Go',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Page $_currentPage of $_totalPages',
-                    style: TextStyle(
-                      color: _nightMode ? Colors.white70 : Colors.black87,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _pageController,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: _nightMode ? Colors.white : Colors.black,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Enter page number',
-                      hintStyle: TextStyle(
-                        color: _nightMode ? Colors.grey : Colors.grey.shade500,
-                      ),
-                      filled: true,
-                      fillColor: _nightMode
-                          ? Colors.grey.shade900
-                          : Colors.grey.shade100,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                    ),
-                    onSubmitted: (value) {
-                      Navigator.pop(context);
-                      _handlePageNavigation(value);
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    _dialogController.reverse();
-                    Navigator.pop(context);
-                  },
-                  child: const Text('CANCEL'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    _dialogController.reverse();
-                    Navigator.pop(context);
-                    _handlePageNavigation(_pageController.text);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
-                  ),
-                  child: const Text('GO'),
-                ),
-              ],
             ),
           ),
         ),
@@ -489,13 +566,6 @@ class _PDFViewerPageState extends State<PDFViewerPage>
             icon: Icon(_isBookmarked ? Icons.bookmark : Icons.bookmark_border),
             onPressed: _toggleBookmark,
           ),
-          IconButton(
-            icon: const Icon(Icons.share, size: 22),
-            onPressed: () {
-              Share.shareXFiles([XFile(widget.filePath)],
-                  text: 'Sharing PDF: ${widget.title}');
-            },
-          ),
         ],
       ),
       body: Stack(
@@ -519,57 +589,87 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: PDFView(
-                      key: Key(
-                          'pdf_view_$_pageSnap'), // Force recreation to apply settings
-                      filePath: widget.filePath,
-                      defaultPage: _currentPage > 0
-                          ? _currentPage - 1
-                          : 0, // Restore page
-                      enableSwipe: true,
-                      swipeHorizontal: false,
-                      autoSpacing: _pageSnap, // Auto-spacing only in snap mode
-                      pageFling: true, // Keep fling enabled for better feel
-                      pageSnap: _pageSnap, // Toggle snap
-                      nightMode: _nightMode,
-                      fitPolicy: FitPolicy.WIDTH,
-                      onRender: (pages) {
-                        setState(() {
-                          _totalPages = pages;
-                          _isLoading = false;
-                        });
-                        _updateBookmarkIcon();
-                      },
-                      onError: (error) {
-                        setState(() => _isLoading = false);
-                        _showCustomSnackBar(
-                          'Error: $error',
-                          Colors.red.shade400,
-                          Icons.error,
-                        );
-                      },
-                      onPageError: (page, error) {
-                        setState(() => _isLoading = false);
-                        _showCustomSnackBar(
-                          'Page Error: $error',
-                          Colors.orange.shade400,
-                          Icons.warning,
-                        );
-                      },
-                      onViewCreated: (controller) {
-                        _pdfViewController = controller;
-                      },
-                      onPageChanged: (page, total) {
-                        if (page != null) {
+                    child: ColorFiltered(
+                      colorFilter: _nightMode
+                          ? const ColorFilter.matrix([
+                              -1,
+                              0,
+                              0,
+                              0,
+                              255,
+                              0,
+                              -1,
+                              0,
+                              0,
+                              255,
+                              0,
+                              0,
+                              -1,
+                              0,
+                              255,
+                              0,
+                              0,
+                              0,
+                              1,
+                              0,
+                            ])
+                          : const ColorFilter.mode(
+                              Colors.transparent,
+                              BlendMode.dst,
+                            ),
+                      child: PDFView(
+                        key: Key(
+                            'pdf_view_$_pageSnap'), // Force recreation to apply settings
+                        filePath: widget.filePath,
+                        defaultPage: _currentPage > 0
+                            ? _currentPage - 1
+                            : 0, // Restore page
+                        enableSwipe: true,
+                        swipeHorizontal: false,
+                        autoSpacing:
+                            _pageSnap, // Auto-spacing only in snap mode
+                        pageFling: true,
+                        pageSnap: _pageSnap, // Toggle snap
+                        nightMode: false, // We handle night mode manually
+                        fitPolicy: FitPolicy.WIDTH,
+                        onRender: (pages) {
                           setState(() {
-                            _currentPage = page + 1;
+                            _totalPages = pages;
+                            _isLoading = false;
                           });
                           _updateBookmarkIcon();
-                        }
-                      },
-                    ),
-                  ),
-                ),
+                        },
+                        onError: (error) {
+                          setState(() => _isLoading = false);
+                          _showCustomSnackBar(
+                            'Error: $error',
+                            Colors.red.shade400,
+                            Icons.error,
+                          );
+                        },
+                        onPageError: (page, error) {
+                          setState(() => _isLoading = false);
+                          _showCustomSnackBar(
+                            'Page Error: $error',
+                            Colors.orange.shade400,
+                            Icons.warning,
+                          );
+                        },
+                        onViewCreated: (controller) {
+                          _pdfViewController = controller;
+                        },
+                        onPageChanged: (page, total) {
+                          if (page != null) {
+                            setState(() {
+                              _currentPage = page + 1;
+                            });
+                            _updateBookmarkIcon();
+                          }
+                        },
+                      ), // End PDFView
+                    ), // End ColorFiltered
+                  ), // End ClipRRect
+                ), // End Container
               ),
               _buildBottomControls(),
             ],
@@ -627,6 +727,14 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                         : 'Smooth Scrolling Enabled',
                     Colors.blue,
                     Icons.touch_app);
+              },
+            ),
+            _buildControlButton(
+              icon: Icons.share,
+              label: 'Share',
+              onTap: () {
+                Share.shareXFiles([XFile(widget.filePath)],
+                    text: 'Sharing PDF: ${widget.title}');
               },
             ),
             _buildControlButton(
