@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -70,42 +69,49 @@ class _PDFViewerPageState extends State<PDFViewerPage>
   }
 
   // --- Bookmark Logic ---
+  final Set<String> _bookmarkedPages = {};
+
   Future<void> _checkBookmarkStatus() async {
-    _updateBookmarkIcon();
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'bookmarks_${widget.filePath.hashCode}';
+    final List<String> savedBookmarks = prefs.getStringList(key) ?? [];
+    if (mounted) {
+      setState(() {
+        _bookmarkedPages.clear();
+        _bookmarkedPages.addAll(savedBookmarks);
+        _isBookmarked = _bookmarkedPages.contains(_currentPage.toString());
+      });
+    }
   }
 
   Future<void> _toggleBookmark() async {
+    final pageString = _currentPage.toString();
+    setState(() {
+      if (_bookmarkedPages.contains(pageString)) {
+        _bookmarkedPages.remove(pageString);
+        _isBookmarked = false;
+        _showCustomSnackBar(
+            'Bookmark removed', Colors.grey.shade700, Icons.bookmark_border);
+      } else {
+        _bookmarkedPages.add(pageString);
+        _isBookmarked = true;
+        _showCustomSnackBar(
+            'Page $_currentPage bookmarked', Colors.blue, Icons.bookmark);
+      }
+    });
+
     final prefs = await SharedPreferences.getInstance();
     final key = 'bookmarks_${widget.filePath.hashCode}';
-    List<String> bookmarks = prefs.getStringList(key) ?? [];
-
-    final pageString = _currentPage.toString();
-
-    if (bookmarks.contains(pageString)) {
-      bookmarks.remove(pageString);
-      _showCustomSnackBar(
-          'Bookmark removed', Colors.grey.shade700, Icons.bookmark_border);
-      setState(() => _isBookmarked = false);
-    } else {
-      bookmarks.add(pageString);
-      // Sort bookmarks numerically
-      bookmarks.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
-      _showCustomSnackBar(
-          'Page $_currentPage bookmarked', Colors.blue, Icons.bookmark);
-      setState(() => _isBookmarked = true);
-    }
-
-    await prefs.setStringList(key, bookmarks);
+    await prefs.setStringList(key, _bookmarkedPages.toList());
   }
 
-  Future<void> _updateBookmarkIcon() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'bookmarks_${widget.filePath.hashCode}';
-    List<String> bookmarks = prefs.getStringList(key) ?? [];
+  void _updateBookmarkIcon() {
+    // Synchronous update from local cache
     if (mounted) {
-      setState(() {
-        _isBookmarked = bookmarks.contains(_currentPage.toString());
-      });
+      final isMarked = _bookmarkedPages.contains(_currentPage.toString());
+      if (_isBookmarked != isMarked) {
+        setState(() => _isBookmarked = isMarked);
+      }
     }
   }
 
@@ -589,9 +595,9 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: ColorFiltered(
-                      colorFilter: _nightMode
-                          ? const ColorFilter.matrix([
+                    child: _nightMode
+                        ? ColorFiltered(
+                            colorFilter: const ColorFilter.matrix([
                               -1,
                               0,
                               0,
@@ -612,63 +618,11 @@ class _PDFViewerPageState extends State<PDFViewerPage>
                               0,
                               1,
                               0,
-                            ])
-                          : const ColorFilter.mode(
-                              Colors.transparent,
-                              BlendMode.dst,
-                            ),
-                      child: PDFView(
-                        key: Key(
-                            'pdf_view_$_pageSnap'), // Force recreation to apply settings
-                        filePath: widget.filePath,
-                        defaultPage: _currentPage > 0
-                            ? _currentPage - 1
-                            : 0, // Restore page
-                        enableSwipe: true,
-                        swipeHorizontal: false,
-                        autoSpacing:
-                            _pageSnap, // Auto-spacing only in snap mode
-                        pageFling: true,
-                        pageSnap: _pageSnap, // Toggle snap
-                        nightMode: false, // We handle night mode manually
-                        fitPolicy: FitPolicy.WIDTH,
-                        onRender: (pages) {
-                          setState(() {
-                            _totalPages = pages;
-                            _isLoading = false;
-                          });
-                          _updateBookmarkIcon();
-                        },
-                        onError: (error) {
-                          setState(() => _isLoading = false);
-                          _showCustomSnackBar(
-                            'Error: $error',
-                            Colors.red.shade400,
-                            Icons.error,
-                          );
-                        },
-                        onPageError: (page, error) {
-                          setState(() => _isLoading = false);
-                          _showCustomSnackBar(
-                            'Page Error: $error',
-                            Colors.orange.shade400,
-                            Icons.warning,
-                          );
-                        },
-                        onViewCreated: (controller) {
-                          _pdfViewController = controller;
-                        },
-                        onPageChanged: (page, total) {
-                          if (page != null) {
-                            setState(() {
-                              _currentPage = page + 1;
-                            });
-                            _updateBookmarkIcon();
-                          }
-                        },
-                      ), // End PDFView
-                    ), // End ColorFiltered
-                  ), // End ClipRRect
+                            ]),
+                            child: _buildPdfView(),
+                          )
+                        : _buildPdfView(),
+                  ), // End Container
                 ), // End Container
               ),
               _buildBottomControls(),
@@ -745,6 +699,55 @@ class _PDFViewerPageState extends State<PDFViewerPage>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPdfView() {
+    return PDFView(
+      key: Key('pdf_view_$_pageSnap'), // Force recreation to apply settings
+      filePath: widget.filePath,
+      defaultPage: _currentPage > 0 ? _currentPage - 1 : 0,
+      enableSwipe: true,
+      swipeHorizontal: false,
+      autoSpacing: _pageSnap, // Auto-spacing only in snap mode
+      pageFling: true,
+      pageSnap: _pageSnap,
+      nightMode: false, // We handle night mode manually
+      fitPolicy: FitPolicy.WIDTH,
+      onRender: (pages) {
+        setState(() {
+          _totalPages = pages;
+          _isLoading = false;
+        });
+        _updateBookmarkIcon();
+      },
+      onError: (error) {
+        setState(() => _isLoading = false);
+        _showCustomSnackBar(
+          'Error: $error',
+          Colors.red.shade400,
+          Icons.error,
+        );
+      },
+      onPageError: (page, error) {
+        setState(() => _isLoading = false);
+        _showCustomSnackBar(
+          'Page Error: $error',
+          Colors.orange.shade400,
+          Icons.warning,
+        );
+      },
+      onViewCreated: (controller) {
+        _pdfViewController = controller;
+      },
+      onPageChanged: (page, total) {
+        if (page != null) {
+          setState(() {
+            _currentPage = page + 1;
+          });
+          _updateBookmarkIcon();
+        }
+      },
     );
   }
 
