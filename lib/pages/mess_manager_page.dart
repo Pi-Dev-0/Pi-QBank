@@ -161,8 +161,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
     if (!mounted || _members.isEmpty) return;
 
     // Members who already have an expense
-    final expendedMemberIds =
-        _memberExpenses.map((e) => e.memberId).toSet();
+    final expendedMemberIds = _memberExpenses.map((e) => e.memberId).toSet();
 
     // Filter out members who have already had an expense added
     final availableMembers = _members
@@ -262,6 +261,8 @@ class _MessManagerPageState extends State<MessManagerPage> {
       final resp = await http.get(uri, headers: const {
         'Content-Type': 'application/json',
       });
+
+      if (!mounted) return;
 
       if (resp.statusCode == 200) {
         try {
@@ -729,6 +730,8 @@ function _json(obj, code) {
         body: jsonEncode(payload),
       );
 
+      if (!mounted) return;
+
       if (resp.statusCode == 200) {
         // Try to parse response JSON
         bool success = false;
@@ -861,7 +864,8 @@ function _json(obj, code) {
   }
 
   Future<void> _showEditExpenseDialog(dynamic expense) async {
-    final descriptionController = TextEditingController(text: expense.description);
+    final descriptionController =
+        TextEditingController(text: expense.description);
     final amountController =
         TextEditingController(text: expense.amount.toStringAsFixed(2));
     String? selectedMemberId =
@@ -871,8 +875,11 @@ function _json(obj, code) {
       context: context,
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('খরচ সম্পাদনা', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('খরচ সম্পাদনা',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold)),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return Column(
@@ -896,7 +903,8 @@ function _json(obj, code) {
                       },
                       decoration: InputDecoration(
                         labelText: 'সদস্য',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   const SizedBox(height: 16),
@@ -904,7 +912,8 @@ function _json(obj, code) {
                     controller: descriptionController,
                     decoration: InputDecoration(
                       labelText: 'বিবরণ',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -914,7 +923,8 @@ function _json(obj, code) {
                     decoration: InputDecoration(
                       labelText: 'পরিমাণ',
                       prefixText: '৳ ',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ],
@@ -978,7 +988,8 @@ function _json(obj, code) {
                 _showSnackBar('খরচ হালনাগাদ করা হয়েছে।', Colors.green);
               },
               style: ElevatedButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('সেভ'),
             ),
@@ -993,22 +1004,28 @@ function _json(obj, code) {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(expense.description, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(expense.description,
+              textAlign: TextAlign.center,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               ElevatedButton.icon(
                 icon: const Icon(Icons.edit, color: Colors.white),
-                label: const Text('সম্পাদনা', style: TextStyle(color: Colors.white)),
+                label: const Text('সম্পাদনা',
+                    style: TextStyle(color: Colors.white)),
                 onPressed: () {
                   Navigator.of(context).pop();
                   _showEditExpenseDialog(expense);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
@@ -1032,7 +1049,8 @@ function _json(obj, code) {
                 },
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.red),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
@@ -1190,6 +1208,77 @@ function _json(obj, code) {
     );
   }
 
+  // Edit meal count for a member
+  Future<void> _showEditMealDialog(Member member, double currentMeals) async {
+    final controller = TextEditingController(
+        text: currentMeals == 0 ? '' : currentMeals.toString());
+    final result = await showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('${member.name}-এর মিল সংখ্যা',
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('সরাসরি মিল সংখ্যা ইনপুট দিন:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              autofocus: true,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                labelText: 'মিল সংখ্যা',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                prefixIcon: const Icon(Icons.restaurant_menu),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('বাতিল'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final val = _parseAmount(controller.text);
+              if (val != null && val >= 0) {
+                Navigator.pop(context, val);
+              } else if (controller.text.isEmpty) {
+                Navigator.pop(context, 0.0);
+              } else {
+                _showSnackBar('সঠিক সংখ্যা দিন', Colors.red);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('সেভ'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        final idx = _meals.indexWhere((m) => m.memberId == member.id);
+        if (idx != -1) {
+          _meals[idx].count = result;
+        } else {
+          _meals.add(Meal(memberId: member.id, count: result));
+        }
+      });
+      _saveState();
+      _showSnackBar('${member.name}-এর মিল আপডেট করা হয়েছে।', Colors.green);
+    }
+  }
+
   // Calculations
   double get _totalManagerExpenses =>
       _managerExpenses.fold(0.0, (sum, e) => sum + e.amount);
@@ -1280,7 +1369,7 @@ function _json(obj, code) {
                     _buildCalculationRow('সদস্যদের খরচ:',
                         '${_totalMemberExpenses.toStringAsFixed(2)} টাকা',
                         textColor: Colors.red),
-                        _buildCalculationRow(
+                    _buildCalculationRow(
                         'মোট খরচ:', '${_totalExpenses.toStringAsFixed(2)} টাকা',
                         textColor: Colors.red),
                     _buildCalculationRow('মোট বিবিধ খরচ:',
@@ -1345,7 +1434,7 @@ function _json(obj, code) {
                         ),
                       ),
                     ),
-                     const SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     Text(
                       'মোট ম্যানেজারের খরচ: ৳ ${_totalManagerExpenses.toStringAsFixed(2)}',
                       style: const TextStyle(
@@ -1634,7 +1723,9 @@ function _json(obj, code) {
                               PopupMenuButton<String>(
                                 tooltip: 'অ্যাকশন',
                                 onSelected: (value) async {
-                                  if (value == 'edit') {
+                                  if (value == 'edit_meals') {
+                                    _showEditMealDialog(member, memberMeals);
+                                  } else if (value == 'edit') {
                                     _showEditInitialDepositDialog(member);
                                   } else if (value == 'delete') {
                                     final confirmed =
@@ -1653,6 +1744,17 @@ function _json(obj, code) {
                                   }
                                 },
                                 itemBuilder: (context) => const [
+                                  PopupMenuItem(
+                                    value: 'edit_meals',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.restaurant_menu,
+                                            color: Colors.deepPurple),
+                                        SizedBox(width: 8),
+                                        Text('মিল সংখ্যা সম্পাদনা'),
+                                      ],
+                                    ),
+                                  ),
                                   PopupMenuItem(
                                     value: 'edit',
                                     child: Row(
@@ -1711,16 +1813,18 @@ function _json(obj, code) {
                                       },
                                     ),
                                     SizedBox(
-                                      width: 44,
+                                      width: 48,
                                       child: Center(
                                         child: Text(
                                           memberMeals.toStringAsFixed(1),
                                           style: const TextStyle(
                                               fontSize: 16,
-                                              fontWeight: FontWeight.w600),
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.deepPurple),
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(width: 4),
                                     IconButton(
                                       icon: const Icon(Icons.add),
                                       visualDensity: VisualDensity.compact,

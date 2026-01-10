@@ -86,6 +86,7 @@ class _HandNotesPageState extends State<HandNotesPage>
     setState(() => _isLoading = true);
     try {
       final response = await http.get(Uri.parse(handNotesApiUrl));
+      if (!mounted) return;
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         _allFilters = data.map((json) => NoteFilter.fromJson(json)).toList();
