@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MessManagerPage extends StatefulWidget {
   const MessManagerPage({super.key});
@@ -507,7 +508,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
       'members': _members.map((e) => e.toMap()).toList(),
       'meals': _meals.map((e) => e.toMap()).toList(),
       'managerExpenses': _managerExpenses.map((e) => e.toMap()).toList(),
-      'miscExpenses': _miscExpenses.map((e) => e.toMap()).toList(),
+            'miscExpenses': _miscExpenses.map((e) => e.toMap()).toList(),
       'memberExpenses': _memberExpenses.map((e) => e.toMap()).toList(),
       'deposits': _deposits.map((e) => e.toMap()).toList(),
     };
@@ -556,7 +557,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   Future<void> _showWelcomeDialog({int startStep = 1}) async {
     if (!mounted) return;
 
-    await showDialog(
+    final completed = await showDialog<bool>(
       context: context,
       barrierDismissible: startStep == 2, // Allow dismissing if just updating
       builder: (context) => _SetupDialogContent(
@@ -581,6 +582,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
         },
       ),
     );
+
+    if (completed != true && startStep == 1 && mounted) {
+      Navigator.pop(context); // Close the page if initial setup cancelled
+    }
   }
 
   Future<void> _syncToGoogleSheets() async {
@@ -2493,6 +2498,28 @@ class _SetupDialogContentState extends State<_SetupDialogContent> {
                       fillColor: Colors.grey.shade50,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final url = Uri.parse(
+                            'https://pi-mathematics.blogspot.com/p/mess-manager-online-connection-setup.html');
+                        await launchUrl(url,
+                            mode: LaunchMode.externalApplication);
+                      },
+                      icon: const Icon(Icons.lightbulb_outline, size: 16),
+                      label: const Text(
+                        'Online Setup Guide',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.deepPurple,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 12),
                 Container(
@@ -2524,26 +2551,31 @@ class _SetupDialogContentState extends State<_SetupDialogContent> {
               // Action Buttons
               Row(
                 children: [
-                  if (step == 2)
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        if (step == 2) {
                           if (widget.initialStep == 2) {
                             Navigator.pop(context);
                           } else {
                             setState(() => step = 1);
                           }
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                        ),
-                        child: Text(
-                            widget.initialStep == 2 ? 'বন্ধ করুন' : 'পিছনে'),
+                        } else {
+                          // Step 1: Cancel and exit
+                          Navigator.pop(context);
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
                       ),
+                      child: Text(step == 2 && widget.initialStep != 2
+                          ? 'পিছনে'
+                          : (step == 2 ? 'বন্ধ করুন' : 'ফিরে যান')),
                     ),
-                  if (step == 2) const SizedBox(width: 12),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
@@ -2553,7 +2585,7 @@ class _SetupDialogContentState extends State<_SetupDialogContent> {
                           } else {
                             // Finish Offline
                             widget.onComplete(isManager, '', '');
-                            Navigator.pop(context);
+                            Navigator.pop(context, true);
                           }
                         } else {
                           // Finalize Online
@@ -2570,7 +2602,7 @@ class _SetupDialogContentState extends State<_SetupDialogContent> {
                           }
 
                           widget.onComplete(isManager, url, pass);
-                          Navigator.pop(context);
+                          Navigator.pop(context, true);
                         }
                       },
                       style: ElevatedButton.styleFrom(
