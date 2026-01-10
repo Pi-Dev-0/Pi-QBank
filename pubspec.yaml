@@ -56,6 +56,7 @@ dependencies:
   printing: ^5.14.2
   flutter_tts: ^4.0.0
   encrypt: ^5.0.3
+  crypto: ^3.0.3
   uuid: ^4.4.0 # Added for generating unique IDs
 
 dev_dependencies:

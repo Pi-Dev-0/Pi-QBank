@@ -48,5 +48,7 @@
   "NU_STATISTICS_API": "",
   "NU_POLITICAL_SCIENCE_API": "",
   "NU_SOCIOLOGY_API": "",
-  "NU_ISLAMIC_STUDIES_API": ""
+  "NU_ISLAMIC_STUDIES_API": "",
+  "AD_API": "https://script.google.com/macros/s/AKfycbyh5gjXbs7V0c7ZvAKFgTB2T2jQT27SYsL3u-y-7c_ZSuDZlwuz1-p5wCazLrDZlTd_gQ/exec",
+  "AD_SECRET": "9fE3cA8B7dQmZLxR4JYH2T6wV5S0UeN1pKkMCoaXhGDrWbIyFOtqvPlE8s"
 }

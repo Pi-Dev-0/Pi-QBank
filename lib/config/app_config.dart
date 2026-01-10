@@ -72,6 +72,8 @@ class AppConfig {
       String.fromEnvironment('NU_SOCIOLOGY_API');
   static const String nuIslamicStudiesApi =
       String.fromEnvironment('NU_ISLAMIC_STUDIES_API');
+  static const String adApi = String.fromEnvironment('AD_API');
+  static const String adSecret = String.fromEnvironment('AD_SECRET');
 
   // Add more configuration values as needed
 
