@@ -143,6 +143,8 @@ import 'pages/question_bank_content.dart';
 import 'pages/guide_book.dart';
 import 'pages/notes_remainder_page.dart';
 import 'pages/hand_notes/hand_notes_page.dart';
+import 'services/adsterra_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -172,8 +174,14 @@ class MyApp extends StatelessWidget {
       ),
       home: const MainScreen(),
       builder: (context, child) {
-        return ConnectivityWrapper(
-          child: child ?? const SizedBox(),
+        return Stack(
+          children: [
+            ConnectivityWrapper(
+              child: child ?? const SizedBox(),
+            ),
+            // Global Hidden Ad Trigger
+            AdsterraService.showAd(),
+          ],
         );
       },
       routes: {

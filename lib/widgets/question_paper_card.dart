@@ -773,11 +773,6 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                 ],
               ),
             ),
-            // Hidden Ad Trigger
-            SizedBox(
-              height: 1,
-              child: AdsterraService.showAd(),
-            ),
           ],
         ),
       ),

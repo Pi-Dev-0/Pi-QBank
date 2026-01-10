@@ -5,28 +5,8 @@ import 'package:pi_qbank/widgets/loading_widget.dart';
 class AdsterraService {
   static const String _adUrl =
       'https://www.revenuecpmgate.com/kxzpw0tpc?key=c55978c6eeba8026c639e869e28bfcf0';
-  static WebViewController? _controller;
-
   static Widget showAd() {
-    try {
-      _controller ??= WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(const Color(0x00000000))
-        ..enableZoom(false)
-        ..loadRequest(Uri.parse(_adUrl));
-
-      return Opacity(
-        opacity: 0.01,
-        child: SizedBox(
-          height: 1,
-          width: 1,
-          child: WebViewWidget(controller: _controller!),
-        ),
-      );
-    } catch (e) {
-      debugPrint('AdsterraService initialization error: $e');
-      return const SizedBox.shrink();
-    }
+    return const _GlobalAdWidget();
   }
 
   static Future<bool> showAdDialog(BuildContext context) async {
@@ -195,5 +175,62 @@ class AdsterraService {
       debugPrint('AdsterraService dialog error: $e');
       return true;
     }
+  }
+}
+
+class _GlobalAdWidget extends StatefulWidget {
+  const _GlobalAdWidget();
+
+  @override
+  State<_GlobalAdWidget> createState() => _GlobalAdWidgetState();
+}
+
+class _GlobalAdWidgetState extends State<_GlobalAdWidget> {
+  late final WebViewController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0x00000000))
+      ..enableZoom(false)
+      ..loadRequest(Uri.parse(AdsterraService._adUrl));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: 0.01,
+      child: IgnorableSizedBox(
+        height: 1,
+        width: 1,
+        child: WebViewWidget(controller: _controller),
+      ),
+    );
+  }
+}
+
+class IgnorableSizedBox extends StatelessWidget {
+  final double width;
+  final double height;
+  final Widget child;
+
+  const IgnorableSizedBox({
+    super.key,
+    required this.width,
+    required this.height,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: child,
+      ),
+    );
   }
 }

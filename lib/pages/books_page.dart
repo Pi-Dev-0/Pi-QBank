@@ -89,80 +89,6 @@ class _BooksPageState extends State<BooksPage> {
     return false;
   }
 
-  void _showClassSelectionDialog() async {
-    if (!mounted || classSubjects.isEmpty) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext dialogContext) => AlertDialog(
-        backgroundColor: Colors.white,
-        elevation: 8,
-        title: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Center(
-            child: Text(
-              'Select Class',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
-              ),
-            ),
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: ListBody(
-            children: classSubjects.keys.map((className) {
-              return GestureDetector(
-                onTap: () {
-                  Navigator.of(dialogContext).maybePop();
-                  if (!mounted) return;
-                  _updateSelectedClass(className);
-                },
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: selectedClass == className
-                        ? Colors.blue.shade100
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: selectedClass == className
-                          ? Colors.blue
-                          : Colors.grey.shade300,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    className,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: selectedClass == className
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: selectedClass == className
-                          ? Colors.blue.shade900
-                          : Colors.black87,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
   // Separate method to handle class selection and state updates
   void _updateSelectedClass(String className) async {
     if (!mounted) return;
@@ -257,9 +183,10 @@ class _BooksPageState extends State<BooksPage> {
           _isLoading = false;
         });
 
-        // Show class selection dialog after data is loaded
-        if (mounted && selectedClass == null) {
-          _showClassSelectionDialog();
+        // Auto-select first class if none selected
+        if (mounted && selectedClass == null && classSubjects.isNotEmpty) {
+          final firstClass = classSubjects.keys.first;
+          _updateSelectedClass(firstClass);
         }
       } else {
         setState(() {
@@ -313,80 +240,168 @@ class _BooksPageState extends State<BooksPage> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      Container(
-                        width: MediaQuery.of(context).size.width * 0.8,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 12),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.white, Colors.blue.shade50],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(15),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.blue.withOpacity(0.1),
-                              spreadRadius: 2,
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                      Center(
+                        child: Container(
+                          width: MediaQuery.of(context).size.width * 0.65,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.white, Colors.blue.shade50],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                          ],
-                          border: Border.all(
-                            color: Colors.blue.withOpacity(0.2),
-                            width: 1,
-                          ),
-                        ),
-                        child: InkWell(
-                          onTap: _showClassSelectionDialog,
-                          borderRadius: BorderRadius.circular(15),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.school_rounded,
-                                  color: Colors.blue,
-                                  size: 20,
-                                ),
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.blue.withOpacity(0.1),
+                                spreadRadius: 2,
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Selected Class',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                    Text(
-                                      selectedClass ?? 'Tap to choose',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.keyboard_arrow_down_rounded,
-                                  color: Colors.blue),
                             ],
+                            border: Border.all(
+                              color: Colors.blue.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value:
+                                  (classSubjects.keys.contains(selectedClass))
+                                      ? selectedClass
+                                      : null,
+                              isExpanded: true,
+                              menuWidth:
+                                  MediaQuery.of(context).size.width * 0.65,
+                              alignment: AlignmentDirectional.center,
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: Colors.blue,
+                              ),
+                              selectedItemBuilder: (BuildContext context) {
+                                return classSubjects.keys
+                                    .map<Widget>((String className) {
+                                  return Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withOpacity(0.1),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.school_rounded,
+                                          color: Colors.blue,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              'Selected Class',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                            Text(
+                                              className,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }).toList();
+                              },
+                              items: classSubjects.keys
+                                  .toList()
+                                  .asMap()
+                                  .entries
+                                  .map((entry) {
+                                final className = entry.value;
+                                final isLast =
+                                    entry.key == classSubjects.keys.length - 1;
+                                return DropdownMenuItem<String>(
+                                  value: className,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: Stack(
+                                          children: [
+                                            Positioned(
+                                              left: 0,
+                                              top: 0,
+                                              bottom: 0,
+                                              child: Center(
+                                                child: Container(
+                                                  width: 3,
+                                                  height: 16,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.blue
+                                                        .withOpacity(0.3),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            2),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            Center(
+                                              child: Text(
+                                                className,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.black87,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (!isLast)
+                                        Divider(
+                                          height: 1,
+                                          thickness: 1,
+                                          color: Colors.blue.withOpacity(0.05),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (String? newValue) {
+                                if (newValue != null) {
+                                  _updateSelectedClass(newValue);
+                                }
+                              },
+                              dropdownColor: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              style: const TextStyle(color: Colors.black87),
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       Expanded(
                         child: ConstrainedBox(
                           constraints: BoxConstraints(

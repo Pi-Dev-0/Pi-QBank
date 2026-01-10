@@ -45,8 +45,8 @@ class HomePage extends StatelessWidget {
           ),
           _buildMainMenuItem(
             context,
-            'Hand Notes',
-            'Review concise and helpful hand notes',
+            'Hand & Digital Notes',
+            'Review concise and helpful hand & digital notes',
             Icons.note,
             Colors.purple,
             '/hand_notes',
