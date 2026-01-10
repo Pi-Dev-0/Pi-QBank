@@ -49,6 +49,9 @@ class _MessManagerPageState extends State<MessManagerPage> {
 
   // Selected member IDs
   String _selectedExpenseMemberId = '';
+  String _myMemberId = '';
+  String _managerPassword = '';
+  bool _isManager = false;
 
   // Controllers
   final TextEditingController _expenseAmountController =
@@ -92,6 +95,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
   static const String _kAppsScriptUrl = 'mm_apps_script_url';
   static const String _kSectionExpanded = 'mm_section_expanded';
   static const String _kMemberReportExpanded = 'mm_member_report_expanded';
+  static const String _kIsManager = 'mm_is_manager';
+  static const String _kMyMemberId = 'mm_my_member_id';
+  static const String _kManagerPassword = 'mm_manager_password';
+  static const String _kSetupCompleted = 'mm_setup_completed';
 
   // External sync endpoint
   String _appsScriptUrl = '';
@@ -99,7 +106,17 @@ class _MessManagerPageState extends State<MessManagerPage> {
   @override
   void initState() {
     super.initState();
-    _loadState();
+    _loadState().then((_) {
+      _checkSetup();
+    });
+  }
+
+  Future<void> _checkSetup() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasCompleted = prefs.getBool(_kSetupCompleted) ?? false;
+    if (!hasCompleted) {
+      _showWelcomeDialog();
+    }
   }
 
   Future<void> _showSyncOptions() async {
@@ -114,7 +131,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 6),
+              const SizedBox(height: 12),
               Container(
                 width: 40,
                 height: 4,
@@ -123,33 +140,45 @@ class _MessManagerPageState extends State<MessManagerPage> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(height: 10),
-              ListTile(
-                leading: const Icon(Icons.cloud_upload, color: Colors.green),
-                title: const Text('Google Sheets এ আপলোড করুন'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await _syncToGoogleSheets();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.cloud_download, color: Colors.blue),
-                title: const Text('Google Sheets থেকে ডাউনলোড করুন'),
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  await _syncFromGoogleSheets();
-                },
-              ),
-              const Divider(),
+              const SizedBox(height: 20),
+              if (_isManager) ...[
+                ListTile(
+                  leading: const Icon(Icons.cloud_upload, color: Colors.green),
+                  title: const Text('Google Sheets এ আপলোড করুন'),
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    await _syncToGoogleSheets();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cloud_download, color: Colors.blue),
+                  title: const Text('Google Sheets থেকে ডাউনলোড করুন'),
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    await _syncFromGoogleSheets();
+                  },
+                ),
+                const Divider(),
+              ],
               ListTile(
                 leading: const Icon(Icons.link, color: Colors.orange),
-                title: const Text('Apps Script URL পরিবর্তন করুন'),
+                title: Text(_isManager
+                    ? 'Apps Script URL পরিবর্তন করুন'
+                    : 'সার্ভার URL পরিবর্তন করুন'),
                 onTap: () async {
                   Navigator.of(ctx).pop();
-                  await _promptForAppsScriptUrl();
+                  await _showWelcomeDialog(startStep: 2);
                 },
               ),
-              const SizedBox(height: 6),
+              ListTile(
+                leading: const Icon(Icons.refresh, color: Colors.red),
+                title: const Text('নতুন করে শুরু করুন (Start Over)'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  await _startOver();
+                },
+              ),
+              const SizedBox(height: 12),
             ],
           ),
         );
@@ -249,7 +278,7 @@ class _MessManagerPageState extends State<MessManagerPage> {
   Future<void> _syncFromGoogleSheets() async {
     try {
       if (_appsScriptUrl.isEmpty) {
-        await _promptForAppsScriptUrl();
+        await _showWelcomeDialog(startStep: 2);
         if (_appsScriptUrl.isEmpty) return;
       }
 
@@ -370,6 +399,9 @@ class _MessManagerPageState extends State<MessManagerPage> {
       await prefs.setString(_kSectionExpanded, jsonEncode(_isSectionExpanded));
       await prefs.setString(
           _kMemberReportExpanded, jsonEncode(_isMemberReportExpanded));
+      await prefs.setBool(_kIsManager, _isManager);
+      await prefs.setString(_kMyMemberId, _myMemberId);
+      await prefs.setString(_kManagerPassword, _managerPassword);
     } catch (e) {
       // Non-fatal: ignore save errors but log via snackbar once
     }
@@ -442,6 +474,10 @@ class _MessManagerPageState extends State<MessManagerPage> {
         });
       }
 
+      _isManager = prefs.getBool(_kIsManager) ?? false;
+      _myMemberId = prefs.getString(_kMyMemberId) ?? '';
+      _managerPassword = prefs.getString(_kManagerPassword) ?? '';
+
       if (mounted) setState(() {});
     } catch (e) {
       // If anything goes wrong, don't crash the UI; continue with empty state
@@ -483,241 +519,81 @@ class _MessManagerPageState extends State<MessManagerPage> {
     };
   }
 
-  Future<void> _promptForAppsScriptUrl() async {
-    final controller = TextEditingController(text: _appsScriptUrl);
-    final newUrl = await showDialog<String>(
+  Future<void> _startOver() async {
+    final confirmed = await showDeleteConfirmationDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('প্রথমবার সেটআপ: Google Apps Script'),
-          content: SizedBox(
-            width: 480,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // URL input on top
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.url,
-                    decoration: InputDecoration(
-                      labelText: 'Apps Script ওয়েব অ্যাপ URL',
-                      hintText: 'https://script.google.com/.../exec',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const Text(
-                    'সেটআপ নির্দেশনা (একবারই করতে হবে):',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '১) একটি নতুন Google Sheet খুলুন (নাম দিতে পারেন: "Mess Manager").\n'
-                    '২) Extensions > Apps Script এ যান।\n'
-                    '৩) নিচের কোডটি Code.gs এ পেস্ট করে সেভ করুন।\n'
-                    '৪) Deploy > New deployment > Web app নির্বাচন করুন।\n'
-                    '   Execute as: Me, Who has access: Anyone with the link দিন।\n'
-                    '৫) Deploy করে প্রাপ্ত Web App URL টি উপরের ঘরে পেস্ট করে সেভ করুন।',
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Apps Script কোড :',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      TextButton.icon(
-                        onPressed: () async {
-                          await Clipboard.setData(
-                              ClipboardData(text: _appsScriptCode));
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('কোড কপি হয়েছে।')));
-                          }
-                        },
-                        icon: const Icon(Icons.copy),
-                        label: const Text('কোড কপি করুন'),
-                      )
-                    ],
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.all(10),
-                    child: SelectableText(
-                      _appsScriptCode,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('বাতিল'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop(controller.text.trim());
-              },
-              child: const Text('সেভ'),
-            ),
-          ],
-        );
-      },
+      title: 'রিসেট করুন',
+      message:
+          'আপনি কি নিশ্চিত যে আপনি সবকিছু রিসেট করে আবার শুরু করতে চান? আপনার বর্তমান সকল লোকাল ডাটা মুছে যাবে।',
     );
-    if (newUrl != null) {
-      setState(() {
-        _appsScriptUrl = newUrl;
-      });
+
+    if (confirmed == true) {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kAppsScriptUrl, _appsScriptUrl);
-      _showSnackBar('Apps Script URL সংরক্ষণ করা হয়েছে।', Colors.green);
-    }
-  }
-
-  String get _appsScriptCode => '''/* global ContentService, SpreadsheetApp */
-
-const RAW_DATA_ROW = 500; // Data will be stored starting at this row
-
-function doGet(e) {
-  try {
-    var action = e && e.parameter && e.parameter.action;
-    if (action === 'pull') {
-      var ss = SpreadsheetApp.getActiveSpreadsheet();
-      var sheet = ss.getSheetByName('Mess Report');
-      var payload = {};
-
-      if (sheet) {
-        var rawDataString = sheet.getRange(RAW_DATA_ROW + 1, 1).getValue();
-        if (rawDataString) {
-          try {
-            payload = JSON.parse(rawDataString);
-          } catch (parseErr) {
-            return _json({ success: false, message: 'Failed to parse data from sheet: ' + parseErr }, 500);
-          }
+      final allKeys = prefs.getKeys();
+      for (String key in allKeys) {
+        if (key.startsWith('mm_')) {
+          await prefs.remove(key);
         }
       }
-
-      if (!payload.members || !Array.isArray(payload.members)) {
-        return _json({ success: false, message: 'Could not find valid data in the sheet. Raw data might be empty or corrupted.' }, 404);
+      setState(() {
+        _members.clear();
+        _meals.clear();
+        _managerExpenses.clear();
+        _miscExpenses.clear();
+        _memberExpenses.clear();
+        _deposits.clear();
+        _appsScriptUrl = '';
+        _managerPassword = '';
+        _isManager = false;
+        _myMemberId = '';
+      });
+      if (mounted) {
+        Navigator.pop(context);
       }
-
-      return _json({ success: true, payload: payload }, 200);
     }
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'ok', message: 'MessManager endpoint up' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return _json({ success: false, message: String(err) }, 500);
   }
-}
 
-function doPost(e) {
-  try {
-    var payload = JSON.parse(e.postData.contents);
+  Future<void> _showWelcomeDialog({int startStep = 1}) async {
+    if (!mounted) return;
 
-    if (!payload || payload.action !== 'sync' || !payload.payload) {
-      return _json({ success: false, message: 'Invalid payload' }, 400);
-    }
-
-    var data = payload.payload;
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    var sheet = ss.getSheetByName('Mess Report');
-    if (!sheet) {
-      sheet = ss.insertSheet('Mess Report');
-    } else {
-      sheet.getRange('1:' + (RAW_DATA_ROW - 1)).clearContent();
-      sheet.getRange(RAW_DATA_ROW + ':' + sheet.getMaxRows()).clearContent();
-    }
-
-    _writeReportTable(sheet.getName(), [
-      'Member Name', 'Total Meals', 'Initial Deposit', 'Personal Expense',
-      'Total Contribution', 'Meal Cost', 'Balance', 'Meal Rate'
-    ], data.report || [], function (r) {
-      return [
-        r.memberName, _num(r.totalMeals), _num(r.initialDeposit),
-        _num(r.personalExpense), _num(r.totalContribution),
-        _num(r.mealCost), _num(r.balance), _num(r.mealRate)
-      ];
-    });
-
-    sheet.getRange(RAW_DATA_ROW, 1).setValue('--- DO NOT EDIT BELOW THIS LINE --- RAW DATA ---').setFontWeight('bold');
-    
-    if (data.rawData) {
-      sheet.getRange(RAW_DATA_ROW + 1, 1).setValue(JSON.stringify(data.rawData));
-    }
-
-    var allSheets = ss.getSheets();
-    for (var i = 0; i < allSheets.length; i++) {
-        if (allSheets[i].getName() !== 'Mess Report') {
-            ss.deleteSheet(allSheets[i]);
-        }
-    }
-
-    return _json({ success: true, message: 'Synced successfully to single sheet.' }, 200);
-  } catch (err) {
-    return _json({ success: false, message: String(err) }, 500);
+    await showDialog(
+      context: context,
+      barrierDismissible: startStep == 2, // Allow dismissing if just updating
+      builder: (context) => _SetupDialogContent(
+        initialIsManager: _isManager,
+        initialUrl: _appsScriptUrl,
+        initialPass: _managerPassword,
+        initialStep: startStep,
+        onComplete: (isManager, url, pass) {
+          setState(() {
+            _isManager = isManager;
+            _appsScriptUrl = url;
+            _managerPassword = pass;
+          });
+          _saveState().then((_) async {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool(_kSetupCompleted, true);
+            if (!isManager && _appsScriptUrl.isNotEmpty) {
+              _syncFromGoogleSheets();
+            }
+          });
+          _showSnackBar('সেটিংস আপডেট করা হয়েছে!', Colors.green);
+        },
+      ),
+    );
   }
-}
-
-function _writeReportTable(sheetName, headers, items, mapRow) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(sheetName);
-  
-  if (!items) items = [];
-
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-
-  if (items.length === 0) return;
-
-  var rows = [];
-  for (var i = 0; i < items.length; i++) {
-    rows.push(mapRow(items[i]));
-  }
-  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-  
-  sheet.autoResizeColumns(1, headers.length);
-}
-
-function _num(x) {
-  var n = Number(x);
-  return isNaN(n) ? 0 : n;
-}
-
-function _json(obj, code) {
-  var out = ContentService.createTextOutput(JSON.stringify(obj));
-  out.setMimeType(ContentService.MimeType.JSON);
-  return out;
-}
-''';
 
   Future<void> _syncToGoogleSheets() async {
     try {
       if (_appsScriptUrl.isEmpty) {
-        await _promptForAppsScriptUrl();
+        await _showWelcomeDialog(startStep: 2);
         if (_appsScriptUrl.isEmpty) return;
       }
 
       final uri = Uri.parse(_appsScriptUrl);
       final payload = {
         'action': 'sync',
+        'password': _managerPassword,
         'payload': _buildExportPayload(),
       };
 
@@ -1336,7 +1212,7 @@ function _json(obj, code) {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: CustomAppBar(
-          title: 'মেস ম্যানেজার',
+          title: _isManager ? 'মেস ম্যানেজার' : 'মেস মেম্বার',
           actions: [
             IconButton(
               icon: const Icon(Icons.sync),
@@ -1350,6 +1226,12 @@ function _json(obj, code) {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (!_isManager) ...[
+                _buildMemberSelector(),
+                const SizedBox(height: 16),
+                if (_myMemberId.isNotEmpty) _buildMyStatusCard(),
+                const SizedBox(height: 16),
+              ],
               _buildCollapsibleSection(
                 title: 'মেস এর হিসাব',
                 sectionKey: 'summary',
@@ -1394,281 +1276,283 @@ function _json(obj, code) {
                   ],
                 ),
               ),
-              _buildCollapsibleSection(
-                title: 'বড় বাজার খরচ',
-                sectionKey: 'managerExpense',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _managerExpenseDescriptionController,
-                      decoration: InputDecoration(
-                        labelText: 'খরচের বিবরণ',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _managerExpenseAmountController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'পরিমাণ',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        prefixText: '৳ ',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _handleAddManagerExpense,
-                        icon: const Icon(Icons.add),
-                        label: const Text('খরচ যোগ করুন'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+              if (_isManager) ...[
+                _buildCollapsibleSection(
+                  title: 'বড় বাজার খরচ',
+                  sectionKey: 'managerExpense',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _managerExpenseDescriptionController,
+                        decoration: InputDecoration(
+                          labelText: 'খরচের বিবরণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'মোট ম্যানেজারের খরচ: ৳ ${_totalManagerExpenses.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, color: Colors.green),
-                    ),
-                  ],
-                ),
-              ),
-              _buildCollapsibleSection(
-                title: 'বিবিধ খরচ ',
-                sectionKey: 'miscExpense',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _miscExpenseDescriptionController,
-                      decoration: InputDecoration(
-                        labelText: 'খরচের বিবরণ',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _miscExpenseAmountController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'পরিমাণ',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        prefixText: '৳ ',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _handleAddMiscExpense,
-                        icon: const Icon(Icons.add),
-                        label: const Text('বিবিধ খরচ যোগ করুন'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _managerExpenseAmountController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'পরিমাণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          prefixText: '৳ ',
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    if (_members.isNotEmpty)
-                      Text(
-                        'প্রতি সদস্যের বর্তমান বিবিধ অংশ: ৳ ${(_totalMiscExpenses / _members.length).toStringAsFixed(2)}',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.deepPurple),
-                      ),
-                  ],
-                ),
-              ),
-              _buildCollapsibleSection(
-                title: 'সদস্যদের খরচ',
-                sectionKey: 'memberExpense',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 6),
-                    if (_members.isNotEmpty) ...[
-                      Container(
+                      const SizedBox(height: 10),
+                      SizedBox(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.3),
-                              spreadRadius: 2,
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              spreadRadius: 0,
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: InkWell(
-                          onTap: _showMemberSelectionDialog,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                const Text(
-                                  'সদস্য নির্বাচন করুন:',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      _members
-                                          .firstWhere(
-                                              (m) =>
-                                                  m.id ==
-                                                  _selectedExpenseMemberId,
-                                              orElse: () => Member(
-                                                  id: '',
-                                                  name: 'নির্বাচন করুন'))
-                                          .name,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                                const Icon(Icons.arrow_drop_down),
-                              ],
-                            ),
+                        child: ElevatedButton.icon(
+                          onPressed: _handleAddManagerExpense,
+                          icon: const Icon(Icons.add),
+                          label: const Text('খরচ যোগ করুন'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
                       ),
                       const SizedBox(height: 10),
+                      Text(
+                        'মোট ম্যানেজারের খরচ: ৳ ${_totalManagerExpenses.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, color: Colors.green),
+                      ),
                     ],
-                    TextField(
-                      controller: _expenseDescriptionController,
-                      decoration: InputDecoration(
-                        labelText: 'খরচের বিবরণ',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _expenseAmountController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'পরিমাণ',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        prefixText: '৳ ',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _handleAddExpense,
-                        icon: const Icon(Icons.add),
-                        label: const Text('খরচ যোগ করুন'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+                _buildCollapsibleSection(
+                  title: 'বিবিধ খরচ ',
+                  sectionKey: 'miscExpense',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _miscExpenseDescriptionController,
+                        decoration: InputDecoration(
+                          labelText: 'খরচের বিবরণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'মোট সদস্যদের খরচ: ৳ ${_totalMemberExpenses.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, color: Colors.green),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _miscExpenseAmountController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'পরিমাণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          prefixText: '৳ ',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _handleAddMiscExpense,
+                          icon: const Icon(Icons.add),
+                          label: const Text('বিবিধ খরচ যোগ করুন'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (_members.isNotEmpty)
+                        Text(
+                          'প্রতি সদস্যের বর্তমান বিবিধ অংশ: ৳ ${(_totalMiscExpenses / _members.length).toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.deepPurple),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              _buildCollapsibleSection(
-                title: 'সদস্য ও মিল ব্যবস্থাপনা',
-                sectionKey: 'memberManagement',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TextField(
-                                controller: _newMemberNameController,
-                                decoration: InputDecoration(
-                                  labelText: 'নতুন সদস্যের নাম',
-                                  border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8)),
-                                ),
+                _buildCollapsibleSection(
+                  title: 'সদস্যদের খরচ',
+                  sectionKey: 'memberExpense',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 6),
+                      if (_members.isNotEmpty) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.3),
+                                spreadRadius: 2,
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
                               ),
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _initialDepositController,
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  labelText: 'প্রাথমিক জমা',
-                                  border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8)),
-                                  prefixText: '৳ ',
-                                ),
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                spreadRadius: 0,
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        ElevatedButton.icon(
-                          onPressed: _handleAddMember,
-                          icon: const Icon(Icons.person_add_alt_1),
-                          label: const Text('যোগ করুন'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 16),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                          child: InkWell(
+                            onTap: _showMemberSelectionDialog,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  const Text(
+                                    'সদস্য নির্বাচন করুন:',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Center(
+                                      child: Text(
+                                        _members
+                                            .firstWhere(
+                                                (m) =>
+                                                    m.id ==
+                                                    _selectedExpenseMemberId,
+                                                orElse: () => Member(
+                                                    id: '',
+                                                    name: 'নির্বাচন করুন'))
+                                            .name,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(Icons.arrow_drop_down),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
+                        const SizedBox(height: 10),
                       ],
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'নিচের বক্সে সদস্যদের তালিকা ও মিল দেখুন।',
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                  ],
+                      TextField(
+                        controller: _expenseDescriptionController,
+                        decoration: InputDecoration(
+                          labelText: 'খরচের বিবরণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _expenseAmountController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'পরিমাণ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          prefixText: '৳ ',
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _handleAddExpense,
+                          icon: const Icon(Icons.add),
+                          label: const Text('খরচ যোগ করুন'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'মোট সদস্যদের খরচ: ৳ ${_totalMemberExpenses.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, color: Colors.green),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                _buildCollapsibleSection(
+                  title: 'সদস্য ও মিল ব্যবস্থাপনা',
+                  sectionKey: 'memberManagement',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                TextField(
+                                  controller: _newMemberNameController,
+                                  decoration: InputDecoration(
+                                    labelText: 'নতুন সদস্যের নাম',
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _initialDepositController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    labelText: 'প্রাথমিক জমা',
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8)),
+                                    prefixText: '৳ ',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton.icon(
+                            onPressed: _handleAddMember,
+                            icon: const Icon(Icons.person_add_alt_1),
+                            label: const Text('যোগ করুন'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade600,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 16),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'নিচের বক্সে সদস্যদের তালিকা ও মিল দেখুন।',
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               _buildCollapsibleSection(
                 title: 'সদস্যদের তালিকা ও মিল',
                 sectionKey: 'memberList',
@@ -1694,7 +1578,9 @@ function _json(obj, code) {
                           decoration: BoxDecoration(
                             border: Border.all(color: Colors.grey.shade300),
                             borderRadius: BorderRadius.circular(8),
-                            color: Colors.white,
+                            color: (!_isManager && member.id == _myMemberId)
+                                ? Colors.blue.shade50
+                                : Colors.white,
                           ),
                           child: Row(
                             children: [
@@ -1719,99 +1605,102 @@ function _json(obj, code) {
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              PopupMenuButton<String>(
-                                tooltip: 'অ্যাকশন',
-                                onSelected: (value) async {
-                                  if (value == 'edit_meals') {
-                                    _showEditMealDialog(member, memberMeals);
-                                  } else if (value == 'edit') {
-                                    _showEditInitialDepositDialog(member);
-                                  } else if (value == 'delete') {
-                                    final confirmed =
-                                        await showDeleteConfirmationDialog(
-                                      context: context,
-                                      title: 'সদস্য ডিলিট',
-                                      message:
-                                          'আপনি কি নিশ্চিতভাবে এই সদস্যকে ডিলিট করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।',
-                                      paperTitle: member.name,
-                                      paperSubtitle:
-                                          'প্রাথমিক জমা: ৳ ${member.initialDeposit.toStringAsFixed(2)}',
-                                    );
-                                    if (confirmed == true) {
-                                      _handleDeleteMember(member.id);
+                              if (_isManager) ...[
+                                const SizedBox(width: 8),
+                                PopupMenuButton<String>(
+                                  tooltip: 'অ্যাকশন',
+                                  onSelected: (value) async {
+                                    if (value == 'edit_meals') {
+                                      _showEditMealDialog(member, memberMeals);
+                                    } else if (value == 'edit') {
+                                      _showEditInitialDepositDialog(member);
+                                    } else if (value == 'delete') {
+                                      final confirmed =
+                                          await showDeleteConfirmationDialog(
+                                        context: context,
+                                        title: 'সদস্য ডিলিট',
+                                        message:
+                                            'আপনি কি নিশ্চিতভাবে এই সদস্যকে ডিলিট করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।',
+                                        paperTitle: member.name,
+                                        paperSubtitle:
+                                            'প্রাথমিক জমা: ৳ ${member.initialDeposit.toStringAsFixed(2)}',
+                                      );
+                                      if (confirmed == true) {
+                                        _handleDeleteMember(member.id);
+                                      }
                                     }
-                                  }
-                                },
-                                itemBuilder: (context) => const [
-                                  PopupMenuItem(
-                                    value: 'edit_meals',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.restaurant_menu,
-                                            color: Colors.deepPurple),
-                                        SizedBox(width: 8),
-                                        Text('মিল সংখ্যা সম্পাদনা'),
-                                      ],
+                                  },
+                                  itemBuilder: (context) => const [
+                                    PopupMenuItem(
+                                      value: 'edit_meals',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.restaurant_menu,
+                                              color: Colors.deepPurple),
+                                          SizedBox(width: 8),
+                                          Text('মিল সংখ্যা সম্পাদনা'),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.edit, color: Colors.teal),
-                                        SizedBox(width: 8),
-                                        Text('প্রাথমিক জমা সম্পাদনা'),
-                                      ],
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.edit, color: Colors.teal),
+                                          SizedBox(width: 8),
+                                          Text('প্রাথমিক জমা সম্পাদনা'),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.delete, color: Colors.red),
-                                        SizedBox(width: 8),
-                                        Text('সদস্য ডিলিট'),
-                                      ],
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.delete, color: Colors.red),
+                                          SizedBox(width: 8),
+                                          Text('সদস্য ডিলিট'),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                              ],
                               Container(
                                 decoration: BoxDecoration(
                                   border:
                                       Border.all(color: Colors.grey.shade400),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 4),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove),
-                                      visualDensity: VisualDensity.compact,
-                                      padding: EdgeInsets.zero,
-                                      constraints:
-                                          const BoxConstraints.tightFor(
-                                              width: 32, height: 32),
-                                      onPressed: () {
-                                        setState(() {
-                                          double newCount = memberMeals - 0.5;
-                                          if (newCount < 0) newCount = 0.0;
-                                          final idx = _meals.indexWhere(
-                                              (m) => m.memberId == member.id);
-                                          if (idx != -1) {
-                                            _meals[idx].count = newCount;
-                                          } else {
-                                            _meals.add(Meal(
-                                                memberId: member.id,
-                                                count: newCount));
-                                          }
-                                        });
-                                        _saveState();
-                                      },
-                                    ),
+                                    if (_isManager)
+                                      IconButton(
+                                        icon: const Icon(Icons.remove),
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints:
+                                            const BoxConstraints.tightFor(
+                                                width: 32, height: 32),
+                                        onPressed: () {
+                                          setState(() {
+                                            double newCount = memberMeals - 0.5;
+                                            if (newCount < 0) newCount = 0.0;
+                                            final idx = _meals.indexWhere(
+                                                (m) => m.memberId == member.id);
+                                            if (idx != -1) {
+                                              _meals[idx].count = newCount;
+                                            } else {
+                                              _meals.add(Meal(
+                                                  memberId: member.id,
+                                                  count: newCount));
+                                            }
+                                          });
+                                          _saveState();
+                                        },
+                                      ),
                                     SizedBox(
                                       width: 48,
                                       child: Center(
@@ -1824,31 +1713,33 @@ function _json(obj, code) {
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    IconButton(
-                                      icon: const Icon(Icons.add),
-                                      visualDensity: VisualDensity.compact,
-                                      padding: EdgeInsets.zero,
-                                      constraints:
-                                          const BoxConstraints.tightFor(
-                                              width: 32, height: 32),
-                                      onPressed: () {
-                                        setState(() {
-                                          final double newCount =
-                                              memberMeals + 0.5;
-                                          final idx = _meals.indexWhere(
-                                              (m) => m.memberId == member.id);
-                                          if (idx != -1) {
-                                            _meals[idx].count = newCount;
-                                          } else {
-                                            _meals.add(Meal(
-                                                memberId: member.id,
-                                                count: newCount));
-                                          }
-                                        });
-                                        _saveState();
-                                      },
-                                    ),
+                                    if (_isManager) ...[
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(Icons.add),
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints:
+                                            const BoxConstraints.tightFor(
+                                                width: 32, height: 32),
+                                        onPressed: () {
+                                          setState(() {
+                                            final double newCount =
+                                                memberMeals + 0.5;
+                                            final idx = _meals.indexWhere(
+                                                (m) => m.memberId == member.id);
+                                            if (idx != -1) {
+                                              _meals[idx].count = newCount;
+                                            } else {
+                                              _meals.add(Meal(
+                                                  memberId: member.id,
+                                                  count: newCount));
+                                            }
+                                          });
+                                          _saveState();
+                                        },
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -1880,7 +1771,9 @@ function _json(obj, code) {
                           margin: const EdgeInsets.only(bottom: 12),
                           elevation: 8,
                           shadowColor: Colors.black26,
-                          color: Colors.white,
+                          color: (!_isManager && data.memberId == _myMemberId)
+                              ? Colors.blue.shade50
+                              : Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                             side: BorderSide(color: Colors.grey.shade200),
@@ -2230,18 +2123,545 @@ function _json(obj, code) {
 
   // UI helpers
 
+  Widget _buildMemberSelector() {
+    return Center(
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.70,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              'আপনি কে? নির্বাচন করুন:',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  //align the dropdown button to the center
+                  alignment: Alignment.center,
+                  value: _myMemberId.isEmpty ? null : _myMemberId,
+                  hint: const Text('সদস্য নির্বাচন করুন'),
+                  isExpanded: true,
+                  items: _members.map((member) {
+                    return DropdownMenuItem<String>(
+                      //align member name to the center
+                      alignment: Alignment.center,
+                      value: member.id,
+                      child: Text(member.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _myMemberId = value ?? '';
+                    });
+                    _saveState();
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMyStatusCard() {
+    final myData = _reportData.firstWhere(
+      (d) => d.memberId == _myMemberId,
+      orElse: () => ReportData(
+        memberId: '',
+        memberName: 'অজানা',
+        totalMeals: 0,
+        initialDeposit: 0,
+        personalExpense: 0,
+        totalContribution: 0,
+        mealCost: 0,
+        balance: 0,
+        mealRate: 0,
+        bigMarketMealRate: 0,
+        rawMarketMealRate: 0,
+      ),
+    );
+
+    if (myData.memberId.isEmpty) return const SizedBox.shrink();
+
+    final double totalCost = myData.mealCost +
+        (_members.isNotEmpty ? (_totalMiscExpenses / _members.length) : 0);
+    final double balance = myData.totalContribution - totalCost;
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade600, Colors.blue.shade400],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Text(
+              'স্বাগতম, ${myData.memberName}!',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const Divider(color: Colors.white24, height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatusItem('বর্তমান জমা',
+                    '${myData.totalContribution.toStringAsFixed(0)} ৳'),
+                _buildStatusItem(
+                    'মোট খরচ', '${totalCost.toStringAsFixed(0)} ৳'),
+                _buildStatusItem('ব্যালেন্স', '${balance.toStringAsFixed(0)} ৳',
+                    color: balance >= 0
+                        ? Colors.greenAccent
+                        : Colors.orangeAccent),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatusItem(
+                    'মোট মিল', myData.totalMeals.toStringAsFixed(1)),
+                _buildStatusItem(
+                    'মিল রেট', '${myData.mealRate.toStringAsFixed(2)} ৳'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusItem(String label, String value,
+      {Color color = Colors.white}) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _emptyBox(String text) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: Colors.grey.shade200),
       ),
+      child: Center(
+        child: Text(
+          text,
+          style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+        ),
+      ),
+    );
+  }
+}
+
+class _SetupDialogContent extends StatefulWidget {
+  final Function(bool isManager, String url, String pass) onComplete;
+  final bool? initialIsManager;
+  final String? initialUrl;
+  final String? initialPass;
+  final int? initialStep;
+
+  const _SetupDialogContent({
+    required this.onComplete,
+    this.initialIsManager,
+    this.initialUrl,
+    this.initialPass,
+    this.initialStep,
+  });
+
+  @override
+  State<_SetupDialogContent> createState() => _SetupDialogContentState();
+}
+
+class _SetupDialogContentState extends State<_SetupDialogContent> {
+  late TextEditingController urlController;
+  late TextEditingController passController;
+  late bool isManager;
+  late bool isOnline;
+  late int step;
+
+  @override
+  void initState() {
+    super.initState();
+    urlController = TextEditingController(text: widget.initialUrl ?? '');
+    passController = TextEditingController(text: widget.initialPass ?? '');
+    isManager = widget.initialIsManager ?? true;
+    isOnline = true; // Default to online, especially for updates
+    step = widget.initialStep ?? 1;
+  }
+
+  @override
+  void dispose() {
+    urlController.dispose();
+    passController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
+      child: Container(
+        width: 450,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              spreadRadius: 5,
+            )
+          ],
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue.shade400, Colors.blue.shade700],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.settings_suggest,
+                    color: Colors.white, size: 40),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                step == 1 ? 'মেস ম্যানেজার সেটআপ' : 'কানেকশন সেটিংস',
+                style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                step == 1
+                    ? 'আপনার ভূমিকা এবং ব্যবহারের ধরণ নির্বাচন করুন'
+                    : 'আপনার অনলাইন ব্যাকএন্ড কনফিগার করুন',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 24),
+
+              if (step == 1) ...[
+                // Role selection
+                _buildSetupHeader('আপনার ভূমিকা নির্বাচন করুন:'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildSelectionCard(
+                      'ম্যানেজার',
+                      'হিসাব ব্যবস্থাপনা ও ডাটা সিঙ্ক',
+                      Icons.admin_panel_settings,
+                      isManager,
+                      () => setState(() => isManager = true),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _buildSelectionCard(
+                      'মেম্বার',
+                      'শুধুমাত্র নিজের হিসাব দেখা',
+                      Icons.person,
+                      !isManager,
+                      () {
+                        setState(() {
+                          isManager = false;
+                          isOnline = true; // Members must be online
+                        });
+                      },
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                // Mode selection
+                _buildSetupHeader('কানেকশন মোড:'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildSelectionCard(
+                      'অনলাইন',
+                      'ডাটা গুগল শিটের সাথে যুক্ত',
+                      Icons.cloud_done,
+                      isOnline,
+                      () => setState(() => isOnline = true),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _buildSelectionCard(
+                      'অফলাইন',
+                      'শুধুমাত্র ফোনের মেমোরিতে',
+                      Icons.cloud_off,
+                      !isOnline,
+                      () => setState(() => isOnline = false),
+                      isDisabled: !isManager,
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  !isManager
+                      ? '* সদস্যদের ডাটা লোড করতে অনলাইন মোড প্রয়োজন'
+                      : (isOnline
+                          ? '* ডাটা গুগল শিটে সেভ হবে (সুপারিশকৃত)'
+                          : '* ডাটা শুধুমাত্র ফোনে সেভ হবে'),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: !isManager
+                          ? Colors.orange.shade800
+                          : Colors.grey.shade600),
+                ),
+              ] else ...[
+                // Step 2: Online Details
+                TextField(
+                  controller: urlController,
+                  decoration: InputDecoration(
+                    labelText: 'Apps Script Web App URL',
+                    hintText: 'https://...',
+                    prefixIcon: const Icon(Icons.link),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                  ),
+                ),
+                if (isManager) ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'ম্যানেজার পাসওয়ার্ড',
+                      hintText: 'নিরাপত্তার জন্য পাসওয়ার্ড দিন',
+                      prefixIcon: const Icon(Icons.lock),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          color: Colors.blue.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isManager
+                              ? 'পাসওয়ার্ডটি আপনার গুগল স্ক্রিপ্ট কোডের সাথে মিল থাকতে হবে।'
+                              : 'মেম্বার হিসেবে শুধুমাত্র ডাটা দেখার জন্য URL টি প্রয়োজন।',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.blue.shade900),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 32),
+              // Action Buttons
+              Row(
+                children: [
+                  if (step == 2)
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          if (widget.initialStep == 2) {
+                            Navigator.pop(context);
+                          } else {
+                            setState(() => step = 1);
+                          }
+                        },
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: Text(
+                            widget.initialStep == 2 ? 'বন্ধ করুন' : 'পিছনে'),
+                      ),
+                    ),
+                  if (step == 2) const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (step == 1) {
+                          if (isOnline) {
+                            setState(() => step = 2);
+                          } else {
+                            // Finish Offline
+                            widget.onComplete(isManager, '', '');
+                            Navigator.pop(context);
+                          }
+                        } else {
+                          // Finalize Online
+                          final url = urlController.text.trim();
+                          final pass = passController.text.trim();
+                          if (url.isEmpty || (isManager && pass.isEmpty)) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('URL এবং পাসওয়ার্ড দিন।'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          widget.onComplete(isManager, url, pass);
+                          Navigator.pop(context);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(
+                        step == 1 && isOnline ? 'পরবর্তী ধাপ' : 'শুরু করুন',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSetupHeader(String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
       child: Text(
-        text,
-        style: const TextStyle(fontSize: 15, color: Colors.black54),
+        title,
+        style:
+            const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+      ),
+    );
+  }
+
+  Widget _buildSelectionCard(String title, String subtitle, IconData icon,
+      bool isSelected, VoidCallback onTap,
+      {bool isDisabled = false}) {
+    return GestureDetector(
+      onTap: isDisabled ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.blue.shade50
+              : (isDisabled ? Colors.grey.shade50 : Colors.white),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? Colors.blue
+                : (isDisabled ? Colors.grey.shade200 : Colors.grey.shade200),
+            width: 2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                      color: Colors.blue.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4))
+                ]
+              : [],
+        ),
+        child: Column(
+          children: [
+            Icon(icon,
+                color: isSelected
+                    ? Colors.blue
+                    : (isDisabled ? Colors.grey.shade300 : Colors.grey),
+                size: 32),
+            const SizedBox(height: 12),
+            Text(title,
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isSelected
+                        ? Colors.blue
+                        : (isDisabled
+                            ? Colors.grey.shade400
+                            : Colors.black87))),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 10,
+                  color:
+                      isDisabled ? Colors.grey.shade400 : Colors.grey.shade600),
+            ),
+          ],
+        ),
       ),
     );
   }
