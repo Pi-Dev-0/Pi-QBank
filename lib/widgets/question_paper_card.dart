@@ -33,6 +33,7 @@ class QuestionPaperCard extends StatefulWidget {
   final String downloadUrl;
   final String category;
   final int? index;
+  final String? creator;
 
   const QuestionPaperCard({
     super.key,
@@ -43,6 +44,7 @@ class QuestionPaperCard extends StatefulWidget {
     required this.downloadUrl,
     required this.category,
     this.index,
+    this.creator,
   });
 
   @override
@@ -685,6 +687,32 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
                             ],
                           ],
                         ),
+                        if (widget.creator != null &&
+                            widget.creator!.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.person_outline_rounded,
+                                size: 14,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  widget.creator!,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

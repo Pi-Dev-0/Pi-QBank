@@ -1,22 +1,20 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import '../../main.dart'; // Import for MainScreen
-import '../pdf_viewer_page.dart';
-import '../online_pdf_viewer_page.dart';
 import '../../widgets/custom_app_bar.dart'; // Import CustomAppBar
 import '../../widgets/loading_widget.dart';
-import '../../widgets/delete_confirmation_dialog.dart';
+import '../../widgets/question_paper_card.dart';
 
-// Data model remains the same
+// Data model for notes
 class NoteFilter {
   final String className;
   final String subject;
   final String topic;
   final String title;
   final String url;
+  final String type; // "Hand" or "Digital"
+  final String creator;
 
   NoteFilter({
     required this.className,
@@ -24,6 +22,8 @@ class NoteFilter {
     required this.topic,
     required this.title,
     required this.url,
+    required this.type,
+    required this.creator,
   });
 
   factory NoteFilter.fromJson(Map<String, dynamic> json) {
@@ -33,6 +33,8 @@ class NoteFilter {
       topic: json['topic'] ?? '',
       title: json['title'] ?? '',
       url: json['url'] ?? '',
+      type: json['type'] ?? 'Hand',
+      creator: json['creator'] ?? '',
     );
   }
 }
@@ -53,6 +55,7 @@ class _HandNotesPageState extends State<HandNotesPage>
   String? _selectedClass;
   String? _selectedSubject;
   String? _selectedTopic;
+  String? _selectedType; // "Hand" or "Digital"
 
   // Data State
   List<NoteFilter> _allFilters = [];
@@ -61,7 +64,6 @@ class _HandNotesPageState extends State<HandNotesPage>
   List<String> _topics = [];
 
   bool _isLoading = true;
-  final Map<String, double> _downloadProgress = {};
 
   // For Animation
   late AnimationController _animationController;
@@ -99,11 +101,16 @@ class _HandNotesPageState extends State<HandNotesPage>
 
   void _updateDropdowns() {
     setState(() {
-      _classes = _allFilters.map((f) => f.className).toSet().toList()..sort();
+      // Filter by type first if selected
+      final typeFiltered = _selectedType != null
+          ? _allFilters.where((f) => f.type == _selectedType).toList()
+          : _allFilters;
 
-      // Update Subjects based on selected Class
+      _classes = typeFiltered.map((f) => f.className).toSet().toList()..sort();
+
+      // Update Subjects based on selected Class and Type
       if (_selectedClass != null && _classes.contains(_selectedClass)) {
-        _subjects = _allFilters
+        _subjects = typeFiltered
             .where((f) => f.className == _selectedClass)
             .map((f) => f.subject)
             .toSet()
@@ -114,9 +121,9 @@ class _HandNotesPageState extends State<HandNotesPage>
         _subjects = [];
       }
 
-      // Update Topics based on selected Class & Subject
+      // Update Topics based on selected Class, Subject & Type
       if (_selectedSubject != null && _subjects.contains(_selectedSubject)) {
-        _topics = _allFilters
+        _topics = typeFiltered
             .where((f) =>
                 f.className == _selectedClass && f.subject == _selectedSubject)
             .map((f) => f.topic)
@@ -130,68 +137,6 @@ class _HandNotesPageState extends State<HandNotesPage>
     });
   }
 
-  // --- File Handling Methods (Kept from original) ---
-  Future<bool> _isNoteDownloaded(String title) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath = '${directory.path}/${title.replaceAll(' ', '_')}.pdf';
-    return File(filePath).exists();
-  }
-
-  Future<void> _deleteNote(String title) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/${title.replaceAll(' ', '_')}.pdf');
-    if (await file.exists()) {
-      await file.delete();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Note deleted!'), backgroundColor: Colors.orange));
-        setState(() {}); // Refresh UI
-      }
-    }
-  }
-
-  Future<void> _downloadNote(String url, String title) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/${title.replaceAll(' ', '_')}.pdf');
-
-    try {
-      setState(() => _downloadProgress[title] = 0.0);
-      final request = http.Request('GET', Uri.parse(url));
-      final response = await request.send();
-
-      if (response.statusCode == 200) {
-        final contentLength = response.contentLength ?? 0;
-        final bytes = <int>[];
-        int received = 0;
-
-        response.stream.listen(
-          (chunk) {
-            bytes.addAll(chunk);
-            received += chunk.length;
-            if (contentLength > 0) {
-              setState(
-                  () => _downloadProgress[title] = received / contentLength);
-            }
-          },
-          onDone: () async {
-            await file.writeAsBytes(bytes);
-            if (mounted) {
-              setState(() => _downloadProgress.remove(title));
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Downloaded successfully!'),
-                  backgroundColor: Colors.green));
-            }
-          },
-          onError: (e) {
-            if (mounted) setState(() => _downloadProgress.remove(title));
-          },
-        );
-      }
-    } catch (e) {
-      if (mounted) setState(() => _downloadProgress.remove(title));
-    }
-  }
-
   // --- Navigation Handling ---
   void _handleBack() {
     // Safely navigate back to home
@@ -203,6 +148,73 @@ class _HandNotesPageState extends State<HandNotesPage>
 
   // --- UI Components ---
 
+  Widget _buildTypeButton({
+    required String label,
+    required IconData icon,
+    required String type,
+    required bool isSelected,
+  }) {
+    return Material(
+      color: isSelected ? Colors.indigo.withOpacity(0.12) : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedType = isSelected ? null : type;
+            _selectedClass = null;
+            _selectedSubject = null;
+            _selectedTopic = null;
+            _updateDropdowns();
+          });
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected
+                  ? Colors.indigo.withOpacity(0.4)
+                  : Colors.indigo.withOpacity(0.15),
+              width: isSelected ? 2 : 1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.indigo.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected ? Colors.indigo : Colors.grey[600],
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    color: isSelected ? Colors.indigo : Colors.grey[700],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildFilterChip(String label, String? value, List<String> options,
       ValueChanged<String?> onChanged,
@@ -383,268 +395,23 @@ class _HandNotesPageState extends State<HandNotesPage>
   }
 
   Widget _buildNoteCard(NoteFilter note, int index) {
-    final color = Colors.primaries[index % Colors.primaries.length];
-
-    return FutureBuilder<bool>(
-      future: _isNoteDownloaded(note.title),
-      builder: (context, snapshot) {
-        final isDownloaded = snapshot.data ?? false;
-        final progress = _downloadProgress[note.title];
-
-        return Theme(
-          data: Theme.of(context).copyWith(
-            primaryColor: color,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: color,
-              primary: color,
-            ),
-          ),
-          child: FadeTransition(
-            opacity: _animationController,
-            child: Card(
-              elevation: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                leading: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (progress != null && progress > 0 && progress < 1)
-                      SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: CircularProgressIndicator(
-                          value: progress,
-                          strokeWidth: 3,
-                          backgroundColor: Colors.grey.shade300,
-                          valueColor: AlwaysStoppedAnimation(color),
-                        ),
-                      ),
-                    if (progress != null && progress > 0 && progress < 1)
-                      Text(
-                        '${(progress * 100).toInt()}%',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
-                      ),
-                    if (progress == null || progress == 0 || progress == 1)
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isDownloaded ? Icons.check_circle : Icons.book,
-                          size: 24,
-                          color: isDownloaded ? Colors.green : color,
-                        ),
-                      ),
-                  ],
-                ),
-                title: Text(
-                  note.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                subtitle: Text(
-                  note.subject,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isDownloaded)
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () async {
-                          final shouldDelete =
-                              await showDeleteConfirmationDialog(
-                            context: context,
-                            title: 'Delete Note',
-                            message:
-                                'Are you sure you want to delete this note?',
-                            paperTitle: note.title,
-                            paperSubtitle: note.subject,
-                          );
-                          if (shouldDelete == true) {
-                            _deleteNote(note.title);
-                          }
-                        },
-                      ),
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: isDownloaded
-                            ? Colors.green.withOpacity(0.1)
-                            : color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        isDownloaded
-                            ? Icons.download_done
-                            : Icons.arrow_forward_ios,
-                        size: 16,
-                        color: isDownloaded ? Colors.green : color,
-                      ),
-                    ),
-                  ],
-                ),
-                onTap: () async {
-                  if (isDownloaded) {
-                    final directory = await getApplicationDocumentsDirectory();
-                    final filePath =
-                        '${directory.path}/${note.title.replaceAll(' ', '_')}.pdf';
-                    if (context.mounted) {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => PDFViewerPage(
-                                  filePath: filePath, title: note.title)));
-                    }
-                  } else {
-                    final parentContext = context;
-                    final choice = await showDialog<String>(
-                      context: parentContext,
-                      builder: (context) => Theme(
-                        data: Theme.of(context).copyWith(
-                          primaryColor: color,
-                          colorScheme: ColorScheme.fromSeed(
-                            seedColor: color,
-                            primary: color,
-                          ),
-                        ),
-                        child: AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          title: Row(
-                            children: [
-                              Icon(Icons.book, color: color),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  note.title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                'Choose an option to view or download this note.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.black87,
-                                  height: 1.5,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  ElevatedButton.icon(
-                                    icon: const Icon(Icons.visibility),
-                                    label: const Text('View Online'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: color,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.pop(context, 'view');
-                                    },
-                                  ),
-                                  OutlinedButton.icon(
-                                    icon: const Icon(Icons.download),
-                                    label: const Text('Download'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: color,
-                                      side: BorderSide(color: color),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      Navigator.pop(context, 'download');
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-
-                    if (!context.mounted) return;
-
-                    if (choice == 'view') {
-                      if (note.url.startsWith('http')) {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => OnlinePDFViewerPage(
-                                    pdfUrl: note.url, title: note.title)));
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No preview available.'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    } else if (choice == 'download') {
-                      if (note.url.startsWith('http')) {
-                        await _downloadNote(note.url, note.title);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('This note is not downloadable.'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  }
-                },
-              ),
-            ),
-          ),
-        );
-      },
+    return QuestionPaperCard(
+      title: note.title,
+      subtitle: '${note.subject} • ${note.topic}',
+      year: note.className,
+      examYear: note.type,
+      downloadUrl: note.url,
+      category: 'Notes',
+      index: index,
+      creator: note.creator,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final filteredNotes = _allFilters.where((f) {
-      return (_selectedClass == null || f.className == _selectedClass) &&
+      return (_selectedType == null || f.type == _selectedType) &&
+          (_selectedClass == null || f.className == _selectedClass) &&
           (_selectedSubject == null || f.subject == _selectedSubject) &&
           (_selectedTopic == null || f.topic == _selectedTopic);
     }).toList();
@@ -664,7 +431,7 @@ class _HandNotesPageState extends State<HandNotesPage>
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F7FA), // Light grey/blue background
         appBar: CustomAppBar(
-          title: 'Hand Notes',
+          title: 'Notes',
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
             onPressed: () {
@@ -674,9 +441,35 @@ class _HandNotesPageState extends State<HandNotesPage>
         ),
         body: Column(
           children: [
+            // Type Filter - Toggle Buttons
             Container(
               padding: const EdgeInsets.only(
-                  bottom: 16.0, left: 16.0, right: 16.0, top: 16.0),
+                  top: 4.0, left: 16.0, right: 16.0, bottom: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildTypeButton(
+                      label: 'Hand Notes',
+                      icon: Icons.edit_note_rounded,
+                      type: 'Hand',
+                      isSelected: _selectedType == 'Hand',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildTypeButton(
+                      label: 'Digital Notes',
+                      icon: Icons.laptop_rounded,
+                      type: 'Digital',
+                      isSelected: _selectedType == 'Digital',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Other Filters
+            Container(
+              padding: const EdgeInsets.only(left: 16.0, right: 16.0),
               child: Row(
                 children: [
                   Expanded(
