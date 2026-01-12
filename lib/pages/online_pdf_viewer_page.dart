@@ -138,6 +138,15 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: LoadingWidget(
+          progress: 0.7,
+          loadingText: 'Loading Document...',
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: CustomAppBar(
@@ -177,11 +186,6 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
                   )
                 ],
               ),
-            ),
-          if (_isLoading)
-            const LoadingWidget(
-              progress: 0.7, // Indeterminate state mostly
-              loadingText: 'Loading Document...',
             ),
         ],
       ),
