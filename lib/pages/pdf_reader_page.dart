@@ -198,6 +198,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -388,6 +389,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                                   ],
                                 ),
                                 onTap: () {
+                                  // Try to open without password first
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(

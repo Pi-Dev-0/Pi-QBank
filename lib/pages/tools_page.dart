@@ -9,6 +9,7 @@ import 'package:pi_qbank/pages/newspaper_list_page.dart';
 import 'package:pi_qbank/pages/notes_remainder_page.dart';
 import 'package:pi_qbank/pages/educational_links_page.dart';
 import 'package:pi_qbank/widgets/youtube_player_dialog.dart';
+import 'package:pi_qbank/pages/pdf_reader_page.dart';
 import '../widgets/app_drawer.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -126,6 +127,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const EducationalLinksPage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.picture_as_pdf_outlined,
+        title: 'Local PDF',
+        description: 'Read device local PDF files',
+        accentColor: Colors.red,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const PdfReaderPage(),
             ),
           );
         },

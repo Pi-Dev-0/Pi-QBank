@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/loading_widget.dart';
 import '../widgets/custom_app_bar.dart';
+import '../widgets/loading_widget.dart';
 
 class PDFViewerPage extends StatefulWidget {
   final String filePath;
   final String title;
+  final String? password;
 
   const PDFViewerPage({
     super.key,
     required this.filePath,
     required this.title,
+    this.password,
   });
 
   @override
@@ -32,6 +34,7 @@ class _PDFViewerPageState extends State<PDFViewerPage>
 
   int? _totalPages;
   int _currentPage = 1;
+  String? _currentPassword;
 
   late AnimationController _dialogController;
   late Animation<double> _dialogScaleAnimation;
@@ -59,6 +62,62 @@ class _PDFViewerPageState extends State<PDFViewerPage>
       curve: Curves.easeOut,
     ));
     _checkBookmarkStatus();
+
+    // Initialize with provided password or null
+    _currentPassword = widget.password;
+  }
+
+  Future<String?> _showPasswordDialog() async {
+    final TextEditingController passwordController = TextEditingController();
+    String? password = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Password Required'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This PDF is password protected.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Enter password',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (value) {
+                  if (value.isNotEmpty) {
+                    Navigator.of(context).pop(value);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (passwordController.text.isNotEmpty) {
+                  Navigator.of(context).pop(passwordController.text);
+                }
+              },
+              child: const Text('Open'),
+            ),
+          ],
+        );
+      },
+    );
+    return password;
   }
 
   @override
@@ -629,9 +688,11 @@ class _PDFViewerPageState extends State<PDFViewerPage>
             ],
           ),
           if (_totalPages != null && _totalPages! > 1) _buildScrollHandler(),
+          // Show LoadingWidget when loading
           if (_isLoading)
-            const LoadingWidget(
+            LoadingWidget(
               loadingText: 'Loading PDF...',
+              progress: 0.0, // Can be updated if we track progress
             ),
         ],
       ),
@@ -704,8 +765,10 @@ class _PDFViewerPageState extends State<PDFViewerPage>
 
   Widget _buildPdfView() {
     return PDFView(
-      key: Key('pdf_view_$_pageSnap'), // Force recreation to apply settings
+      key: Key(
+          'pdf_view_${_pageSnap ? 'snap' : 'smooth'}_${_currentPassword ?? 'nopass'}'), // Force recreation when password changes
       filePath: widget.filePath,
+      password: _currentPassword,
       defaultPage: _currentPage > 0 ? _currentPage - 1 : 0,
       enableSwipe: true,
       swipeHorizontal: false,
@@ -723,19 +786,15 @@ class _PDFViewerPageState extends State<PDFViewerPage>
       },
       onError: (error) {
         setState(() => _isLoading = false);
-        _showCustomSnackBar(
-          'Error: $error',
-          Colors.red.shade400,
-          Icons.error,
-        );
+
+        // Check if it's a password error
+        if (error != null &&
+            error.toString().toLowerCase().contains('password')) {
+          _handlePasswordError();
+        }
       },
       onPageError: (page, error) {
         setState(() => _isLoading = false);
-        _showCustomSnackBar(
-          'Page Error: $error',
-          Colors.orange.shade400,
-          Icons.warning,
-        );
       },
       onViewCreated: (controller) {
         _pdfViewController = controller;
@@ -749,6 +808,22 @@ class _PDFViewerPageState extends State<PDFViewerPage>
         }
       },
     );
+  }
+
+  Future<void> _handlePasswordError() async {
+    final password = await _showPasswordDialog();
+    if (password != null && password.isNotEmpty) {
+      // Show loading state
+      setState(() {
+        _currentPassword = password;
+        _isLoading = true;
+      });
+    } else {
+      // User cancelled - go back
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
   }
 
   Widget _buildControlButton({
