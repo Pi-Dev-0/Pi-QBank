@@ -35,6 +35,8 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
   String _aiResponse = '';
   bool _isProcessingImage = false;
   String _selectedLanguage = 'English';
+  final TextEditingController _customCommandController = TextEditingController(); // New controller
+  bool _showAdvancedSettings = false; // New state variable
   final Uuid _uuid = const Uuid(); // Initialize Uuid
 
   late AnimationController _animationController;
@@ -63,6 +65,7 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
   @override
   void dispose() {
     _animationController.dispose();
+    _customCommandController.dispose(); // Dispose the new controller
     super.dispose();
   }
 
@@ -112,11 +115,14 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
         : 'Generate questions and answers strictly in English language. ';
     final String imageContext =
         _selectedImages.length > 1 ? 'these images' : 'this image';
+    final String customCommand = _customCommandController.text.trim();
+    final String customInstruction = customCommand.isNotEmpty ? '$customCommand. ' : '';
+
 
     switch (testType) {
       case 'MCQ Test':
         return '''
-${languageInstruction}Generate $questionsCount multiple choice questions about $imageContext with 4 options each. 
+$languageInstruction${customInstruction}Generate $questionsCount multiple choice questions about $imageContext with 4 options each. 
 Respond in the following JSON format:
 
 {
@@ -137,13 +143,13 @@ Respond in the following JSON format:
 ''';
       case 'Short Question':
         if (_selectedLanguage == 'বাংলা') {
-          return '$languageInstruction এই $imageContext সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
+          return '$languageInstruction$customInstruction এই $imageContext সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
         }
-        return '${languageInstruction}Generate $questionsCount short answer questions about $imageContext that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
+        return '$languageInstruction${customInstruction}Generate $questionsCount short answer questions about $imageContext that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
       case 'Fill In the Blanks':
-        return '${languageInstruction}Generate $questionsCount fill-in-the-blank questions about $imageContext. Format: Question with _____ for blanks, followed by the correct answer.';
+        return '$languageInstruction${customInstruction}Generate $questionsCount fill-in-the-blank questions about $imageContext. Format: Question with _____ for blanks, followed by the correct answer.';
       default:
-        return '${languageInstruction}Generate questions about $imageContext suitable for a test.';
+        return '$languageInstruction${customInstruction}Generate questions about $imageContext suitable for a test.';
     }
   }
 
@@ -331,7 +337,7 @@ Respond in the following JSON format:
 
   Widget _buildHeaderSection() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -354,24 +360,24 @@ Respond in the following JSON format:
         children: [
           Icon(
             Icons.auto_awesome,
-            size: 48,
+            size: 36,
             color: Colors.white,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Text(
             'AI-Powered Test Generator',
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'Upload an image and let AI generate personalized questions for you',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 14,
               color: Colors.white.withOpacity(0.9),
               height: 1.4,
             ),
@@ -801,6 +807,52 @@ Respond in the following JSON format:
                   _testTimeInMinutes = int.tryParse(value);
                 },
               ),
+              const SizedBox(height: 16),
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent), // Hide the default divider
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                  collapsedBackgroundColor: Colors.grey.shade50,
+                  backgroundColor: Colors.grey.shade50,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: Colors.grey.shade200),
+                  ),
+                  title: Text(
+                    'Advanced Settings',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  leading: Icon(Icons.api_outlined, color: Colors.purple.shade600),
+                  trailing: Icon(
+                    _showAdvancedSettings ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    color: Colors.purple.shade600,
+                  ),
+                  onExpansionChanged: (bool expanded) {
+                    setState(() {
+                      _showAdvancedSettings = expanded;
+                    });
+                  },
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: _buildStylishTextField(
+                        label: 'Custom AI Instruction',
+                        icon: Icons.text_snippet_outlined,
+                        keyboardType: TextInputType.text,
+                        onChanged: (value) {
+                          _customCommandController.text = value;
+                        },
+                        controller: _customCommandController,
+                        maxLines: 3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ],
@@ -813,6 +865,8 @@ Respond in the following JSON format:
     required IconData icon,
     required TextInputType keyboardType,
     required ValueChanged<String> onChanged,
+    TextEditingController? controller,
+    int? maxLines,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -821,6 +875,8 @@ Respond in the following JSON format:
         color: Colors.grey.shade50,
       ),
       child: TextField(
+        controller: controller,
+        maxLines: maxLines,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, color: Colors.purple.shade600),
