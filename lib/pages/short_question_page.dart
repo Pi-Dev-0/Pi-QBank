@@ -13,7 +13,8 @@ class ShortQuestionPage extends StatefulWidget {
   final List<XFile>? selectedImages;
   final String aiResponse;
   final String language;
-  final String? savedTestId; // New: Optional ID for saved tests
+  final String? savedTestId;
+  final String testType; // Added: Field for test type
 
   const ShortQuestionPage({
     super.key,
@@ -22,7 +23,8 @@ class ShortQuestionPage extends StatefulWidget {
     this.selectedImages,
     required this.aiResponse,
     required this.language,
-    this.savedTestId, // New: Initialize savedTestId
+    this.savedTestId, 
+    this.testType = 'Short Question', // Default value
   });
 
   @override
@@ -185,7 +187,7 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
 
     final testResult = TestResult(
       testId: DateTime.now().millisecondsSinceEpoch.toString(),
-      testType: 'Short Question',
+      testType: widget.testType,
       timestamp: DateTime.now(),
       score: correctCount,
       totalQuestions: questions.length,
@@ -345,23 +347,31 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildInfoCard(
-                  'Questions',
-                  '${questions.length}',
-                  Icons.quiz_outlined,
-                  const Color(0xFF667EEA),
+                Expanded(
+                  child: _buildInfoCard(
+                    'Questions',
+                    '${questions.length}',
+                    Icons.quiz_outlined,
+                    const Color(0xFF667EEA),
+                  ),
                 ),
-                _buildInfoCard(
-                  'Answered',
-                  '${answerControllers.values.where((c) => c.text.isNotEmpty).length}',
-                  Icons.check_circle_outline,
-                  const Color(0xFF10B981),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildInfoCard(
+                    'Answered',
+                    '${answerControllers.values.where((c) => c.text.isNotEmpty).length}',
+                    Icons.check_circle_outline,
+                    const Color(0xFF10B981),
+                  ),
                 ),
-                _buildInfoCard(
-                  'Remaining',
-                  '${answerControllers.values.where((c) => c.text.isEmpty).length}',
-                  Icons.pending_outlined,
-                  const Color(0xFFF59E0B),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildInfoCard(
+                    'Remaining',
+                    '${answerControllers.values.where((c) => c.text.isEmpty).length}',
+                    Icons.pending_outlined,
+                    const Color(0xFFF59E0B),
+                  ),
                 ),
               ],
             ),
@@ -911,7 +921,7 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
                   onPressed: () {
                     final testResult = TestResult(
                       testId: DateTime.now().millisecondsSinceEpoch.toString(),
-                      testType: 'Short Question',
+                      testType: widget.testType,
                       timestamp: DateTime.now(),
                       score: questions
                           .where((q) => _isAnswerCorrect(
@@ -1090,12 +1100,16 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
             child: Icon(icon, color: color, size: 14),
           ),
           const SizedBox(width: 6),
-          Text(
-            '$title: $value',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
+          Expanded(
+            child: Text(
+              '$title: $value',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
         ],

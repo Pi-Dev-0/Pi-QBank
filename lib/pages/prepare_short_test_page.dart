@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart'; // Import the API key dialog
 import 'fill_in_the_blanks_test_page.dart';
@@ -34,8 +36,9 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
   final List<String> _selectedImageMimeTypes = [];
   String _aiResponse = '';
   bool _isProcessingImage = false;
-  String _selectedLanguage = 'English';
-  final TextEditingController _customCommandController = TextEditingController(); // New controller
+  String _selectedLanguage = 'বাংলা';
+  final TextEditingController _customCommandController =
+      TextEditingController(); // New controller
   bool _showAdvancedSettings = false; // New state variable
   final Uuid _uuid = const Uuid(); // Initialize Uuid
 
@@ -108,6 +111,67 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
     }
   }
 
+  Future<void> _takePhoto() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      );
+
+      if (photo != null) {
+        final File file = File(photo.path);
+        if (await file.exists()) {
+          setState(() {
+            _selectedImages.add(photo);
+            _selectedImageMimeTypes.add(photo.mimeType ?? 'image/jpeg');
+            _aiResponse = '';
+          });
+        }
+      }
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      String message = 'Camera unavailable.';
+      if (e.code == 'camera_access_denied') {
+        message =
+            'Camera permission denied. Please allow camera access in Settings.';
+      } else if (e.message != null && e.message!.contains('startPreview')) {
+        message =
+            'Camera failed to start. Try closing other apps using the camera and restart.';
+      } else {
+        message = 'Camera error: ${e.message ?? e.code}';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          action: SnackBarAction(
+            label: 'Use Gallery',
+            textColor: Colors.white,
+            onPressed: _pickImage,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error taking photo: ${e.toString()}'),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
   String _getAIInstructions(String testType) {
     final int questionsCount = _numberOfQuestions ?? 4;
     final String languageInstruction = _selectedLanguage == 'বাংলা'
@@ -116,8 +180,8 @@ class _PrepareShortTestPageState extends State<PrepareShortTestPage>
     final String imageContext =
         _selectedImages.length > 1 ? 'these images' : 'this image';
     final String customCommand = _customCommandController.text.trim();
-    final String customInstruction = customCommand.isNotEmpty ? '$customCommand. ' : '';
-
+    final String customInstruction =
+        customCommand.isNotEmpty ? '$customCommand. ' : '';
 
     switch (testType) {
       case 'MCQ Test':
@@ -146,9 +210,20 @@ Respond in the following JSON format:
           return '$languageInstruction$customInstruction এই $imageContext সম্পর্কে $questionsCount টি সংক্ষিপ্ত উত্তর প্রশ্ন তৈরি করুন যার জন্য সংক্ষিপ্ত ব্যাখ্যার প্রয়োজন। প্রতিটি উত্তর ১-৩ শব্দের মধ্যে হওয়া উচিত। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
         }
         return '$languageInstruction${customInstruction}Generate $questionsCount short answer questions about $imageContext that require brief explanations. Each answer should be 1-3 words. Each answer must start on a new line with "Answer:".';
+      case 'Quiz Test':
+        if (_selectedLanguage == 'বাংলা') {
+          return '$languageInstruction$customInstruction এই $imageContext সম্পর্কে $questionsCount টি কুইজ প্রশ্ন তৈরি করুন। প্রতিটি প্রশ্নের উত্তর অবশ্যই মাত্র একটি বা দুটি শব্দের মধ্যে হতে হবে। প্রতিটি প্রশ্নের উত্তর একটি নতুন লাইনে "উত্তর:" দিয়ে শুরু হবে।';
+        }
+        return '$languageInstruction${customInstruction}Generate $questionsCount quiz questions about $imageContext. Each answer MUST be only one or two words long. Each answer must start on a new line with "Answer:".';
       case 'Fill In the Blanks':
+        if (_selectedLanguage == 'বাংলা') {
+          return '$languageInstruction$customInstruction এই $imageContext সম্পর্কে $questionsCount টি শূন্যস্থান পূরণ প্রশ্ন তৈরি করুন। বিন্যাস: শূন্যস্থানের জন্য _____ সহ প্রশ্ন, তারপরে সঠিক উত্তর।';
+        }
         return '$languageInstruction${customInstruction}Generate $questionsCount fill-in-the-blank questions about $imageContext. Format: Question with _____ for blanks, followed by the correct answer.';
       default:
+        if (_selectedLanguage == 'বাংলা') {
+          return '$languageInstruction$customInstructionএকটি পরীক্ষার জন্য উপযোগী $questionsCount টি প্রশ্ন তৈরি করুন।';
+        }
         return '$languageInstruction${customInstruction}Generate questions about $imageContext suitable for a test.';
     }
   }
@@ -162,97 +237,166 @@ Respond in the following JSON format:
     });
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      String provider = prefs.getString('global_ai_provider') ?? 'google';
+
       String? apiKey =
           await getApiKey(); // Try to get API key from SharedPreferences
 
       if (apiKey == null || apiKey.isEmpty) {
         // If not found in SharedPreferences, use the default from AppConfig
-        apiKey = AppConfig.geminiApiKey;
+        apiKey = provider == 'openrouter'
+            ? AppConfig.openRouterApiKey
+            : AppConfig.geminiApiKey;
       }
 
       if (apiKey.isEmpty) {
-        // Removed unnecessary non-null assertion.
         if (!mounted) return;
-        showApiKeyDialog(context); // Show dialog if API key is still not set
+        showApiKeyDialog(context);
         setState(() {
           _isProcessingImage = false;
           _aiResponse = 'API Key not set. Please enter your API key.';
         });
         return;
       }
+      String selectedModel = prefs.getString('global_image_model') ??
+          prefs.getString('global_selected_model') ??
+          prefs.getString('selected_model') ??
+          'gemini-2.0-flash-001';
 
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=$apiKey');
+      // Ensure model supports images
+      if (selectedModel.startsWith('gemma') ||
+          selectedModel.contains('image')) {
+        if (provider == 'google') {
+          selectedModel = 'gemini-2.0-flash-001';
+        } else if (provider == 'openrouter') {
+          selectedModel = AppConfig.openRouterModelId;
+        }
+      }
 
-      List<Map<String, dynamic>> parts = [];
+      // Secondary fallback for OpenRouter model if it was gemini-2.0-flash-001 but no provider prefix
+      if (provider == 'openrouter' && !selectedModel.contains('/')) {
+        selectedModel = AppConfig.openRouterModelId;
+      }
+      final baseUrl = prefs.getString('global_ai_base_url') ??
+          (provider == 'openrouter'
+              ? AppConfig.openRouterBaseUrl
+              : 'https://generativelanguage.googleapis.com/v1beta');
+
+      String cleanUrl = baseUrl.trim();
+      if (cleanUrl.isEmpty) {
+        cleanUrl = 'https://generativelanguage.googleapis.com/v1beta';
+      }
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
+
+      final bool isGoogle = provider == 'google';
+      final url = isGoogle
+          ? Uri.parse(
+              '$cleanUrl/models/$selectedModel:generateContent?key=$apiKey')
+          : (cleanUrl.endsWith('/chat/completions')
+              ? Uri.parse(cleanUrl)
+              : Uri.parse('$cleanUrl/chat/completions'));
+
+      Map<String, String> headers = {'Content-Type': 'application/json'};
+      if (!isGoogle) {
+        headers['Authorization'] = 'Bearer $apiKey';
+        if (provider == 'openrouter') {
+          headers['HTTP-Referer'] = 'https://github.com/rashidsahriar/Pi-QBank';
+          headers['X-Title'] = 'Pi-QBank';
+        }
+      }
+
+      List<Map<String, dynamic>> googleParts = [];
+      List<Map<String, dynamic>> openaiUserContent = [];
+      String prompt = _getAIInstructions(_selectedTestType!);
 
       for (int i = 0; i < _selectedImages.length; i++) {
         final image = _selectedImages[i];
-        final mimeType = _selectedImageMimeTypes[i];
         final bytes = await image.readAsBytes();
-        const int maxImageSize = 15 * 1024 * 1024;
-        if (bytes.length > maxImageSize) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Image ${i + 1} is too large. Please choose smaller images (max 15MB each).'),
-              backgroundColor: Colors.orange.shade600,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-          setState(() {
-            _isProcessingImage = false;
-          });
-          return;
-        }
         final base64Image = base64Encode(bytes);
-        parts.add({
-          "inline_data": {"mime_type": mimeType, "data": base64Image}
-        });
+        final mimeType = _selectedImageMimeTypes[i];
+
+        if (isGoogle) {
+          googleParts.add({
+            "inline_data": {"mime_type": mimeType, "data": base64Image}
+          });
+        } else {
+          openaiUserContent.add({
+            "type": "image_url",
+            "image_url": {"url": "data:$mimeType;base64,$base64Image"}
+          });
+        }
       }
 
-      String prompt = _getAIInstructions(_selectedTestType!);
-      parts.add({"text": prompt});
+      dynamic requestBody;
+      if (isGoogle) {
+        googleParts.add({"text": prompt});
+        requestBody = {
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text":
+                      "Analyze the provided images and generate questions based on them."
+                }
+              ]
+            },
+            {
+              "role": "model",
+              "parts": [
+                {
+                  "text":
+                      "Understood. I will analyze the images and prepare questions."
+                }
+              ]
+            },
+            {"role": "user", "parts": googleParts}
+          ]
+        };
+      } else {
+        openaiUserContent.insert(0, {"type": "text", "text": prompt});
+        requestBody = {
+          "model": selectedModel,
+          "messages": [
+            {
+              "role": "system",
+              "content":
+                  "Analyze image and provide test questions as requested."
+            },
+            {"role": "user", "content": openaiUserContent}
+          ]
+        };
+      }
 
-      List<Map<String, dynamic>> contents = [];
+      debugPrint('AI URL: $url');
+      debugPrint('AI Headers: $headers');
+      // debugPrint('AI Request Body: ${json.encode(requestBody)}'); // Too large for log usually
 
-      // Add a simple introductory exchange to set context, similar to ai_page.dart
-      contents.add({
-        "role": "user",
-        "parts": [
-          {
-            "text":
-                "Analyze the provided images and generate questions based on them."
-          }
-        ]
-      });
-      contents.add({
-        "role": "model",
-        "parts": [
-          {
-            "text":
-                "Understood. I will analyze the images and prepare questions."
-          }
-        ]
-      });
-
-      // Add the current images and prompt
-      contents.add({"role": "user", "parts": parts});
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({"contents": contents}),
+        headers: headers,
+        body: json.encode(requestBody),
       );
 
+      debugPrint('AI Response Status: ${response.statusCode}');
+      final String decodedBody = utf8.decode(response.bodyBytes);
+      debugPrint('AI Response Body: $decodedBody');
+
       if (response.statusCode == 200) {
-        final jsonResponse = json.decode(response.body);
+        final jsonResponse = json.decode(decodedBody);
+        String reply = '';
         if (jsonResponse['candidates'] != null &&
             jsonResponse['candidates'].isNotEmpty) {
-          final reply =
-              jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+          reply = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+        } else if (jsonResponse['choices'] != null &&
+            jsonResponse['choices'].isNotEmpty) {
+          reply = jsonResponse['choices'][0]['message']['content'];
+        }
+
+        if (reply.isNotEmpty) {
           setState(() {
             _aiResponse = reply;
           });
@@ -263,14 +407,20 @@ Respond in the following JSON format:
         throw Exception(
             'Failed to get AI understanding. Status: ${response.statusCode}, Body: ${response.body}');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('API Error Detail: $e');
+      debugPrint('Stack Trace: $stackTrace');
       setState(() {
         _aiResponse = 'Error: ${e.toString()}';
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Error getting AI understanding!'),
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
           backgroundColor: Colors.red.shade600,
           behavior: SnackBarBehavior.floating,
           shape:
@@ -528,7 +678,12 @@ Respond in the following JSON format:
             label: 'Test Type',
             icon: Icons.assignment_outlined,
             value: _selectedTestType,
-            items: ['MCQ Test', 'Short Question', 'Fill In the Blanks'],
+            items: [
+              'MCQ Test',
+              'Short Question',
+              'Quiz Test',
+              'Fill In the Blanks'
+            ],
             onChanged: (String? newValue) {
               setState(() {
                 _selectedTestType = newValue;
@@ -542,7 +697,7 @@ Respond in the following JSON format:
             label: 'Select Language',
             icon: Icons.language_outlined,
             value: _selectedLanguage,
-            items: ['English', 'বাংলা'],
+            items: ['বাংলা', 'English'],
             onChanged: (String? newValue) {
               if (newValue != null) {
                 setState(() {
@@ -809,9 +964,12 @@ Respond in the following JSON format:
               ),
               const SizedBox(height: 16),
               Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent), // Hide the default divider
+                data: Theme.of(context).copyWith(
+                    dividerColor:
+                        Colors.transparent), // Hide the default divider
                 child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                  tilePadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                   collapsedBackgroundColor: Colors.grey.shade50,
                   backgroundColor: Colors.grey.shade50,
                   shape: RoundedRectangleBorder(
@@ -826,9 +984,12 @@ Respond in the following JSON format:
                       color: Colors.grey.shade700,
                     ),
                   ),
-                  leading: Icon(Icons.api_outlined, color: Colors.purple.shade600),
+                  leading:
+                      Icon(Icons.api_outlined, color: Colors.purple.shade600),
                   trailing: Icon(
-                    _showAdvancedSettings ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    _showAdvancedSettings
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
                     color: Colors.purple.shade600,
                   ),
                   onExpansionChanged: (bool expanded) {
@@ -1061,6 +1222,17 @@ Respond in the following JSON format:
                         selectedImages: _selectedImages,
                         aiResponse: _aiResponse,
                         language: _selectedLanguage,
+                        testType: 'Short Question',
+                      );
+                      break;
+                    case 'Quiz Test':
+                      testPage = ShortQuestionPage(
+                        numberOfQuestions: _numberOfQuestions!,
+                        testTimeInMinutes: _testTimeInMinutes!,
+                        selectedImages: _selectedImages,
+                        aiResponse: _aiResponse,
+                        language: _selectedLanguage,
+                        testType: 'Quiz Test',
                       );
                       break;
                     case 'Fill In the Blanks':
@@ -1126,50 +1298,96 @@ Respond in the following JSON format:
       ),
       child: Column(
         children: [
-          if (_selectedImages.isEmpty)
-            InkWell(
-              onTap: _pickImage,
-              borderRadius: BorderRadius.circular(16),
-              child: SizedBox(
-                height: 200,
-                width: double.infinity,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(50),
-                      ),
-                      child: Icon(
-                        Icons.cloud_upload_outlined,
-                        size: 48,
-                        color: Colors.blue.shade600,
-                      ),
+          if (_selectedImages.isEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(50),
                     ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Tap to Upload Images',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade700,
-                      ),
+                    child: Icon(
+                      Icons.image_search_outlined,
+                      size: 48,
+                      color: Colors.blue.shade600,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Support JPG, PNG, GIF (Max 15MB per image)',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade500,
-                      ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Add an Image to Generate Questions',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
                     ),
-                  ],
-                ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Choose from gallery or take a new photo',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-            )
-          else
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.photo_library_outlined, size: 20),
+                      label: const Text(
+                        'Choose File',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        foregroundColor: Colors.blue.shade700,
+                        backgroundColor: Colors.blue.shade50,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(color: Colors.blue.shade200),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _takePhoto,
+                      icon: const Icon(Icons.camera_alt_outlined, size: 20),
+                      label: const Text(
+                        'Take Photo',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        foregroundColor: Colors.green.shade700,
+                        backgroundColor: Colors.green.shade50,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(color: Colors.green.shade200),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else
             Column(
               children: [
                 SizedBox(
@@ -1228,21 +1446,49 @@ Respond in the following JSON format:
                     },
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: _pickImage,
-                  icon: const Icon(Icons.add_a_photo_outlined),
-                  label: const Text('Add More Images'),
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: Colors.blue.shade600,
-                    backgroundColor: Colors.blue.shade50,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _pickImage,
+                          icon: const Icon(Icons.photo_library_outlined,
+                              size: 18),
+                          label: const Text('Add More'),
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: Colors.blue.shade700,
+                            backgroundColor: Colors.blue.shade50,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: Colors.blue.shade200),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _takePhoto,
+                          icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                          label: const Text('Take Photo'),
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: Colors.green.shade700,
+                            backgroundColor: Colors.green.shade50,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: Colors.green.shade200),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
               ],
             ),
         ],

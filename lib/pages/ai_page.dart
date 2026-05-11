@@ -48,8 +48,10 @@ class _AIPageState extends State<AIPage>
   String _toneLanguage = '';
   String _tonePurpose = '';
   List<Map<String, String>> _customTraits = [];
-  String _selectedModel = 'gemini-2.5-flash-preview-09-2025'; // Default model
-  // Removed _customApiKey as it will be fetched directly
+  String _textModel = 'gemma-3-27b-it';
+  String _imageModel = 'gemini-2.5-flash-preview-09-2025';
+  String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+  String _provider = 'google';
 
   // Image generation state
 
@@ -239,8 +241,19 @@ class _AIPageState extends State<AIPage>
       } else {
         _customTraits = [];
       }
-      _selectedModel = prefs.getString('selected_model') ??
-          'gemma-3-27b-it'; // Default to gemma-3-27b-it if not found
+      _textModel = prefs.getString('global_text_model') ?? 
+          prefs.getString('global_selected_model') ??
+          prefs.getString('selected_model') ??
+          'gemma-3-27b-it';
+          
+      _imageModel = prefs.getString('global_image_model') ?? 
+          prefs.getString('global_selected_model') ??
+          prefs.getString('selected_model') ??
+          'gemini-2.5-flash-preview-09-2025';
+          
+      _baseUrl = prefs.getString('global_ai_base_url') ??
+          'https://generativelanguage.googleapis.com/v1beta';
+      _provider = prefs.getString('global_ai_provider') ?? 'google';
     });
   }
 
@@ -313,13 +326,7 @@ class _AIPageState extends State<AIPage>
     _scrollToBottom();
 
     try {
-      String primaryModel = _selectedModel;
-      if (_selectedImage != null) {
-        if (!_selectedModel.startsWith('gemini') ||
-            _selectedModel == 'gemini-2.0-flash') {
-          primaryModel = 'gemini-2.5-flash-preview-09-2025';
-        }
-      }
+      String primaryModel = _selectedImage != null ? _imageModel : _textModel;
 
       // Define fallback models
       List<String> modelsToTry = [primaryModel];
@@ -352,74 +359,131 @@ class _AIPageState extends State<AIPage>
       for (var model in modelsToTry) {
         try {
           debugPrint('Trying model: $model');
-          final url = Uri.parse(
-              'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
+          String cleanUrl = _baseUrl.trim();
+          if (cleanUrl.isEmpty) {
+            cleanUrl = 'https://generativelanguage.googleapis.com/v1beta';
+          }
+          if (cleanUrl.endsWith('/')) {
+            cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+          }
+          
+          final bool isGoogle = _provider == 'google';
+          final url = isGoogle 
+              ? Uri.parse('$cleanUrl/models/$model:generateContent?key=$apiKey')
+              : (cleanUrl.endsWith('/chat/completions') 
+                  ? Uri.parse(cleanUrl) 
+                  : Uri.parse('$cleanUrl/chat/completions'));
 
-          List<Map<String, dynamic>> contents = [];
-          String personaPrompt = "You are a real human being.";
-          if (_toneName.isNotEmpty) {
-            personaPrompt += " Your name is $_toneName.";
+          Map<String, String> headers = {'Content-Type': 'application/json'};
+          if (!isGoogle) {
+            headers['Authorization'] = 'Bearer $apiKey';
+            if (_provider == 'openrouter') {
+              headers['HTTP-Referer'] = 'https://github.com/rashidsahriar/Pi-QBank';
+              headers['X-Title'] = 'Pi-QBank';
+            }
           }
-          if (_toneGender.isNotEmpty) {
-            personaPrompt += " You identify as $_toneGender.";
-          }
-          if (_toneRelationship.isNotEmpty) {
-            personaPrompt += " Your role is $_toneRelationship.";
-          }
-          if (_toneLanguage.isNotEmpty) {
-            personaPrompt += " Always respond strictly in $_toneLanguage.";
-          }
-          if (_tonePurpose.isNotEmpty) {
-            personaPrompt += " Your main purpose is $_tonePurpose.";
-          }
-          if (_customTraits.isNotEmpty) {
-            personaPrompt += " Additionally, consider these traits:";
-            for (var trait in _customTraits) {
-              if (trait['trait']?.isNotEmpty == true &&
-                  trait['value']?.isNotEmpty == true) {
-                personaPrompt += " ${trait['trait']}: ${trait['value']}.";
+
+          dynamic body;
+          
+          if (isGoogle) {
+            List<Map<String, dynamic>> contents = [];
+            String personaPrompt = "You are a real human being.";
+            if (_toneName.isNotEmpty) personaPrompt += " Your name is $_toneName.";
+            if (_toneGender.isNotEmpty) personaPrompt += " You identify as $_toneGender.";
+            if (_toneRelationship.isNotEmpty) personaPrompt += " Your role is $_toneRelationship.";
+            if (_toneLanguage.isNotEmpty) personaPrompt += " Always respond strictly in $_toneLanguage.";
+            if (_tonePurpose.isNotEmpty) personaPrompt += " Your main purpose is $_tonePurpose.";
+            if (_customTraits.isNotEmpty) {
+              personaPrompt += " Additionally, consider these traits:";
+              for (var trait in _customTraits) {
+                if (trait['trait']?.isNotEmpty == true && trait['value']?.isNotEmpty == true) {
+                  personaPrompt += " ${trait['trait']}: ${trait['value']}.";
+                }
               }
             }
-          }
 
-          contents.add({
-            "role": "user",
-            "parts": [
-              {"text": personaPrompt}
-            ]
-          });
-          contents.add({
-            "role": "model",
-            "parts": [
-              {"text": "Understood. I will help you."}
-            ]
-          });
+            contents.add({
+              "role": "user",
+              "parts": [{"text": personaPrompt}]
+            });
+            contents.add({
+              "role": "model",
+              "parts": [{"text": "Understood. I will help you."}]
+            });
 
-          for (var msg in _messages) {
-            List<Map<String, dynamic>> msgParts = [];
-            msgParts.add({"text": msg.text});
-            if (msg.userImageBase64 != null) {
-              msgParts.add({
-                "inline_data": {
-                  "mime_type": "image/jpeg",
-                  "data": msg.userImageBase64
-                }
-              });
-            } else if (msg.imagePath != null) {
-              final bytes = await File(msg.imagePath!).readAsBytes();
-              final base64Image = base64Encode(bytes);
-              msgParts.add({
-                "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
-              });
+            for (var msg in _messages) {
+              List<Map<String, dynamic>> msgParts = [];
+              msgParts.add({"text": msg.text});
+              if (msg.userImageBase64 != null) {
+                msgParts.add({
+                  "inline_data": {
+                    "mime_type": "image/jpeg",
+                    "data": msg.userImageBase64
+                  }
+                });
+              } else if (msg.imagePath != null) {
+                final bytes = await File(msg.imagePath!).readAsBytes();
+                final base64Image = base64Encode(bytes);
+                msgParts.add({
+                  "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
+                });
+              }
+              contents.add({"role": msg.isUser ? "user" : "model", "parts": msgParts});
             }
-            contents.add(
-                {"role": msg.isUser ? "user" : "model", "parts": msgParts});
+            body = {"contents": contents};
+          } else {
+            // OpenAI / OpenRouter format
+            List<Map<String, dynamic>> messages = [];
+            String systemPrompt = "You are a real human being.";
+            if (_toneName.isNotEmpty) systemPrompt += " Your name is $_toneName.";
+            if (_toneGender.isNotEmpty) systemPrompt += " You identify as $_toneGender.";
+            if (_toneRelationship.isNotEmpty) systemPrompt += " Your role is $_toneRelationship.";
+            if (_toneLanguage.isNotEmpty) systemPrompt += " Always respond strictly in $_toneLanguage.";
+            if (_tonePurpose.isNotEmpty) systemPrompt += " Your main purpose is $_tonePurpose.";
+            if (_customTraits.isNotEmpty) {
+              systemPrompt += " Additionally, consider these traits:";
+              for (var trait in _customTraits) {
+                if (trait['trait']?.isNotEmpty == true && trait['value']?.isNotEmpty == true) {
+                  systemPrompt += " ${trait['trait']}: ${trait['value']}.";
+                }
+              }
+            }
+            
+            messages.add({"role": "system", "content": systemPrompt});
+
+            for (var msg in _messages) {
+              if (msg.userImageBase64 != null || msg.imagePath != null) {
+                String? b64;
+                if (msg.userImageBase64 != null) {
+                  b64 = msg.userImageBase64;
+                } else {
+                  final bytes = await File(msg.imagePath!).readAsBytes();
+                  b64 = base64Encode(bytes);
+                }
+                messages.add({
+                  "role": msg.isUser ? "user" : "assistant",
+                  "content": [
+                    {"type": "text", "text": msg.text},
+                    {
+                      "type": "image_url",
+                      "image_url": {"url": "data:image/jpeg;base64,$b64"}
+                    }
+                  ]
+                });
+              } else {
+                messages.add({
+                  "role": msg.isUser ? "user" : "assistant",
+                  "content": msg.text
+                });
+              }
+            }
+            body = {"model": model, "messages": messages};
           }
 
           final response = await http.post(
             url,
-            headers: {'Content-Type': 'application/json'},
-            body: json.encode({"contents": contents}),
+            headers: headers,
+            body: json.encode(body),
           );
 
           if (response.statusCode == 200) {
@@ -435,7 +499,8 @@ class _AIPageState extends State<AIPage>
       }
 
       if (finalResponse != null && finalResponse.statusCode == 200) {
-        final jsonResponse = json.decode(finalResponse.body);
+        final String decodedBody = utf8.decode(finalResponse.bodyBytes);
+        final jsonResponse = json.decode(decodedBody);
         if (jsonResponse['candidates'] != null &&
             jsonResponse['candidates'].isNotEmpty) {
           final reply =
@@ -449,7 +514,32 @@ class _AIPageState extends State<AIPage>
                 onStop: _stop,
                 isSpeaking: false));
             if (usedModel != null) {
-              _selectedModel = usedModel;
+              if (_selectedImage != null) {
+                _imageModel = usedModel;
+              } else {
+                _textModel = usedModel;
+              }
+            }
+          });
+          await _saveCurrentChat();
+        } else if (jsonResponse['choices'] != null && 
+                  jsonResponse['choices'].isNotEmpty) {
+          // Response from OpenAI / OpenRouter
+          final reply = jsonResponse['choices'][0]['message']['content'];
+          if (!mounted) return;
+          setState(() {
+            _messages.add(ChatMessage(
+                text: reply,
+                isUser: false,
+                onSpeak: (text) => _speak(text),
+                onStop: _stop,
+                isSpeaking: false));
+            if (usedModel != null) {
+              if (_selectedImage != null) {
+                _imageModel = usedModel;
+              } else {
+                _textModel = usedModel;
+              }
             }
           });
           await _saveCurrentChat();
@@ -655,7 +745,7 @@ class _AIPageState extends State<AIPage>
                                 color: colorScheme.primary.withOpacity(0.7)),
                             const SizedBox(width: 8),
                             Text(
-                              'Using: $_selectedModel',
+                              'Using: ${_selectedImage != null ? "$_imageModel (Image)" : "$_textModel (Text)"}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colorScheme.onSurfaceVariant,

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../widgets/custom_app_bar.dart';
-import '../widgets/api_key_dialog.dart';
 
 class PersonalToneSettingPage extends StatefulWidget {
   const PersonalToneSettingPage({super.key});
@@ -20,23 +19,10 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
   final TextEditingController _languageController = TextEditingController();
   final TextEditingController _purposeController = TextEditingController();
   final List<Map<String, String>> _customTraits = [];
-  String? _selectedModel;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-
-  final List<String> _availableModels = [
-    'gemma-3-27b-it',
-    'gemma-3n-e4b-it',
-    'gemini-2.5-flash-preview-09-2025',
-    'gemini-2.5-flash-image',
-    'gemini-robotics-er-1.5-preview',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-exp',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-  ];
 
   List<Map<String, dynamic>> _presetTones = [];
   List<Map<String, dynamic>> _customSavedPresets = [];
@@ -162,7 +148,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
           _customTraits.add(Map<String, String>.from(jsonDecode(jsonString)));
         }
       }
-      _selectedModel = prefs.getString('selected_model') ?? 'gemma-3-27b-it';
 
       // Load custom saved presets
       final savedPresetsJson = prefs.getStringList('custom_saved_presets');
@@ -210,7 +195,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
     await prefs.setString('tone_relationship', _relationshipController.text);
     await prefs.setString('tone_language', _languageController.text);
     await prefs.setString('tone_purpose', _purposeController.text);
-    await prefs.setString('selected_model', _selectedModel ?? 'gemma-3-27b-it');
 
     final customTraitsJson =
         _customTraits.map((trait) => jsonEncode(trait)).toList();
@@ -444,8 +428,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                       const SizedBox(height: 20),
                       _buildPresetTonesCard(textTheme, colorScheme),
                       const SizedBox(height: 20),
-                      _buildModelSettingsCard(textTheme, colorScheme),
-                      const SizedBox(height: 20),
                       _buildBasicInfoCard(textTheme, colorScheme),
                       const SizedBox(height: 20),
                       _buildCustomTraitsCard(textTheme, colorScheme),
@@ -642,112 +624,6 @@ class _PersonalToneSettingPageState extends State<PersonalToneSettingPage>
                 tooltip: 'Delete Preset',
               ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModelSettingsCard(TextTheme textTheme, ColorScheme colorScheme) {
-    return _buildAnimatedCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader(
-            'Model Settings',
-            Icons.memory,
-            Colors.blue,
-            textTheme,
-          ),
-          const SizedBox(height: 20),
-          _buildEnhancedDropdown(),
-          const SizedBox(height: 20),
-          _buildApiKeyButton(textTheme, colorScheme),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEnhancedDropdown() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: DropdownButtonFormField<String>(
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: 'Select AI Model',
-          labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.transparent,
-          prefixIcon: Icon(Icons.smart_toy, color: colorScheme.primary),
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        ),
-        value: _selectedModel,
-        items: _availableModels.map((model) {
-          return DropdownMenuItem<String>(
-            value: model,
-            child: Text(
-              model,
-              style: TextStyle(
-                color: colorScheme.onSurface,
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          );
-        }).toList(),
-        onChanged: (selectedModel) {
-          setState(() {
-            _selectedModel = selectedModel;
-          });
-        },
-        hint: Text('Choose a model',
-            style: TextStyle(color: colorScheme.onSurfaceVariant)),
-        dropdownColor: colorScheme.surfaceContainerHigh,
-      ),
-    );
-  }
-
-  Widget _buildApiKeyButton(TextTheme textTheme, ColorScheme colorScheme) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.secondary.withAlpha((0.2 * 255).toInt()),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ElevatedButton.icon(
-        onPressed: () => showApiKeyDialog(context),
-        icon: Icon(Icons.vpn_key, color: colorScheme.onSecondaryContainer),
-        label: Text(
-          'Manage API Key',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onSecondaryContainer,
-            fontSize: 16,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
         ),
       ),
     );

@@ -8,6 +8,9 @@ class AppConfig {
       String.fromEnvironment('NOTIFICATION_API');
   static const String youtubeApiKey = String.fromEnvironment('YOUTUBE_API_KEY');
   static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
+  static const String openRouterApiKey = String.fromEnvironment('OPENROUTER_API_KEY', defaultValue: '');
+  static const String openRouterBaseUrl = 'https://openrouter.ai/api/v1/chat/completions';
+  static const String openRouterModelId = 'google/gemini-2.0-flash-001';
   static const String fileUploadApi =
       String.fromEnvironment('UPLOADCARE_PUBLIC_KEY');
   static const String uploadBase =

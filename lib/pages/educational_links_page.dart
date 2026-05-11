@@ -44,10 +44,16 @@ class _EducationalLinksPageState extends State<EducationalLinksPage> {
         setState(() {
           educationalLinks =
               data.where((item) => item['Type'] == 'Edu').map((item) {
+            String hiddenElementsStr = item['hiddenElements']?.toString() ?? '';
+            List<String> hiddenElements = hiddenElementsStr.isNotEmpty
+                ? hiddenElementsStr.split(',').map((e) => e.trim()).toList()
+                : [];
+
             return {
               'title': item['Name'],
               'url': item['Link'],
-              'favicon': _getFaviconUrl(item['Link'])
+              'favicon': _getFaviconUrl(item['Link']),
+              'hiddenElements': hiddenElements
             };
           }).toList();
           _isLoading = false;
@@ -131,6 +137,7 @@ class _EducationalLinksPageState extends State<EducationalLinksPage> {
                               builder: (context) => _WebViewScreen(
                                 title: link['title']!,
                                 url: link['url']!,
+                                hiddenElements: (link['hiddenElements'] as List<dynamic>).cast<String>(),
                               ),
                             ),
                           );
@@ -202,8 +209,9 @@ class _EducationalLinksPageState extends State<EducationalLinksPage> {
 class _WebViewScreen extends StatefulWidget {
   final String title;
   final String url;
+  final List<String> hiddenElements;
 
-  const _WebViewScreen({required this.title, required this.url});
+  const _WebViewScreen({required this.title, required this.url, this.hiddenElements = const []});
 
   @override
   State<_WebViewScreen> createState() => _WebViewScreenState();
@@ -236,6 +244,36 @@ class _WebViewScreenState extends State<_WebViewScreen> {
             setState(() {
               _isLoading = false;
             });
+            // Inject JavaScript to hide elements.
+            // This script runs periodically to hide dynamically loaded content.
+            controller.runJavaScript("""
+              (function() {
+                  const styleId = 'gemini-hide-elements-style';
+                  const css = `
+                   ${widget.hiddenElements.join(', ')}
+                   {
+                       display: none !important;
+                   }
+                  `;
+
+                  function addStyle() {
+                      var styleElement = document.getElementById(styleId);
+                      if (!styleElement) {
+                          styleElement = document.createElement('style');
+                          styleElement.id = styleId;
+                          styleElement.innerHTML = css;
+                          document.head.appendChild(styleElement);
+                      }
+                  }
+
+                  // Run initially on page load
+                  addStyle();
+
+                  // And retry periodically to catch elements that load later
+                  // or to re-apply if the website removes the style tag.
+                  setInterval(addStyle, 500);
+              })();
+              """);
           },
           onWebResourceError: (WebResourceError error) {
             // Handle error

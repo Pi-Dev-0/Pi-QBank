@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import '../widgets/custom_app_bar.dart';
@@ -154,8 +155,45 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
       throw Exception('API Key not set. Please enter your API key.');
     }
 
-    final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=$apiKey');
+    final prefs = await SharedPreferences.getInstance();
+    String provider = prefs.getString('global_ai_provider') ?? 'google';
+    String selectedModel = prefs.getString('global_image_model') ?? 
+                          prefs.getString('global_selected_model') ?? 
+                          prefs.getString('selected_model') ?? 
+                          'gemini-2.0-flash-001';
+
+    // Ensure model supports images
+    if (selectedModel.startsWith('gemma') || selectedModel.contains('image')) {
+      if (provider == 'google') {
+        selectedModel = 'gemini-2.0-flash-001';
+      }
+    }
+    final baseUrl = prefs.getString('global_ai_base_url') ??
+        'https://generativelanguage.googleapis.com/v1beta';
+
+    String cleanUrl = baseUrl.trim();
+    if (cleanUrl.isEmpty) {
+      cleanUrl = 'https://generativelanguage.googleapis.com/v1beta';
+    }
+    if (cleanUrl.endsWith('/')) {
+      cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+    }
+    
+    final bool isGoogle = provider == 'google';
+    final url = isGoogle 
+        ? Uri.parse('$cleanUrl/models/$selectedModel:generateContent?key=$apiKey')
+        : (cleanUrl.endsWith('/chat/completions')
+            ? Uri.parse(cleanUrl)
+            : Uri.parse('$cleanUrl/chat/completions'));
+
+    Map<String, String> headers = {'Content-Type': 'application/json'};
+    if (!isGoogle) {
+      headers['Authorization'] = 'Bearer $apiKey';
+      if (provider == 'openrouter') {
+        headers['HTTP-Referer'] = 'https://github.com/rashidsahriar/Pi-QBank';
+        headers['X-Title'] = 'Pi-QBank';
+      }
+    }
 
     List<String> questions = [];
     List<String> answers = [];
@@ -237,25 +275,51 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
           debugPrint('Error processing image for $questionType question: $e');
         }
       }
-      parts.add({"text": prompt});
-
-      List<Map<String, dynamic>> contents = [
-        {"role": "user", "parts": parts}
-      ];
+      dynamic requestBody;
+      if (isGoogle) {
+        parts.add({"text": prompt});
+        requestBody = {
+          "contents": [
+            {"role": "user", "parts": parts}
+          ]
+        };
+      } else {
+        // OpenAI / OpenRouter format
+        List<Map<String, dynamic>> userContent = [];
+        userContent.add({"type": "text", "text": prompt});
+        for (File image in images) {
+          final imageBytes = await image.readAsBytes();
+          final base64Image = base64Encode(imageBytes);
+          userContent.add({
+            "type": "image_url",
+            "image_url": {"url": "data:image/jpeg;base64,$base64Image"}
+          });
+        }
+        requestBody = {
+          "model": selectedModel,
+          "messages": [
+            {"role": "user", "content": userContent}
+          ]
+        };
+      }
 
       try {
         final response = await http.post(
           url,
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({"contents": contents}),
+          headers: headers,
+          body: json.encode(requestBody),
         );
 
         if (response.statusCode == 200) {
-          final jsonResponse = json.decode(response.body);
-          if (jsonResponse['candidates'] != null &&
-              jsonResponse['candidates'].isNotEmpty) {
-            final reply =
-                jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+          final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+          String reply = '';
+          if (jsonResponse['candidates'] != null && jsonResponse['candidates'].isNotEmpty) {
+            reply = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+          } else if (jsonResponse['choices'] != null && jsonResponse['choices'].isNotEmpty) {
+            reply = jsonResponse['choices'][0]['message']['content'];
+          }
+          
+          if (reply.isNotEmpty) {
             debugPrint('Raw API Reply (Diagnostic): $reply');
 
             // Process the reply for short and mcq questions
@@ -343,11 +407,15 @@ class _ExamPaperBuilderPageState extends State<ExamPaperBuilderPage>
         );
 
         if (response.statusCode == 200) {
-          final jsonResponse = json.decode(response.body);
-          if (jsonResponse['candidates'] != null &&
-              jsonResponse['candidates'].isNotEmpty) {
-            final reply =
-                jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+          final jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+          String reply = '';
+          if (jsonResponse['candidates'] != null && jsonResponse['candidates'].isNotEmpty) {
+            reply = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+          } else if (jsonResponse['choices'] != null && jsonResponse['choices'].isNotEmpty) {
+            reply = jsonResponse['choices'][0]['message']['content'];
+          }
+          
+          if (reply.isNotEmpty) {
             debugPrint('Raw API Reply (Diagnostic): $reply');
 
             try {

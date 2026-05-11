@@ -144,6 +144,7 @@ import 'pages/guide_book.dart';
 import 'pages/notes_remainder_page.dart';
 import 'pages/hand_notes/hand_notes_page.dart';
 import 'services/adsterra_service.dart';
+import 'pages/ai_model_settings_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -260,6 +261,7 @@ class MyApp extends StatelessWidget {
         '/downloaded': (context) => const DownloadedPapersPage(),
         '/pdf_reader': (context) => const PdfReaderPage(),
         '/hand_notes': (context) => const HandNotesPage(),
+        '/ai_settings': (context) => const AIModelSettingsPage(),
 
         // SSC Subject Routes
         '/ssc_bangla_1st': (context) => const SSCBanglaFirstPaper(),

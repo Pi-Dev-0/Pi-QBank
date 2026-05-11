@@ -494,6 +494,8 @@ class _ShortQuestionAnalyticsPageState
         return [const Color(0xFF0077B6), const Color(0xFF00B4D8)];
       case 'Short Question':
         return [const Color(0xFF6A057F), const Color(0xFF9B2226)];
+      case 'Quiz Test':
+        return [const Color(0xFF009688), const Color(0xFF4DB6AC)]; // Teal gradient for Quiz
       case 'Fill In the Blanks':
         return [const Color(0xFFF77F00), const Color(0xFFFCBF49)];
       default:
@@ -858,6 +860,8 @@ class _ShortQuestionAnalyticsPageState
         return Icons.quiz;
       case 'Short Question':
         return Icons.short_text;
+      case 'Quiz Test':
+        return Icons.bolt; // Fast icon for Quiz
       case 'Fill In the Blanks':
         return Icons.edit_note;
       default:
