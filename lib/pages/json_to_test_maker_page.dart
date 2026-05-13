@@ -103,7 +103,6 @@ Format:
 }''';
     }
   }
-
   void _copyToClipboard() {
     Clipboard.setData(ClipboardData(text: _getCustomInstruction()));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -114,6 +113,25 @@ Format:
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    ClipboardData? data = await Clipboard.getData('text/plain');
+    if (data != null && data.text != null) {
+      if (!mounted) return;
+      setState(() {
+        _jsonController.text = data.text!;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Text pasted from clipboard'),
+          backgroundColor: Colors.teal.shade600,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
   }
 
   void _buildTest() {
@@ -491,20 +509,9 @@ Format:
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Step 3: Paste JSON',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              TextButton.icon(
-                onPressed: () => _jsonController.clear(),
-                icon: const Icon(Icons.clear_all, size: 18),
-                label: const Text('Clear'),
-                style: TextButton.styleFrom(foregroundColor: Colors.red.shade600),
-              ),
-            ],
+          const Text(
+            'Step 3: Paste JSON',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -528,6 +535,29 @@ Format:
               ),
             ),
             style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: _pasteFromClipboard,
+                icon: const Icon(Icons.paste_outlined, size: 18),
+                label: const Text('Paste'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.teal.shade600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () => _jsonController.clear(),
+                icon: const Icon(Icons.clear_all, size: 18),
+                label: const Text('Clear'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red.shade600,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -564,7 +594,7 @@ Format:
             Icon(Icons.rocket_launch_outlined),
             SizedBox(width: 12),
             Text(
-              'Build Test Now',
+              'Build Test',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
