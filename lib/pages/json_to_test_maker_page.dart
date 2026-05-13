@@ -391,6 +391,7 @@ Format:
           child: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             onChanged: onChanged,
             decoration: const InputDecoration(
@@ -426,8 +427,12 @@ Format:
             child: DropdownButton<String>(
               isExpanded: true,
               value: value,
+              alignment: Alignment.center,
               icon: Icon(Icons.keyboard_arrow_down, color: Colors.teal.shade600),
-              items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              items: items.map((e) => DropdownMenuItem(
+                value: e, 
+                child: Center(child: Text(e))
+              )).toList(),
               onChanged: onChanged,
             ),
           ),
