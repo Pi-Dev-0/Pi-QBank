@@ -9,6 +9,7 @@ import 'package:pi_qbank/pages/notes_remainder_page.dart';
 import 'package:pi_qbank/pages/educational_links_page.dart';
 import 'package:pi_qbank/widgets/youtube_player_dialog.dart';
 import 'package:pi_qbank/pages/pdf_reader_page.dart';
+import 'package:pi_qbank/pages/json_to_test_maker_page.dart';
 import '../widgets/app_drawer.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -70,6 +71,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const ExamPaperBuilderPage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.code_outlined,
+        title: 'Json to Test maker',
+        description: 'Make questions or tests from JSON text',
+        accentColor: Colors.teal,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const JsonToTestMakerPage(),
             ),
           );
         },
