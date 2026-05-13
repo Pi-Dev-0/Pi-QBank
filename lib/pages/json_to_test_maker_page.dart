@@ -14,6 +14,7 @@ class JsonToTestMakerPage extends StatefulWidget {
 
 class _JsonToTestMakerPageState extends State<JsonToTestMakerPage> with TickerProviderStateMixin {
   final TextEditingController _jsonController = TextEditingController();
+  final TextEditingController _countController = TextEditingController(text: '10');
   String _selectedTestType = 'MCQ';
   String _selectedLanguage = 'বাংলা';
   
@@ -45,12 +46,15 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage> with TickerPr
   void dispose() {
     _animationController.dispose();
     _jsonController.dispose();
+    _countController.dispose();
     super.dispose();
   }
 
   String _getCustomInstruction() {
+    final int count = int.tryParse(_countController.text) ?? 10;
+    final String countText = 'Generate exactly $count questions.';
     if (_selectedTestType == 'MCQ') {
-      return '''Analyze the provided image and generate MCQ questions in JSON format.
+      return '''Analyze the provided image and $countText
 Language: $_selectedLanguage
 Format:
 {
@@ -68,7 +72,7 @@ Format:
   ]
 }''';
     } else if (_selectedTestType == 'Short Question') {
-      return '''Analyze the provided image and generate Short Answer questions in JSON format.
+      return '''Analyze the provided image and $countText
 Language: $_selectedLanguage
 Format:
 {
@@ -80,7 +84,7 @@ Format:
   ]
 }''';
     } else {
-      return '''Analyze the provided image and generate Creative (Srojonshil) questions in JSON format.
+      return '''Analyze the provided image and $countText
 Language: $_selectedLanguage
 Format:
 {
@@ -312,18 +316,16 @@ Format:
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
+          _buildDropdown(
+            label: 'Test Type',
+            icon: Icons.quiz_outlined,
+            value: _selectedTestType,
+            items: ['MCQ', 'Short Question', 'Creative Question'],
+            onChanged: (val) => setState(() => _selectedTestType = val!),
+          ),
+          const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Test Type',
-                  icon: Icons.quiz_outlined,
-                  value: _selectedTestType,
-                  items: ['MCQ', 'Short Question', 'Creative Question'],
-                  onChanged: (val) => setState(() => _selectedTestType = val!),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: _buildDropdown(
                   label: 'Language',
@@ -333,10 +335,53 @@ Format:
                   onChanged: (val) => setState(() => _selectedLanguage = val!),
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildNumberInput(
+                  label: 'Questions Count',
+                  icon: Icons.format_list_numbered,
+                  controller: _countController,
+                  onChanged: (val) => setState(() {}),
+                ),
+              ),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildNumberInput({
+    required String label,
+    required IconData icon,
+    required TextEditingController controller,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        const SizedBox(height: 4),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: onChanged,
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
