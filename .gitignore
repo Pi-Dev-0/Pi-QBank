@@ -33,6 +33,8 @@ migrate_working_dir/
 .env
 *.env
 config.json
+android/key.properties
+*.jks
 
 # Symbolication related
 app.*.symbols

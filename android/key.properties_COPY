@@ -1,0 +1,4 @@
+storePassword=[PASSWORD]
+keyPassword=[PASSWORD]
+keyAlias=piqbank_key
+storeFile=upload-keystore.jks
