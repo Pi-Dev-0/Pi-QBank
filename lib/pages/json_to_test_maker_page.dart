@@ -4,6 +4,8 @@ import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/pages/mcq_test_page.dart';
 import 'package:pi_qbank/pages/short_question_page.dart';
 import 'dart:convert';
+import 'dart:developer' as dev;
+import 'package:http/http.dart' as http;
 
 class JsonToTestMakerPage extends StatefulWidget {
   const JsonToTestMakerPage({super.key});
@@ -15,8 +17,14 @@ class JsonToTestMakerPage extends StatefulWidget {
 class _JsonToTestMakerPageState extends State<JsonToTestMakerPage> with TickerProviderStateMixin {
   final TextEditingController _jsonController = TextEditingController();
   final TextEditingController _countController = TextEditingController(text: '10');
+  final TextEditingController _durationController = TextEditingController(text: '10'); // New Time Controller
+  
   String _selectedTestType = 'MCQ';
   String _selectedLanguage = 'বাংলা';
+  bool _isUploading = false;
+
+  // Replace with your actual Google Apps Script Web App URL after deploying
+  final String _googleWebAppUrl = 'https://script.google.com/macros/s/AKfycbwAMFYO2yPtEmxK1Jbhu727bSvFei8I7ZQzUqXm079Gzj4w_tw9xreN3j3bl9mrwtkbTg/exec';
   
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -47,14 +55,24 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage> with TickerPr
     _animationController.dispose();
     _jsonController.dispose();
     _countController.dispose();
+    _durationController.dispose();
     super.dispose();
   }
 
   String _getCustomInstruction() {
     final int count = int.tryParse(_countController.text) ?? 10;
-    final String countText = 'Generate exactly $count questions.';
+    
+    // The core instruction heavily restricts the AI from referencing the screenshot or UI elements
+    final String baseInstruction = '''Act as an expert educator. Analyze the core educational content or text in the provided image and generate exactly $count questions based on it.
+
+CRITICAL RULES:
+1. NEVER mention the image, file name, screenshot, or use phrases like "In the image", "According to the picture", etc.
+2. IGNORE all device UI elements, battery percentages, app interfaces (like ChatGPT/Gemini), timestamps, and irrelevant background details.
+3. Focus PURELY on the academic subject matter, text, or main concept.
+4. Formulate the questions so they are completely standalone and make perfect sense to a student who has never seen the original image.''';
+
     if (_selectedTestType == 'MCQ') {
-      return '''Analyze the provided image and $countText
+      return '''$baseInstruction
 Language: $_selectedLanguage
 Format:
 {
@@ -72,7 +90,7 @@ Format:
   ]
 }''';
     } else if (_selectedTestType == 'Short Question') {
-      return '''Analyze the provided image and $countText
+      return '''$baseInstruction
 Language: $_selectedLanguage
 Format:
 {
@@ -84,7 +102,7 @@ Format:
   ]
 }''';
     } else {
-      return '''Analyze the provided image and $countText
+      return '''$baseInstruction
 Language: $_selectedLanguage
 Format:
 {
@@ -103,6 +121,7 @@ Format:
 }''';
     }
   }
+
   void _copyToClipboard() {
     Clipboard.setData(ClipboardData(text: _getCustomInstruction()));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -134,6 +153,7 @@ Format:
     }
   }
 
+  // Validates syntax and brings up the Action Dialog options
   void _buildTest() {
     final String jsonText = _jsonController.text.trim();
     if (jsonText.isEmpty) {
@@ -150,43 +170,225 @@ Format:
         return;
       }
 
-      if (_selectedTestType == 'MCQ') {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MCQTestPage(
-              numberOfQuestions: questions.length,
-              testTimeInMinutes: 10, // Default time
-              aiResponse: jsonText,
-              language: _selectedLanguage,
-            ),
-          ),
-        );
-      } else if (_selectedTestType == 'Short Question') {
-        // For Short Questions, we need to convert JSON to the text format expected by ShortQuestionPage
-        String formattedResponse = '';
-        for (int i = 0; i < questions.length; i++) {
-          final q = questions[i];
-          formattedResponse += '${i + 1}. ${q['question']}\nউত্তর: ${q['answer']}\n\n';
-        }
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ShortQuestionPage(
-              numberOfQuestions: questions.length,
-              testTimeInMinutes: 10,
-              aiResponse: formattedResponse,
-              language: _selectedLanguage,
-            ),
-          ),
-        );
-      } else {
-        // For Creative Questions
-        _showCreativeQuestionsDialog(questions);
-      }
+      _showActionDialog(questions, jsonText);
     } catch (e) {
       _showError('Failed to parse JSON: ${e.toString()}');
+    }
+  }
+
+  // Popup Dialog to Choose Direct Action or Upload Route
+  void _showActionDialog(List questions, String jsonText) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Test Successfully Built!', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Text('Your parser successfully processed ${questions.length} questions. Choose your next step:'),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal.shade100,
+                foregroundColor: Colors.teal.shade800,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _navigateToTestPage(questions, jsonText);
+              },
+              child: const Text('Start Test'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal.shade600,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _showCategorizationDialog(questions, jsonText);
+              },
+              child: const Text('Upload & Start'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Secondary Dialog asking user to input Categorization parameters
+  void _showCategorizationDialog(List questions, String jsonText) {
+    String selectedClass = 'SSC';
+    String selectedSubject = 'Bangla';
+    final TextEditingController topicController = TextEditingController();
+
+    final List<String> classList = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'JSC', 'SSC', 'HSC', 'Job'];
+    final List<String> subjectList = ['Bangla', 'English', 'Math', 'ICT', 'Physics', 'Chemistry', 'Biology', 'General Knowledge'];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text('Categorize Questions', style: TextStyle(fontWeight: FontWeight.bold)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedClass,
+                      decoration: const InputDecoration(labelText: 'Select Class'),
+                      items: classList.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                      onChanged: (val) => setModalState(() => selectedClass = val!),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedSubject,
+                      decoration: const InputDecoration(labelText: 'Select Subject'),
+                      items: subjectList.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                      onChanged: (val) => setModalState(() => selectedSubject = val!),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: topicController,
+                      decoration: const InputDecoration(
+                        labelText: 'Enter Topic',
+                        hintText: 'e.g., Pronoun, Algebra, Kinetic Theory',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Back'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade600, foregroundColor: Colors.white),
+                  onPressed: () {
+                    final String topic = topicController.text.trim();
+                    if (topic.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a topic name')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context);
+                    _uploadDataAndStart(questions, jsonText, selectedClass, selectedSubject, topic);
+                  },
+                  child: const Text('Submit & Upload'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Handles the HTTP request cycle and then starts the test
+  Future<void> _uploadDataAndStart(List questions, String jsonText, String className, String subject, String topic) async {
+    setState(() => _isUploading = true);
+
+    final requestUrl = Uri.parse(_googleWebAppUrl);
+    final requestBody = json.encode({
+      "class": className,
+      "subject": subject,
+      "topic": topic,
+      "test_type": _selectedTestType,
+      "language": _selectedLanguage,
+      "questions": questions,
+    });
+
+    dev.log('--- UPLOAD DEBUG START ---', name: 'UploadDataAndStart');
+    dev.log('Request URL: $requestUrl', name: 'UploadDataAndStart');
+    dev.log('Request Body: $requestBody', name: 'UploadDataAndStart');
+
+    // Quick user notification HUD
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Uploading questions to Cloud Sheet...'), duration: Duration(seconds: 2)),
+    );
+
+    try {
+      final response = await http.post(
+        requestUrl,
+        headers: {"Content-Type": "application/json"},
+        body: requestBody,
+      );
+
+      dev.log('Response Status Code: ${response.statusCode}', name: 'UploadDataAndStart');
+      dev.log('Response Headers: ${response.headers}', name: 'UploadDataAndStart');
+      dev.log('Response Body: ${response.body}', name: 'UploadDataAndStart');
+      dev.log('--- UPLOAD DEBUG END ---', name: 'UploadDataAndStart');
+
+      if (response.statusCode == 200 || response.statusCode == 302) {
+        _showSuccessHUD('Data securely uploaded to Google Sheets!');
+      } if (response.statusCode == 200 || response.statusCode == 302) {
+        _showSuccessHUD('Data securely uploaded to Google Sheets!');
+      } else {
+        _showError('Upload error [${response.statusCode}]. Check terminal!');
+      }
+    } catch (e, stackTrace) {
+      dev.log(
+        'Exception during upload!',
+        name: 'UploadDataAndStart',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      dev.log('--- UPLOAD DEBUG END (with error) ---', name: 'UploadDataAndStart');
+      // Often redirects cause catch errors if CORS/headers aren't clean, but continue execution anyway
+      _showError('Upload exception: ${e.runtimeType} — $e\n(Stack trace logged to console)');
+    } finally {
+      setState(() => _isUploading = false);
+      _navigateToTestPage(questions, jsonText);
+    }
+  }
+
+  void _navigateToTestPage(List questions, String jsonText) {
+    final int duration = int.tryParse(_durationController.text) ?? 10;
+
+    if (_selectedTestType == 'MCQ') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MCQTestPage(
+            numberOfQuestions: questions.length,
+            testTimeInMinutes: duration, // Uses managed configuration value
+            aiResponse: jsonText,
+            language: _selectedLanguage,
+          ),
+        ),
+      );
+    } else if (_selectedTestType == 'Short Question') {
+      String formattedResponse = '';
+      for (int i = 0; i < questions.length; i++) {
+        final q = questions[i];
+        formattedResponse += '${i + 1}. ${q['question']}\nউত্তর: ${q['answer']}\n\n';
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ShortQuestionPage(
+            numberOfQuestions: questions.length,
+            testTimeInMinutes: duration, // Uses managed configuration value
+            aiResponse: formattedResponse,
+            language: _selectedLanguage,
+          ),
+        ),
+      );
+    } else {
+      _showCreativeQuestionsDialog(questions);
     }
   }
 
@@ -232,6 +434,17 @@ Format:
     );
   }
 
+  void _showSuccessHUD(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -240,28 +453,37 @@ Format:
         title: 'Json to Test Maker',
         centerTitle: true,
       ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 24),
-                _buildConfigSection(),
-                const SizedBox(height: 24),
-                _buildInstructionSection(),
-                const SizedBox(height: 24),
-                _buildInputSection(),
-                const SizedBox(height: 32),
-                _buildActionButton(),
-              ],
+      body: Stack(
+        children: [
+          FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 24),
+                    _buildConfigSection(),
+                    const SizedBox(height: 24),
+                    _buildInstructionSection(),
+                    const SizedBox(height: 24),
+                    _buildInputSection(),
+                    const SizedBox(height: 32),
+                    _buildActionButton(),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          if (_isUploading)
+            Container(
+              color: Colors.black.withOpacity(0.3),
+              child: const Center(child: CircularProgressIndicator()),
+            )
+        ],
       ),
     );
   }
@@ -290,21 +512,13 @@ Format:
           const SizedBox(height: 16),
           const Text(
             'Json to Test Maker',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             'Paste JSON generated from images using AI to create tests instantly',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white.withOpacity(0.9),
-              height: 1.4,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.9), height: 1.4),
             textAlign: TextAlign.center,
           ),
         ],
@@ -330,7 +544,7 @@ Format:
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Step 1: Configure Test Type',
+            'Step 1: Configure Test Type & Timing',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
@@ -342,23 +556,30 @@ Format:
             onChanged: (val) => setState(() => _selectedTestType = val!),
           ),
           const SizedBox(height: 16),
+          _buildDropdown(
+            label: 'Language',
+            icon: Icons.language_outlined,
+            value: _selectedLanguage,
+            items: ['বাংলা', 'English'],
+            onChanged: (val) => setState(() => _selectedLanguage = val!),
+          ),
+          const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Language',
-                  icon: Icons.language_outlined,
-                  value: _selectedLanguage,
-                  items: ['বাংলা', 'English'],
-                  onChanged: (val) => setState(() => _selectedLanguage = val!),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: _buildNumberInput(
                   label: 'Questions Count',
                   icon: Icons.format_list_numbered,
                   controller: _countController,
+                  onChanged: (val) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildNumberInput(
+                  label: 'Duration (Mins)',
+                  icon: Icons.timer_outlined,
+                  controller: _durationController,
                   onChanged: (val) => setState(() {}),
                 ),
               ),
@@ -429,10 +650,7 @@ Format:
               value: value,
               alignment: Alignment.center,
               icon: Icon(Icons.keyboard_arrow_down, color: Colors.teal.shade600),
-              items: items.map((e) => DropdownMenuItem(
-                value: e, 
-                child: Center(child: Text(e))
-              )).toList(),
+              items: items.map((e) => DropdownMenuItem(value: e, child: Center(child: Text(e)))).toList(),
               onChanged: onChanged,
             ),
           ),
@@ -464,7 +682,7 @@ Format:
           ),
           const SizedBox(height: 12),
           const Text(
-            'Use this instruction in your third-party AI app (like ChatGPT, Gemini) to generate the JSON from your images.',
+            'Use this instruction in your third-party AI app to generate the JSON from your images.',
             style: TextStyle(fontSize: 14, color: Colors.black87),
           ),
           const SizedBox(height: 16),
@@ -526,18 +744,9 @@ Format:
               hintText: 'Paste the JSON response here...',
               fillColor: Colors.grey.shade50,
               filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.teal.shade400, width: 2),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.teal.shade400, width: 2)),
             ),
             style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
           ),
@@ -549,18 +758,14 @@ Format:
                 onPressed: _pasteFromClipboard,
                 icon: const Icon(Icons.paste_outlined, size: 18),
                 label: const Text('Paste'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.teal.shade600,
-                ),
+                style: TextButton.styleFrom(foregroundColor: Colors.teal.shade600),
               ),
               const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () => _jsonController.clear(),
                 icon: const Icon(Icons.clear_all, size: 18),
                 label: const Text('Clear'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.red.shade600,
-                ),
+                style: TextButton.styleFrom(foregroundColor: Colors.red.shade600),
               ),
             ],
           ),
@@ -573,16 +778,10 @@ Format:
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.teal.shade600, Colors.teal.shade800],
-        ),
+        gradient: LinearGradient(colors: [Colors.teal.shade600, Colors.teal.shade800]),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.teal.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
+          BoxShadow(color: Colors.teal.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6)),
         ],
       ),
       child: ElevatedButton(
@@ -598,10 +797,7 @@ Format:
           children: [
             Icon(Icons.rocket_launch_outlined),
             SizedBox(width: 12),
-            Text(
-              'Build Test',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            Text('Build Test', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
