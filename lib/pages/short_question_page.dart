@@ -5,6 +5,7 @@ import 'package:pi_qbank/pages/tools_page.dart';
 import 'package:pi_qbank/models/test_result.dart'; // Import TestResult
 import 'package:pi_qbank/services/test_result_service.dart'; // Import TestResultService
 import 'package:pi_qbank/pages/short_question_analytics_page.dart'; // Import ShortQuestionAnalyticsPage
+import 'package:pi_qbank/widgets/upload_test_button.dart';
 import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
 
 class ShortQuestionPage extends StatefulWidget {
@@ -903,6 +904,12 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
                 );
               }),
               const SizedBox(height: 30),
+              if (_isSubmitted)
+                UploadTestButton(
+                  questions: questions,
+                  testType: widget.testType,
+                  language: widget.language,
+                ),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(15),

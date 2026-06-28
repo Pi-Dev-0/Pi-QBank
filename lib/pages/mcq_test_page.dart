@@ -6,6 +6,7 @@ import 'package:pi_qbank/pages/tools_page.dart';
 import 'package:pi_qbank/models/test_result.dart'; // Import TestResult
 import 'package:pi_qbank/services/test_result_service.dart'; // Import TestResultService
 import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
+import 'package:pi_qbank/widgets/upload_test_button.dart';
 
 class MCQTestPage extends StatefulWidget {
   final int numberOfQuestions;
@@ -1043,6 +1044,12 @@ class _MCQTestPageState extends State<MCQTestPage>
                 );
               }),
               const SizedBox(height: 30),
+              if (_testSubmitted)
+                UploadTestButton(
+                  questions: _mcqQuestions,
+                  testType: 'MCQ',
+                  language: widget.language,
+                ),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(15),

@@ -4,8 +4,6 @@ import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/pages/mcq_test_page.dart';
 import 'package:pi_qbank/pages/short_question_page.dart';
 import 'dart:convert';
-import 'dart:developer' as dev;
-import 'package:http/http.dart' as http;
 
 class JsonToTestMakerPage extends StatefulWidget {
   const JsonToTestMakerPage({super.key});
@@ -21,11 +19,7 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage> with TickerPr
   
   String _selectedTestType = 'MCQ';
   String _selectedLanguage = 'বাংলা';
-  bool _isUploading = false;
 
-  // Replace with your actual Google Apps Script Web App URL after deploying
-  final String _googleWebAppUrl = 'https://script.google.com/macros/s/AKfycbwAMFYO2yPtEmxK1Jbhu727bSvFei8I7ZQzUqXm079Gzj4w_tw9xreN3j3bl9mrwtkbTg/exec';
-  
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -170,187 +164,9 @@ Format:
         return;
       }
 
-      _showActionDialog(questions, jsonText);
+      _navigateToTestPage(questions, jsonText);
     } catch (e) {
       _showError('Failed to parse JSON: ${e.toString()}');
-    }
-  }
-
-  // Popup Dialog to Choose Direct Action or Upload Route
-  void _showActionDialog(List questions, String jsonText) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Test Successfully Built!', style: TextStyle(fontWeight: FontWeight.bold)),
-          content: Text('Your parser successfully processed ${questions.length} questions. Choose your next step:'),
-          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal.shade100,
-                foregroundColor: Colors.teal.shade800,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                _navigateToTestPage(questions, jsonText);
-              },
-              child: const Text('Start Test'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal.shade600,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                _showCategorizationDialog(questions, jsonText);
-              },
-              child: const Text('Upload & Start'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Secondary Dialog asking user to input Categorization parameters
-  void _showCategorizationDialog(List questions, String jsonText) {
-    String selectedClass = 'SSC';
-    String selectedSubject = 'Bangla';
-    final TextEditingController topicController = TextEditingController();
-
-    final List<String> classList = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'JSC', 'SSC', 'HSC', 'Job'];
-    final List<String> subjectList = ['Bangla', 'English', 'Math', 'ICT', 'Physics', 'Chemistry', 'Biology', 'General Knowledge'];
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('Categorize Questions', style: TextStyle(fontWeight: FontWeight.bold)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: selectedClass,
-                      decoration: const InputDecoration(labelText: 'Select Class'),
-                      items: classList.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                      onChanged: (val) => setModalState(() => selectedClass = val!),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedSubject,
-                      decoration: const InputDecoration(labelText: 'Select Subject'),
-                      items: subjectList.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                      onChanged: (val) => setModalState(() => selectedSubject = val!),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: topicController,
-                      decoration: const InputDecoration(
-                        labelText: 'Enter Topic',
-                        hintText: 'e.g., Pronoun, Algebra, Kinetic Theory',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Back'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade600, foregroundColor: Colors.white),
-                  onPressed: () {
-                    final String topic = topicController.text.trim();
-                    if (topic.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter a topic name')),
-                      );
-                      return;
-                    }
-                    Navigator.pop(context);
-                    _uploadDataAndStart(questions, jsonText, selectedClass, selectedSubject, topic);
-                  },
-                  child: const Text('Submit & Upload'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // Handles the HTTP request cycle and then starts the test
-  Future<void> _uploadDataAndStart(List questions, String jsonText, String className, String subject, String topic) async {
-    setState(() => _isUploading = true);
-
-    final requestUrl = Uri.parse(_googleWebAppUrl);
-    final requestBody = json.encode({
-      "class": className,
-      "subject": subject,
-      "topic": topic,
-      "test_type": _selectedTestType,
-      "language": _selectedLanguage,
-      "questions": questions,
-    });
-
-    dev.log('--- UPLOAD DEBUG START ---', name: 'UploadDataAndStart');
-    dev.log('Request URL: $requestUrl', name: 'UploadDataAndStart');
-    dev.log('Request Body: $requestBody', name: 'UploadDataAndStart');
-
-    // Quick user notification HUD
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Uploading questions to Cloud Sheet...'), duration: Duration(seconds: 2)),
-    );
-
-    try {
-      final response = await http.post(
-        requestUrl,
-        headers: {"Content-Type": "application/json"},
-        body: requestBody,
-      );
-
-      dev.log('Response Status Code: ${response.statusCode}', name: 'UploadDataAndStart');
-      dev.log('Response Headers: ${response.headers}', name: 'UploadDataAndStart');
-      dev.log('Response Body: ${response.body}', name: 'UploadDataAndStart');
-      dev.log('--- UPLOAD DEBUG END ---', name: 'UploadDataAndStart');
-
-      if (response.statusCode == 200 || response.statusCode == 302) {
-        _showSuccessHUD('Data securely uploaded to Google Sheets!');
-      } if (response.statusCode == 200 || response.statusCode == 302) {
-        _showSuccessHUD('Data securely uploaded to Google Sheets!');
-      } else {
-        _showError('Upload error [${response.statusCode}]. Check terminal!');
-      }
-    } catch (e, stackTrace) {
-      dev.log(
-        'Exception during upload!',
-        name: 'UploadDataAndStart',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      dev.log('--- UPLOAD DEBUG END (with error) ---', name: 'UploadDataAndStart');
-      // Often redirects cause catch errors if CORS/headers aren't clean, but continue execution anyway
-      _showError('Upload exception: ${e.runtimeType} — $e\n(Stack trace logged to console)');
-    } finally {
-      setState(() => _isUploading = false);
-      _navigateToTestPage(questions, jsonText);
     }
   }
 
@@ -434,17 +250,6 @@ Format:
     );
   }
 
-  void _showSuccessHUD(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green.shade600,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -478,11 +283,6 @@ Format:
               ),
             ),
           ),
-          if (_isUploading)
-            Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(child: CircularProgressIndicator()),
-            )
         ],
       ),
     );
