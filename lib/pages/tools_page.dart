@@ -10,6 +10,7 @@ import 'package:pi_qbank/pages/educational_links_page.dart';
 import 'package:pi_qbank/widgets/youtube_player_dialog.dart';
 import 'package:pi_qbank/pages/pdf_reader_page.dart';
 import 'package:pi_qbank/pages/json_to_test_maker_page.dart';
+import 'package:pi_qbank/pages/join_shared_test_page.dart';
 import '../widgets/app_drawer.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -85,6 +86,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const JsonToTestMakerPage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.group_add_outlined,
+        title: 'Join Shared Test',
+        description: 'Take a test shared by your teacher or friend',
+        accentColor: Colors.indigo,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const JoinSharedTestPage(),
             ),
           );
         },
