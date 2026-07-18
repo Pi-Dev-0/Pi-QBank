@@ -734,9 +734,9 @@ Format:
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.rocket_launch_outlined),
+                  Icon(Icons.assignment_turned_in_outlined),
                   SizedBox(width: 8),
-                  Text('Build Test', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text('Start Test', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
