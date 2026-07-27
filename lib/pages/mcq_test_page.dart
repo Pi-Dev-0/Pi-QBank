@@ -253,16 +253,51 @@ class _MCQTestPageState extends State<MCQTestPage>
     super.dispose();
   }
 
+  Future<bool?> _showExitConfirmationDialog() async {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text('Exit Exam?', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to exit? Your current progress will be lost.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Exit Exam'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
+    return PopScope(
+      canPop: _testSubmitted,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        final shouldPop = await _showExitConfirmationDialog();
+        if (shouldPop == true) {
+          if (mounted) Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
@@ -362,7 +397,16 @@ class _MCQTestPageState extends State<MCQTestPage>
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            if (_testSubmitted) {
+              Navigator.of(context).pop();
+            } else {
+              final shouldPop = await _showExitConfirmationDialog();
+              if (shouldPop == true) {
+                if (mounted) Navigator.of(context).pop();
+              }
+            }
+          },
         ),
       ),
       body: Container(
@@ -647,7 +691,7 @@ class _MCQTestPageState extends State<MCQTestPage>
           ],
         ),
       ),
-    );
+    ));
   }
 
 
