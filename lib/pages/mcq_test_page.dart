@@ -283,11 +283,11 @@ class _MCQTestPageState extends State<MCQTestPage>
   Widget build(BuildContext context) {
     return PopScope(
       canPop: _testSubmitted,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         final shouldPop = await _showExitConfirmationDialog();
         if (shouldPop == true) {
-          if (mounted) Navigator.of(context).pop();
+          if (context.mounted) Navigator.of(context).pop();
         }
       },
       child: Scaffold(
@@ -403,7 +403,7 @@ class _MCQTestPageState extends State<MCQTestPage>
             } else {
               final shouldPop = await _showExitConfirmationDialog();
               if (shouldPop == true) {
-                if (mounted) Navigator.of(context).pop();
+                if (context.mounted) Navigator.of(context).pop();
               }
             }
           },
