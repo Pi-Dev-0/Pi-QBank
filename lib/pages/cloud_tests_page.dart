@@ -535,11 +535,13 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       );
     }
 
-    // Filter grouped tests to show only those that match ALL active filters
+    // Filter grouped tests to show only those that match ALL active filters.
+    // An empty selection set means "no filter applied" (show all for that dimension).
     final filteredGroups = _testGroups.values.where((g) {
-      return _selectedClasses.contains(g.className) &&
-             _selectedSubjects.contains(g.subject) &&
-             _selectedTopics.contains(g.topic);
+      final classMatch = _selectedClasses.isEmpty || _selectedClasses.contains(g.className);
+      final subjectMatch = _selectedSubjects.isEmpty || _selectedSubjects.contains(g.subject);
+      final topicMatch = _selectedTopics.isEmpty || _selectedTopics.contains(g.topic);
+      return classMatch && subjectMatch && topicMatch;
     }).toList();
 
     filteredGroups.sort((a, b) => b.timestamp.compareTo(a.timestamp));
