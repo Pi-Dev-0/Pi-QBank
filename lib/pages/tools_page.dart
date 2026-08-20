@@ -12,6 +12,7 @@ import 'package:pi_qbank/pages/pdf_reader_page.dart';
 import 'package:pi_qbank/pages/json_to_test_maker_page.dart';
 import 'package:pi_qbank/pages/join_shared_test_page.dart';
 import '../widgets/app_drawer.dart';
+import 'package:pi_qbank/pages/cloud_tests_page.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -156,6 +157,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const PdfReaderPage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.cloud_download_outlined,
+        title: 'Cloud Tests',
+        description: 'Access exams uploaded to your Google Sheet',
+        accentColor: Colors.teal,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const CloudTestsPage(),
             ),
           );
         },
