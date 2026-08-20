@@ -16,6 +16,7 @@ class ShortQuestionPage extends StatefulWidget {
   final String language;
   final String? savedTestId;
   final String testType; // Added: Field for test type
+  final String? aiTopic;
 
   const ShortQuestionPage({
     super.key,
@@ -24,8 +25,9 @@ class ShortQuestionPage extends StatefulWidget {
     this.selectedImages,
     required this.aiResponse,
     required this.language,
-    this.savedTestId, 
+    this.savedTestId,
     this.testType = 'Short Question', // Default value
+    this.aiTopic,
   });
 
   @override
@@ -909,6 +911,7 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
                   questions: questions,
                   testType: widget.testType,
                   language: widget.language,
+                  initialTopic: widget.aiTopic,
                 ),
               Container(
                 decoration: BoxDecoration(

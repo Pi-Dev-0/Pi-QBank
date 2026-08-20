@@ -14,7 +14,8 @@ class MCQTestPage extends StatefulWidget {
   final List<XFile>? selectedImages;
   final String aiResponse;
   final String language;
-  final String? savedTestId; // New: Optional ID for saved tests
+  final String? savedTestId;
+  final String? aiTopic;
 
   const MCQTestPage({
     super.key,
@@ -23,7 +24,8 @@ class MCQTestPage extends StatefulWidget {
     this.selectedImages,
     required this.aiResponse,
     required this.language,
-    this.savedTestId, // New: Initialize savedTestId
+    this.savedTestId,
+    this.aiTopic,
   });
 
   @override
@@ -1093,6 +1095,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                   questions: _mcqQuestions,
                   testType: 'MCQ',
                   language: widget.language,
+                  initialTopic: widget.aiTopic,
                 ),
               Container(
                 decoration: BoxDecoration(

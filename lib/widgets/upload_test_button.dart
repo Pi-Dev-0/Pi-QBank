@@ -7,12 +7,14 @@ class UploadTestButton extends StatefulWidget {
   final List<dynamic> questions;
   final String testType;
   final String language;
+  final String? initialTopic;
 
   const UploadTestButton({
     super.key,
     required this.questions,
     required this.testType,
     required this.language,
+    this.initialTopic,
   });
 
   @override
@@ -26,7 +28,7 @@ class _UploadTestButtonState extends State<UploadTestButton> {
   void _showCategorizationDialog() {
     String selectedClass = 'SSC';
     String selectedSubject = 'Bangla';
-    final TextEditingController topicController = TextEditingController();
+    final TextEditingController topicController = TextEditingController(text: widget.initialTopic ?? '');
 
     final List<String> classList = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'JSC', 'SSC', 'HSC', 'Job'];
     final List<String> subjectList = ['Bangla', 'English', 'Math', 'ICT', 'Physics', 'Chemistry', 'Biology', 'General Knowledge'];

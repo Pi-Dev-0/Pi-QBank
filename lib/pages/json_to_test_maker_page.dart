@@ -70,13 +70,15 @@ CRITICAL RULES:
 1. NEVER mention the image, file name, screenshot, or use phrases like "In the image", "According to the picture", etc.
 2. IGNORE all device UI elements, battery percentages, app interfaces (like ChatGPT/Gemini), timestamps, and irrelevant background details.
 3. Focus PURELY on the academic subject matter, text, or main concept.
-4. Formulate the questions so they are completely standalone and make perfect sense to a student who has never seen the original image.''';
+4. Formulate the questions so they are completely standalone and make perfect sense to a student who has never seen the original image.
+5. Generate a short 1-3 word topic name that best describes the subject matter.''';
 
     if (_selectedTestType == 'MCQ') {
       return '''$baseInstruction
 Language: $_selectedLanguage
 Format:
 {
+  "topic": "Short Topic Name",
   "questions": [
     {
       "question": "Question text?",
@@ -95,6 +97,7 @@ Format:
 Language: $_selectedLanguage
 Format:
 {
+  "topic": "Short Topic Name",
   "questions": [
     {
       "question": "Question text?",
@@ -107,6 +110,7 @@ Format:
 Language: $_selectedLanguage
 Format:
 {
+  "topic": "Short Topic Name",
   "questions": [
     {
       "question_number": 1,
@@ -192,13 +196,14 @@ Format:
     try {
       final decoded = json.decode(jsonText);
       final questions = decoded['questions'] as List?;
+      final topic = decoded['topic'] as String?;
       
       if (questions == null || questions.isEmpty) {
         _showError('Invalid JSON format: "questions" list is missing or empty.');
         return;
       }
 
-      _navigateToTestPage(questions, jsonText);
+      _navigateToTestPage(questions, jsonText, topic);
     } catch (e) {
       _showError('Failed to parse JSON: ${e.toString()}');
     }
@@ -345,7 +350,7 @@ Format:
     );
   }
 
-  void _navigateToTestPage(List questions, String jsonText) {
+  void _navigateToTestPage(List questions, String jsonText, String? topic) {
     final int duration = int.tryParse(_durationController.text) ?? 10;
 
     if (_selectedTestType == 'MCQ') {
@@ -357,6 +362,7 @@ Format:
             testTimeInMinutes: duration, // Uses managed configuration value
             aiResponse: jsonText,
             language: _selectedLanguage,
+            aiTopic: topic,
           ),
         ),
       );
@@ -375,6 +381,7 @@ Format:
             testTimeInMinutes: duration, // Uses managed configuration value
             aiResponse: formattedResponse,
             language: _selectedLanguage,
+            aiTopic: topic,
           ),
         ),
       );
