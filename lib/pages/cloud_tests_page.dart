@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/pages/mcq_test_page.dart';
+import 'package:pi_qbank/widgets/loading_widget.dart';
 
 class CloudTestsPage extends StatefulWidget {
   const CloudTestsPage({super.key});
@@ -507,7 +508,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const LoadingWidget(loadingText: 'Loading Cloud Tests...');
     }
 
     if (_errorMessage != null) {

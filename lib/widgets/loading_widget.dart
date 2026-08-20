@@ -42,17 +42,7 @@ class _LoadingWidgetState extends State<LoadingWidget> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade50,
-            Colors.white,
-            Colors.purple.shade50,
-          ],
-        ),
-      ),
+      color: Colors.white,
       child: Stack(
         children: [
           // Main content
