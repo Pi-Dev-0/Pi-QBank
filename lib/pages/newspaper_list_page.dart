@@ -45,15 +45,9 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
         setState(() {
           newsChannels =
               data.where((item) => item['Type'] == 'News').map((item) {
-            String hiddenElementsStr = item['hiddenElements']?.toString() ?? '';
-            List<String> hiddenElements = hiddenElementsStr.isNotEmpty
-                ? hiddenElementsStr.split(',').map((e) => e.trim()).toList()
-                : [];
-
             return {
               'name': item['Name'],
               'url': item['Link'],
-              'hiddenElements': hiddenElements,
               'favicon': _getFaviconUrl(item['Link'])
             };
           }).toList();
@@ -139,9 +133,6 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
                               builder: (context) => NewspaperPage(
                                 name: channel['name']!,
                                 url: channel['url']!,
-                                hiddenElements:
-                                    (channel['hiddenElements'] as List<dynamic>)
-                                        .cast<String>(),
                               ),
                             ),
                           );
