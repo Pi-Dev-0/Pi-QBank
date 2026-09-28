@@ -529,40 +529,42 @@ class _NewspaperPageState extends State<NewspaperPage>
               ),
         )],
         ),
-        floatingActionButton: FloatingActionButton(
-          mini: true,
-          onPressed: _showAdBlockerPanel,
-          backgroundColor: Colors.white,
-          elevation: 4,
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                child: Icon(
-                  _isPickerActive ? Icons.shield : Icons.shield_outlined,
-                  key: ValueKey(_isPickerActive),
-                  color: Colors.deepOrange.shade700,
-                ),
-              ),
-              if (_userRules.isNotEmpty)
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: Colors.deepOrange.shade700,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
+        floatingActionButton: MediaQuery.orientationOf(context) == Orientation.landscape
+            ? FloatingActionButton(
+                mini: true,
+                onPressed: _showAdBlockerPanel,
+                backgroundColor: Colors.white,
+                elevation: 4,
+                child: Stack(
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Icon(
+                        _isPickerActive ? Icons.shield : Icons.shield_outlined,
+                        key: ValueKey(_isPickerActive),
+                        color: Colors.deepOrange.shade700,
+                      ),
                     ),
-                  ),
+                    if (_userRules.isNotEmpty)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: Colors.deepOrange.shade700,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-            ],
-          ),
-        ),
+              )
+            : null,
       ),
     );
   }
