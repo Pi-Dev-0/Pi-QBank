@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'pages/home_page.dart';
 import 'pages/online_class_page.dart';
-import 'pages/ai_page.dart';
+import 'pages/ai_hub_page.dart';
 import 'pages/seven_college/sevec_college_mathematics.dart';
 import 'pages/info_page.dart';
 import 'pages/class_pages.dart';
@@ -367,7 +367,7 @@ class _MainScreenState extends State<MainScreen> {
     const BlogPage(),
     const HomePage(),
     const ToolsPage(),
-    const AIPage(),
+    const AiHubPage(),
   ];
 
   // Define gradient colors for each navigation item

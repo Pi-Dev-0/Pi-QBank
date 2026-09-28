@@ -42,6 +42,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
 
+        if (!mounted) return;
         setState(() {
           newsChannels =
               data.where((item) => item['Type'] == 'News').map((item) {
@@ -57,6 +58,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
         throw Exception('Failed to load news channels');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -70,6 +72,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
 
   Future<void> _loadFavorites() async {
     _prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _favoriteNewspapers =
           _prefs.getStringList('favoriteNewspapers')?.toSet() ?? {};
