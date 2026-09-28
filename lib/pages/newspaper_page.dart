@@ -527,8 +527,41 @@ class _NewspaperPageState extends State<NewspaperPage>
                   ),
                 ),
               ),
-            ),
-          ],
+        )],
+        ),
+        floatingActionButton: FloatingActionButton(
+          mini: true,
+          onPressed: _showAdBlockerPanel,
+          backgroundColor: Colors.white,
+          elevation: 4,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: Icon(
+                  _isPickerActive ? Icons.shield : Icons.shield_outlined,
+                  key: ValueKey(_isPickerActive),
+                  color: Colors.deepOrange.shade700,
+                ),
+              ),
+              if (_userRules.isNotEmpty)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: Colors.deepOrange.shade700,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -565,8 +598,11 @@ class _AdBlockerPanel extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          child: Column(
-            children: [
+          child: SingleChildScrollView(
+            controller: scrollCtrl,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
               // Handle bar
               Container(
                 margin: const EdgeInsets.only(top: 12, bottom: 4),
@@ -721,31 +757,32 @@ class _AdBlockerPanel extends StatelessWidget {
               ),
               const Divider(height: 1),
               // Rules list
-              Expanded(
-                child: userRules.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.block,
-                                size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 12),
-                            Text('No custom rules yet',
-                                style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontSize: 15)),
-                            const SizedBox(height: 4),
-                            Text('Use the element picker to block ads',
-                                style: TextStyle(
-                                    color: Colors.grey.shade400,
-                                    fontSize: 12)),
-                          ],
-                        ),
-                      )
-                    : ListView.separated(
-                        controller: scrollCtrl,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+              userRules.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.block,
+                              size: 48, color: Colors.grey.shade300),
+                          const SizedBox(height: 12),
+                          Text('No custom rules yet',
+                              style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 15)),
+                          const SizedBox(height: 4),
+                          Text('Use the element picker to block ads',
+                              style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 12)),
+                        ],
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                         itemCount: userRules.length,
                         separatorBuilder: (_, __) =>
                             const SizedBox(height: 6),
@@ -792,9 +829,9 @@ class _AdBlockerPanel extends StatelessWidget {
                           );
                         },
                       ),
-              ),
               SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
             ],
+            ),
           ),
         );
       },
