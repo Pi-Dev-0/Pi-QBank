@@ -137,6 +137,8 @@ import 'pages/national_university/islamic_studies_page.dart';
 import 'pages/pdf_reader_page.dart';
 import 'pages/tools_page.dart';
 import 'pages/newspaper_page.dart';
+import 'pages/study_timer_report_page.dart';
+import 'pages/study_routine_page.dart';
 import 'pages/blog_page.dart';
 import 'widgets/custom_bottom_navigation_bar.dart';
 import 'pages/feedback_page.dart';
@@ -363,6 +365,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   static const MethodChannel _newspaperWidgetChannel =
       MethodChannel('com.pi.mathematics/newspaper_widget');
+  static const MethodChannel _studyTimerWidgetChannel =
+      MethodChannel('com.pi.mathematics/study_timer_widget');
+  static const MethodChannel _studyRoutineWidgetChannel =
+      MethodChannel('com.pi.mathematics/study_routine');
   int _page = 2; // Start with Home (now at index 2) selected
 
   final List<Widget> _pages = [
@@ -407,6 +413,16 @@ class _MainScreenState extends State<MainScreen> {
         );
       }
     });
+    _studyTimerWidgetChannel.setMethodCallHandler((call) async {
+      if (call.method == 'openStudyTimerReport') {
+        _openStudyTimerReport();
+      }
+    });
+    _studyRoutineWidgetChannel.setMethodCallHandler((call) async {
+      if (call.method == 'openStudyRoutine') {
+        _openStudyRoutineFromWidget();
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final request = await _newspaperWidgetChannel
@@ -416,6 +432,24 @@ class _MainScreenState extends State<MainScreen> {
         // The newspaper home-screen widget is Android-only.
       } on PlatformException {
         // A missing widget request should not affect normal startup.
+      }
+      try {
+        final shouldOpen = await _studyTimerWidgetChannel
+            .invokeMethod<bool>('consumeStudyTimerReport');
+        if (shouldOpen == true) _openStudyTimerReport();
+      } on MissingPluginException {
+        // The timer widget bridge is Android-only.
+      } on PlatformException {
+        // No pending timer report request should not affect normal startup.
+      }
+      try {
+        final shouldOpen = await _studyRoutineWidgetChannel
+            .invokeMethod<bool>('consumeStudyRoutineRequest');
+        if (shouldOpen == true) _openStudyRoutineFromWidget();
+      } on MissingPluginException {
+        // The routine widget bridge is Android-only.
+      } on PlatformException {
+        // No pending routine request should not affect normal startup.
       }
     });
   }
@@ -428,6 +462,20 @@ class _MainScreenState extends State<MainScreen> {
       MaterialPageRoute<void>(
         builder: (_) => NewspaperPage(name: name, url: url),
       ),
+    );
+  }
+
+  void _openStudyTimerReport() {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const StudyTimerReportPage()),
+    );
+  }
+
+  void _openStudyRoutineFromWidget() {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const StudyRoutinePage()),
     );
   }
 

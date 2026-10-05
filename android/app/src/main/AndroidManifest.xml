@@ -4,6 +4,8 @@
     
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
@@ -63,6 +65,48 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <receiver
+            android:name=".StudyRoutineWidgetProvider"
+            android:exported="false"
+            android:label="Study Routine">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/study_routine_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".StudyRoutineAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.pi.mathematics.STUDY_ROUTINE_BOUNDARY" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".StudyRoutineBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".StudyTimerWidgetProvider"
+            android:exported="false"
+            android:label="Study Timer">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.pi.mathematics.STUDY_TIMER_ACTION" />
+                <action android:name="com.pi.mathematics.STUDY_TIMER_MIDNIGHT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/study_timer_widget_info" />
+        </receiver>
         <receiver
             android:name=".ReadingProgressWidgetProvider"
             android:exported="false"

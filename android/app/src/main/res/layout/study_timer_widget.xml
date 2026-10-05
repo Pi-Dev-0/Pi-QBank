@@ -1,0 +1,70 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/study_timer_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/reading_progress_widget_background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="2dp"
+    android:paddingEnd="10dp"
+    android:paddingBottom="2dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="STUDY TIMER"
+            android:textColor="#66617F"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <Chronometer
+            android:id="@+id/study_timer_elapsed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:format="%s"
+            android:textColor="#27223F"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/study_timer_elapsed_static"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="00:00:00"
+            android:textColor="#27223F"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/study_timer_toggle"
+        android:layout_width="wrap_content"
+        android:layout_height="34dp"
+        android:background="@drawable/study_widget_status_active"
+        android:gravity="center"
+        android:paddingStart="13dp"
+        android:paddingEnd="13dp"
+        android:text="Start"
+        android:textColor="#28745D"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/study_timer_report"
+        android:layout_width="wrap_content"
+        android:layout_height="34dp"
+        android:layout_marginStart="7dp"
+        android:gravity="center"
+        android:paddingStart="7dp"
+        android:paddingEnd="2dp"
+        android:text="Report"
+        android:textColor="#5345A5"
+        android:textStyle="bold" />
+</LinearLayout>

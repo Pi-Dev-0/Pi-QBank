@@ -14,6 +14,7 @@ import 'package:pi_qbank/pages/join_shared_test_page.dart';
 import '../widgets/app_drawer.dart';
 import 'package:pi_qbank/pages/cloud_tests_page.dart';
 import 'package:pi_qbank/pages/reading_progress_page.dart';
+import 'package:pi_qbank/pages/study_routine_page.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -60,6 +61,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const ReadingProgressPage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.calendar_month_outlined,
+        title: 'Routine Maker',
+        description: 'Plan study subjects and reminders',
+        accentColor: Colors.indigo,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const StudyRoutinePage(),
             ),
           );
         },
