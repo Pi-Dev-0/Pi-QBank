@@ -59,6 +59,7 @@ dependencies:
   encrypt: ^5.0.3
   crypto: ^3.0.3
   uuid: ^4.4.0 # Added for generating unique IDs
+  mobile_scanner: ^5.2.3
 
 dev_dependencies:
   flutter_test:

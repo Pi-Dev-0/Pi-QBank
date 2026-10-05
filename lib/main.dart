@@ -139,6 +139,7 @@ import 'pages/tools_page.dart';
 import 'pages/newspaper_page.dart';
 import 'pages/study_timer_report_page.dart';
 import 'pages/study_routine_page.dart';
+import 'pages/qr_alarm_page.dart';
 import 'pages/blog_page.dart';
 import 'widgets/custom_bottom_navigation_bar.dart';
 import 'pages/feedback_page.dart';
@@ -369,6 +370,8 @@ class _MainScreenState extends State<MainScreen> {
       MethodChannel('com.pi.mathematics/study_timer_widget');
   static const MethodChannel _studyRoutineWidgetChannel =
       MethodChannel('com.pi.mathematics/study_routine');
+  static const MethodChannel _qrAlarmChannel =
+      MethodChannel('com.pi.mathematics/qr_alarm');
   int _page = 2; // Start with Home (now at index 2) selected
 
   final List<Widget> _pages = [
@@ -423,6 +426,9 @@ class _MainScreenState extends State<MainScreen> {
         _openStudyRoutineFromWidget();
       }
     });
+    _qrAlarmChannel.setMethodCallHandler((call) async {
+      if (call.method == 'openQrAlarmScanner') _openQrAlarmScanner();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final request = await _newspaperWidgetChannel
@@ -451,6 +457,15 @@ class _MainScreenState extends State<MainScreen> {
       } on PlatformException {
         // No pending routine request should not affect normal startup.
       }
+      try {
+        final shouldOpen =
+            await _qrAlarmChannel.invokeMethod<bool>('consumeQrAlarmScan');
+        if (shouldOpen == true) _openQrAlarmScanner();
+      } on MissingPluginException {
+        // QR alarms are supported on Android.
+      } on PlatformException {
+        // No pending alarm scan request should not affect normal startup.
+      }
     });
   }
 
@@ -476,6 +491,13 @@ class _MainScreenState extends State<MainScreen> {
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const StudyRoutinePage()),
+    );
+  }
+
+  void _openQrAlarmScanner() {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const QrAlarmScannerPage()),
     );
   }
 

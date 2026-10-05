@@ -15,6 +15,7 @@ import '../widgets/app_drawer.dart';
 import 'package:pi_qbank/pages/cloud_tests_page.dart';
 import 'package:pi_qbank/pages/reading_progress_page.dart';
 import 'package:pi_qbank/pages/study_routine_page.dart';
+import 'package:pi_qbank/pages/qr_alarm_page.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -76,6 +77,18 @@ class _ToolsPageState extends State<ToolsPage> {
             MaterialPageRoute(
               builder: (context) => const StudyRoutinePage(),
             ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.qr_code_scanner_rounded,
+        title: 'QR Alarm',
+        description: 'Dismiss alarms by scanning a QR code',
+        accentColor: Colors.deepOrange,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const QrAlarmPage()),
           );
         },
       ),
