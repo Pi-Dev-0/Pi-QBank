@@ -1,0 +1,11 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/single_newspaper_widget_description"
+    android:initialLayout="@layout/single_newspaper_widget"
+    android:configure="com.pi.mathematics.SingleNewspaperWidgetConfigureActivity"
+    android:minHeight="40dp"
+    android:minWidth="40dp"
+    android:resizeMode="none"
+    android:updatePeriodMillis="0"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:widgetCategory="home_screen" />

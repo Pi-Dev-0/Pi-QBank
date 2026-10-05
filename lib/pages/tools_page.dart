@@ -13,6 +13,7 @@ import 'package:pi_qbank/pages/json_to_test_maker_page.dart';
 import 'package:pi_qbank/pages/join_shared_test_page.dart';
 import '../widgets/app_drawer.dart';
 import 'package:pi_qbank/pages/cloud_tests_page.dart';
+import 'package:pi_qbank/pages/reading_progress_page.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -45,6 +46,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const PrepareShortTestPage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.menu_book_outlined,
+        title: 'Reading Progress',
+        description: 'Track pages in your physical books',
+        accentColor: Colors.deepPurple,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ReadingProgressPage(),
             ),
           );
         },
@@ -413,7 +428,8 @@ class _ToolsPageState extends State<ToolsPage> {
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: item.accentColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(16),
@@ -430,7 +446,8 @@ class _ToolsPageState extends State<ToolsPage> {
                             ),
                           ),
                           const SizedBox(width: 2),
-                          Icon(Icons.arrow_forward, size: 10, color: item.accentColor),
+                          Icon(Icons.arrow_forward,
+                              size: 10, color: item.accentColor),
                         ],
                       ),
                     ),

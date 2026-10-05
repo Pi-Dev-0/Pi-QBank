@@ -1,0 +1,5 @@
+<resources>
+    <string name="newspaper_widget_description">Open your newspapers from the home screen</string>
+    <string name="single_newspaper_widget_description">Open your favorite newspaper from the home screen</string>
+    <string name="single_newspaper_widget_empty">Open Newspapers in Pi-QBank to choose a newspaper</string>
+</resources>

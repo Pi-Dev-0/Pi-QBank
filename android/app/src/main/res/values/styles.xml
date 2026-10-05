@@ -15,4 +15,7 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+    <style name="SingleNewspaperWidgetConfigureTheme" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:windowCloseOnTouchOutside">true</item>
+    </style>
 </resources>

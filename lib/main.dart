@@ -136,6 +136,7 @@ import 'pages/national_university/history_page.dart';
 import 'pages/national_university/islamic_studies_page.dart';
 import 'pages/pdf_reader_page.dart';
 import 'pages/tools_page.dart';
+import 'pages/newspaper_page.dart';
 import 'pages/blog_page.dart';
 import 'widgets/custom_bottom_navigation_bar.dart';
 import 'pages/feedback_page.dart';
@@ -360,6 +361,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  static const MethodChannel _newspaperWidgetChannel =
+      MethodChannel('com.pi.mathematics/newspaper_widget');
   int _page = 2; // Start with Home (now at index 2) selected
 
   final List<Widget> _pages = [
@@ -393,6 +396,40 @@ class _MainScreenState extends State<MainScreen> {
       const Color(0xFFAD7BFF)
     ], // Pink-Purple gradient for AI
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _newspaperWidgetChannel.setMethodCallHandler((call) async {
+      if (call.method == 'openNewspaper' && call.arguments is Map) {
+        _openNewspaperFromWidget(
+          Map<String, dynamic>.from(call.arguments as Map),
+        );
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final request = await _newspaperWidgetChannel
+            .invokeMapMethod<String, String>('consumeNewspaperRequest');
+        if (request != null) _openNewspaperFromWidget(request);
+      } on MissingPluginException {
+        // The newspaper home-screen widget is Android-only.
+      } on PlatformException {
+        // A missing widget request should not affect normal startup.
+      }
+    });
+  }
+
+  void _openNewspaperFromWidget(Map<String, dynamic> request) {
+    final name = request['name'];
+    final url = request['url'];
+    if (!mounted || name is! String || url is! String || url.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NewspaperPage(name: name, url: url),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

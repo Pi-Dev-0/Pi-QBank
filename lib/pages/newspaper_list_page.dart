@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pi_qbank/pages/newspaper_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 import 'package:pi_qbank/constants/app_colors.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -18,6 +19,8 @@ class NewspaperListPage extends StatefulWidget {
 class _NewspaperListPageState extends State<NewspaperListPage> {
   static const String kAppScriptUrl =
       'https://script.google.com/macros/s/AKfycbzMbcCYnPBv4hhpdAkAmPRbMoXraZevTZxSB-AuC7FxN_2KGJgJauycgFEWEwgPRIf7hQ/exec';
+  static const MethodChannel _widgetChannel =
+      MethodChannel('com.pi.mathematics/newspaper_widget');
 
   String _getFaviconUrl(String url) {
     final uri = Uri.parse(url);
@@ -31,8 +34,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
   @override
   void initState() {
     super.initState();
-    _loadFavorites();
-    _fetchNewsChannels();
+    _loadFavorites().then((_) => _fetchNewsChannels());
   }
 
   Future<void> _fetchNewsChannels() async {
@@ -54,6 +56,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
           }).toList();
           _isLoading = false;
         });
+        await _saveWidgetNewspapers();
       } else {
         throw Exception('Failed to load news channels');
       }
@@ -82,6 +85,59 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
   Future<void> _saveFavorites() async {
     await _prefs.setStringList(
         'favoriteNewspapers', _favoriteNewspapers.toList());
+  }
+
+  Future<void> _saveWidgetNewspapers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final oldChannels = <String, Map<String, dynamic>>{};
+    final oldRaw = prefs.getString('newspaper_widget_channels_v1');
+    if (oldRaw != null) {
+      try {
+        for (final channel in json.decode(oldRaw) as List<dynamic>) {
+          if (channel is Map<String, dynamic> && channel['url'] is String) {
+            oldChannels[channel['url'] as String] = channel;
+          }
+        }
+      } catch (_) {
+        // Refresh malformed or outdated cached widget data from the channel list.
+      }
+    }
+
+    final widgetChannels = await Future.wait(newsChannels.map((channel) async {
+      final url = channel['url'] as String;
+      final existingIcon = oldChannels[url]?['iconBase64'] as String?;
+      var iconBase64 = existingIcon;
+      if (iconBase64 == null) {
+        try {
+          final response = await http
+              .get(Uri.parse(channel['favicon'] as String))
+              .timeout(const Duration(seconds: 5));
+          if (response.statusCode == 200) {
+            iconBase64 = base64Encode(response.bodyBytes);
+          }
+        } catch (_) {
+          // The widget can use its fallback icon when a site favicon is unavailable.
+        }
+      }
+      return {
+        'name': channel['name'],
+        'url': url,
+        'favorite': _favoriteNewspapers.contains(url),
+        if (iconBase64 != null) 'iconBase64': iconBase64,
+      };
+    }));
+
+    await prefs.setString(
+      'newspaper_widget_channels_v1',
+      json.encode(widgetChannels),
+    );
+    try {
+      await _widgetChannel.invokeMethod<void>('refresh');
+    } on MissingPluginException {
+      // The Android widget bridge is available only on Android.
+    } on PlatformException {
+      // A widget refresh failure should not interrupt newspaper browsing.
+    }
   }
 
   @override
@@ -180,7 +236,7 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
                                       ? AppColors.redError
                                       : AppColors.lightGrey,
                                 ),
-                                onPressed: () {
+                                onPressed: () async {
                                   setState(() {
                                     if (isFavorite) {
                                       _favoriteNewspapers
@@ -188,8 +244,9 @@ class _NewspaperListPageState extends State<NewspaperListPage> {
                                     } else {
                                       _favoriteNewspapers.add(channel['url']!);
                                     }
-                                    _saveFavorites();
                                   });
+                                  await _saveFavorites();
+                                  await _saveWidgetNewspapers();
                                 },
                               ),
                             ],
