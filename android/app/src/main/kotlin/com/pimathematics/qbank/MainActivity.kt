@@ -12,8 +12,6 @@ class MainActivity : FlutterActivity() {
     private var newspaperWidgetChannel: MethodChannel? = null
     private var studyTimerWidgetChannel: MethodChannel? = null
     private var studyRoutineWidgetChannel: MethodChannel? = null
-    private var qrAlarmChannel: MethodChannel? = null
-
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
@@ -92,58 +90,6 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        qrAlarmChannel = MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            "com.pi.mathematics/qr_alarm"
-        ).also { channel ->
-            channel.setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "loadAlarms" -> result.success(
-                        getSharedPreferences(QR_ALARM_PREFS, MODE_PRIVATE)
-                            .getString(QR_ALARMS_KEY, "[]")
-                    )
-                    "syncAlarms" -> {
-                        val encoded = call.arguments as? String
-                        if (encoded == null) result.error("invalid_alarms", "Alarm data is missing", null)
-                        else {
-                            try {
-                                QrAlarmData.syncAndSchedule(applicationContext, encoded)
-                                result.success(null)
-                            } catch (error: Exception) {
-                                result.error("invalid_alarms", error.message, null)
-                            }
-                        }
-                    }
-                    "dismissByQr" -> {
-                        val value = call.arguments as? String ?: ""
-                        result.success(QrAlarmReceiver.dismissActive(applicationContext, value))
-                    }
-                    "dismissEmergency" -> result.success(
-                        QrAlarmReceiver.dismissActive(applicationContext, null)
-                    )
-                    "consumeQrAlarmScan" -> result.success(consumeQrAlarmScan(intent))
-                    "requestNotificationPermission" -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 74303)
-                        }
-                        result.success(null)
-                    }
-                    "requestExactAlarmPermission" -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            val manager = getSystemService(android.app.AlarmManager::class.java)
-                            if (manager != null && !manager.canScheduleExactAlarms()) {
-                                val settingsIntent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                                    .setData(android.net.Uri.parse("package:$packageName"))
-                                startActivity(settingsIntent)
-                            }
-                        }
-                        result.success(null)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -183,13 +129,6 @@ class MainActivity : FlutterActivity() {
                 override fun notImplemented() = Unit
             })
         }
-        if (intent.getBooleanExtra("open_qr_alarm_scan", false)) {
-            qrAlarmChannel?.invokeMethod("openQrAlarmScanner", null, object : MethodChannel.Result {
-                override fun success(result: Any?) { intent.removeExtra("open_qr_alarm_scan") }
-                override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) = Unit
-                override fun notImplemented() = Unit
-            })
-        }
     }
 
     private fun consumeNewspaperRequest(sourceIntent: Intent?): Map<String, String>? {
@@ -222,9 +161,4 @@ class MainActivity : FlutterActivity() {
         return true
     }
 
-    private fun consumeQrAlarmScan(sourceIntent: Intent?): Boolean {
-        if (sourceIntent?.getBooleanExtra("open_qr_alarm_scan", false) != true) return false
-        sourceIntent.removeExtra("open_qr_alarm_scan")
-        return true
-    }
 }

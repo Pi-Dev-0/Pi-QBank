@@ -4,42 +4,41 @@
     android:layout_height="match_parent"
     android:background="@drawable/reading_progress_widget_background"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/study_widget_status"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@drawable/study_widget_status_active"
+        android:background="@drawable/study_widget_status_next"
         android:paddingStart="9dp"
         android:paddingTop="4dp"
         android:paddingEnd="9dp"
         android:paddingBottom="4dp"
-        android:text="STUDY NOW"
-        android:textColor="#28745D"
+        android:text="YOUR SUBJECTS · SCROLL"
+        android:textColor="#5345A5"
         android:textSize="10sp"
         android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/study_widget_subject"
+    <ListView
+        android:id="@+id/study_widget_list"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="Your next subject"
-        android:textColor="#25213A"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+        android:layout_height="0dp"
+        android:layout_marginTop="6dp"
+        android:layout_weight="1"
+        android:cacheColorHint="#00000000"
+        android:divider="#E5E7EB"
+        android:dividerHeight="1dp"
+        android:scrollbars="vertical" />
 
     <TextView
-        android:id="@+id/study_widget_period"
+        android:id="@+id/study_widget_empty"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="9:00 AM – 10:00 AM"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:padding="12dp"
+        android:text="Add subjects in Routine Maker to see them here."
         android:textColor="#646176"
         android:textSize="13sp" />
 </LinearLayout>

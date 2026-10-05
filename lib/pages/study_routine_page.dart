@@ -39,11 +39,8 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
       builder: (_) => _StudySessionDialog(existing: existing),
     );
     if (session == null || !mounted) return;
-    final duplicate = _sessions.any((item) =>
-        item.id != session.id &&
-        item.weekdays.any(session.weekdays.contains) &&
-        session.startMinute < item.endMinute &&
-        item.startMinute < session.endMinute);
+    final duplicate = _sessions.any(
+        (item) => item.id != session.id && _sessionsOverlap(item, session));
     if (duplicate) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -62,6 +59,30 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
       _sessions.sort(_compareSessions);
     });
     await _save();
+  }
+
+  bool _sessionsOverlap(StudySession first, StudySession second) {
+    const minutesPerDay = 24 * 60;
+    const minutesPerWeek = 7 * minutesPerDay;
+    int duration(StudySession session) =>
+        (session.endMinute - session.startMinute + minutesPerDay) %
+        minutesPerDay;
+
+    for (final firstDay in first.weekdays) {
+      final firstStart = (firstDay - 1) * minutesPerDay + first.startMinute;
+      final firstEnd = firstStart + duration(first);
+      for (final secondDay in second.weekdays) {
+        final secondStart =
+            (secondDay - 1) * minutesPerDay + second.startMinute;
+        final secondEnd = secondStart + duration(second);
+        for (final weekOffset in [-minutesPerWeek, 0, minutesPerWeek]) {
+          final shiftedStart = secondStart + weekOffset;
+          final shiftedEnd = secondEnd + weekOffset;
+          if (firstStart < shiftedEnd && shiftedStart < firstEnd) return true;
+        }
+      }
+    }
+    return false;
   }
 
   Future<void> _save() async {
@@ -93,8 +114,21 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
       hour: session.endMinute ~/ 60,
       minute: session.endMinute % 60,
     );
-    return '${MaterialLocalizations.of(context).formatTimeOfDay(start)} – '
+    final range =
+        '${MaterialLocalizations.of(context).formatTimeOfDay(start)} – '
         '${MaterialLocalizations.of(context).formatTimeOfDay(end)}';
+    final overnight =
+        session.endMinute < session.startMinute ? ' (+1 day)' : '';
+    final durationMinutes =
+        (session.endMinute - session.startMinute + 24 * 60) % (24 * 60);
+    final hours = durationMinutes ~/ 60;
+    final minutes = durationMinutes % 60;
+    final duration = [
+      if (hours > 0) '${hours}h',
+      if (minutes > 0) '${minutes}m',
+      if (hours == 0 && minutes == 0) '0m',
+    ].join(' ');
+    return '$range$overnight · $duration';
   }
 
   String _days(StudySession session) {
@@ -286,7 +320,7 @@ class _StudySessionDialogState extends State<_StudySessionDialog> {
     final subject = _subjectController.text.trim();
     if (subject.isEmpty ||
         _weekdays.isEmpty ||
-        _minutes(_end) <= _minutes(_start)) {
+        _minutes(_end) == _minutes(_start)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text(

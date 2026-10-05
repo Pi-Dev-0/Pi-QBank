@@ -33,11 +33,19 @@ internal object StudyRoutineData {
 
     fun activeSession(context: Context, now: Calendar = Calendar.getInstance()): JSONObject? {
         val weekday = isoWeekday(now.get(Calendar.DAY_OF_WEEK))
+        val previousWeekday = if (weekday == 1) 7 else weekday - 1
         val minute = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         return sessions(context).firstOrNull { session ->
             val days = session.optJSONArray("weekdays") ?: JSONArray()
-            containsDay(days, weekday) && minute >= session.optInt("startMinute") &&
-                minute < session.optInt("endMinute")
+            val start = session.optInt("startMinute", -1)
+            val end = session.optInt("endMinute", -1)
+            when {
+                start !in 0..1439 || end !in 0..1439 || start == end -> false
+                end > start -> containsDay(days, weekday) && minute >= start && minute < end
+                minute >= start -> containsDay(days, weekday)
+                minute < end -> containsDay(days, previousWeekday)
+                else -> false
+            }
         }
     }
 
@@ -86,7 +94,7 @@ internal object StudyRoutineData {
         val now = Calendar.getInstance()
         var nextBoundary: Calendar? = null
         var boundaryIsStart = false
-        for (offset in 0..7) {
+        for (offset in -1..7) {
             val day = (now.clone() as Calendar).apply {
                 add(Calendar.DAY_OF_YEAR, offset)
                 set(Calendar.HOUR_OF_DAY, 0)
@@ -100,9 +108,14 @@ internal object StudyRoutineData {
                 if (!containsDay(weekdays, weekday)) continue
                 val startMinute = session.optInt("startMinute", -1)
                 val endMinute = session.optInt("endMinute", -1)
-                for ((minute, isStart) in listOf(startMinute to true, endMinute to false)) {
-                    if (minute !in 0..1439) continue
+                if (startMinute !in 0..1439 || endMinute !in 0..1439 || startMinute == endMinute) continue
+                val boundaries = listOf(
+                    Triple(startMinute, 0, true),
+                    Triple(endMinute, if (endMinute < startMinute) 1 else 0, false),
+                )
+                for ((minute, dayOffset, isStart) in boundaries) {
                     val boundary = (day.clone() as Calendar).apply {
+                        add(Calendar.DAY_OF_YEAR, dayOffset)
                         set(Calendar.HOUR_OF_DAY, minute / 60)
                         set(Calendar.MINUTE, minute % 60)
                     }
@@ -145,36 +158,23 @@ class StudyRoutineWidgetProvider : AppWidgetProvider() {
         fun refreshAll(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val provider = ComponentName(context, StudyRoutineWidgetProvider::class.java)
-            manager.getAppWidgetIds(provider).forEach { updateWidget(context, manager, it) }
+            val ids = manager.getAppWidgetIds(provider)
+            ids.forEach { updateWidget(context, manager, it) }
+            if (ids.isNotEmpty()) {
+                manager.notifyAppWidgetViewDataChanged(ids, R.id.study_widget_list)
+            }
         }
 
         private fun updateWidget(context: Context, manager: AppWidgetManager, id: Int) {
             val views = RemoteViews(context.packageName, R.layout.study_routine_widget)
-            val active = StudyRoutineData.activeSession(context)
-            if (active != null) {
-                views.setTextViewText(R.id.study_widget_status, "STUDY NOW")
-                views.setTextViewText(R.id.study_widget_subject, active.optString("subject"))
-                views.setTextViewText(
-                    R.id.study_widget_period,
-                    periodLabel(context, active.optInt("startMinute"), active.optInt("endMinute")),
-                )
-                views.setInt(R.id.study_widget_status, "setBackgroundResource", R.drawable.study_widget_status_active)
-                views.setTextColor(R.id.study_widget_status, 0xFF28745D.toInt())
-            } else {
-                val next = StudyRoutineData.nextSession(context)
-                views.setTextViewText(R.id.study_widget_status, if (next == null) "YOUR ROUTINE" else "UP NEXT")
-                views.setTextViewText(
-                    R.id.study_widget_subject,
-                    next?.first?.optString("subject") ?: "Add study sessions",
-                )
-                views.setTextViewText(
-                    R.id.study_widget_period,
-                    if (next == null) "Tap Routine Maker to plan" else
-                        "${dayLabel(next.second)} · ${periodLabel(context, next.first.optInt("startMinute"), next.first.optInt("endMinute"))}",
-                )
-                views.setInt(R.id.study_widget_status, "setBackgroundResource", R.drawable.study_widget_status_next)
-                views.setTextColor(R.id.study_widget_status, 0xFF5345A5.toInt())
-            }
+            views.setTextViewText(R.id.study_widget_status, "YOUR SUBJECTS · SCROLL")
+            views.setInt(R.id.study_widget_status, "setBackgroundResource", R.drawable.study_widget_status_next)
+            views.setTextColor(R.id.study_widget_status, 0xFF5345A5.toInt())
+            val adapterIntent = Intent(context, StudyRoutineWidgetRemoteViewsService::class.java)
+                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                .setData(android.net.Uri.parse("routine-widget://$id"))
+            views.setRemoteAdapter(R.id.study_widget_list, adapterIntent)
+            views.setEmptyView(R.id.study_widget_list, R.id.study_widget_empty)
             val open = context.packageManager.getLaunchIntentForPackage(context.packageName)
             if (open != null) {
                 open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -200,8 +200,9 @@ class StudyRoutineWidgetProvider : AppWidgetProvider() {
                 set(Calendar.HOUR_OF_DAY, end / 60)
                 set(Calendar.MINUTE, end % 60)
             }
+            val nextDay = if (end < start) " (+1 day)" else ""
             return "${DateFormat.getTimeInstance(DateFormat.SHORT).format(begin.time)} – " +
-                DateFormat.getTimeInstance(DateFormat.SHORT).format(finish.time)
+                DateFormat.getTimeInstance(DateFormat.SHORT).format(finish.time) + nextDay
         }
 
         private fun dayLabel(date: Calendar): String {
@@ -214,5 +215,87 @@ class StudyRoutineWidgetProvider : AppWidgetProvider() {
                 else -> DateFormat.getDateInstance(DateFormat.MEDIUM).format(date.time)
             }
         }
+    }
+}
+
+class StudyRoutineWidgetRemoteViewsService : android.widget.RemoteViewsService() {
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
+        StudyRoutineWidgetFactory(applicationContext)
+}
+
+private class StudyRoutineWidgetFactory(
+    private val context: Context,
+) : android.widget.RemoteViewsService.RemoteViewsFactory {
+    private var routine: List<JSONObject> = emptyList()
+
+    override fun onCreate() = Unit
+
+    override fun onDataSetChanged() {
+        routine = StudyRoutineData.sessions(context).sortedWith(
+            compareBy<JSONObject> {
+                val days = it.optJSONArray("weekdays") ?: JSONArray()
+                (0 until days.length()).minOfOrNull { index -> days.optInt(index, 8) } ?: 8
+            }.thenBy { it.optInt("startMinute", 0) },
+        )
+    }
+
+    override fun onDestroy() {
+        routine = emptyList()
+    }
+
+    override fun getCount(): Int = routine.size
+
+    override fun getViewAt(position: Int): RemoteViews? {
+        val session = routine.getOrNull(position) ?: return null
+        val subject = session.optString("subject", "Subject")
+        val period = periodLabel(
+            context,
+            session.optInt("startMinute"),
+            session.optInt("endMinute"),
+        )
+        val views = RemoteViews(context.packageName, R.layout.study_routine_widget_item)
+        views.setTextViewText(R.id.study_widget_item_subject, subject)
+        views.setTextViewText(
+            R.id.study_widget_item_period,
+            period,
+        )
+        val active = StudyRoutineData.activeSession(context)
+        if (active?.optString("id") == session.optString("id")) {
+            views.setTextViewText(R.id.study_widget_item_status, "NOW")
+            views.setViewVisibility(R.id.study_widget_item_status, android.view.View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.study_widget_item_status, android.view.View.GONE)
+        }
+        return views
+    }
+
+    override fun getLoadingView(): RemoteViews? = null
+    override fun getViewTypeCount(): Int = 1
+    override fun getItemId(position: Int): Long =
+        routine.getOrNull(position)?.optString("id")?.hashCode()?.toLong() ?: position.toLong()
+    override fun hasStableIds(): Boolean = true
+
+    private fun periodLabel(context: Context, start: Int, end: Int): String {
+        val date = Calendar.getInstance()
+        val begin = (date.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, start / 60)
+            set(Calendar.MINUTE, start % 60)
+        }
+        val finish = (date.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, end / 60)
+            set(Calendar.MINUTE, end % 60)
+        }
+        val suffix = if (end < start) " (+1 day)" else ""
+        val durationMinutes = (end - start + 24 * 60) % (24 * 60)
+        val hours = durationMinutes / 60
+        val minutes = durationMinutes % 60
+        val duration = buildList {
+            if (hours > 0) add("${hours}h")
+            if (minutes > 0) add("${minutes}m")
+            if (hours == 0 && minutes == 0) add("0m")
+        }.joinToString(" ")
+        return "${DateFormat.getTimeInstance(DateFormat.SHORT).format(begin.time)} – " +
+            DateFormat.getTimeInstance(DateFormat.SHORT).format(finish.time) +
+            "$suffix · $duration"
     }
 }

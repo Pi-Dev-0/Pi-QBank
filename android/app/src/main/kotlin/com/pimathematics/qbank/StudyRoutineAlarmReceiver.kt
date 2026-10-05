@@ -2,7 +2,6 @@ package com.pi.mathematics
 
 import android.Manifest
 import android.app.Notification
-import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -93,10 +92,8 @@ class StudyRoutineBootReceiver : BroadcastReceiver() {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_TIME_CHANGED,
             Intent.ACTION_TIMEZONE_CHANGED,
-            Intent.ACTION_MY_PACKAGE_REPLACED,
-            AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 StudyRoutineData.reschedule(context)
-                QrAlarmData.reschedule(context)
                 StudyRoutineWidgetProvider.refreshAll(context)
                 StudyTimerWidgetProvider.refreshAll(context)
             }
