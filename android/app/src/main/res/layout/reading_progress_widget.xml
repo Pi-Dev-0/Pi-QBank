@@ -4,26 +4,74 @@
     android:layout_height="match_parent"
     android:background="@drawable/reading_progress_widget_background"
     android:orientation="vertical"
-    android:padding="12dp">
+        android:padding="12dp">
 
-    <TextView
-        android:id="@+id/reading_widget_title"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp"
-        android:text="Reading Progress"
-        android:textColor="#1F2937"
-        android:textSize="16sp"
-        android:textStyle="bold" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="2dp"
+        android:paddingTop="2dp"
+        android:paddingEnd="2dp"
+        android:paddingBottom="10dp">
+
+        <ImageView
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/reading_widget_header_icon_background"
+            android:contentDescription="Reading progress"
+            android:padding="8dp"
+            android:src="@drawable/reading_widget_book_icon" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/reading_widget_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Reading Progress"
+                android:textColor="#252044"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="YOUR PHYSICAL BOOKS"
+                android:textColor="#77718F"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/reading_widget_header_badge"
+            android:paddingStart="9dp"
+            android:paddingTop="5dp"
+            android:paddingEnd="9dp"
+            android:paddingBottom="5dp"
+            android:text="SHELF"
+            android:textColor="#5946A5"
+            android:textSize="9sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 
     <ListView
         android:id="@+id/reading_widget_list"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:divider="#E5E7EB"
-        android:dividerHeight="1dp"
+        android:divider="@android:color/transparent"
+        android:dividerHeight="0dp"
         android:scrollbars="vertical"
         android:cacheColorHint="#00000000" />
 
@@ -35,6 +83,6 @@
         android:gravity="center"
         android:padding="16dp"
         android:text="Add books in Pi-QBank to track them here."
-        android:textColor="#4B5563"
+        android:textColor="#625D78"
         android:textSize="14sp" />
 </LinearLayout>

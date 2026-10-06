@@ -37,6 +37,7 @@ class StudySession {
 
 class StudyRoutineService {
   static const routineKey = 'study_routine_v1';
+  static const remindersEnabledKey = 'study_routine_notifications_enabled';
   static const _channel = MethodChannel('com.pi.mathematics/study_routine');
 
   static int compareByCurrentTime(
@@ -130,6 +131,17 @@ class StudyRoutineService {
     }
   }
 
+  static Future<bool> loadRemindersEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(remindersEnabledKey) ?? true;
+  }
+
+  static Future<void> setRemindersEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(remindersEnabledKey, enabled);
+    await _channel.invokeMethod<void>('setRemindersEnabled', enabled);
+  }
+
   static Future<bool> saveRoutine(List<StudySession> sessions) async {
     final encoded =
         jsonEncode(sessions.map((session) => session.toJson()).toList());
@@ -138,20 +150,34 @@ class StudyRoutineService {
     try {
       await _channel.invokeMethod<void>('syncRoutine', encoded);
       if (sessions.isNotEmpty) {
-        var overlayAllowed = false;
+        var specialAccessAllowed = true;
         try {
-          overlayAllowed =
+          specialAccessAllowed =
               await _channel.invokeMethod<bool>('requestOverlayPermission') ??
                   false;
         } on PlatformException {
-          // Standard notification reminders remain available as a fallback.
+          specialAccessAllowed = false;
         }
         try {
-          await _channel.invokeMethod<void>('requestNotificationPermission');
+          final allowed = await _channel.invokeMethod<bool>(
+            'requestNotificationPermission',
+          );
+          specialAccessAllowed = specialAccessAllowed && (allowed ?? false);
         } on PlatformException {
-          // The routine remains saved if notification access is denied.
+          specialAccessAllowed = false;
         }
-        return overlayAllowed;
+        for (final permissionMethod in [
+          'requestExactAlarmPermission',
+          'requestFullScreenIntentPermission',
+        ]) {
+          try {
+            final allowed = await _channel.invokeMethod<bool>(permissionMethod);
+            specialAccessAllowed = specialAccessAllowed && (allowed ?? false);
+          } on PlatformException {
+            specialAccessAllowed = false;
+          }
+        }
+        return specialAccessAllowed;
       }
       return true;
     } on MissingPluginException {

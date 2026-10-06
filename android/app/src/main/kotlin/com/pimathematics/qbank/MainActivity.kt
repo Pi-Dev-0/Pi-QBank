@@ -8,6 +8,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
+import android.app.AlarmManager
+import android.app.NotificationManager
 
 class MainActivity : FlutterActivity() {
     private var newspaperWidgetChannel: MethodChannel? = null
@@ -15,6 +17,9 @@ class MainActivity : FlutterActivity() {
     private var studyRoutineWidgetChannel: MethodChannel? = null
     private var overlayPermissionResult: MethodChannel.Result? = null
     private var awaitingOverlayPermission = false
+    private var specialAccessResult: MethodChannel.Result? = null
+    private var specialAccessKind: String? = null
+    private var notificationPermissionResult: MethodChannel.Result? = null
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
@@ -60,22 +65,31 @@ class MainActivity : FlutterActivity() {
                             getSharedPreferences(STUDY_ROUTINE_PREFS, MODE_PRIVATE)
                                 .edit()
                                 .putString(STUDY_ROUTINE_KEY, routine)
-                                .putBoolean(STUDY_ROUTINE_ENABLED_KEY, true)
                                 .apply()
                             StudyRoutineData.reschedule(applicationContext)
                             StudyRoutineWidgetProvider.refreshAll(applicationContext)
                             result.success(null)
                         }
                     }
-                    "requestNotificationPermission" -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-                            PackageManager.PERMISSION_GRANTED) {
-                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 74302)
+                    "setRemindersEnabled" -> {
+                        val enabled = call.arguments as? Boolean
+                        if (enabled == null) {
+                            result.error("invalid_reminder_state", "Reminder state is missing", null)
+                        } else {
+                            getSharedPreferences(STUDY_ROUTINE_PREFS, MODE_PRIVATE)
+                                .edit()
+                                .putBoolean(STUDY_ROUTINE_ENABLED_KEY, enabled)
+                                .apply()
+                            StudyRoutineData.reschedule(applicationContext)
+                            result.success(null)
                         }
-                        result.success(null)
+                    }
+                    "requestNotificationPermission" -> {
+                        requestNotificationPermission(result)
                     }
                     "requestOverlayPermission" -> requestOverlayPermission(result)
+                    "requestExactAlarmPermission" -> requestSpecialAccess("exact_alarm", result)
+                    "requestFullScreenIntentPermission" -> requestSpecialAccess("full_screen_intent", result)
                     "refreshWidget" -> {
                         StudyRoutineWidgetProvider.refreshAll(applicationContext)
                         result.success(null)
@@ -100,6 +114,31 @@ class MainActivity : FlutterActivity() {
 
     }
 
+    private fun requestNotificationPermission(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED) {
+            result.success(true)
+            return
+        }
+        notificationPermissionResult = result
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 74302)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 74302) {
+            notificationPermissionResult?.success(
+                grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED,
+            )
+            notificationPermissionResult = null
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (awaitingOverlayPermission) {
@@ -109,7 +148,57 @@ class MainActivity : FlutterActivity() {
             overlayPermissionResult?.success(granted)
             overlayPermissionResult = null
         }
+        specialAccessKind?.let { kind ->
+            val granted = when (kind) {
+                "exact_alarm" -> Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                    getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
+                "full_screen_intent" -> Build.VERSION.SDK_INT < 34 ||
+                    getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true
+                else -> false
+            }
+            specialAccessKind = null
+            specialAccessResult?.success(granted)
+            specialAccessResult = null
+        }
         StudyRoutineWidgetProvider.refreshAll(applicationContext)
+    }
+
+    private fun requestSpecialAccess(kind: String, result: MethodChannel.Result) {
+        val alreadyAllowed = when (kind) {
+            "exact_alarm" -> Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
+            "full_screen_intent" -> Build.VERSION.SDK_INT < 34 ||
+                getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true
+            else -> false
+        }
+        if (alreadyAllowed) {
+            result.success(true)
+            return
+        }
+        val settingsIntent = when (kind) {
+            "exact_alarm" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                    .setData(android.net.Uri.parse("package:$packageName"))
+            } else null
+            "full_screen_intent" -> if (Build.VERSION.SDK_INT >= 34) {
+                Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                    .setData(android.net.Uri.parse("package:$packageName"))
+            } else null
+            else -> null
+        }
+        if (settingsIntent == null) {
+            result.success(false)
+            return
+        }
+        specialAccessResult = result
+        specialAccessKind = kind
+        try {
+            startActivity(settingsIntent)
+        } catch (error: Exception) {
+            specialAccessKind = null
+            specialAccessResult = null
+            result.success(false)
+        }
     }
 
     private fun requestOverlayPermission(result: MethodChannel.Result) {

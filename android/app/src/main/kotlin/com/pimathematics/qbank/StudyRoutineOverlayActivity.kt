@@ -25,6 +25,7 @@ class StudyRoutineOverlayActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val autoDismissRunnable = Runnable {
         stopAlerts()
+        clearNotification()
         finish()
     }
 
@@ -57,8 +58,8 @@ class StudyRoutineOverlayActivity : Activity() {
         }
 
         startAlerts()
-        // Auto-dismiss after 2 minutes to protect battery if left unattended
-        handler.postDelayed(autoDismissRunnable, 120000L)
+        // Play one short reminder and close the full-screen prompt after 30 seconds.
+        handler.postDelayed(autoDismissRunnable, ALERT_DURATION_MS)
     }
 
     private fun configureWindow() {
@@ -89,9 +90,6 @@ class StudyRoutineOverlayActivity : Activity() {
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
             ringtone = RingtoneManager.getRingtone(applicationContext, alertUri)?.apply {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    isLooping = true
-                }
                 play()
             }
         } catch (_: Exception) {}
@@ -106,10 +104,10 @@ class StudyRoutineOverlayActivity : Activity() {
             }
             val pattern = longArrayOf(0, 500, 400, 500, 400, 500)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1))
             } else {
                 @Suppress("DEPRECATION")
-                vibrator?.vibrate(pattern, 0)
+                vibrator?.vibrate(pattern, -1)
             }
         } catch (_: Exception) {}
     }
@@ -157,6 +155,7 @@ class StudyRoutineOverlayActivity : Activity() {
     }
 
     companion object {
+        private const val ALERT_DURATION_MS = 30_000L
         const val EXTRA_SUBJECT = "extra_study_subject"
         const val EXTRA_TIME_RANGE = "extra_study_time_range"
         const val EXTRA_DURATION = "extra_study_duration"

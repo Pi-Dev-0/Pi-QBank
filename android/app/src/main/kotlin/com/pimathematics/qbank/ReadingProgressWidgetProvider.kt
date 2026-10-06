@@ -6,6 +6,8 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.view.View
 import android.widget.RemoteViews
@@ -127,6 +129,13 @@ private class ReadingProgressWidgetFactory(
         val totalPages = book.optInt("totalPages", 0)
         val views = RemoteViews(context.packageName, R.layout.reading_progress_widget_item)
 
+        views.setImageViewResource(
+            R.id.reading_widget_item_cover,
+            R.drawable.reading_widget_book_cover,
+        )
+        decodeBookCover(book.optString("thumbnailPath").takeIf { it.isNotBlank() })?.let { cover ->
+            views.setImageViewBitmap(R.id.reading_widget_item_cover, cover)
+        }
         views.setTextViewText(R.id.reading_widget_item_title, title)
         val positionText = when {
             startPage > 1 && totalPages > 0 -> "Page $currentPage ($startPage–$totalPages)"
@@ -164,6 +173,16 @@ private class ReadingProgressWidgetFactory(
             }
             views.setTextViewText(R.id.reading_widget_item_percent, "$percent%")
             views.setTextColor(R.id.reading_widget_item_percent, colorAndBar.first)
+            views.setInt(
+                R.id.reading_widget_item_percent,
+                "setBackgroundResource",
+                when {
+                    percent < 25 -> R.drawable.reading_widget_percent_early
+                    percent < 50 -> R.drawable.reading_widget_percent_mid
+                    percent < 75 -> R.drawable.reading_widget_percent_late
+                    else -> R.drawable.reading_widget_percent_done
+                },
+            )
             views.setViewVisibility(R.id.reading_widget_item_percent, View.VISIBLE)
         } else {
             progressViewIds.forEach { views.setViewVisibility(it, View.GONE) }
@@ -181,6 +200,26 @@ private class ReadingProgressWidgetFactory(
             .putExtra(READING_PROGRESS_BOOK_ID, bookId)
             .putExtra(READING_PROGRESS_PAGE_STEP, step)
         views.setOnClickFillInIntent(viewId, fillInIntent)
+    }
+
+    private fun decodeBookCover(path: String?): Bitmap? {
+        if (path == null) return null
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+            var sampleSize = 1
+            while (bounds.outWidth / sampleSize > 144 || bounds.outHeight / sampleSize > 192) {
+                sampleSize *= 2
+            }
+            BitmapFactory.decodeFile(
+                path,
+                BitmapFactory.Options().apply { inSampleSize = sampleSize },
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 
     override fun getLoadingView(): RemoteViews? = null

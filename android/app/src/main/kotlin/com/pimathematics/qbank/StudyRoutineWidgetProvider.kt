@@ -140,6 +140,9 @@ internal object StudyRoutineData {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         alarmManager.cancel(pending)
+        val remindersEnabled = context.getSharedPreferences(STUDY_ROUTINE_PREFS, Context.MODE_PRIVATE)
+            .getBoolean(STUDY_ROUTINE_ENABLED_KEY, true)
+        if (!remindersEnabled) return
 
         val now = Calendar.getInstance()
         var nextBoundary: Calendar? = null

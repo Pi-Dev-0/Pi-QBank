@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pi_qbank/services/study_routine_service.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
@@ -17,6 +18,8 @@ class _StudyRoutinePageState extends State<StudyRoutinePage>
   List<StudySession> _sessions = [];
   bool _loading = true;
   bool _saving = false;
+  bool _remindersEnabled = true;
+  bool _updatingReminder = false;
   Timer? _orderingTimer;
 
   @override
@@ -47,14 +50,52 @@ class _StudyRoutinePageState extends State<StudyRoutinePage>
   }
 
   Future<void> _load() async {
-    final sessions = await StudyRoutineService.loadRoutine();
+    final values = await Future.wait<Object>([
+      StudyRoutineService.loadRoutine(),
+      StudyRoutineService.loadRemindersEnabled(),
+    ]);
+    final sessions = values[0] as List<StudySession>;
+    final remindersEnabled = values[1] as bool;
     if (!mounted) return;
     setState(() {
       _sessions = sessions;
+      _remindersEnabled = remindersEnabled;
       _sortSessions();
       _loading = false;
     });
     StudyRoutineService.refreshWidget();
+  }
+
+  Future<void> _setRemindersEnabled(bool enabled) async {
+    setState(() {
+      _updatingReminder = true;
+      _remindersEnabled = enabled;
+    });
+    try {
+      await StudyRoutineService.setRemindersEnabled(enabled);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              enabled
+                  ? 'Study reminders turned on.'
+                  : 'Study reminders turned off.',
+            ),
+          ),
+        );
+      }
+    } on PlatformException catch (error) {
+      if (mounted) {
+        setState(() => _remindersEnabled = !enabled);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'Could not update reminders: ${error.message ?? 'Please try again.'}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updatingReminder = false);
+    }
   }
 
   void _sortSessions() {
@@ -128,7 +169,7 @@ class _StudyRoutinePageState extends State<StudyRoutinePage>
                   ? 'Routine cleared.'
                   : overlayAllowed
                       ? 'Routine saved. Full-screen reminders are enabled.'
-                      : 'Routine saved. Allow Display over other apps for full-screen reminders.',
+                      : 'Routine saved. Allow the requested alarm and overlay access for full-screen reminders.',
             ),
           ),
         );
@@ -198,15 +239,46 @@ class _StudyRoutinePageState extends State<StudyRoutinePage>
                     ),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Row(
+                  child: Column(
                     children: [
-                      Icon(Icons.notifications_active_outlined,
-                          color: Colors.white, size: 30),
-                      SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          'Plan your study blocks. Pi-QBank will remind you when it’s time to switch subjects.',
-                          style: TextStyle(color: Colors.white, height: 1.35),
+                      Row(
+                        children: [
+                          const Icon(Icons.notifications_active_outlined,
+                              color: Colors.white, size: 28),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Study reminders',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: _remindersEnabled,
+                            onChanged:
+                                _updatingReminder ? null : _setRemindersEnabled,
+                            activeColor: Colors.white,
+                            activeTrackColor: const Color(0xFFB9F6CA),
+                            inactiveTrackColor: Colors.white38,
+                          ),
+                        ],
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 40, right: 8),
+                          child: Text(
+                            _remindersEnabled
+                                ? 'On · You’ll be reminded when it’s time to switch subjects.'
+                                : 'Off · Your routine is saved, but reminders are paused.',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              height: 1.35,
+                            ),
+                          ),
                         ),
                       ),
                     ],
