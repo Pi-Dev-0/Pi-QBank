@@ -119,11 +119,18 @@ class _StudyRoutinePageState extends State<StudyRoutinePage>
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await StudyRoutineService.saveRoutine(_sessions);
+      final overlayAllowed = await StudyRoutineService.saveRoutine(_sessions);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Routine saved. Study reminders are set.')),
+          SnackBar(
+            content: Text(
+              _sessions.isEmpty
+                  ? 'Routine cleared.'
+                  : overlayAllowed
+                      ? 'Routine saved. Full-screen reminders are enabled.'
+                      : 'Routine saved. Allow Display over other apps for full-screen reminders.',
+            ),
+          ),
         );
       }
     } finally {
@@ -244,105 +251,104 @@ class _StudyRoutinePageState extends State<StudyRoutinePage>
   Widget _sessionCard(StudySession session) {
     final isActive = StudyRoutineService.isSessionActive(session);
     return Card(
-        key: ValueKey(session.id),
-        margin: const EdgeInsets.symmetric(vertical: 7),
-        elevation: isActive ? 3 : 1,
-        color: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: isActive
-              ? const BorderSide(color: Color(0xFF4657CE), width: 1.6)
-              : BorderSide.none,
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => _editSession(session),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? const Color(0xFF4657CE)
-                        : const Color(0xFFECEBFF),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    Icons.menu_book_rounded,
-                    color: isActive ? Colors.white : const Color(0xFF5850B8),
-                  ),
+      key: ValueKey(session.id),
+      margin: const EdgeInsets.symmetric(vertical: 7),
+      elevation: isActive ? 3 : 1,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: isActive
+            ? const BorderSide(color: Color(0xFF4657CE), width: 1.6)
+            : BorderSide.none,
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _editSession(session),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? const Color(0xFF4657CE)
+                      : const Color(0xFFECEBFF),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              session.subject,
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold),
+                child: Icon(
+                  Icons.menu_book_rounded,
+                  color: isActive ? Colors.white : const Color(0xFF5850B8),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            session.subject,
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        if (isActive) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: const Color(0xFF2E7D32), width: 1),
+                            ),
+                            child: const Text(
+                              'NOW',
+                              style: TextStyle(
+                                color: Color(0xFF2E7D32),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
                             ),
                           ),
-                          if (isActive) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE8F5E9),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: const Color(0xFF2E7D32), width: 1),
-                              ),
-                              child: const Text(
-                                'NOW',
-                                style: TextStyle(
-                                  color: Color(0xFF2E7D32),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      _range(session),
+                      style: TextStyle(
+                        color: isActive
+                            ? const Color(0xFF4657CE)
+                            : const Color(0xFF4945A2),
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        _range(session),
-                        style: TextStyle(
-                          color: isActive
-                              ? const Color(0xFF4657CE)
-                              : const Color(0xFF4945A2),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _days(session),
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.black54),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _days(session),
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black54),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: 'Delete session',
-                  onPressed: () => _delete(session),
-                  icon:
-                      const Icon(Icons.delete_outline, color: Colors.redAccent),
-                ),
-              ],
-            ),
+              ),
+              IconButton(
+                tooltip: 'Delete session',
+                onPressed: () => _delete(session),
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
   }
 }
 

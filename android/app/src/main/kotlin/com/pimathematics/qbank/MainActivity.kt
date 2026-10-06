@@ -7,11 +7,14 @@ import android.content.Intent
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 
 class MainActivity : FlutterActivity() {
     private var newspaperWidgetChannel: MethodChannel? = null
     private var studyTimerWidgetChannel: MethodChannel? = null
     private var studyRoutineWidgetChannel: MethodChannel? = null
+    private var overlayPermissionResult: MethodChannel.Result? = null
+    private var awaitingOverlayPermission = false
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
@@ -72,6 +75,7 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(null)
                     }
+                    "requestOverlayPermission" -> requestOverlayPermission(result)
                     "refreshWidget" -> {
                         StudyRoutineWidgetProvider.refreshAll(applicationContext)
                         result.success(null)
@@ -98,7 +102,33 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (awaitingOverlayPermission) {
+            awaitingOverlayPermission = false
+            val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                Settings.canDrawOverlays(this)
+            overlayPermissionResult?.success(granted)
+            overlayPermissionResult = null
+        }
         StudyRoutineWidgetProvider.refreshAll(applicationContext)
+    }
+
+    private fun requestOverlayPermission(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+            result.success(true)
+            return
+        }
+        overlayPermissionResult = result
+        awaitingOverlayPermission = true
+        try {
+            startActivity(
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                    .setData(android.net.Uri.parse("package:$packageName")),
+            )
+        } catch (error: Exception) {
+            awaitingOverlayPermission = false
+            overlayPermissionResult = null
+            result.error("overlay_settings_unavailable", error.message, null)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -10,11 +10,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import java.text.DateFormat
 import java.util.Calendar
 import org.json.JSONObject
 
-private const val STUDY_NOTIFICATION_CHANNEL = "study_routine_reminders"
+private const val STUDY_NOTIFICATION_CHANNEL = "study_routine_fullscreen_v2"
 
 class StudyRoutineAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -67,15 +69,25 @@ class StudyRoutineAlarmReceiver : BroadcastReceiver() {
             putExtra(StudyRoutineOverlayActivity.EXTRA_SESSION_ID, session.optString("id"))
         }
 
-        // Try direct launch
-        try {
-            context.startActivity(overlayIntent)
-        } catch (_: Exception) {}
+        // A user granted overlay access allows the reminder activity to open
+        // above another app while the phone is awake and unlocked. Let Android's
+        // full-screen notification handle the lock screen and screen-off cases.
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        val canDrawOverApps = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            Settings.canDrawOverlays(context)
+        if (canDrawOverApps && powerManager?.isInteractive == true &&
+            keyguardManager?.isKeyguardLocked != true) {
+            try {
+                context.startActivity(overlayIntent)
+            } catch (_: Exception) {
+                // The high-priority notification remains available as fallback.
+            }
+        }
 
-        // Set up high-priority full-screen intent (required on Android 10+ when screen is locked/off or app in background)
         val fullScreenPending = PendingIntent.getActivity(
             context,
-            74303,
+            session.optString("id").hashCode(),
             overlayIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

@@ -130,7 +130,7 @@ class StudyRoutineService {
     }
   }
 
-  static Future<void> saveRoutine(List<StudySession> sessions) async {
+  static Future<bool> saveRoutine(List<StudySession> sessions) async {
     final encoded =
         jsonEncode(sessions.map((session) => session.toJson()).toList());
     final prefs = await SharedPreferences.getInstance();
@@ -138,12 +138,28 @@ class StudyRoutineService {
     try {
       await _channel.invokeMethod<void>('syncRoutine', encoded);
       if (sessions.isNotEmpty) {
-        await _channel.invokeMethod<void>('requestNotificationPermission');
+        var overlayAllowed = false;
+        try {
+          overlayAllowed =
+              await _channel.invokeMethod<bool>('requestOverlayPermission') ??
+                  false;
+        } on PlatformException {
+          // Standard notification reminders remain available as a fallback.
+        }
+        try {
+          await _channel.invokeMethod<void>('requestNotificationPermission');
+        } on PlatformException {
+          // The routine remains saved if notification access is denied.
+        }
+        return overlayAllowed;
       }
+      return true;
     } on MissingPluginException {
       // Android handles the home-screen widget and scheduled notifications.
+      return false;
     } on PlatformException {
       // Saving the routine remains available if notification access is denied.
+      return false;
     }
   }
 }
