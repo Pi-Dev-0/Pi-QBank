@@ -49,6 +49,56 @@ internal object StudyRoutineData {
         }
     }
 
+    fun compareByCurrentTime(
+        first: JSONObject,
+        second: JSONObject,
+        now: Calendar,
+        activeId: String?,
+    ): Int {
+        val firstActive = first.optString("id") == activeId
+        val secondActive = second.optString("id") == activeId
+        if (firstActive != secondActive) return if (firstActive) -1 else 1
+        if (firstActive) {
+            val byStart = first.optInt("startMinute", 0)
+                .compareTo(second.optInt("startMinute", 0))
+            if (byStart != 0) return byStart
+        }
+
+        val firstNext = nextStartTime(first, now) ?: Long.MAX_VALUE
+        val secondNext = nextStartTime(second, now) ?: Long.MAX_VALUE
+        val byNextStart = firstNext.compareTo(secondNext)
+        if (byNextStart != 0) return byNextStart
+        val byStart = first.optInt("startMinute", 0)
+            .compareTo(second.optInt("startMinute", 0))
+        return if (byStart != 0) byStart
+        else first.optString("id").compareTo(second.optString("id"))
+    }
+
+    private fun nextStartTime(session: JSONObject, now: Calendar): Long? {
+        val startMinute = session.optInt("startMinute", -1)
+        if (startMinute !in 0..1439) return null
+        val weekdays = session.optJSONArray("weekdays") ?: JSONArray()
+        for (offset in 0..7) {
+            val day = (now.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, offset)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val occursOnDay = if (weekdays.length() == 0) {
+                offset == 0
+            } else {
+                containsDay(weekdays, isoWeekday(day.get(Calendar.DAY_OF_WEEK)))
+            }
+            if (!occursOnDay) continue
+            day.set(Calendar.HOUR_OF_DAY, startMinute / 60)
+            day.set(Calendar.MINUTE, startMinute % 60)
+            if (day.timeInMillis > now.timeInMillis) return day.timeInMillis
+        }
+        return null
+    }
+
     fun nextSession(context: Context, now: Calendar = Calendar.getInstance()): Pair<JSONObject, Calendar>? {
         val sessions = sessions(context)
         var best: Pair<JSONObject, Calendar>? = null
@@ -231,12 +281,11 @@ private class StudyRoutineWidgetFactory(
     override fun onCreate() = Unit
 
     override fun onDataSetChanged() {
-        routine = StudyRoutineData.sessions(context).sortedWith(
-            compareBy<JSONObject> {
-                val days = it.optJSONArray("weekdays") ?: JSONArray()
-                (0 until days.length()).minOfOrNull { index -> days.optInt(index, 8) } ?: 8
-            }.thenBy { it.optInt("startMinute", 0) },
-        )
+        val now = Calendar.getInstance()
+        val activeId = StudyRoutineData.activeSession(context, now)?.optString("id")
+        routine = StudyRoutineData.sessions(context).sortedWith { first, second ->
+            StudyRoutineData.compareByCurrentTime(first, second, now, activeId)
+        }
     }
 
     override fun onDestroy() {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pi_qbank/services/study_routine_service.dart';
@@ -14,24 +16,40 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
   List<StudySession> _sessions = [];
   bool _loading = true;
   bool _saving = false;
+  Timer? _orderingTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _orderingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted || _sessions.length < 2) return;
+      setState(_sortSessions);
+    });
+  }
+
+  @override
+  void dispose() {
+    _orderingTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
     final sessions = await StudyRoutineService.loadRoutine();
     if (!mounted) return;
     setState(() {
-      _sessions = sessions..sort(_compareSessions);
+      _sessions = sessions;
+      _sortSessions();
       _loading = false;
     });
   }
 
-  int _compareSessions(StudySession a, StudySession b) =>
-      a.startMinute.compareTo(b.startMinute);
+  void _sortSessions() {
+    final now = DateTime.now();
+    _sessions.sort(
+      (a, b) => StudyRoutineService.compareByCurrentTime(a, b, now),
+    );
+  }
 
   Future<void> _editSession([StudySession? existing]) async {
     final session = await showDialog<StudySession>(
@@ -56,7 +74,7 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
       } else {
         _sessions[index] = session;
       }
-      _sessions.sort(_compareSessions);
+      _sortSessions();
     });
     await _save();
   }
