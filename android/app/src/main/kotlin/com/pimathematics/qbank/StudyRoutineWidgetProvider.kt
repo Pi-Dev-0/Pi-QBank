@@ -31,32 +31,32 @@ internal object StudyRoutineData {
         }
     }
 
-    fun activeSession(context: Context, now: Calendar = Calendar.getInstance()): JSONObject? {
+    fun isSessionActive(session: JSONObject, now: Calendar = Calendar.getInstance()): Boolean {
         val weekday = isoWeekday(now.get(Calendar.DAY_OF_WEEK))
         val previousWeekday = if (weekday == 1) 7 else weekday - 1
         val minute = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-        return sessions(context).firstOrNull { session ->
-            val days = session.optJSONArray("weekdays") ?: JSONArray()
-            val start = session.optInt("startMinute", -1)
-            val end = session.optInt("endMinute", -1)
-            when {
-                start !in 0..1439 || end !in 0..1439 || start == end -> false
-                end > start -> containsDay(days, weekday) && minute >= start && minute < end
-                minute >= start -> containsDay(days, weekday)
-                minute < end -> containsDay(days, previousWeekday)
-                else -> false
-            }
+        val days = session.optJSONArray("weekdays") ?: JSONArray()
+        val start = session.optInt("startMinute", -1)
+        val end = session.optInt("endMinute", -1)
+        return when {
+            start !in 0..1439 || end !in 0..1439 || start == end -> false
+            end > start -> containsDay(days, weekday) && minute >= start && minute < end
+            minute >= start -> containsDay(days, weekday)
+            minute < end -> containsDay(days, previousWeekday)
+            else -> false
         }
     }
+
+    fun activeSession(context: Context, now: Calendar = Calendar.getInstance()): JSONObject? =
+        sessions(context).firstOrNull { isSessionActive(it, now) }
 
     fun compareByCurrentTime(
         first: JSONObject,
         second: JSONObject,
         now: Calendar,
-        activeId: String?,
     ): Int {
-        val firstActive = first.optString("id") == activeId
-        val secondActive = second.optString("id") == activeId
+        val firstActive = isSessionActive(first, now)
+        val secondActive = isSessionActive(second, now)
         if (firstActive != secondActive) return if (firstActive) -1 else 1
         if (firstActive) {
             val byStart = first.optInt("startMinute", 0)
@@ -143,7 +143,6 @@ internal object StudyRoutineData {
 
         val now = Calendar.getInstance()
         var nextBoundary: Calendar? = null
-        var boundaryIsStart = false
         for (offset in -1..7) {
             val day = (now.clone() as Calendar).apply {
                 add(Calendar.DAY_OF_YEAR, offset)
@@ -163,32 +162,40 @@ internal object StudyRoutineData {
                     Triple(startMinute, 0, true),
                     Triple(endMinute, if (endMinute < startMinute) 1 else 0, false),
                 )
-                for ((minute, dayOffset, isStart) in boundaries) {
+                for ((minute, dayOffset, _) in boundaries) {
                     val boundary = (day.clone() as Calendar).apply {
                         add(Calendar.DAY_OF_YEAR, dayOffset)
                         set(Calendar.HOUR_OF_DAY, minute / 60)
                         set(Calendar.MINUTE, minute % 60)
                     }
-                    if (boundary.timeInMillis > now.timeInMillis &&
+                    if (boundary.timeInMillis > now.timeInMillis + 1000 &&
                         (nextBoundary == null || boundary.timeInMillis < nextBoundary!!.timeInMillis)) {
                         nextBoundary = boundary
-                        boundaryIsStart = isStart
                     }
                 }
             }
         }
         val next = nextBoundary ?: return
-        intent.putExtra("notify_study_start", boundaryIsStart)
         val scheduledPending = PendingIntent.getBroadcast(
             context,
             74120,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, scheduledPending)
+                } else {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, scheduledPending)
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, scheduledPending)
+            } else {
+                alarmManager.set(AlarmManager.RTC_WAKEUP, next.timeInMillis, scheduledPending)
+            }
+        } catch (_: SecurityException) {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, scheduledPending)
-        } else {
-            alarmManager.set(AlarmManager.RTC_WAKEUP, next.timeInMillis, scheduledPending)
         }
     }
 
@@ -201,7 +208,7 @@ internal object StudyRoutineData {
 
 class StudyRoutineWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
-        appWidgetIds.forEach { updateWidget(context, manager, it) }
+        refreshAll(context)
     }
 
     companion object {
@@ -213,6 +220,7 @@ class StudyRoutineWidgetProvider : AppWidgetProvider() {
             if (ids.isNotEmpty()) {
                 manager.notifyAppWidgetViewDataChanged(ids, R.id.study_widget_list)
             }
+            StudyRoutineData.reschedule(context)
         }
 
         private fun updateWidget(context: Context, manager: AppWidgetManager, id: Int) {
@@ -282,9 +290,8 @@ private class StudyRoutineWidgetFactory(
 
     override fun onDataSetChanged() {
         val now = Calendar.getInstance()
-        val activeId = StudyRoutineData.activeSession(context, now)?.optString("id")
         routine = StudyRoutineData.sessions(context).sortedWith { first, second ->
-            StudyRoutineData.compareByCurrentTime(first, second, now, activeId)
+            StudyRoutineData.compareByCurrentTime(first, second, now)
         }
     }
 
@@ -308,8 +315,8 @@ private class StudyRoutineWidgetFactory(
             R.id.study_widget_item_period,
             period,
         )
-        val active = StudyRoutineData.activeSession(context)
-        if (active?.optString("id") == session.optString("id")) {
+        val isActive = StudyRoutineData.isSessionActive(session, Calendar.getInstance())
+        if (isActive) {
             views.setTextViewText(R.id.study_widget_item_status, "NOW")
             views.setViewVisibility(R.id.study_widget_item_status, android.view.View.VISIBLE)
         } else {
@@ -320,9 +327,8 @@ private class StudyRoutineWidgetFactory(
 
     override fun getLoadingView(): RemoteViews? = null
     override fun getViewTypeCount(): Int = 1
-    override fun getItemId(position: Int): Long =
-        routine.getOrNull(position)?.optString("id")?.hashCode()?.toLong() ?: position.toLong()
-    override fun hasStableIds(): Boolean = true
+    override fun getItemId(position: Int): Long = position.toLong()
+    override fun hasStableIds(): Boolean = false
 
     private fun periodLabel(context: Context, start: Int, end: Int): String {
         val date = Calendar.getInstance()

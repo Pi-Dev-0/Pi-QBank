@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import java.text.DateFormat
 import java.util.Calendar
+import org.json.JSONObject
 
 private const val STUDY_NOTIFICATION_CHANNEL = "study_routine_reminders"
 
@@ -20,20 +21,20 @@ class StudyRoutineAlarmReceiver : BroadcastReceiver() {
         if (intent.action != STUDY_ROUTINE_ALARM_ACTION) return
         val pendingResult = goAsync()
         try {
-            if (intent.getBooleanExtra("notify_study_start", false)) {
-                notifyCurrentStudySession(context)
+            val queryNow = Calendar.getInstance().apply { add(Calendar.SECOND, 2) }
+            val active = StudyRoutineData.activeSession(context, queryNow)
+            if (active != null) {
+                notifyCurrentStudySession(context, active)
             }
             StudyRoutineWidgetProvider.refreshAll(context)
-            StudyRoutineData.reschedule(context)
         } finally {
             pendingResult.finish()
         }
     }
 
-    private fun notifyCurrentStudySession(context: Context) {
+    private fun notifyCurrentStudySession(context: Context, session: JSONObject) {
         val prefs = context.getSharedPreferences(STUDY_ROUTINE_PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean(STUDY_ROUTINE_ENABLED_KEY, true)) return
-        val session = StudyRoutineData.activeSession(context) ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED) return

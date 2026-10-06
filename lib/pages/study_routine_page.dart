@@ -12,7 +12,8 @@ class StudyRoutinePage extends StatefulWidget {
   State<StudyRoutinePage> createState() => _StudyRoutinePageState();
 }
 
-class _StudyRoutinePageState extends State<StudyRoutinePage> {
+class _StudyRoutinePageState extends State<StudyRoutinePage>
+    with WidgetsBindingObserver {
   List<StudySession> _sessions = [];
   bool _loading = true;
   bool _saving = false;
@@ -21,15 +22,26 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     _orderingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (!mounted || _sessions.length < 2) return;
+      if (!mounted) return;
       setState(_sortSessions);
+      StudyRoutineService.refreshWidget();
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      setState(_sortSessions);
+      StudyRoutineService.refreshWidget();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _orderingTimer?.cancel();
     super.dispose();
   }
@@ -42,6 +54,7 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
       _sortSessions();
       _loading = false;
     });
+    StudyRoutineService.refreshWidget();
   }
 
   void _sortSessions() {
@@ -228,11 +241,19 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
         ),
       );
 
-  Widget _sessionCard(StudySession session) => Card(
+  Widget _sessionCard(StudySession session) {
+    final isActive = StudyRoutineService.isSessionActive(session);
+    return Card(
+        key: ValueKey(session.id),
         margin: const EdgeInsets.symmetric(vertical: 7),
-        elevation: 1,
+        elevation: isActive ? 3 : 1,
         color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: isActive
+              ? const BorderSide(color: Color(0xFF4657CE), width: 1.6)
+              : BorderSide.none,
+        ),
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () => _editSession(session),
@@ -244,29 +265,70 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFECEBFF),
+                    color: isActive
+                        ? const Color(0xFF4657CE)
+                        : const Color(0xFFECEBFF),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(Icons.menu_book_rounded,
-                      color: Color(0xFF5850B8)),
+                  child: Icon(
+                    Icons.menu_book_rounded,
+                    color: isActive ? Colors.white : const Color(0xFF5850B8),
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(session.subject,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              session.subject,
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          if (isActive) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F5E9),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: const Color(0xFF2E7D32), width: 1),
+                              ),
+                              child: const Text(
+                                'NOW',
+                                style: TextStyle(
+                                  color: Color(0xFF2E7D32),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                       const SizedBox(height: 5),
-                      Text(_range(session),
-                          style: const TextStyle(
-                              color: Color(0xFF4945A2),
-                              fontWeight: FontWeight.w600)),
+                      Text(
+                        _range(session),
+                        style: TextStyle(
+                          color: isActive
+                              ? const Color(0xFF4657CE)
+                              : const Color(0xFF4945A2),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 3),
-                      Text(_days(session),
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.black54)),
+                      Text(
+                        _days(session),
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.black54),
+                      ),
                     ],
                   ),
                 ),
@@ -281,6 +343,7 @@ class _StudyRoutinePageState extends State<StudyRoutinePage> {
           ),
         ),
       );
+  }
 }
 
 class _StudySessionDialog extends StatefulWidget {

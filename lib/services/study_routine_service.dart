@@ -64,6 +64,20 @@ class StudyRoutineService {
     return byStart != 0 ? byStart : first.id.compareTo(second.id);
   }
 
+  static bool isSessionActive(StudySession session, [DateTime? referenceTime]) {
+    return _isActive(session, referenceTime ?? DateTime.now());
+  }
+
+  static Future<void> refreshWidget() async {
+    try {
+      await _channel.invokeMethod<void>('refreshWidget');
+    } on MissingPluginException {
+      // Android handles the home-screen widget.
+    } on PlatformException {
+      // Ignored
+    }
+  }
+
   static bool _isActive(StudySession session, DateTime now) {
     final start = session.startMinute;
     final end = session.endMinute;

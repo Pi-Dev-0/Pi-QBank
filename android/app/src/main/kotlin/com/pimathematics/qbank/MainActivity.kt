@@ -72,6 +72,10 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(null)
                     }
+                    "refreshWidget" -> {
+                        StudyRoutineWidgetProvider.refreshAll(applicationContext)
+                        result.success(null)
+                    }
                     "consumeStudyRoutineRequest" -> result.success(consumeStudyRoutineRequest(intent))
                     else -> result.notImplemented()
                 }
@@ -90,6 +94,11 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+    }
+
+    override fun onResume() {
+        super.onResume()
+        StudyRoutineWidgetProvider.refreshAll(applicationContext)
     }
 
     override fun onNewIntent(intent: Intent) {
