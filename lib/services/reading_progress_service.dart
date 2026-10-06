@@ -167,7 +167,12 @@ class ReadingProgressService {
         const {'jpg', 'jpeg', 'png', 'webp'}.contains(sourceExtension)
             ? sourceExtension
             : 'jpg';
-    final destination = File('${coverDirectory.path}/$id.$extension');
+    // Use a fresh path each time. Reusing the same path can cause us to delete
+    // the newly copied file when removing the previous cover, and can leave
+    // Flutter's file image cache showing the old cover.
+    final destination = File(
+      '${coverDirectory.path}/$id-${_uuid.v4()}.$extension',
+    );
     await File(sourcePath).copy(destination.path);
 
     final previous = records[index];

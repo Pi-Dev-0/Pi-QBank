@@ -93,6 +93,10 @@ class _ReadingProgressPageState extends State<ReadingProgressPage>
       if (image == null) return;
       await ReadingProgressService.updateThumbnail(book.id, image.path);
       _refreshBooks();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Book cover updated.')),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -269,32 +273,41 @@ class _ReadingProgressPageState extends State<ReadingProgressPage>
         padding: const EdgeInsets.all(14),
         child: Row(
           children: [
-            GestureDetector(
-              onTap: () => _pickThumbnail(book),
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: SizedBox(
-                      width: 82,
-                      height: 112,
-                      child: _buildThumbnail(book),
-                    ),
-                  ),
-                  Positioned(
-                    right: 5,
-                    bottom: 5,
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.58),
-                        shape: BoxShape.circle,
+            Tooltip(
+              message: 'Change cover image',
+              child: Semantics(
+                button: true,
+                label: 'Change cover image for ${book.title}',
+                child: InkWell(
+                  onTap: () => _pickThumbnail(book),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: SizedBox(
+                          width: 82,
+                          height: 112,
+                          child: _buildThumbnail(book),
+                        ),
                       ),
-                      child: const Icon(Icons.add_a_photo_rounded,
-                          color: Colors.white, size: 14),
-                    ),
+                      Positioned(
+                        right: 5,
+                        bottom: 5,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xE6000000),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white70),
+                          ),
+                          child: const Icon(Icons.edit_rounded,
+                              color: Colors.white, size: 14),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -524,9 +537,7 @@ class _AddPhysicalBookDialogState extends State<_AddPhysicalBookDialog> {
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) return null;
                         final start = int.tryParse(value.trim());
-                        return start == null || start < 1
-                            ? 'Enter >= 1'
-                            : null;
+                        return start == null || start < 1 ? 'Enter >= 1' : null;
                       },
                     ),
                   ),
@@ -573,8 +584,7 @@ class _AddPhysicalBookDialogState extends State<_AddPhysicalBookDialog> {
         FilledButton(
           onPressed: () {
             if (!_formKey.currentState!.validate()) return;
-            final start =
-                int.tryParse(_startPageController.text.trim()) ?? 1;
+            final start = int.tryParse(_startPageController.text.trim()) ?? 1;
             Navigator.pop(
               context,
               _PhysicalBookDraft(
@@ -669,9 +679,7 @@ class _EditPhysicalBookDialogState extends State<_EditPhysicalBookDialog> {
                           return 'Enter start page';
                         }
                         final start = int.tryParse(value.trim());
-                        return start == null || start < 1
-                            ? 'Enter >= 1'
-                            : null;
+                        return start == null || start < 1 ? 'Enter >= 1' : null;
                       },
                     ),
                   ),
@@ -718,8 +726,7 @@ class _EditPhysicalBookDialogState extends State<_EditPhysicalBookDialog> {
         FilledButton(
           onPressed: () {
             if (!_formKey.currentState!.validate()) return;
-            final start =
-                int.tryParse(_startPageController.text.trim()) ?? 1;
+            final start = int.tryParse(_startPageController.text.trim()) ?? 1;
             Navigator.pop(
               context,
               _PhysicalBookDraft(
