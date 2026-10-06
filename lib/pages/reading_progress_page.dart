@@ -52,6 +52,22 @@ class _ReadingProgressPageState extends State<ReadingProgressPage>
     if (draft == null) return;
     await ReadingProgressService.add(
       title: draft.title,
+      startPage: draft.startPage,
+      totalPages: draft.totalPages,
+    );
+    _refreshBooks();
+  }
+
+  Future<void> _editBook(ReadingProgress book) async {
+    final draft = await showDialog<_PhysicalBookDraft>(
+      context: context,
+      builder: (_) => _EditPhysicalBookDialog(book: book),
+    );
+    if (draft == null) return;
+    await ReadingProgressService.edit(
+      id: book.id,
+      title: draft.title,
+      startPage: draft.startPage,
       totalPages: draft.totalPages,
     );
     _refreshBooks();
@@ -302,6 +318,16 @@ class _ReadingProgressPageState extends State<ReadingProgressPage>
                         ),
                       ),
                       InkWell(
+                        onTap: () => _editBook(book),
+                        borderRadius: BorderRadius.circular(20),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.edit_note_rounded,
+                              size: 21, color: Color(0xFF89849A)),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      InkWell(
                         onTap: () => _removeBook(book),
                         borderRadius: BorderRadius.circular(20),
                         child: const Padding(
@@ -321,9 +347,13 @@ class _ReadingProgressPageState extends State<ReadingProgressPage>
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      book.totalPages == null
-                          ? 'Page ${book.currentPage}'
-                          : 'Page ${book.currentPage} / ${book.totalPages}',
+                      book.startPage > 1
+                          ? (book.totalPages == null
+                              ? 'Page ${book.currentPage} (Starts at ${book.startPage})'
+                              : 'Page ${book.currentPage} · Range ${book.startPage}–${book.totalPages}')
+                          : (book.totalPages == null
+                              ? 'Page ${book.currentPage}'
+                              : 'Page ${book.currentPage} / ${book.totalPages}'),
                       style: const TextStyle(
                         color: Color(0xFF5E35B1),
                         fontSize: 12,
@@ -345,7 +375,9 @@ class _ReadingProgressPageState extends State<ReadingProgressPage>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${(progress * 100).round()}% complete',
+                      book.startPage > 1 && book.totalPages != null
+                          ? '${(progress * 100).round()}% complete (${book.currentPage - book.startPage}/${book.totalPages! - book.startPage} pages read)'
+                          : '${(progress * 100).round()}% complete',
                       style: const TextStyle(
                         color: Color(0xFF7D788D),
                         fontSize: 11,
@@ -416,9 +448,14 @@ class _ReadingProgressPageState extends State<ReadingProgressPage>
 
 class _PhysicalBookDraft {
   final String title;
+  final int startPage;
   final int? totalPages;
 
-  const _PhysicalBookDraft(this.title, this.totalPages);
+  const _PhysicalBookDraft({
+    required this.title,
+    this.startPage = 1,
+    this.totalPages,
+  });
 }
 
 class _AddPhysicalBookDialog extends StatefulWidget {
@@ -430,12 +467,14 @@ class _AddPhysicalBookDialog extends StatefulWidget {
 
 class _AddPhysicalBookDialogState extends State<_AddPhysicalBookDialog> {
   final _titleController = TextEditingController();
+  final _startPageController = TextEditingController(text: '1');
   final _totalPagesController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   @override
   void dispose() {
     _titleController.dispose();
+    _startPageController.dispose();
     _totalPagesController.dispose();
     super.dispose();
   }
@@ -444,34 +483,86 @@ class _AddPhysicalBookDialogState extends State<_AddPhysicalBookDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Add a physical book'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _titleController,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'Book name'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter a book name'
-                  : null,
-            ),
-            TextFormField(
-              controller: _totalPagesController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Total pages (optional)',
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Book name',
+                  hintText: 'e.g. Higher Math Part 2',
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter a book name'
+                    : null,
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) return null;
-                final pages = int.tryParse(value.trim());
-                return pages == null || pages < 1
-                    ? 'Enter a valid page count'
-                    : null;
-              },
-            ),
-          ],
+              const SizedBox(height: 16),
+              const Text(
+                'Page range',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF5E35B1),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _startPageController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Start page',
+                        hintText: '1',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) return null;
+                        final start = int.tryParse(value.trim());
+                        return start == null || start < 1
+                            ? 'Enter >= 1'
+                            : null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _totalPagesController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'End page',
+                        hintText: 'Optional',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) return null;
+                        final end = int.tryParse(value.trim());
+                        if (end == null || end < 1) {
+                          return 'Enter valid page';
+                        }
+                        final start =
+                            int.tryParse(_startPageController.text.trim()) ?? 1;
+                        if (end < start) {
+                          return 'End >= start';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Tip: If reading a specific part, volume, or chapter, enter its starting page (e.g. 150 to 350).',
+                style: TextStyle(fontSize: 11, color: Color(0xFF7D788D)),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -482,15 +573,163 @@ class _AddPhysicalBookDialogState extends State<_AddPhysicalBookDialog> {
         FilledButton(
           onPressed: () {
             if (!_formKey.currentState!.validate()) return;
+            final start =
+                int.tryParse(_startPageController.text.trim()) ?? 1;
             Navigator.pop(
               context,
               _PhysicalBookDraft(
-                _titleController.text.trim(),
-                int.tryParse(_totalPagesController.text.trim()),
+                title: _titleController.text.trim(),
+                startPage: start < 1 ? 1 : start,
+                totalPages: int.tryParse(_totalPagesController.text.trim()),
               ),
             );
           },
           child: const Text('Add book'),
+        ),
+      ],
+    );
+  }
+}
+
+class _EditPhysicalBookDialog extends StatefulWidget {
+  final ReadingProgress book;
+
+  const _EditPhysicalBookDialog({required this.book});
+
+  @override
+  State<_EditPhysicalBookDialog> createState() =>
+      _EditPhysicalBookDialogState();
+}
+
+class _EditPhysicalBookDialogState extends State<_EditPhysicalBookDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _startPageController;
+  late final TextEditingController _totalPagesController;
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.book.title);
+    _startPageController =
+        TextEditingController(text: '${widget.book.startPage}');
+    _totalPagesController = TextEditingController(
+      text: widget.book.totalPages == null ? '' : '${widget.book.totalPages}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _startPageController.dispose();
+    _totalPagesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit book & page range'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _titleController,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Book name'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter a book name'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Page range',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF5E35B1),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _startPageController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Start page',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Enter start page';
+                        }
+                        final start = int.tryParse(value.trim());
+                        return start == null || start < 1
+                            ? 'Enter >= 1'
+                            : null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _totalPagesController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'End page',
+                        hintText: 'Optional',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) return null;
+                        final end = int.tryParse(value.trim());
+                        if (end == null || end < 1) {
+                          return 'Enter valid page';
+                        }
+                        final start =
+                            int.tryParse(_startPageController.text.trim()) ?? 1;
+                        if (end < start) {
+                          return 'End >= start';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Current progress: page ${widget.book.currentPage}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF7D788D)),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (!_formKey.currentState!.validate()) return;
+            final start =
+                int.tryParse(_startPageController.text.trim()) ?? 1;
+            Navigator.pop(
+              context,
+              _PhysicalBookDraft(
+                title: _titleController.text.trim(),
+                startPage: start < 1 ? 1 : start,
+                totalPages: int.tryParse(_totalPagesController.text.trim()),
+              ),
+            );
+          },
+          child: const Text('Save changes'),
         ),
       ],
     );
@@ -529,6 +768,15 @@ class _UpdateBookPageDialogState extends State<_UpdateBookPageDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final book = widget.book;
+    final helper = book.startPage > 1 && book.totalPages != null
+        ? 'Range: ${book.startPage} – ${book.totalPages}'
+        : (book.startPage > 1
+            ? 'Starts at page ${book.startPage}'
+            : (book.totalPages == null
+                ? null
+                : 'Total: ${book.totalPages} pages'));
+
     return AlertDialog(
       title: const Text('Update reading progress'),
       content: Form(
@@ -539,18 +787,15 @@ class _UpdateBookPageDialogState extends State<_UpdateBookPageDialog> {
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
             labelText: 'Current page',
-            helperText: widget.book.totalPages == null
-                ? null
-                : 'Total: ${widget.book.totalPages} pages',
+            helperText: helper,
           ),
           validator: (value) {
             final parsed = int.tryParse(value?.trim() ?? '');
-            if (parsed == null || parsed < 1) {
-              return 'Enter a valid page number';
+            if (parsed == null || parsed < book.startPage) {
+              return 'Enter a page number >= ${book.startPage}';
             }
-            if (widget.book.totalPages != null &&
-                parsed > widget.book.totalPages!) {
-              return 'Page cannot exceed ${widget.book.totalPages}';
+            if (book.totalPages != null && parsed > book.totalPages!) {
+              return 'Page cannot exceed ${book.totalPages}';
             }
             return null;
           },

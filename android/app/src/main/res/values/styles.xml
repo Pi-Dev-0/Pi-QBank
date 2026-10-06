@@ -18,4 +18,9 @@
     <style name="SingleNewspaperWidgetConfigureTheme" parent="@android:style/Theme.Material.Light.Dialog.Alert">
         <item name="android:windowCloseOnTouchOutside">true</item>
     </style>
+    <style name="StudyRoutineOverlayTheme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@drawable/study_overlay_backdrop</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

@@ -24,7 +24,7 @@ class StudyRoutineAlarmReceiver : BroadcastReceiver() {
             val queryNow = Calendar.getInstance().apply { add(Calendar.SECOND, 2) }
             val active = StudyRoutineData.activeSession(context, queryNow)
             if (active != null) {
-                notifyCurrentStudySession(context, active)
+                showFullscreenStudyRoutine(context, active)
             }
             StudyRoutineWidgetProvider.refreshAll(context)
         } finally {
@@ -32,23 +32,11 @@ class StudyRoutineAlarmReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun notifyCurrentStudySession(context: Context, session: JSONObject) {
+    private fun showFullscreenStudyRoutine(context: Context, session: JSONObject) {
         val prefs = context.getSharedPreferences(STUDY_ROUTINE_PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean(STUDY_ROUTINE_ENABLED_KEY, true)) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED) return
 
-        val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    STUDY_NOTIFICATION_CHANNEL,
-                    "Study routine reminders",
-                    NotificationManager.IMPORTANCE_DEFAULT,
-                ).apply { description = "Reminds you which subject to study now." },
-            )
-        }
+        val subject = session.optString("subject", "Study Session")
         val start = session.optInt("startMinute")
         val end = session.optInt("endMinute")
         val now = Calendar.getInstance()
@@ -62,28 +50,68 @@ class StudyRoutineAlarmReceiver : BroadcastReceiver() {
         }
         val range = "${DateFormat.getTimeInstance(DateFormat.SHORT).format(startTime.time)} – " +
             DateFormat.getTimeInstance(DateFormat.SHORT).format(endTime.time)
-        val openApp = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        val contentIntent = openApp?.let {
-            PendingIntent.getActivity(
-                context,
-                74300,
-                it,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+
+        val durationMinutes = ((end - start + 24 * 60) % (24 * 60)).let { if (it == 0) 24 * 60 else it }
+        val durationText = buildString {
+            val h = durationMinutes / 60
+            val m = durationMinutes % 60
+            if (h > 0) append("${h}h ")
+            if (m > 0 || h == 0) append("${m}m")
+        }.trim()
+
+        val overlayIntent = Intent(context, StudyRoutineOverlayActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(StudyRoutineOverlayActivity.EXTRA_SUBJECT, subject)
+            putExtra(StudyRoutineOverlayActivity.EXTRA_TIME_RANGE, range)
+            putExtra(StudyRoutineOverlayActivity.EXTRA_DURATION, durationText)
+            putExtra(StudyRoutineOverlayActivity.EXTRA_SESSION_ID, session.optString("id"))
+        }
+
+        // Try direct launch
+        try {
+            context.startActivity(overlayIntent)
+        } catch (_: Exception) {}
+
+        // Set up high-priority full-screen intent (required on Android 10+ when screen is locked/off or app in background)
+        val fullScreenPending = PendingIntent.getActivity(
+            context,
+            74303,
+            overlayIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    STUDY_NOTIFICATION_CHANNEL,
+                    "Study routine overlay",
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = "Full-screen study routine alerts"
+                    setBypassDnd(true)
+                    enableVibration(true)
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                },
             )
         }
+
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(context, STUDY_NOTIFICATION_CHANNEL)
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(context)
         }.setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Study time: ${session.optString("subject")}")
-            .setContentText("${session.optString("subject")} · $range")
-            .setStyle(Notification.BigTextStyle().bigText("It’s time to study ${session.optString("subject")} ($range)."))
+            .setContentTitle("Study time: $subject")
+            .setContentText("$subject · $range")
+            .setCategory(Notification.CATEGORY_ALARM)
+            .setPriority(Notification.PRIORITY_MAX)
+            .setFullScreenIntent(fullScreenPending, true)
+            .setContentIntent(fullScreenPending)
             .setAutoCancel(true)
-            .apply { if (contentIntent != null) setContentIntent(contentIntent) }
             .build()
-        manager.notify(74301, notification)
+
+        manager.notify(StudyRoutineOverlayActivity.STUDY_ROUTINE_NOTIFICATION_ID, notification)
     }
 }
 

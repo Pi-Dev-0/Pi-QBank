@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 class ReadingProgress {
   final String id;
   final String title;
+  final int startPage;
   final int currentPage;
   final int? totalPages;
   final DateTime lastReadAt;
@@ -18,6 +19,7 @@ class ReadingProgress {
   const ReadingProgress({
     required this.id,
     required this.title,
+    this.startPage = 1,
     required this.currentPage,
     required this.totalPages,
     required this.lastReadAt,
@@ -27,12 +29,17 @@ class ReadingProgress {
   double? get progress {
     final total = totalPages;
     if (total == null || total <= 0) return null;
-    return (currentPage / total).clamp(0.0, 1.0);
+    if (startPage <= 1) {
+      return (currentPage / total).clamp(0.0, 1.0);
+    }
+    if (total <= startPage) return 1.0;
+    return ((currentPage - startPage) / (total - startPage)).clamp(0.0, 1.0);
   }
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
+        'startPage': startPage,
         'currentPage': currentPage,
         'totalPages': totalPages,
         'lastReadAt': lastReadAt.toIso8601String(),
@@ -40,10 +47,13 @@ class ReadingProgress {
       };
 
   factory ReadingProgress.fromJson(Map<String, dynamic> json) {
+    final start = (json['startPage'] as num?)?.toInt() ?? 1;
+    final current = (json['currentPage'] as num?)?.toInt() ?? start;
     return ReadingProgress(
       id: json['id'] as String,
       title: json['title'] as String? ?? 'Untitled book',
-      currentPage: (json['currentPage'] as num?)?.toInt() ?? 1,
+      startPage: start,
+      currentPage: current < start ? start : current,
       totalPages: (json['totalPages'] as num?)?.toInt(),
       lastReadAt: DateTime.tryParse(json['lastReadAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
@@ -78,13 +88,16 @@ class ReadingProgressService {
 
   static Future<void> add({
     required String title,
+    int startPage = 1,
     required int? totalPages,
   }) async {
     final records = await getAll();
+    final initialStart = startPage < 1 ? 1 : startPage;
     final newBook = ReadingProgress(
       id: _uuid.v4(),
       title: title.trim(),
-      currentPage: 1,
+      startPage: initialStart,
+      currentPage: initialStart,
       totalPages: totalPages,
       lastReadAt: DateTime.now(),
       thumbnailPath: null,
@@ -93,15 +106,46 @@ class ReadingProgressService {
     await _save(records);
   }
 
+  static Future<void> edit({
+    required String id,
+    required String title,
+    required int startPage,
+    required int? totalPages,
+  }) async {
+    final records = await getAll();
+    final index = records.indexWhere((record) => record.id == id);
+    if (index == -1) return;
+    final previous = records[index];
+    final validStart = startPage < 1 ? 1 : startPage;
+    var validCurrent = previous.currentPage;
+    if (validCurrent < validStart) {
+      validCurrent = validStart;
+    } else if (totalPages != null && validCurrent > totalPages) {
+      validCurrent = totalPages;
+    }
+    records[index] = ReadingProgress(
+      id: previous.id,
+      title: title.trim(),
+      startPage: validStart,
+      currentPage: validCurrent,
+      totalPages: totalPages,
+      lastReadAt: DateTime.now(),
+      thumbnailPath: previous.thumbnailPath,
+    );
+    await _save(records);
+  }
+
   static Future<void> updatePage(String id, int page) async {
     final records = await getAll();
     final index = records.indexWhere((record) => record.id == id);
     if (index == -1) return;
     final previous = records[index];
+    final validPage = page < previous.startPage ? previous.startPage : page;
     records[index] = ReadingProgress(
       id: previous.id,
       title: previous.title,
-      currentPage: page,
+      startPage: previous.startPage,
+      currentPage: validPage,
       totalPages: previous.totalPages,
       lastReadAt: DateTime.now(),
       thumbnailPath: previous.thumbnailPath,
@@ -131,6 +175,7 @@ class ReadingProgressService {
     records[index] = ReadingProgress(
       id: previous.id,
       title: previous.title,
+      startPage: previous.startPage,
       currentPage: previous.currentPage,
       totalPages: previous.totalPages,
       lastReadAt: previous.lastReadAt,
@@ -151,6 +196,7 @@ class ReadingProgressService {
     records[index] = ReadingProgress(
       id: previous.id,
       title: previous.title,
+      startPage: previous.startPage,
       currentPage: previous.currentPage,
       totalPages: previous.totalPages,
       lastReadAt: previous.lastReadAt,

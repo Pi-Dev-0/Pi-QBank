@@ -42,9 +42,10 @@ class ReadingProgressWidgetProvider : AppWidgetProvider() {
         val prefs = context.getSharedPreferences(READING_PROGRESS_PREFERENCES, Context.MODE_PRIVATE)
         val records = readRecords(prefs)
         val book = records.firstOrNull { it.optString("id") == bookId } ?: return
-        val currentPage = book.optInt("currentPage", 1).coerceAtLeast(1)
+        val startPage = book.optInt("startPage", 1).coerceAtLeast(1)
+        val currentPage = book.optInt("currentPage", startPage).coerceAtLeast(startPage)
         val totalPages = book.optInt("totalPages", 0)
-        val nextPage = (currentPage + pageStep).coerceAtLeast(1).let { page ->
+        val nextPage = (currentPage + pageStep).coerceAtLeast(startPage).let { page ->
             if (totalPages > 0) page.coerceAtMost(totalPages) else page
         }
         book.put("currentPage", nextPage)
@@ -121,15 +122,19 @@ private class ReadingProgressWidgetFactory(
         val book = books.getOrNull(position) ?: return null
         val bookId = book.optString("id")
         val title = book.optString("title", "Untitled book")
-        val currentPage = book.optInt("currentPage", 1).coerceAtLeast(1)
+        val startPage = book.optInt("startPage", 1).coerceAtLeast(1)
+        val currentPage = book.optInt("currentPage", startPage).coerceAtLeast(startPage)
         val totalPages = book.optInt("totalPages", 0)
         val views = RemoteViews(context.packageName, R.layout.reading_progress_widget_item)
 
         views.setTextViewText(R.id.reading_widget_item_title, title)
-        views.setTextViewText(
-            R.id.reading_widget_item_position,
-            if (totalPages > 0) "Page $currentPage / $totalPages" else "Page $currentPage",
-        )
+        val positionText = when {
+            startPage > 1 && totalPages > 0 -> "Page $currentPage ($startPage–$totalPages)"
+            startPage > 1 -> "Page $currentPage (Starts $startPage)"
+            totalPages > 0 -> "Page $currentPage / $totalPages"
+            else -> "Page $currentPage"
+        }
+        views.setTextViewText(R.id.reading_widget_item_position, positionText)
         val progressViewIds = intArrayOf(
             R.id.reading_widget_item_progress_early,
             R.id.reading_widget_item_progress_mid,
@@ -137,7 +142,13 @@ private class ReadingProgressWidgetFactory(
             R.id.reading_widget_item_progress_done,
         )
         if (totalPages > 0) {
-            val percent = ((currentPage.toDouble() / totalPages) * 100).toInt().coerceIn(0, 100)
+            val percent = if (startPage <= 1) {
+                ((currentPage.toDouble() / totalPages) * 100).toInt().coerceIn(0, 100)
+            } else if (totalPages <= startPage) {
+                100
+            } else {
+                (((currentPage - startPage).toDouble() / (totalPages - startPage)) * 100).toInt().coerceIn(0, 100)
+            }
             val colorAndBar = when {
                 percent < 25 -> Pair(Color.rgb(239, 108, 87), progressViewIds[0])
                 percent < 50 -> Pair(Color.rgb(242, 164, 58), progressViewIds[1])
