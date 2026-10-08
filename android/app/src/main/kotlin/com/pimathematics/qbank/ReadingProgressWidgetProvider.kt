@@ -111,7 +111,10 @@ private class ReadingProgressWidgetFactory(
 
     override fun onDataSetChanged() {
         val prefs = context.getSharedPreferences(READING_PROGRESS_PREFERENCES, Context.MODE_PRIVATE)
-        books = readRecords(prefs).sortedByDescending { it.optString("lastReadAt") }
+        books = readRecords(prefs).sortedWith(
+            compareBy<JSONObject> { it.optString("title").trim().lowercase(Locale.ROOT) }
+                .thenBy { it.optString("id") },
+        )
     }
 
     override fun onDestroy() {

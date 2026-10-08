@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.Build
@@ -14,6 +13,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.window.OnBackInvokedCallback
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
@@ -23,11 +23,8 @@ class StudyRoutineOverlayActivity : Activity() {
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
     private val handler = Handler(Looper.getMainLooper())
-    private val autoDismissRunnable = Runnable {
-        stopAlerts()
-        clearNotification()
-        finish()
-    }
+    private val stopAlertsRunnable = Runnable { stopAlerts() }
+    private var backCallback: OnBackInvokedCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,21 +42,20 @@ class StudyRoutineOverlayActivity : Activity() {
         val timeDisplay = if (duration.isNotEmpty()) "$timeRange ($duration)" else timeRange
         findViewById<TextView>(R.id.overlay_time_range).text = timeDisplay
 
-        findViewById<Button>(R.id.overlay_btn_start).setOnClickListener {
-            openStudyRoutine()
-        }
-
         findViewById<Button>(R.id.overlay_btn_dismiss).setOnClickListener {
             dismissOverlay()
         }
 
-        findViewById<TextView>(R.id.overlay_btn_close).setOnClickListener {
-            dismissOverlay()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback = OnBackInvokedCallback { /* Keep the reminder open until Dismiss. */ }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                backCallback!!,
+            )
         }
 
         startAlerts()
-        // Play one short reminder and close the full-screen prompt after 30 seconds.
-        handler.postDelayed(autoDismissRunnable, ALERT_DURATION_MS)
+        handler.postDelayed(stopAlertsRunnable, ALERT_DURATION_MS)
     }
 
     private fun configureWindow() {
@@ -123,39 +119,30 @@ class StudyRoutineOverlayActivity : Activity() {
         } catch (_: Exception) {}
     }
 
-    private fun openStudyRoutine() {
-        stopAlerts()
-        clearNotification()
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra("open_study_routine", true)
-        }
-        if (launchIntent != null) {
-            startActivity(launchIntent)
-        }
-        finish()
-    }
-
     private fun dismissOverlay() {
         stopAlerts()
         clearNotification()
         finish()
     }
 
-    override fun onPause() {
-        super.onPause()
-        stopAlerts()
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        // The reminder is dismissed only with its Dismiss button.
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(autoDismissRunnable)
+        handler.removeCallbacks(stopAlertsRunnable)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+            backCallback = null
+        }
         stopAlerts()
         clearNotification()
         super.onDestroy()
     }
 
     companion object {
-        private const val ALERT_DURATION_MS = 30_000L
+        private const val ALERT_DURATION_MS = 5_000L
         const val EXTRA_SUBJECT = "extra_study_subject"
         const val EXTRA_TIME_RANGE = "extra_study_time_range"
         const val EXTRA_DURATION = "extra_study_duration"
