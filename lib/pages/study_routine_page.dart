@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:pi_qbank/pages/study_timer_report_page.dart';
 import 'package:pi_qbank/services/study_routine_service.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 
@@ -220,7 +221,23 @@ class _StudyRoutinePageState extends State<StudyRoutinePage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FC),
-      appBar: const CustomAppBar(title: 'Routine Maker'),
+      appBar: CustomAppBar(
+        title: 'Routine Maker',
+        actions: [
+          IconButton(
+            tooltip: 'Study Time Report',
+            icon: const Icon(Icons.timer_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const StudyTimerReportPage(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _saving ? null : () => _editSession(),
         icon: const Icon(Icons.add),

@@ -107,6 +107,10 @@ class MainActivity : FlutterActivity() {
             channel.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "consumeStudyTimerReport" -> result.success(consumeStudyTimerReport(intent))
+                    "refresh" -> {
+                        StudyTimerWidgetProvider.refreshAll(applicationContext)
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

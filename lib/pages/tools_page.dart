@@ -15,6 +15,7 @@ import '../widgets/app_drawer.dart';
 import 'package:pi_qbank/pages/cloud_tests_page.dart';
 import 'package:pi_qbank/pages/reading_progress_page.dart';
 import 'package:pi_qbank/pages/study_routine_page.dart';
+import 'package:pi_qbank/pages/study_timer_report_page.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -75,6 +76,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const StudyRoutinePage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.timer_outlined,
+        title: 'Study Time Report',
+        description: 'Track focus time, streaks & session analytics',
+        accentColor: Colors.deepPurple,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const StudyTimerReportPage(),
             ),
           );
         },
