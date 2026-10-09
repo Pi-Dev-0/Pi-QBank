@@ -24,6 +24,7 @@ class StudyRoutineOverlayActivity : Activity() {
     private var vibrator: Vibrator? = null
     private val handler = Handler(Looper.getMainLooper())
     private val stopAlertsRunnable = Runnable { stopAlerts() }
+    private val autoDismissRunnable = Runnable { dismissOverlay() }
     private var backCallback: OnBackInvokedCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,6 +57,7 @@ class StudyRoutineOverlayActivity : Activity() {
 
         startAlerts()
         handler.postDelayed(stopAlertsRunnable, ALERT_DURATION_MS)
+        handler.postDelayed(autoDismissRunnable, AUTO_DISMISS_DURATION_MS)
     }
 
     private fun configureWindow() {
@@ -132,6 +134,7 @@ class StudyRoutineOverlayActivity : Activity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(stopAlertsRunnable)
+        handler.removeCallbacks(autoDismissRunnable)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             backCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
             backCallback = null
@@ -143,6 +146,7 @@ class StudyRoutineOverlayActivity : Activity() {
 
     companion object {
         private const val ALERT_DURATION_MS = 5_000L
+        private const val AUTO_DISMISS_DURATION_MS = 5 * 60 * 1000L
         const val EXTRA_SUBJECT = "extra_study_subject"
         const val EXTRA_TIME_RANGE = "extra_study_time_range"
         const val EXTRA_DURATION = "extra_study_duration"
