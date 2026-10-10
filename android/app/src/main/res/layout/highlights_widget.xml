@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/highlights_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/highlights_widget_bg"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/highlights_widget_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:drawableStart="@drawable/ic_highlights_news"
+            android:drawablePadding="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Highlights"
+            android:textColor="#1F2937"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/highlights_widget_refresh"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="@drawable/highlights_refresh_btn_bg"
+            android:contentDescription="Refresh"
+            android:padding="7dp"
+            android:src="@drawable/ic_highlights_refresh" />
+
+    </RelativeLayout>
+
+    <ListView
+        android:id="@+id/highlights_widget_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:cacheColorHint="#00000000"
+        android:divider="#EEEEEE"
+        android:dividerHeight="1dp"
+        android:scrollbars="vertical" />
+
+    <!-- Load More button at the bottom -->
+    <Button
+        android:id="@+id/highlights_widget_load_more"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:background="@drawable/highlights_load_more_btn"
+        android:padding="8dp"
+        android:text="Load More"
+        android:textColor="#6366F1"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/highlights_widget_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:padding="16dp"
+        android:text="Open Pi-QBank to load the latest news highlights."
+        android:textColor="#9CA3AF"
+        android:textSize="13sp" />
+</LinearLayout>

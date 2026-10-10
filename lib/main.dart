@@ -411,6 +411,10 @@ class _MainScreenState extends State<MainScreen> {
         _openNewspaperFromWidget(
           Map<String, dynamic>.from(call.arguments as Map),
         );
+      } else if (call.method == 'openNewsArticle' && call.arguments is Map) {
+        _openNewsArticleFromWidget(
+          Map<String, dynamic>.from(call.arguments as Map),
+        );
       }
     });
     _studyTimerWidgetChannel.setMethodCallHandler((call) async {
@@ -432,6 +436,15 @@ class _MainScreenState extends State<MainScreen> {
         // The newspaper home-screen widget is Android-only.
       } on PlatformException {
         // A missing widget request should not affect normal startup.
+      }
+      try {
+        final article = await _newspaperWidgetChannel
+            .invokeMapMethod<String, String>('consumeNewsArticleRequest');
+        if (article != null) _openNewsArticleFromWidget(article);
+      } on MissingPluginException {
+        // The highlights home-screen widget is Android-only.
+      } on PlatformException {
+        // A missing article request should not affect normal startup.
       }
       try {
         final shouldOpen = await _studyTimerWidgetChannel
@@ -461,6 +474,21 @@ class _MainScreenState extends State<MainScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => NewspaperPage(name: name, url: url),
+      ),
+    );
+  }
+
+  void _openNewsArticleFromWidget(Map<String, dynamic> request) {
+    final url = request['url'];
+    final title = request['title'] as String? ?? '';
+    final source = request['source'] as String? ?? '';
+    if (!mounted || url is! String || url.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NewspaperPage(
+          name: source.isNotEmpty ? source : title,
+          url: url,
+        ),
       ),
     );
   }

@@ -48,6 +48,7 @@
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
@@ -142,18 +143,21 @@
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
         <receiver
-            android:name=".NewspaperWidgetProvider"
+            android:name=".HighlightsWidgetProvider"
             android:exported="false"
-            android:label="Newspapers">
+            android:label="Highlights">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.pi.mathematics.OPEN_HIGHLIGHT_FROM_WIDGET" />
+                <action android:name="com.pi.mathematics.REFRESH_HIGHLIGHTS_WIDGET" />
+                <action android:name="com.pi.mathematics.LOAD_MORE_HIGHLIGHTS_WIDGET" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/newspaper_widget_info" />
+                android:resource="@xml/highlights_widget_info" />
         </receiver>
         <service
-            android:name=".NewspaperWidgetRemoteViewsService"
+            android:name=".HighlightsWidgetRemoteViewsService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
         <receiver

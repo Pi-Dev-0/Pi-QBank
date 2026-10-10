@@ -10,6 +10,7 @@ import android.os.Build
 import android.provider.Settings
 import android.app.AlarmManager
 import android.app.NotificationManager
+import android.util.Log
 
 class MainActivity : FlutterActivity() {
     private var newspaperWidgetChannel: MethodChannel? = null
@@ -20,6 +21,14 @@ class MainActivity : FlutterActivity() {
     private var specialAccessResult: MethodChannel.Result? = null
     private var specialAccessKind: String? = null
     private var notificationPermissionResult: MethodChannel.Result? = null
+    private var pendingNewspaperRequest: Map<String, String>? = null
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Capture newspaper request from the launch intent so onResume can
+        // forward it to Flutter once the engine is ready.
+        pendingNewspaperRequest = readNewspaperRequest(intent)
+    }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
@@ -42,10 +51,10 @@ class MainActivity : FlutterActivity() {
             channel.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "refresh" -> {
-                        NewspaperWidgetProvider.refreshAll(applicationContext)
+                        NewsHighlightsFetcher.refresh(applicationContext)
                         result.success(null)
                     }
-                    "consumeNewspaperRequest" -> result.success(consumeNewspaperRequest(intent))
+                    "consumeNewsArticleRequest" -> result.success(consumeNewsArticleRequest(intent))
                     else -> result.notImplemented()
                 }
             }
@@ -165,6 +174,37 @@ class MainActivity : FlutterActivity() {
             specialAccessResult = null
         }
         StudyRoutineWidgetProvider.refreshAll(applicationContext)
+        refreshHighlightsIfNeeded()
+        // Handle newspaper request from widget when app is launched fresh
+        pendingNewspaperRequest?.let { request ->
+            pendingNewspaperRequest = null
+            newspaperWidgetChannel?.invokeMethod("openNewspaper", request, object : MethodChannel.Result {
+                override fun success(result: Any?) {
+                    clearNewspaperRequest(intent)
+                }
+                override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) = Unit
+                override fun notImplemented() = Unit
+            })
+        }
+    }
+
+    /**
+     * Fetches fresh headlines from BD news RSS feeds when the cache is stale.
+     * Runs in the background; the widget updates when caching completes.
+     */
+    private fun refreshHighlightsIfNeeded() {
+        try {
+            val prefs = getSharedPreferences(READING_PROGRESS_PREFERENCES, MODE_PRIVATE)
+            val lastFetch = prefs.getLong("news_highlights_last_fetch", 0L)
+            val now = System.currentTimeMillis()
+            // Refresh at most every 30 minutes while the app is in use.
+            if (now - lastFetch > 30 * 60 * 1000L) {
+                prefs.edit().putLong("news_highlights_last_fetch", now).apply()
+                NewsHighlightsFetcher.refresh(applicationContext)
+            }
+        } catch (error: Exception) {
+            Log.w("MainActivity", "Highlights refresh failed: ${error.message}")
+        }
     }
 
     private fun requestSpecialAccess(kind: String, result: MethodChannel.Result) {
@@ -229,15 +269,7 @@ class MainActivity : FlutterActivity() {
         setIntent(intent)
         val request = readNewspaperRequest(intent)
         if (request != null) {
-            newspaperWidgetChannel?.invokeMethod("openNewspaper", request, object : MethodChannel.Result {
-                override fun success(result: Any?) {
-                    clearNewspaperRequest(intent)
-                }
-
-                override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) = Unit
-
-                override fun notImplemented() = Unit
-            })
+            pendingNewspaperRequest = request
         }
         if (intent.getBooleanExtra("open_study_timer_report", false)) {
             studyTimerWidgetChannel?.invokeMethod("openStudyTimerReport", null, object : MethodChannel.Result {
@@ -261,12 +293,51 @@ class MainActivity : FlutterActivity() {
                 override fun notImplemented() = Unit
             })
         }
+        val highlightUrl = intent.getStringExtra(HIGHLIGHTS_WIDGET_EXTRA_URL)
+        if (highlightUrl != null) {
+            val highlightRequest = mapOf(
+                "url" to highlightUrl,
+                "title" to (intent.getStringExtra(HIGHLIGHTS_WIDGET_EXTRA_TITLE) ?: ""),
+                "source" to (intent.getStringExtra(HIGHLIGHTS_WIDGET_EXTRA_SOURCE) ?: ""),
+            )
+            newspaperWidgetChannel?.invokeMethod("openNewsArticle", highlightRequest, object : MethodChannel.Result {
+                override fun success(result: Any?) {
+                    intent.removeExtra(HIGHLIGHTS_WIDGET_EXTRA_URL)
+                    intent.removeExtra(HIGHLIGHTS_WIDGET_EXTRA_TITLE)
+                    intent.removeExtra(HIGHLIGHTS_WIDGET_EXTRA_SOURCE)
+                }
+
+                override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) = Unit
+
+                override fun notImplemented() = Unit
+            })
+        }
     }
 
     private fun consumeNewspaperRequest(sourceIntent: Intent?): Map<String, String>? {
         val request = readNewspaperRequest(sourceIntent) ?: return null
         clearNewspaperRequest(sourceIntent)
         return request
+    }
+
+    private fun consumeNewsArticleRequest(sourceIntent: Intent?): Map<String, String>? {
+        val request = readNewsArticleRequest(sourceIntent) ?: return null
+        clearNewsArticleRequest(sourceIntent)
+        return request
+    }
+
+    private fun readNewsArticleRequest(sourceIntent: Intent?): Map<String, String>? {
+        sourceIntent ?: return null
+        val url = sourceIntent.getStringExtra(HIGHLIGHTS_WIDGET_EXTRA_URL) ?: return null
+        val title = sourceIntent.getStringExtra(HIGHLIGHTS_WIDGET_EXTRA_TITLE) ?: ""
+        val source = sourceIntent.getStringExtra(HIGHLIGHTS_WIDGET_EXTRA_SOURCE) ?: ""
+        return mapOf("url" to url, "title" to title, "source" to source)
+    }
+
+    private fun clearNewsArticleRequest(sourceIntent: Intent?) {
+        sourceIntent?.removeExtra(HIGHLIGHTS_WIDGET_EXTRA_URL)
+        sourceIntent?.removeExtra(HIGHLIGHTS_WIDGET_EXTRA_TITLE)
+        sourceIntent?.removeExtra(HIGHLIGHTS_WIDGET_EXTRA_SOURCE)
     }
 
     private fun readNewspaperRequest(sourceIntent: Intent?): Map<String, String>? {
