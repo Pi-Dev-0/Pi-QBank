@@ -439,7 +439,7 @@ class _AppDrawerState extends State<AppDrawer>
                           const Divider(height: 1, indent: 70, endIndent: 20),
                           ListTile(
                             leading: const Icon(Icons.smart_toy),
-                            title: const Text('AI Preferences'),
+                            title: const Text('AI & API Preferences'),
                             onTap: () {
                               Navigator.pop(context);
                               Navigator.pushNamed(context, '/ai_settings');

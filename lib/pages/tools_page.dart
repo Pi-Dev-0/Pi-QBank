@@ -2,12 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:pi_qbank/pages/exam_paper_builder_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/pages/prepare_short_test_page.dart';
-import 'package:pi_qbank/widgets/api_key_dialog.dart';
 import 'package:pi_qbank/pages/question_generator_page.dart';
 import 'package:pi_qbank/pages/newspaper_list_page.dart';
 import 'package:pi_qbank/pages/notes_remainder_page.dart';
 import 'package:pi_qbank/pages/educational_links_page.dart';
-import 'package:pi_qbank/widgets/youtube_player_dialog.dart';
 import 'package:pi_qbank/pages/pdf_reader_page.dart';
 import 'package:pi_qbank/pages/json_to_test_maker_page.dart';
 import 'package:pi_qbank/pages/join_shared_test_page.dart';
@@ -286,96 +284,6 @@ class _ToolsPageState extends State<ToolsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.blue.shade50,
-                    Colors.green.shade50,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.vpn_key,
-                        color: Colors.blue.shade600,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Use Your Own API Key',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'To get full access to all features, simply add your own API key. ',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            showApiKeyDialog(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Setup API Key'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            const String videoId = 'o8iyrtQyrZM';
-                            showYoutubePlayerDialog(context, videoId);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade600,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Get API Key?'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),

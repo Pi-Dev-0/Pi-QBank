@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/api_key_dialog.dart';
-import '../config/app_config.dart';
+import '../services/ai_models_service.dart';
 
 class AIModelSettingsPage extends StatefulWidget {
   const AIModelSettingsPage({super.key});
@@ -15,8 +15,6 @@ class _AIModelSettingsPageState extends State<AIModelSettingsPage>
     with TickerProviderStateMixin {
   String? _textModel;
   String? _imageModel;
-  String? _audioModel;
-  String? _videoModel;
   String _provider = 'google';
   final TextEditingController _baseUrlController = TextEditingController();
 
@@ -24,34 +22,14 @@ class _AIModelSettingsPageState extends State<AIModelSettingsPage>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  final List<String> _defaultModels = [
-    'gemma-3-27b-it',
-    'gemma-3n-e4b-it',
-    'gemini-2.5-flash-preview-09-2025',
-    'gemini-2.0-flash-001',
-    'gemini-robotics-er-1.5-preview',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-exp',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-  ];
-
-  final List<String> _openRouterModels = [
-    'google/gemini-2.0-flash-001',
-    'google/gemini-2.0-flash-lite-preview-02-05:free',
-    'google/gemini-pro-1.5',
-    'anthropic/claude-3.5-sonnet',
-    'openai/gpt-4o',
-    'openai/gpt-4o-mini',
-    'deepseek/deepseek-chat',
-    'meta-llama/llama-3.1-70b-instruct',
-  ];
+  List<AIModel> _allModels = [];
+  List<AIModel> _googleModels = [];
+  List<AIModel> _openRouterModels = [];
+  List<AIModel> _openAIModels = [];
+  final Map<String, String> _providerBaseUrls = {};
+  bool _modelsLoading = true;
 
   List<String> _customModels = [];
-
-  List<String> get _allModels => _provider == 'google' 
-      ? [..._defaultModels, ..._customModels]
-      : [..._openRouterModels, ..._customModels];
 
   @override
   void initState() {
@@ -72,7 +50,32 @@ class _AIModelSettingsPageState extends State<AIModelSettingsPage>
     ));
 
     _loadSettings();
+    _fetchModels();
     _animationController.forward();
+  }
+
+  Future<void> _fetchModels() async {
+    final models = await AIModelsService.fetchModels(forceRefresh: true);
+    if (!mounted) return;
+    setState(() {
+      _allModels = models;
+      _googleModels = models.where((m) => m.provider == 'google').toList();
+      _openRouterModels =
+          models.where((m) => m.provider == 'openrouter').toList();
+      _openAIModels = models.where((m) => m.provider == 'openai').toList();
+      _modelsLoading = false;
+    });
+  }
+
+  List<AIModel> get _currentProviderModels {
+    switch (_provider) {
+      case 'openrouter':
+        return _openRouterModels.isNotEmpty ? _openRouterModels : _googleModels;
+      case 'openai':
+        return _openAIModels.isNotEmpty ? _openAIModels : _googleModels;
+      default:
+        return _googleModels.isNotEmpty ? _googleModels : _allModels;
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -83,132 +86,72 @@ class _AIModelSettingsPageState extends State<AIModelSettingsPage>
       _textModel = prefs.getString('global_text_model') ??
           prefs.getString('global_selected_model') ??
           prefs.getString('selected_model') ??
-          'gemma-3-27b-it';
+          'gemini-3.8-flash';
       _imageModel = prefs.getString('global_image_model') ??
           prefs.getString('global_selected_model') ??
-          'gemini-2.5-flash-preview-09-2025';
-      _audioModel = prefs.getString('global_audio_model') ??
-          prefs.getString('global_selected_model') ??
-          'gemini-2.5-flash-preview-09-2025';
-      _videoModel = prefs.getString('global_video_model') ??
-          prefs.getString('global_selected_model') ??
-          'gemini-2.5-flash-preview-09-2025';
+          'gemini-2.5-flash';
       _baseUrlController.text = prefs.getString('global_ai_base_url') ??
           'https://generativelanguage.googleapis.com/v1beta';
-          
-      // Safety check: ensure loaded models exist in current provider's list
-      if (!_allModels.contains(_textModel)) _textModel = _allModels.first;
-      if (!_allModels.contains(_imageModel)) _imageModel = _allModels.first;
-      if (!_allModels.contains(_audioModel)) _audioModel = _allModels.first;
-      if (!_allModels.contains(_videoModel)) _videoModel = _allModels.first;
     });
   }
 
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    
-    // Save all specific models
-    await prefs.setString('global_text_model', _textModel ?? 'gemma-3-27b-it');
-    await prefs.setString('global_image_model', _imageModel ?? 'gemini-2.5-flash-preview-09-2025');
-    await prefs.setString('global_audio_model', _audioModel ?? 'gemini-2.5-flash-preview-09-2025');
-    await prefs.setString('global_video_model', _videoModel ?? 'gemini-2.5-flash-preview-09-2025');
+    await prefs.setString('global_text_model', _textModel ?? 'gemini-3.8-flash');
+    await prefs.setString('global_image_model', _imageModel ?? 'gemini-2.5-flash');
     await prefs.setString('global_ai_base_url', _baseUrlController.text.trim());
     await prefs.setStringList('custom_ai_models', _customModels);
     await prefs.setString('global_ai_provider', _provider);
-
-    // Also update legacy ones with text model for backward compatibility
-    await prefs.setString('global_selected_model', _textModel ?? 'gemma-3-27b-it');
-    await prefs.setString('selected_model', _textModel ?? 'gemma-3-27b-it');
-
-    _showSnackBar(
-      content: 'AI Settings Saved Successfully!',
-      icon: Icons.check_circle,
-      color: Colors.green.shade600,
-    );
-  }
-
-  void _showSnackBar({
-    required String content,
-    required IconData icon,
-    required Color color,
-  }) {
+    await prefs.setString('global_selected_model', _textModel ?? 'gemini-3.8-flash');
+    await prefs.setString('selected_model', _textModel ?? 'gemini-3.8-flash');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
+          content: const Row(
             children: [
-              Icon(icon, color: Colors.white),
-              const SizedBox(width: 10),
-              Text(
-                content,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 10),
+              Text('AI Settings Saved!',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w600)),
             ],
           ),
-          backgroundColor: color,
+          backgroundColor: Colors.green.shade600,
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
-          elevation: 8,
-          duration: const Duration(seconds: 3),
         ),
       );
     }
   }
 
   void _showAddCustomModelDialog() {
-    final TextEditingController customModelController = TextEditingController();
-    final colorScheme = Theme.of(context).colorScheme;
-
+    final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        title: Text('Add Custom Model',
-            style: TextStyle(color: colorScheme.onSurface)),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Add Custom Model'),
         content: TextField(
-          controller: customModelController,
+          controller: controller,
           autofocus: true,
-          style: TextStyle(color: colorScheme.onSurface),
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             hintText: 'e.g. gpt-4, claude-3-opus',
-            hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: colorScheme.outline),
-            ),
+            border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () {
-              final newModel = customModelController.text.trim();
-              if (newModel.isNotEmpty) {
-                if (!_allModels.contains(newModel)) {
-                  setState(() {
-                    _customModels.add(newModel);
-                    // Automatically select it for text by default or just add it
-                  });
-                  Navigator.pop(context);
-                  _showSnackBar(
-                    content: 'Added model: $newModel',
-                    icon: Icons.add_task,
-                    color: Colors.blue.shade600,
-                  );
-                } else {
-                  _showSnackBar(
-                    content: 'Model already exists!',
-                    icon: Icons.warning,
-                    color: Colors.orange.shade700,
-                  );
-                }
+              final m = controller.text.trim();
+              if (m.isNotEmpty && !_customModels.contains(m)) {
+                setState(() => _customModels.add(m));
+                Navigator.pop(ctx);
               }
             },
             child: const Text('Add'),
@@ -227,219 +170,187 @@ class _AIModelSettingsPageState extends State<AIModelSettingsPage>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: colorScheme.surface,
-      appBar: CustomAppBar(
-        title: 'Global AI Settings',
-        centerTitle: true,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              colorScheme.surface,
-              colorScheme.surfaceContainerLowest,
-            ],
-          ),
-        ),
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildWelcomeCard(textTheme, colorScheme),
-                  const SizedBox(height: 20),
-                  _buildModelSettingsCard(textTheme, colorScheme),
-                  const SizedBox(height: 30),
-                  _buildSaveButton(textTheme, colorScheme),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWelcomeCard(TextTheme textTheme, ColorScheme colorScheme) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 600;
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withAlpha((0.2 * 255).toInt()),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      backgroundColor: cs.surface,
+      appBar: CustomAppBar(title: 'AI & API Settings', centerTitle: true),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.auto_awesome,
-                    color: colorScheme.onPrimary,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'AI Model Preferences',
-                        style: textTheme.headlineSmall?.copyWith(
-                          color: colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                          fontSize: isSmallScreen ? 18 : 24,
-                        ),
-                      ),
-                      Text(
-                        'Manage AI settings across the entire app',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onPrimaryContainer
-                              .withAlpha((0.9 * 255).toInt()),
-                          fontSize: isSmallScreen ? 12 : 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildProviderCard(cs),
+                const SizedBox(height: 16),
+                _buildModelCards(cs),
+                const SizedBox(height: 16),
+                _buildApiConfigCard(cs),
+                const SizedBox(height: 24),
+                _buildSaveButton(cs),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedCard({required Widget child}) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha((0.05 * 255).toInt()),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
           ),
-        ],
-        border: Border.all(
-          color: colorScheme.outlineVariant.withAlpha((0.5 * 255).toInt()),
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: child,
         ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(
-      String title, IconData icon, Color color, TextTheme textTheme) {
-    return Row(
-      children: [
+  Widget _buildProviderCard(ColorScheme cs) {
+    return _card([
+      _header('AI Provider', Icons.hub, cs.primary, cs),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _providerChip('google', 'Google', Icons.g_mobiledata, cs),
+          _providerChip('openrouter', 'OpenRouter', Icons.cloud, cs),
+          _providerChip('openai', 'OpenAI', Icons.smart_toy, cs),
+        ],
+      ),
+      if (_providerBaseUrls.isNotEmpty) ...[
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: color.withAlpha((0.1 * 255).toInt()),
-            borderRadius: BorderRadius.circular(12),
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        const SizedBox(width: 16),
-        Text(
-          title,
-          style: textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSurface,
+          child: Row(
+            children: [
+              Icon(Icons.link, size: 16, color: cs.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _providerBaseUrls[_provider] ?? _baseUrlController.text,
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ),
       ],
+    ]);
+  }
+
+  Widget _providerChip(
+      String value, String label, IconData icon, ColorScheme cs) {
+    final selected = _provider == value;
+    return ChoiceChip(
+      avatar: Icon(icon, size: 18, color: selected ? Colors.white : cs.primary),
+      label: Text(label),
+      selected: selected,
+      selectedColor: cs.primary,
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : cs.onSurface,
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+      ),
+      onSelected: (_) {
+        setState(() {
+          _provider = value;
+          final base = _providerBaseUrls[value];
+          if (base != null) _baseUrlController.text = base;
+          final models = _currentProviderModels;
+          if (models.isNotEmpty) {
+            _textModel = models.first.id;
+            _imageModel = models.first.id;
+          }
+        });
+      },
     );
   }
 
-  Widget _buildModelSettingsCard(TextTheme textTheme, ColorScheme colorScheme) {
-    return _buildAnimatedCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildModelCards(ColorScheme cs) {
+    return _card([
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildSectionHeader(
-            'Model Configuration',
-            Icons.memory,
-            Colors.blue,
-            textTheme,
+          _header('Models', Icons.memory, Colors.blue, cs),
+          IconButton(
+            tooltip: 'Refresh models',
+            icon: const Icon(Icons.refresh, size: 20),
+            onPressed: _fetchModels,
           ),
-          const SizedBox(height: 20),
-          _buildProviderDropdown(),
-          const SizedBox(height: 16),
-          _buildDropdown('Text AI Model', Icons.text_fields, _textModel, (v) => setState(() => _textModel = v)),
-          const SizedBox(height: 16),
-          _buildDropdown('Image AI Model', Icons.image, _imageModel, (v) => setState(() => _imageModel = v)),
-          const SizedBox(height: 16),
-          _buildDropdown('Audio AI Model', Icons.audiotrack, _audioModel, (v) => setState(() => _audioModel = v)),
-          const SizedBox(height: 16),
-          _buildDropdown('Video AI Model', Icons.video_library, _videoModel, (v) => setState(() => _videoModel = v)),
-          const SizedBox(height: 24),
-          _buildAddCustomModelSection(textTheme, colorScheme),
-          const SizedBox(height: 20),
-          _buildBaseUrlField(),
-          const SizedBox(height: 20),
-          _buildApiKeyButton(textTheme, colorScheme),
         ],
+      ),
+      const SizedBox(height: 8),
+      if (_modelsLoading)
+        const Center(
+            child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+            ))
+      else ...[
+        _modelDropdown('Text Model', Icons.text_fields, _textModel, (v) {
+          setState(() => _textModel = v);
+        }, cs),
+        const SizedBox(height: 12),
+        _modelDropdown('Image Model', Icons.image, _imageModel, (v) {
+          setState(() => _imageModel = v);
+        }, cs),
+        const SizedBox(height: 16),
+        _buildCustomModels(cs),
+      ],
+    ]);
+  }
+
+  Widget _modelDropdown(String label, IconData icon, String? value,
+      ValueChanged<String?> onChanged, ColorScheme cs) {
+    final models = _currentProviderModels;
+    final effectiveValue = models.any((m) => m.id == value) ? value : null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButtonFormField<String>(
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(icon, color: cs.primary),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          ),
+          value: effectiveValue,
+          items: models
+              .map((m) => DropdownMenuItem(
+                    value: m.id,
+                    child: Text(m.displayName.isNotEmpty ? m.displayName : m.id,
+                        overflow: TextOverflow.ellipsis),
+                  ))
+              .toList(),
+          onChanged: onChanged,
+          dropdownColor: cs.surfaceContainerHigh,
+        ),
       ),
     );
   }
 
-  Widget _buildAddCustomModelSection(TextTheme textTheme, ColorScheme colorScheme) {
+  Widget _buildCustomModels(ColorScheme cs) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Custom Models',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
-            ),
+            Text('Custom Models',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: cs.onSurface)),
             IconButton(
               onPressed: _showAddCustomModelDialog,
-              icon: Icon(Icons.add_circle, color: colorScheme.primary, size: 28),
-              tooltip: 'Add Custom Model',
+              icon: Icon(Icons.add_circle, color: cs.primary),
+              iconSize: 24,
             ),
           ],
         ),
@@ -447,236 +358,122 @@ class _AIModelSettingsPageState extends State<AIModelSettingsPage>
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _customModels.map((model) {
-              return Chip(
-                label: Text(model, style: TextStyle(color: colorScheme.onSurfaceVariant)),
-                onDeleted: () {
-                  setState(() {
-                    _customModels.remove(model);
-                    // Reset if selected
-                    if (_textModel == model) _textModel = _defaultModels.first;
-                    if (_imageModel == model) _imageModel = _defaultModels.first;
-                    if (_audioModel == model) _audioModel = _defaultModels.first;
-                    if (_videoModel == model) _videoModel = _defaultModels.first;
-                  });
-                },
-                deleteIcon: const Icon(Icons.close, size: 16),
-                backgroundColor: colorScheme.surfaceContainerHighest,
-              );
-            }).toList(),
+            children: _customModels
+                .map((m) => Chip(
+                      label: Text(m),
+                      onDeleted: () =>
+                          setState(() => _customModels.remove(m)),
+                      backgroundColor: cs.surfaceContainerHighest,
+                    ))
+                .toList(),
           )
         else
-          Text(
-            'No custom models added yet',
-            style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-          ),
+          Text('No custom models yet',
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
       ],
     );
   }
 
-  Widget _buildProviderDropdown() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: DropdownButtonFormField<String>(
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: 'AI Provider',
-          labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.transparent,
-          prefixIcon: Icon(Icons.hub, color: colorScheme.primary),
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        ),
-        value: _provider,
-        items: const [
-          DropdownMenuItem(value: 'google', child: Text('Google Gemini')),
-          DropdownMenuItem(value: 'openrouter', child: Text('OpenRouter')),
-          DropdownMenuItem(value: 'openai', child: Text('OpenAI Compatible')),
-        ],
-        onChanged: (v) {
-          if (v != null) {
-            setState(() {
-              _provider = v;
-              if (v == 'openrouter') {
-                _baseUrlController.text = AppConfig.openRouterBaseUrl;
-                _textModel = AppConfig.openRouterModelId;
-                _imageModel = AppConfig.openRouterModelId;
-                _audioModel = AppConfig.openRouterModelId;
-                _videoModel = AppConfig.openRouterModelId;
-              } else if (v == 'google') {
-                _baseUrlController.text = 'https://generativelanguage.googleapis.com/v1beta';
-                _textModel = 'gemma-3-27b-it';
-                _imageModel = 'gemini-2.5-flash-preview-09-2025';
-                _audioModel = 'gemini-2.5-flash-preview-09-2025';
-                _videoModel = 'gemini-2.5-flash-preview-09-2025';
-              }
-            });
-          }
-        },
-        dropdownColor: colorScheme.surfaceContainerHigh,
-      ),
-    );
-  }
-
-  Widget _buildBaseUrlField() {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: TextFormField(
+  Widget _buildApiConfigCard(ColorScheme cs) {
+    return _card([
+      _header('API Configuration', Icons.vpn_key, Colors.orange, cs),
+      const SizedBox(height: 12),
+      TextField(
         controller: _baseUrlController,
-        style: TextStyle(color: colorScheme.onSurface),
         decoration: InputDecoration(
-          labelText: 'Custom Base URL',
-          labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+          labelText: 'Base URL',
+          prefixIcon: Icon(Icons.link, color: cs.primary),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.transparent,
-          prefixIcon: Icon(Icons.link, color: colorScheme.primary),
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+              borderRadius: BorderRadius.circular(12)),
         ),
       ),
-    );
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => showApiKeyDialog(context),
+          icon: const Icon(Icons.key),
+          label: const Text('Manage API Key'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ),
+    ]);
   }
 
-  Widget _buildDropdown(String label, IconData icon, String? value, ValueChanged<String?> onChanged) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: DropdownButtonFormField<String>(
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.transparent,
-          prefixIcon: Icon(icon, color: colorScheme.primary),
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        ),
-        value: _allModels.contains(value) ? value : null,
-        items: _allModels.map((model) {
-          return DropdownMenuItem<String>(
-            value: model,
-            child: Text(
-              model,
-              style: TextStyle(
-                color: colorScheme.onSurface,
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          );
-        }).toList(),
-        onChanged: onChanged,
-        hint: Text('Choose a $label',
-            style: TextStyle(color: colorScheme.onSurfaceVariant)),
-        dropdownColor: colorScheme.surfaceContainerHigh,
-      ),
-    );
-  }
-
-  Widget _buildApiKeyButton(TextTheme textTheme, ColorScheme colorScheme) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.secondary.withAlpha((0.2 * 255).toInt()),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ElevatedButton.icon(
-        onPressed: () => showApiKeyDialog(context),
-        icon: Icon(Icons.vpn_key, color: colorScheme.onSecondaryContainer),
-        label: Text(
-          'Manage API Key',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onSecondaryContainer,
-            fontSize: 16,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSaveButton(TextTheme textTheme, ColorScheme colorScheme) {
-    return Container(
+  Widget _buildSaveButton(ColorScheme cs) {
+    return SizedBox(
       width: double.infinity,
       height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primary,
-            colorScheme.primary.withAlpha((0.8 * 255).toInt())
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(colors: [cs.primary, cs.primary.withAlpha(204)]),
+          boxShadow: [
+            BoxShadow(
+              color: cs.primary.withAlpha(77),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
           ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.primary.withAlpha((0.3 * 255).toInt()),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+        child: ElevatedButton(
+          onPressed: _saveSettings,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
           ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: _saveSettings,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: const Text(
-          'Save Preferences',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1,
-          ),
+          child: const Text('Save Preferences',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
         ),
       ),
+    );
+  }
+
+  Widget _card(List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withAlpha(128)),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, children: children),
+    );
+  }
+
+  Widget _header(String title, IconData icon, Color color, ColorScheme cs) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withAlpha(26),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Text(title,
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: cs.onSurface)),
+      ],
     );
   }
 }

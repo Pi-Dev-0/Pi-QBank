@@ -11,7 +11,6 @@ import 'package:pi_qbank/services/ai_models_service.dart';
 import 'package:pi_qbank/models/chat_message_model.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
-import '../config/app_config.dart';
 import '../widgets/api_key_dialog.dart';
 import 'personal_tone_setting_page.dart';
 import '../widgets/image_generation_loader.dart';
@@ -49,9 +48,9 @@ class _AIPageState extends State<AIPage>
   String _toneLanguage = '';
   String _tonePurpose = '';
   List<Map<String, String>> _customTraits = [];
-  String _textModel = 'gemma-3-27b-it';
-  String _imageModel = 'gemini-2.5-flash-preview-09-2025';
-  String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+  String _textModel = '';
+  String _imageModel = '';
+  String _baseUrl = '';
   String _provider = 'google';
 
   // Available models from App Script
@@ -247,18 +246,9 @@ class _AIPageState extends State<AIPage>
       } else {
         _customTraits = [];
       }
-      _textModel = prefs.getString('global_text_model') ?? 
-          prefs.getString('global_selected_model') ??
-          prefs.getString('selected_model') ??
-          'gemma-3-27b-it';
-          
-      _imageModel = prefs.getString('global_image_model') ?? 
-          prefs.getString('global_selected_model') ??
-          prefs.getString('selected_model') ??
-          'gemini-2.5-flash-preview-09-2025';
-          
-      _baseUrl = prefs.getString('global_ai_base_url') ??
-          'https://generativelanguage.googleapis.com/v1beta';
+      _textModel = prefs.getString('global_text_model') ?? '';
+      _imageModel = prefs.getString('global_image_model') ?? '';
+      _baseUrl = prefs.getString('global_ai_base_url') ?? '';
       _provider = prefs.getString('global_ai_provider') ?? 'google';
     });
   }
@@ -269,6 +259,27 @@ class _AIPageState extends State<AIPage>
     setState(() {
       _availableModels = models;
       _modelsLoading = false;
+      if (models.isNotEmpty) {
+        // Set defaults from fetched models if not already set
+        if (_textModel.isEmpty) {
+          final textModel = models.firstWhere(
+            (m) => m.type == 'text',
+            orElse: () => models.first,
+          );
+          _textModel = textModel.id;
+          _provider = textModel.provider;
+        }
+        if (_imageModel.isEmpty) {
+          final imageModel = models.firstWhere(
+            (m) => m.type == 'image',
+            orElse: () => models.first,
+          );
+          _imageModel = imageModel.id;
+        }
+        if (_baseUrl.isEmpty) {
+          _baseUrl = AIModelsService.getBaseUrlSync(_provider);
+        }
+      }
     });
   }
 
@@ -513,30 +524,17 @@ class _AIPageState extends State<AIPage>
     try {
       String primaryModel = _selectedImage != null ? _imageModel : _textModel;
 
-      // Define fallback models
+      // Build fallback model list from available models (no hardcoding)
       List<String> modelsToTry = [primaryModel];
-      if (_selectedImage != null) {
-        modelsToTry.addAll([
-          'gemini-2.5-flash-preview-09-2025',
-          'gemini-2.0-flash',
-          'gemini-1.5-flash',
-          'gemini-1.5-pro'
-        ]);
-      } else {
-        modelsToTry.addAll([
-          'gemini-2.0-flash',
-          'gemini-1.5-flash',
-          'gemma-3-27b-it',
-          'gemini-2.0-flash-lite'
-        ]);
-      }
+      final fallbackModels = _availableModels
+          .where((m) => m.id != primaryModel)
+          .map((m) => m.id)
+          .toList();
+      modelsToTry.addAll(fallbackModels);
       // Remove duplicates
       modelsToTry = modelsToTry.toSet().toList();
 
-      final String? savedApiKey = await getApiKey();
-      final String apiKey = savedApiKey != null && savedApiKey.isNotEmpty
-          ? savedApiKey
-          : AppConfig.geminiApiKey;
+      final String apiKey = await getEffectiveApiKey(_provider);
 
       http.Response? finalResponse;
       String? usedModel;
@@ -545,9 +543,6 @@ class _AIPageState extends State<AIPage>
         try {
           debugPrint('Trying model: $model');
           String cleanUrl = _baseUrl.trim();
-          if (cleanUrl.isEmpty) {
-            cleanUrl = 'https://generativelanguage.googleapis.com/v1beta';
-          }
           if (cleanUrl.endsWith('/')) {
             cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
           }
