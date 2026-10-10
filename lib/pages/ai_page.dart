@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:pi_qbank/services/chat_history_service.dart';
+import 'package:pi_qbank/services/ai_models_service.dart';
 import 'package:pi_qbank/models/chat_message_model.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/app_drawer.dart';
@@ -53,6 +54,10 @@ class _AIPageState extends State<AIPage>
   String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
   String _provider = 'google';
 
+  // Available models from App Script
+  List<AIModel> _availableModels = [];
+  bool _modelsLoading = true;
+
   // Image generation state
 
   @override
@@ -64,6 +69,7 @@ class _AIPageState extends State<AIPage>
     _loadPersonalToneSettings().then((_) {
       _initTts(); // Initialize TTS after tone settings are loaded
     });
+    _fetchModels(); // Fetch available AI models from App Script
 
     _animationController = AnimationController(
       vsync: this,
@@ -255,6 +261,185 @@ class _AIPageState extends State<AIPage>
           'https://generativelanguage.googleapis.com/v1beta';
       _provider = prefs.getString('global_ai_provider') ?? 'google';
     });
+  }
+
+  Future<void> _fetchModels() async {
+    final models = await AIModelsService.fetchModels();
+    if (!mounted) return;
+    setState(() {
+      _availableModels = models;
+      _modelsLoading = false;
+    });
+  }
+
+  void _showModelSelector() {
+    final isImage = _selectedImage != null;
+    final currentModel = isImage ? _imageModel : _textModel;
+    final availableModels = _availableModels.isNotEmpty
+        ? _availableModels
+        : [
+            AIModel(
+              id: currentModel,
+              provider: 'google',
+              type: 'text',
+              displayName: currentModel,
+              description: 'Current model',
+            ),
+          ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollCtrl) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 4),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.model_training,
+                          color: Theme.of(ctx).colorScheme.primary, size: 22),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Select AI Model',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(ctx).colorScheme.onSurface,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Refresh models',
+                        icon: const Icon(Icons.refresh),
+                        onPressed: () async {
+                          setState(() => _modelsLoading = true);
+                          final models = await AIModelsService.fetchModels(forceRefresh: true);
+                          if (!mounted) return;
+                          setState(() {
+                            _availableModels = models;
+                            _modelsLoading = false;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                if (_modelsLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: CircularProgressIndicator(),
+                  )
+                else
+                  Flexible(
+                    child: ListView.builder(
+                      controller: scrollCtrl,
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      itemCount: availableModels.length,
+                      itemBuilder: (_, i) {
+                        final model = availableModels[i];
+                        final isSelected = model.id == currentModel;
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          elevation: isSelected ? 2 : 0,
+                          color: isSelected
+                              ? Theme.of(ctx).colorScheme.primaryContainer
+                              : Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: isSelected
+                                ? BorderSide(
+                                    color: Theme.of(ctx).colorScheme.primary,
+                                    width: 1.5,
+                                  )
+                                : BorderSide.none,
+                          ),
+                          child: ListTile(
+                            onTap: () {
+                              setState(() {
+                                if (isImage) {
+                                  _imageModel = model.id;
+                                } else {
+                                  _textModel = model.id;
+                                }
+                                _provider = model.provider;
+                              });
+                              Navigator.pop(ctx);
+                            },
+                            leading: CircleAvatar(
+                              backgroundColor: _providerColor(model.provider),
+                              child: Icon(
+                                model.type == 'image'
+                                    ? Icons.image_outlined
+                                    : Icons.text_fields,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                            title: Text(
+                              model.displayName,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              model.description,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            trailing: isSelected
+                                ? Icon(Icons.check_circle,
+                                    color: Theme.of(ctx).colorScheme.primary)
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Color _providerColor(String provider) {
+    switch (provider) {
+      case 'google':
+        return Colors.blue;
+      case 'openrouter':
+        return Colors.purple;
+      case 'openai':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
   }
 
   @override
@@ -735,24 +920,41 @@ class _AIPageState extends State<AIPage>
                   ),
                   child: Column(
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            bottom: 8.0, left: 12.0, right: 12.0),
-                        child: Row(
-                          children: [
-                            Icon(Icons.smart_toy,
-                                size: 16,
-                                color: colorScheme.primary.withOpacity(0.7)),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Using: ${_selectedImage != null ? "$_imageModel (Image)" : "$_textModel (Text)"}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colorScheme.onSurfaceVariant,
-                                fontWeight: FontWeight.bold,
+                      InkWell(
+                        onTap: _showModelSelector,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                              bottom: 8.0, left: 12.0, right: 12.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.smart_toy,
+                                  size: 16,
+                                  color: colorScheme.primary.withOpacity(0.7)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _modelsLoading
+                                    ? const Text(
+                                        'Loading models...',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      )
+                                    : Text(
+                                        'Model: ${_selectedImage != null ? _imageModel : _textModel}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: colorScheme.onSurfaceVariant,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                               ),
-                            ),
-                          ],
+                              Icon(Icons.keyboard_arrow_down,
+                                  size: 16, color: colorScheme.primary),
+                            ],
+                          ),
                         ),
                       ),
                       Row(
