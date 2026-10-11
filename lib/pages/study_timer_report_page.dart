@@ -250,48 +250,6 @@ class _StudyTimerReportPageState extends State<StudyTimerReportPage>
     Share.share(text.toString(), subject: 'My Study Report');
   }
 
-  void _showHelpInfo() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.info_outline, color: Color(0xFF4F46E5)),
-            SizedBox(width: 8),
-            Text('About Study Timer', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '• Home Screen Widget:\nYou can add the Pi-QBank Study Timer widget to your Android home screen to start and pause study sessions with a single tap!',
-              style: TextStyle(fontSize: 13, height: 1.4),
-            ),
-            SizedBox(height: 10),
-            Text(
-              '• Study Streak:\nStudy consistently every day to grow your streak flame 🔥. Missing a day resets the active streak.',
-              style: TextStyle(fontSize: 13, height: 1.4),
-            ),
-            SizedBox(height: 10),
-            Text(
-              '• Offline Sessions:\nStudied from textbooks or at coaching? Tap "+ Log Offline" to add study sessions manually.',
-              style: TextStyle(fontSize: 13, height: 1.4),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Got it!'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -380,11 +338,7 @@ class _StudyTimerReportPageState extends State<StudyTimerReportPage>
             icon: const Icon(Icons.share_outlined),
             onPressed: _shareReportSummary,
           ),
-          IconButton(
-            tooltip: 'About Timer & Widget',
-            icon: const Icon(Icons.info_outline),
-            onPressed: _showHelpInfo,
-          ),
+
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
