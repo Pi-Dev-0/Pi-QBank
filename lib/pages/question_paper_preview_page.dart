@@ -25,6 +25,8 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     required this.totalMarks,
     required this.questions,
     this.imageSize = StemImageSize.medium,
+    this.cqLayout = QuestionLayout.single,
+    this.mcqLayout = QuestionLayout.doubleColumn,
   });
 
   final String schoolName;
@@ -35,6 +37,8 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   final String totalMarks;
   final List<HighSchoolQuestion> questions;
   final StemImageSize imageSize;
+  final QuestionLayout cqLayout;
+  final QuestionLayout mcqLayout;
 
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
@@ -60,6 +64,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         totalMarks: widget.totalMarks,
         questions: widget.questions,
         imageSize: widget.imageSize,
+        cqLayout: widget.cqLayout,
+        mcqLayout: widget.mcqLayout,
       );
 
   @override
@@ -93,9 +99,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final withImages = widget.questions
-        .where((q) => q.stemImageUrl.trim().isNotEmpty)
-        .length;
+    final withImages =
+        widget.questions.where((q) => q.stemImageUrl.trim().isNotEmpty).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F3FF),
@@ -127,7 +132,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
       color: Colors.white,
       child: Row(
         children: [
-          const Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF5C35E3)),
+          const Icon(Icons.visibility_outlined,
+              size: 18, color: Color(0xFF5C35E3)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -154,7 +160,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: const [
-              Icon(Icons.desktop_access_disabled_outlined, size: 48, color: Colors.grey),
+              Icon(Icons.desktop_access_disabled_outlined,
+                  size: 48, color: Colors.grey),
               SizedBox(height: 12),
               Text(
                 'এই প্ল্যাটফর্মে ইন-অ্যাপ প্রিভিউ চালু করা যায়নি।\n'

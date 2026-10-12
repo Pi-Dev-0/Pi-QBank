@@ -124,6 +124,11 @@ flutter:
     - family: SutonnyMJ
       fonts:
         - asset: assets/fonts/SutonnyMJ Regular.ttf
+    # Math/symbol glyphs that SutonnyMJ (Bijoy-ANSI) and the PDF base-14 fonts
+    # lack: ∩ ∪ ∈ ∅ ≠ ≤ ≥ × √ Σ − α β ² → ≈ ± …
+    - family: MathSymbols
+      fonts:
+        - asset: assets/fonts/MathSymbols.ttf
 
   # Add flutter_launcher_icons configuration
 flutter_icons:

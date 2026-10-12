@@ -372,6 +372,15 @@ class Unicode {
       return "";
     }
 
+    // Compose decomposed nukta sequences before anything else.
+    //
+    // The character map only knows the *precomposed* codepoints (U+09DC ড়,
+    // U+09DD ঢ়). Text typed or pasted as base+nukta ("ড" + U+09BC) would
+    // otherwise leave the raw U+09BC in the output; SutonnyMJ is a Bijoy-ANSI
+    // font with no Bengali Unicode cmap, so that stray codepoint renders as a
+    // black box mid-word (e.g. the common word "পড়ে").
+    srcString = srcString.replaceAll('\u09A1\u09BC', '\u09DC');
+    srcString = srcString.replaceAll('\u09A2\u09BC', '\u09DD');
 
     var pattern = 'ো';
     var replacement = 'ো';

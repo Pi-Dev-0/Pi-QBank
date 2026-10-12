@@ -95,6 +95,31 @@ extension StemImageSizeMetrics on StemImageSize {
   }
 }
 
+/// How MCQ questions are arranged on the page.
+///
+/// Only MCQs are affected. CQ questions are full-width blocks (stem + figure +
+/// sub-questions) and splitting them across columns would break them apart.
+enum QuestionLayout {
+  /// One question per row, running the full width of the page.
+  single,
+
+  /// Two questions per row — the usual exam-paper layout, and much more compact.
+  doubleColumn,
+}
+
+extension QuestionLayoutMetrics on QuestionLayout {
+  /// How many MCQs sit side by side.
+  int get mcqColumns => this == QuestionLayout.doubleColumn ? 2 : 1;
+
+  bool get isDouble => this == QuestionLayout.doubleColumn;
+
+  String get label => isDouble ? 'দুই কলাম' : 'এক কলাম';
+
+  String get description => isDouble
+      ? 'প্রতি সারিতে দুটি MCQ — কম পেজ, ছোট প্রশ্নপত্র'
+      : 'প্রতি সারিতে একটি MCQ — প্রশ্ন ও অপশন সরল দেখা যায়';
+}
+
 class HighSchoolExportService {
   HighSchoolExportService._();
 
@@ -148,13 +173,12 @@ class HighSchoolExportService {
     final out = <String, Uint8List>{};
     for (final url in wanted) {
       try {
-        final res = await http
-            .get(Uri.parse(url))
-            .timeout(_imageTimeout);
+        final res = await http.get(Uri.parse(url)).timeout(_imageTimeout);
         if (res.statusCode != 200 || res.bodyBytes.isEmpty) continue;
         if (res.bodyBytes.length > maxImageBytes) continue;
         // Sanity check: Drive answers a blocked/large file with HTML.
-        final isHtml = res.headers['content-type']?.contains('text/html') ?? false;
+        final isHtml =
+            res.headers['content-type']?.contains('text/html') ?? false;
         if (isHtml) continue;
         out[url] = res.bodyBytes;
       } catch (_) {
@@ -182,7 +206,8 @@ class HighSchoolExportService {
     if (starts([0x47, 0x49, 0x46, 0x38])) return 'image/gif';
     if (starts([0x42, 0x4D])) return 'image/bmp';
     // RIFF....WEBP
-    if (starts([0x52, 0x49, 0x46, 0x46]) && starts([0x57, 0x45, 0x42, 0x50], 8)) {
+    if (starts([0x52, 0x49, 0x46, 0x46]) &&
+        starts([0x57, 0x45, 0x42, 0x50], 8)) {
       return 'image/webp';
     }
     return 'image/png';
@@ -344,6 +369,8 @@ class HighSchoolExportService {
     required List<HighSchoolQuestion> questions,
     Map<String, Uint8List>? imageBytes,
     StemImageSize imageSize = StemImageSize.medium,
+    QuestionLayout cqLayout = QuestionLayout.single,
+    QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
@@ -449,6 +476,21 @@ class HighSchoolExportService {
       margin-bottom: 8pt;
       page-break-inside: avoid;
     }
+    .mcq-layout-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .cq-col-cell {
+      width: ${cqLayout.isDouble ? '50%' : '100%'};
+      vertical-align: top;
+      padding: 0pt 4pt 8pt 0pt;
+    }
+    .mcq-col-cell {
+      width: ${mcqLayout.isDouble ? '50%' : '100%'};
+      vertical-align: top;
+      padding: 0pt 4pt 8pt 0pt;
+    }
     .mcq-question {
       font-weight: 500;
       margin-bottom: 3pt;
@@ -495,32 +537,52 @@ class HighSchoolExportService {
   <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[যেকোনো নির্ধারিত সংখ্যক প্রশ্নের উত্তর দাও]</div>
 ''');
 
-      for (int i = 0; i < cqs.length; i++) {
-        final q = cqs[i];
-        final index = i + 1;
-        buffer.write('''
-  <div class="cq-box">
-    <div class="cq-stem">
-      <b>$index.</b> ${_escapeXml(q.stemText)}
-      ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
-    </div>
-    ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
-    <table class="cq-sub-table">
+      // A real table keeps columns stable in Word/WPS, which CSS does not.
+      buffer.write('''
+  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
 ''');
-        for (final sq in q.cqSubQuestions) {
-          buffer.write('''
-      <tr>
-        <td class="cq-sub-label">(${_escapeXml(sq.label)})</td>
-        <td class="cq-sub-text">${_escapeXml(sq.text)}</td>
-        <td class="cq-sub-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</td>
-      </tr>
-''');
+      final cqCols = cqLayout.mcqColumns;
+      for (int i = 0; i < cqs.length; i += cqCols) {
+        final cells = StringBuffer();
+        for (int c = 0; c < cqCols; c++) {
+          if (c > 0) cells.write('<td class="mcq-col-gap" width="16"></td>');
+          final idx = i + c;
+          if (idx >= cqs.length) {
+            cells.write('<td class="mcq-col-cell"></td>');
+            continue;
+          }
+          final q = cqs[idx];
+          final index = idx + 1;
+          cells.write('''
+    <td class="cq-col-cell">
+      <div class="cq-box">
+        <div class="cq-stem">
+          <b>$index.</b> ${_escapeXml(q.stemText)}
+          ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
+        </div>
+        ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
+        <table class="cq-sub-table">''');
+          for (final sq in q.cqSubQuestions) {
+            cells.write('''
+          <tr>
+            <td class="cq-sub-label">(${_escapeXml(sq.label)})</td>
+            <td class="cq-sub-text">${_escapeXml(sq.text)}</td>
+            <td class="cq-sub-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</td>
+          </tr>''');
+          }
+          cells.write('''
+        </table>
+      </div>
+    </td>''');
         }
         buffer.write('''
-    </table>
-  </div>
+    <tr>$cells
+    </tr>
 ''');
       }
+      buffer.write('''
+  </table>
+''');
     }
 
     // MCQ Section
@@ -531,37 +593,61 @@ class HighSchoolExportService {
 ''');
 
       const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
-      for (int i = 0; i < mcqs.length; i++) {
-        final q = mcqs[i];
-        final mcq = q.mcqData;
-        final index = i + 1;
-        if (mcq == null) continue;
 
-        buffer.write('''
-  <div class="mcq-container">
-    <div class="mcq-question"><b>$index.</b> ${_escapeXml(mcq.text)}</div>
-    <table class="mcq-options-table">
-''');
-        final options = mcq.options;
+      // Options for one question, as an HTML fragment.
+      String optionsHtml(List<String> options) {
+        final b = StringBuffer();
         for (int opt = 0; opt < options.length; opt += 2) {
-          final l1 = opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
-          final o1 = options[opt];
+          final l1 =
+              opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
           final has2 = opt + 1 < options.length;
-          final l2 = has2 && (opt + 1) < bengaliLetters.length ? bengaliLetters[opt + 1] : '${opt + 2}';
+          final l2 = has2 && (opt + 1) < bengaliLetters.length
+              ? bengaliLetters[opt + 1]
+              : '${opt + 2}';
           final o2 = has2 ? options[opt + 1] : '';
-
-          buffer.write('''
+          b.write('''
       <tr>
-        <td class="mcq-opt-cell">($l1) ${_escapeXml(o1)}</td>
+        <td class="mcq-opt-cell">($l1) ${_escapeXml(options[opt])}</td>
         <td class="mcq-opt-cell">${has2 ? '($l2) ${_escapeXml(o2)}' : ''}</td>
-      </tr>
+      </tr>''');
+        }
+        return b.toString();
+      }
+
+      // One question as a full cell.
+      String questionCell(int index, HighSchoolQuestion q) {
+        final mcq = q.mcqData;
+        if (mcq == null) return '<td class="mcq-col-cell"></td>';
+        return '''
+    <td class="mcq-col-cell">
+      <div class="mcq-question"><b>$index.</b> ${_escapeXml(mcq.text)}</div>
+      <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
+    </td>''';
+      }
+
+      // A real table keeps the columns stable in Word/WPS, which a CSS grid
+      // does not reliably survive.
+      buffer.write('''
+  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
 ''');
+      final cols = mcqLayout.mcqColumns;
+      for (int i = 0; i < mcqs.length; i += cols) {
+        final cells = StringBuffer();
+        for (int c = 0; c < cols; c++) {
+          final idx = i + c;
+          if (c > 0) cells.write('<td class="mcq-col-gap" width="16"></td>');
+          cells.write(idx < mcqs.length
+              ? questionCell(idx + 1, mcqs[idx])
+              : '<td class="mcq-col-cell"></td>');
         }
         buffer.write('''
-    </table>
-  </div>
+    <tr>$cells
+    </tr>
 ''');
       }
+      buffer.write('''
+  </table>
+''');
     }
 
     buffer.write('''
@@ -586,6 +672,8 @@ class HighSchoolExportService {
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
     StemImageSize imageSize = StemImageSize.medium,
+    QuestionLayout cqLayout = QuestionLayout.single,
+    QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
@@ -697,10 +785,15 @@ class HighSchoolExportService {
       padding-left: 12px;
     }
     .cq-mark { font-weight: 700; min-width: 30px; text-align: right; }
+    .cq-grid {
+      display: grid;
+      grid-template-columns: ${cqLayout.isDouble ? '1fr 1fr' : '1fr'};
+      gap: ${cqLayout.isDouble ? '4px 22px' : '14px'};
+    }
     .mcq-grid {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
+      grid-template-columns: ${mcqLayout.isDouble ? '1fr 1fr' : '1fr'};
+      gap: ${mcqLayout.isDouble ? '4px 22px' : '14px'};
     }
     .mcq-card {
       padding: 12px;
@@ -709,7 +802,7 @@ class HighSchoolExportService {
     }
     .mcq-options {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: ${mcqLayout.isDouble ? '1fr' : '1fr 1fr'};
       gap: 6px 16px;
       margin-top: 6px;
       padding-left: 16px;
@@ -755,6 +848,7 @@ class HighSchoolExportService {
     if (cqs.isNotEmpty) {
       buffer.write('''
     <div class="section-banner">ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)</div>
+    <div class="cq-grid">
 ''');
       for (int i = 0; i < cqs.length; i++) {
         final q = cqs[i];
@@ -779,6 +873,9 @@ class HighSchoolExportService {
     </div>
 ''');
       }
+      buffer.write('''
+    </div>
+''');
     }
 
     if (mcqs.isNotEmpty) {
@@ -800,7 +897,8 @@ class HighSchoolExportService {
 ''');
         final options = mcq.options;
         for (int opt = 0; opt < options.length; opt++) {
-          final l = opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
+          final l =
+              opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
           buffer.write('''
           <div>($l) ${_escapeXml(options[opt])}</div>
 ''');
@@ -846,7 +944,8 @@ class HighSchoolExportService {
       buffer.writeln('## ${examName.trim()}\n');
     }
 
-    buffer.writeln('**বিষয়:** $subject | **শ্রেণি:** $className | **সময়:** $time | **পূর্ণমান:** $totalMarks\n');
+    buffer.writeln(
+        '**বিষয়:** $subject | **শ্রেণি:** $className | **সময়:** $time | **পূর্ণমান:** $totalMarks\n');
     buffer.writeln('---\n');
 
     final cqs = questions.where((q) => q.isCq).toList();
@@ -884,7 +983,8 @@ class HighSchoolExportService {
 
         buffer.writeln('**$index.** ${mcq.text.trim()}');
         for (int opt = 0; opt < mcq.options.length; opt++) {
-          final l = opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
+          final l =
+              opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
           buffer.writeln('- ($l) ${mcq.options[opt]}');
         }
         buffer.writeln();
@@ -986,7 +1086,8 @@ class HighSchoolExportService {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+            const Icon(Icons.check_circle_rounded,
+                color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],

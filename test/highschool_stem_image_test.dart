@@ -165,7 +165,179 @@ void main() {
     });
   });
 
-  test('sniffs the real image format instead of assuming png', () {
+  group('column layout', () {
+    HighSchoolQuestion mcq(int i) => HighSchoolQuestion.fromJson({
+          'id': 'm$i',
+          'class': 'Class (9-10) SSC',
+          'subject': 'M',
+          'chapter_number': '1',
+          'chapter_name': 'C',
+          'question_type': 'MCQ',
+          'stem_text': '',
+          'stem_image_url': '',
+          'sub_questions_json': {
+            'text': 'Q$i',
+            'options': ['a', 'b', 'c', 'd'],
+            'correct_ans': 'a',
+          },
+          'board_year_tag': '',
+        });
+
+    final qs = [mcq(1), mcq(2), mcq(3)];
+
+    String htmlFor(ex.QuestionLayout layout) =>
+        ex.HighSchoolExportService.generateHtml(
+          schoolName: 'S', examName: 'E', subject: 'M',
+          className: 'C', time: 'T', totalMarks: '10',
+          questions: qs, cqLayout: layout, mcqLayout: layout,
+        );
+
+    test('single column uses a one-track grid', () {
+      final h = htmlFor(ex.QuestionLayout.single);
+      expect(h, contains('grid-template-columns: 1fr;'));
+      expect(ex.QuestionLayout.single.mcqColumns, 1);
+    });
+
+    test('double column uses a two-track grid', () {
+      final h = htmlFor(ex.QuestionLayout.doubleColumn);
+      expect(h, contains('grid-template-columns: 1fr 1fr;'));
+      expect(ex.QuestionLayout.doubleColumn.mcqColumns, 2);
+    });
+
+    test('options stack vertically only in double column', () {
+      // Narrow cells cannot fit two options side by side.
+      final singleOpts =
+          RegExp(r'\.mcq-options \{\s*display: grid;\s*grid-template-columns: ([^;]+);')
+              .firstMatch(htmlFor(ex.QuestionLayout.single))!
+              .group(1)!;
+      final doubleOpts =
+          RegExp(r'\.mcq-options \{\s*display: grid;\s*grid-template-columns: ([^;]+);')
+              .firstMatch(htmlFor(ex.QuestionLayout.doubleColumn))!
+              .group(1)!;
+      expect(singleOpts.trim(), '1fr 1fr');
+      expect(doubleOpts.trim(), '1fr');
+    });
+
+    test('cq cards are never placed inside the mcq grid', () {
+      for (final layout in ex.QuestionLayout.values) {
+        final h = ex.HighSchoolExportService.generateHtml(
+          schoolName: 'S', examName: 'E', subject: 'M',
+          className: 'C', time: 'T', totalMarks: '10',
+          questions: [cq(stemImageUrl: 'https://example.com/f.png')],
+          cqLayout: layout, mcqLayout: layout,
+        );
+        expect(h, contains('cq-card'));
+        expect(h, contains('class="cq-grid"'));
+      }
+    });
+
+    test('cq and mcq columns are controlled independently', () {
+      HighSchoolQuestion mcq(int i) => HighSchoolQuestion.fromJson({
+            'id': 'm$i',
+            'class': 'Class (9-10) SSC',
+            'subject': 'M',
+            'chapter_number': '1',
+            'chapter_name': 'C',
+            'question_type': 'MCQ',
+            'stem_text': '',
+            'stem_image_url': '',
+            'sub_questions_json': {
+              'text': 'Q$i',
+              'options': ['a', 'b'],
+              'correct_ans': 'a',
+            },
+            'board_year_tag': '',
+          });
+
+      final qs = [cq(), mcq(1)];
+
+      String gridOf(String html, String name) => RegExp(
+            '\\.$name \\{\\s*display: grid;\\s*grid-template-columns: ([^;]+);',
+          ).firstMatch(html)!.group(1)!.trim();
+
+      String htmlFor(ex.QuestionLayout cq, ex.QuestionLayout m) =>
+          ex.HighSchoolExportService.generateHtml(
+            schoolName: 'S', examName: 'E', subject: 'M',
+            className: 'C', time: 'T', totalMarks: '10',
+            questions: qs, cqLayout: cq, mcqLayout: m,
+          );
+
+      // The reported need: CQ full width, MCQ side by side.
+      final h = htmlFor(ex.QuestionLayout.single, ex.QuestionLayout.doubleColumn);
+      expect(gridOf(h, 'cq-grid'), '1fr');
+      expect(gridOf(h, 'mcq-grid'), '1fr 1fr');
+
+      // ...and the reverse.
+      final h2 =
+          htmlFor(ex.QuestionLayout.doubleColumn, ex.QuestionLayout.single);
+      expect(gridOf(h2, 'cq-grid'), '1fr 1fr');
+      expect(gridOf(h2, 'mcq-grid'), '1fr');
+    });
+
+    test('word emits a real layout table for both options', () {
+      for (final layout in ex.QuestionLayout.values) {
+        final doc = ex.HighSchoolExportService.generateWordDoc(
+          schoolName: 'S', examName: 'E', subject: 'M',
+          className: 'C', time: 'T', totalMarks: '10',
+          questions: qs, cqLayout: layout, mcqLayout: layout,
+        );
+        expect(doc, contains('mcq-layout-table'));
+        expect(doc, contains('mcq-col-cell'));
+      }
+    });
+  });
+
+  test('cq questions follow the column layout', () {
+      // The reported case: a CQ-only paper must still honour double column.
+      final qs = List.generate(
+        6,
+        (i) => cq(stemImageUrl: i.isEven ? 'https://example.com/f.png' : '', id: 'c$i'),
+      );
+
+      String htmlFor(ex.QuestionLayout layout) =>
+          ex.HighSchoolExportService.generateHtml(
+            schoolName: 'S', examName: 'E', subject: 'M',
+            className: 'C', time: 'T', totalMarks: '10',
+            questions: qs, cqLayout: layout, mcqLayout: layout,
+          );
+
+      final single = htmlFor(ex.QuestionLayout.single);
+      final dbl = htmlFor(ex.QuestionLayout.doubleColumn);
+
+      String gridCols(String html) => RegExp(
+            r'\.cq-grid \{\s*display: grid;\s*grid-template-columns: ([^;]+);')
+          .firstMatch(html)!
+          .group(1)!
+          .trim();
+
+      expect(gridCols(single), '1fr');
+      expect(gridCols(dbl), '1fr 1fr');
+
+      // Every CQ card must sit inside the cq-grid container.
+      // Match the class attribute, not the CSS selector of the same name.
+      for (final html in [single, dbl]) {
+        expect(html, contains('class="cq-grid"'));
+        expect(html.indexOf('class="cq-grid"'),
+            lessThan(html.indexOf('class="cq-card"')));
+      }
+      expect(RegExp('class="cq-card"').allMatches(dbl).length, 6);
+    });
+
+    test('word puts cq questions in the same layout table', () {
+      final qs = List.generate(4, (i) => cq(id: 'c$i'));
+      for (final layout in ex.QuestionLayout.values) {
+        final doc = ex.HighSchoolExportService.generateWordDoc(
+          schoolName: 'S', examName: 'E', subject: 'M',
+          className: 'C', time: 'T', totalMarks: '10',
+          questions: qs, cqLayout: layout, mcqLayout: layout,
+        );
+        // CQ section table appears before the MCQ one.
+        expect(doc, contains('mcq-layout-table'));
+        expect(RegExp('class="cq-box"').allMatches(doc).length, 4);
+      }
+    });
+
+    test('sniffs the real image format instead of assuming png', () {
       expect(ex.HighSchoolExportService.sniffImageMime(_tinyPng), 'image/png');
       final jpeg = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 0, 0]);
       expect(ex.HighSchoolExportService.sniffImageMime(jpeg), 'image/jpeg');

@@ -8,22 +8,22 @@ import '../models/highschool_question.dart';
 import '../services/highschool_qbank_service.dart';
 import '../services/highschool_export_service.dart';
 import '../pages/question_paper_preview_page.dart';
+import '../utils/pdf_mixed_text.dart';
 import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
-import '../bijoy_helper/bijoy_helper.dart' as bh;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour & design tokens
 // ─────────────────────────────────────────────────────────────────────────────
 
-const _kPrimary   = Color(0xFF5C35E3); // vibrant indigo-violet
-const _kAccent    = Color(0xFF00C6AB); // teal-mint accent
-const _kCqColor   = Color(0xFF3A7BF7); // blue for CQ
-const _kMcqColor  = Color(0xFFE86339); // warm orange for MCQ
-const _kBg        = Color(0xFFF4F3FF);
-const _kCardBg    = Colors.white;
-const _kDarkText  = Color(0xFF1E1B3A);
-const _kSubText   = Color(0xFF6B6880);
+const _kPrimary = Color(0xFF5C35E3); // vibrant indigo-violet
+const _kAccent = Color(0xFF00C6AB); // teal-mint accent
+const _kCqColor = Color(0xFF3A7BF7); // blue for CQ
+const _kMcqColor = Color(0xFFE86339); // warm orange for MCQ
+const _kBg = Color(0xFFF4F3FF);
+const _kCardBg = Colors.white;
+const _kDarkText = Color(0xFF1E1B3A);
+const _kSubText = Color(0xFF6B6880);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Available options
@@ -91,8 +91,7 @@ class HighSchoolQPaperGeneratorPage extends StatefulWidget {
 }
 
 class _HighSchoolQPaperGeneratorPageState
-    extends State<HighSchoolQPaperGeneratorPage>
-    with TickerProviderStateMixin {
+    extends State<HighSchoolQPaperGeneratorPage> with TickerProviderStateMixin {
   // ── Step tracking ──────────────────────────────────────────────────────────
   int _currentStep = 0; // 0 = filter, 1 = picker, 2 = generate PDF
 
@@ -109,22 +108,28 @@ class _HighSchoolQPaperGeneratorPageState
   final Map<String, bool> _expandedCards = {};
 
   // ── Step 3 state ──────────────────────────────────────────────────────────
-  final _schoolCtrl   = TextEditingController();
-  final _examCtrl     = TextEditingController(text: 'বার্ষিক পরীক্ষা ২০২৬');
-  final _subjectCtrl  = TextEditingController();
-  final _classCtrl    = TextEditingController();
-  final _timeCtrl     = TextEditingController(text: '২ ঘন্টা ৩০ মিনিট');
-  final _marksCtrl    = TextEditingController();
-  bool _generating    = false;
+  final _schoolCtrl = TextEditingController();
+  final _examCtrl = TextEditingController(text: 'বার্ষিক পরীক্ষা ২০২৬');
+  final _subjectCtrl = TextEditingController();
+  final _classCtrl = TextEditingController();
+  final _timeCtrl = TextEditingController(text: '২ ঘন্টা ৩০ মিনিট');
+  final _marksCtrl = TextEditingController();
+  bool _generating = false;
 
   /// How stem images are sized across PDF / Word / HTML exports.
   StemImageSize _imageSize = StemImageSize.medium;
 
+  /// How CQ questions are arranged (single or double column).
+  QuestionLayout _cqLayout = QuestionLayout.single;
+
+  /// How MCQ questions are arranged (single or double column).
+  QuestionLayout _mcqLayout = QuestionLayout.doubleColumn;
+
   // ── Animation ─────────────────────────────────────────────────────────────
-  late final AnimationController _stepAnim =
-    AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+  late final AnimationController _stepAnim = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 400));
   late final Animation<double> _fadeAnim =
-    CurvedAnimation(parent: _stepAnim, curve: Curves.easeInOut);
+      CurvedAnimation(parent: _stepAnim, curve: Curves.easeInOut);
 
   // ── Service ───────────────────────────────────────────────────────────────
   // Replace with your deployed Apps Script URL
@@ -153,19 +158,19 @@ class _HighSchoolQPaperGeneratorPageState
   // ── Derived counters ──────────────────────────────────────────────────────
 
   List<HighSchoolQuestion> get _selectedQuestions =>
-    _fetchedQuestions.where((q) => q.isSelected).toList();
+      _fetchedQuestions.where((q) => q.isSelected).toList();
 
   List<HighSchoolQuestion> get _selectedCqs =>
-    _selectedQuestions.where((q) => q.isCq).toList();
+      _selectedQuestions.where((q) => q.isCq).toList();
 
   List<HighSchoolQuestion> get _selectedMcqs =>
-    _selectedQuestions.where((q) => q.isMcq).toList();
+      _selectedQuestions.where((q) => q.isMcq).toList();
 
-  int get _totalCqs  => _fetchedQuestions.where((q) => q.isCq).length;
+  int get _totalCqs => _fetchedQuestions.where((q) => q.isCq).length;
   int get _totalMcqs => _fetchedQuestions.where((q) => q.isMcq).length;
 
   int get _totalSelectedMarks =>
-    _selectedQuestions.fold(0, (sum, q) => sum + q.totalMarks);
+      _selectedQuestions.fold(0, (sum, q) => sum + q.totalMarks);
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -225,8 +230,8 @@ class _HighSchoolQPaperGeneratorPageState
         className: _selectedClass!,
         subject: _selectedSubject!,
         chapters: _selectedChapterNumbers.isNotEmpty
-          ? _selectedChapterNumbers.toList()
-          : null,
+            ? _selectedChapterNumbers.toList()
+            : null,
       );
       if (questions.isEmpty) {
         _showError('কোনো প্রশ্ন পাওয়া যায়নি। অন্য ফিল্টার চেষ্টা করুন।');
@@ -252,8 +257,16 @@ class _HighSchoolQPaperGeneratorPageState
     setState(() => q.isSelected = !q.isSelected);
   }
 
-  void _selectAll()   => setState(() { for (final q in _fetchedQuestions) { q.isSelected = true; } });
-  void _deselectAll() => setState(() { for (final q in _fetchedQuestions) { q.isSelected = false; } });
+  void _selectAll() => setState(() {
+        for (final q in _fetchedQuestions) {
+          q.isSelected = true;
+        }
+      });
+  void _deselectAll() => setState(() {
+        for (final q in _fetchedQuestions) {
+          q.isSelected = false;
+        }
+      });
 
   void _proceedToGenerate() {
     if (_selectedQuestions.isEmpty) {
@@ -261,8 +274,8 @@ class _HighSchoolQPaperGeneratorPageState
       return;
     }
     _subjectCtrl.text = _selectedSubject ?? '';
-    _classCtrl.text   = _selectedClass ?? '';
-    _marksCtrl.text   = '$_totalSelectedMarks';
+    _classCtrl.text = _selectedClass ?? '';
+    _marksCtrl.text = '$_totalSelectedMarks';
     _goToStep(2);
   }
 
@@ -271,8 +284,11 @@ class _HighSchoolQPaperGeneratorPageState
   // ─────────────────────────────────────────────────────────────────────────
 
   String _getBaseFileName() {
-    final sub = _subjectCtrl.text.trim().isNotEmpty ? _subjectCtrl.text.trim() : 'QuestionPaper';
-    final exam = _examCtrl.text.trim().isNotEmpty ? '_${_examCtrl.text.trim()}' : '';
+    final sub = _subjectCtrl.text.trim().isNotEmpty
+        ? _subjectCtrl.text.trim()
+        : 'QuestionPaper';
+    final exam =
+        _examCtrl.text.trim().isNotEmpty ? '_${_examCtrl.text.trim()}' : '';
     return '$sub$exam'.replaceAll(RegExp(r'[^\w\u0980-\u09FF-]'), '_');
   }
 
@@ -301,7 +317,8 @@ class _HighSchoolQPaperGeneratorPageState
       if (!mounted) return;
       await HighSchoolExportService.shareExportedFile(
         file,
-        text: '${_examCtrl.text.trim().isNotEmpty ? _examCtrl.text : "Question Paper"} - PDF Document',
+        text:
+            '${_examCtrl.text.trim().isNotEmpty ? _examCtrl.text : "Question Paper"} - PDF Document',
       );
     } catch (e) {
       _showError('PDF শেয়ার করতে ব্যর্থ: $e');
@@ -326,6 +343,8 @@ class _HighSchoolQPaperGeneratorPageState
         questions: _selectedQuestions,
         imageBytes: stemImages,
         imageSize: _imageSize,
+        cqLayout: _cqLayout,
+        mcqLayout: _mcqLayout,
       );
       final file = await HighSchoolExportService.saveFile(
         content: doc,
@@ -356,6 +375,8 @@ class _HighSchoolQPaperGeneratorPageState
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
         imageSize: _imageSize,
+        cqLayout: _cqLayout,
+        mcqLayout: _mcqLayout,
       );
       final file = await HighSchoolExportService.saveFile(
         content: html,
@@ -489,6 +510,8 @@ class _HighSchoolQPaperGeneratorPageState
           totalMarks: _marksCtrl.text,
           questions: _selectedQuestions,
           imageSize: _imageSize,
+          cqLayout: _cqLayout,
+          mcqLayout: _mcqLayout,
         ),
       ),
     );
@@ -506,6 +529,8 @@ class _HighSchoolQPaperGeneratorPageState
       totalMarks: _marksCtrl.text,
       questions: _selectedQuestions,
       imageSize: _imageSize,
+      cqLayout: _cqLayout,
+      mcqLayout: _mcqLayout,
     );
     final file = await HighSchoolExportService.saveFile(
       content: html,
@@ -529,9 +554,18 @@ class _HighSchoolQPaperGeneratorPageState
     HighSchoolExportService.copyToClipboard(context, text);
   }
 
+  /// Render a string that mixes Bangla and Latin in the PDF.
+  ///
+  /// See [buildPdfTextSpan] for why this is needed and for the copyWith/font-slot
+  /// trap it works around.
+  pw.TextSpan _mixedText(String text, pw.TextStyle style) {
+    final bold = style.fontWeight == pw.FontWeight.bold;
+    return buildPdfTextSpan(text, style, bold: bold);
+  }
+
   Future<Uint8List> _buildPdf() async {
-    final doc  = pw.Document();
-    final cqs  = _selectedCqs;
+    final doc = pw.Document();
+    final cqs = _selectedCqs;
     final mcqs = _selectedMcqs;
 
     // Stem images must be downloaded up front: the pdf package renders from
@@ -540,36 +574,50 @@ class _HighSchoolQPaperGeneratorPageState
         ? await HighSchoolExportService.prefetchStemImages(_selectedQuestions)
         : <String, Uint8List>{};
 
-    // Use SutonnyMJ font with Bijoy encoding conversion (proven approach)
+    // Bangla: SutonnyMJ (Bijoy-ANSI encoding).
     pw.Font? banglaFont;
     try {
-      final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
+      final fontData =
+          await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
       banglaFont = pw.Font.ttf(fontData);
     } catch (_) {
       // Font not found – PDF will show blank for Bangla text
     }
 
-    // Helper: convert Unicode Bengali to Bijoy encoding for SutonnyMJ font
-    String toBijoy(String text) => bh.unicodeToBijoy(text);
+    // Math glyphs (∩ ∪ ∈ ∅ ≠ ≤ ≥ × √ Σ − α β ² → ≈ ± …). Neither SutonnyMJ nor
+    // the PDF base-14 fonts carry them, so without this the pdf package logs
+    // "Unable to find a font to draw ..." and draws nothing.
+    pw.Font? mathFont;
+    try {
+      final fontData = await rootBundle.load('assets/fonts/MathSymbols.ttf');
+      mathFont = pw.Font.ttf(fontData);
+    } catch (_) {
+      // Font not found – math symbols will be skipped
+    }
+    final fallback = mathFont == null ? const <pw.Font>[] : <pw.Font>[mathFont];
 
     final baseStyle = pw.TextStyle(
       font: banglaFont,
+      fontFallback: fallback,
       fontSize: 11,
       color: PdfColors.black,
     );
     final boldStyle = pw.TextStyle(
       font: banglaFont,
+      fontFallback: fallback,
       fontSize: 11,
       fontWeight: pw.FontWeight.bold,
     );
     final headerStyle = pw.TextStyle(
       font: banglaFont,
+      fontFallback: fallback,
       fontSize: 14,
       fontWeight: pw.FontWeight.bold,
       color: PdfColors.black,
     );
     final smallStyle = pw.TextStyle(
       font: banglaFont,
+      fontFallback: fallback,
       fontSize: 9,
       color: PdfColors.grey700,
     );
@@ -583,16 +631,15 @@ class _HighSchoolQPaperGeneratorPageState
         // ── Header ─────────────────────────────────────────────────────────
         widgets.add(_buildPdfHeader(
           schoolName: _schoolCtrl.text,
-          examName:   _examCtrl.text,
-          subject:    _subjectCtrl.text,
-          className:  _classCtrl.text,
-          time:       _timeCtrl.text,
+          examName: _examCtrl.text,
+          subject: _subjectCtrl.text,
+          className: _classCtrl.text,
+          time: _timeCtrl.text,
           totalMarks: _marksCtrl.text,
-          baseStyle:  baseStyle,
-          boldStyle:  boldStyle,
+          baseStyle: baseStyle,
+          boldStyle: boldStyle,
           headerStyle: headerStyle,
           smallStyle: smallStyle,
-          toBijoy:   toBijoy,
         ));
 
         widgets.add(pw.SizedBox(height: 12));
@@ -601,23 +648,35 @@ class _HighSchoolQPaperGeneratorPageState
 
         // ── CQ Section ─────────────────────────────────────────────────────
         if (cqs.isNotEmpty) {
-          widgets.add(pw.Text(toBijoy('সৃজনশীল প্রশ্নাবলি (CQ)'), style: boldStyle.copyWith(fontSize: 12)));
+          widgets.add(pw.RichText(
+              text: _mixedText('সৃজনশীল প্রশ্নাবলি (CQ)',
+                  boldStyle.copyWith(fontSize: 12))));
           widgets.add(pw.SizedBox(height: 8));
 
-          for (int i = 0; i < cqs.length; i++) {
-            final q = cqs[i];
-            widgets.add(
-              _buildPdfCqCard(
-                index: i + 1,
-                question: q,
-                baseStyle: baseStyle,
-                boldStyle: boldStyle,
-                smallStyle: smallStyle,
-                toBijoy: toBijoy,
-                stemImages: stemImages,
-                imageSize: _imageSize,
-              ),
-            );
+          for (int i = 0; i < cqs.length; i += _cqLayout.mcqColumns) {
+            final cols = _cqLayout.mcqColumns;
+            final rowChildren = <pw.Widget>[];
+            for (int c = 0; c < cols; c++) {
+              if (c > 0) rowChildren.add(pw.SizedBox(width: 16));
+              final idx = i + c;
+              rowChildren.add(pw.Expanded(
+                child: idx < cqs.length
+                    ? _buildPdfCqCard(
+                        index: idx + 1,
+                        question: cqs[idx],
+                        baseStyle: baseStyle,
+                        boldStyle: boldStyle,
+                        smallStyle: smallStyle,
+                        stemImages: stemImages,
+                        imageSize: _imageSize,
+                      )
+                    : pw.SizedBox(),
+              ));
+            }
+            widgets.add(pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: rowChildren,
+            ));
             widgets.add(pw.SizedBox(height: 12));
           }
         }
@@ -626,23 +685,28 @@ class _HighSchoolQPaperGeneratorPageState
         if (mcqs.isNotEmpty) {
           widgets.add(pw.Divider());
           widgets.add(pw.SizedBox(height: 6));
-          widgets.add(pw.Text(toBijoy('বহুনির্বাচনি প্রশ্নাবলি (MCQ)'), style: boldStyle.copyWith(fontSize: 12)));
+          widgets.add(pw.RichText(
+              text: _mixedText('বহুনির্বাচনি প্রশ্নাবলি (MCQ)',
+                  boldStyle.copyWith(fontSize: 12))));
           widgets.add(pw.SizedBox(height: 8));
 
-          // MCQ in 2-column grid
+          // MCQ arranged in 1 or 2 columns per the layout setting
           final mcqRows = <pw.Widget>[];
-          for (int i = 0; i < mcqs.length; i += 2) {
-            final left  = _buildPdfMcqItem(i + 1,     mcqs[i],     baseStyle, boldStyle, toBijoy);
-            final right = (i + 1 < mcqs.length)
-              ? _buildPdfMcqItem(i + 2, mcqs[i + 1], baseStyle, boldStyle, toBijoy)
-              : pw.SizedBox();
+          final cols = _mcqLayout.mcqColumns;
+          for (int i = 0; i < mcqs.length; i += cols) {
+            final rowChildren = <pw.Widget>[];
+            for (int c = 0; c < cols; c++) {
+              if (c > 0) rowChildren.add(pw.SizedBox(width: 16));
+              final idx = i + c;
+              rowChildren.add(pw.Expanded(
+                child: idx < mcqs.length
+                    ? _buildPdfMcqItem(idx + 1, mcqs[idx], baseStyle, boldStyle)
+                    : pw.SizedBox(),
+              ));
+            }
             mcqRows.add(pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Expanded(child: left),
-                pw.SizedBox(width: 16),
-                pw.Expanded(child: right),
-              ],
+              children: rowChildren,
             ));
             mcqRows.add(pw.SizedBox(height: 8));
           }
@@ -667,29 +731,30 @@ class _HighSchoolQPaperGeneratorPageState
     required pw.TextStyle boldStyle,
     required pw.TextStyle headerStyle,
     required pw.TextStyle smallStyle,
-    required String Function(String) toBijoy,
   }) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
         if (schoolName.isNotEmpty)
-          pw.Text(toBijoy(schoolName), style: headerStyle.copyWith(fontSize: 16)),
+          pw.RichText(
+              text: _mixedText(schoolName, headerStyle.copyWith(fontSize: 16))),
         pw.SizedBox(height: 4),
-        pw.Text(toBijoy(examName), style: boldStyle.copyWith(fontSize: 13)),
+        pw.RichText(
+            text: _mixedText(examName, boldStyle.copyWith(fontSize: 13))),
         pw.SizedBox(height: 6),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text(toBijoy('বিষয়: $subject'), style: baseStyle),
-            pw.Text(toBijoy('শ্রেণি: $className'), style: baseStyle),
+            pw.RichText(text: _mixedText('বিষয়: $subject', baseStyle)),
+            pw.RichText(text: _mixedText('শ্রেণি: $className', baseStyle)),
           ],
         ),
         pw.SizedBox(height: 4),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text(toBijoy('সময়: $time'), style: baseStyle),
-            pw.Text(toBijoy('পূর্ণমান: $totalMarks'), style: boldStyle),
+            pw.RichText(text: _mixedText('সময়: $time', baseStyle)),
+            pw.RichText(text: _mixedText('পূর্ণমান: $totalMarks', boldStyle)),
           ],
         ),
       ],
@@ -697,17 +762,17 @@ class _HighSchoolQPaperGeneratorPageState
   }
 
   pw.Widget _buildPdfCqCard(
-    {required int index,
-    required HighSchoolQuestion question,
-    required pw.TextStyle baseStyle,
-    required pw.TextStyle boldStyle,
-    required pw.TextStyle smallStyle,
-    required String Function(String) toBijoy,
-    Map<String, Uint8List> stemImages = const {},
-    StemImageSize imageSize = StemImageSize.medium}) {
+      {required int index,
+      required HighSchoolQuestion question,
+      required pw.TextStyle baseStyle,
+      required pw.TextStyle boldStyle,
+      required pw.TextStyle smallStyle,
+      Map<String, Uint8List> stemImages = const {},
+      StemImageSize imageSize = StemImageSize.medium}) {
     final totalMark = question.totalMarks;
     final stemBytes = imageSize.isVisible
-        ? stemImages[HighSchoolExportService.resolveImageUrl(question.stemImageUrl)]
+        ? stemImages[
+            HighSchoolExportService.resolveImageUrl(question.stemImageUrl)]
         : null;
 
     return pw.Container(
@@ -723,23 +788,30 @@ class _HighSchoolQPaperGeneratorPageState
           pw.Row(
             children: [
               pw.Container(
-                padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding:
+                    const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: pw.BoxDecoration(
                   color: PdfColors.blue100,
                   borderRadius: pw.BorderRadius.circular(3),
                 ),
-                child: pw.Text('CQ', style: smallStyle.copyWith(color: PdfColors.blue800)),
+                child: pw.RichText(
+                    text: _mixedText(
+                        'CQ', smallStyle.copyWith(color: PdfColors.blue800))),
               ),
               pw.SizedBox(width: 6),
               if (question.boardYearTag.isNotEmpty)
-                pw.Text(toBijoy(question.boardYearTag), style: smallStyle),
+                pw.RichText(
+                    text: _mixedText(question.boardYearTag, smallStyle)),
               pw.Spacer(),
-              pw.Text(toBijoy('মোট: $totalMark নম্বর'), style: smallStyle.copyWith(fontWeight: pw.FontWeight.bold)),
+              pw.RichText(
+                  text: _mixedText('মোট: $totalMark নম্বর',
+                      smallStyle.copyWith(fontWeight: pw.FontWeight.bold))),
             ],
           ),
           pw.SizedBox(height: 6),
           // Stem
-          pw.Text(toBijoy('$index. ${question.stemText}'), style: baseStyle),
+          pw.RichText(
+              text: _mixedText('$index. ${question.stemText}', baseStyle)),
           if (stemBytes != null) ...[
             pw.SizedBox(height: 6),
             pw.Container(
@@ -759,10 +831,11 @@ class _HighSchoolQPaperGeneratorPageState
               child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text(toBijoy('${sq.label}. '), style: boldStyle),
-                  pw.Expanded(child: pw.Text(toBijoy(sq.text), style: baseStyle)),
+                  pw.RichText(text: _mixedText('${sq.label}. ', boldStyle)),
+                  pw.Expanded(
+                      child: pw.RichText(text: _mixedText(sq.text, baseStyle))),
                   pw.SizedBox(width: 8),
-                  pw.Text(toBijoy('[${sq.mark}]'), style: smallStyle),
+                  pw.RichText(text: _mixedText('[${sq.mark}]', smallStyle)),
                 ],
               ),
             );
@@ -777,21 +850,21 @@ class _HighSchoolQPaperGeneratorPageState
     HighSchoolQuestion q,
     pw.TextStyle baseStyle,
     pw.TextStyle boldStyle,
-    String Function(String) toBijoy,
   ) {
     final mcq = q.mcqData;
     if (mcq == null) return pw.SizedBox();
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text(toBijoy('$index. ${mcq.text}'), style: baseStyle),
+        pw.RichText(text: _mixedText('$index. ${mcq.text}', baseStyle)),
         pw.SizedBox(height: 3),
         ...List.generate(mcq.options.length, (i) {
           final letters = ['ক', 'খ', 'গ', 'ঘ'];
           final letter = i < letters.length ? letters[i] : '${i + 1}';
           return pw.Padding(
             padding: const pw.EdgeInsets.only(left: 10, bottom: 2),
-            child: pw.Text(toBijoy('$letter. ${mcq.options[i]}'), style: baseStyle),
+            child: pw.RichText(
+                text: _mixedText('$letter. ${mcq.options[i]}', baseStyle)),
           );
         }),
       ],
@@ -849,10 +922,14 @@ class _HighSchoolQPaperGeneratorPageState
 
   Widget _buildCurrentStep() {
     switch (_currentStep) {
-      case 0: return _buildStep1();
-      case 1: return _buildStep2();
-      case 2: return _buildStep3();
-      default: return const SizedBox.shrink();
+      case 0:
+        return _buildStep1();
+      case 1:
+        return _buildStep2();
+      case 2:
+        return _buildStep3();
+      default:
+        return const SizedBox.shrink();
     }
   }
 
@@ -862,15 +939,16 @@ class _HighSchoolQPaperGeneratorPageState
 
   Widget _buildStep1() {
     final subjects = _selectedClass != null
-      ? (_kSubjectsByClass[_selectedClass] ?? <String>[])
-      : <String>[];
+        ? (_kSubjectsByClass[_selectedClass] ?? <String>[])
+        : <String>[];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader(icon: Icons.filter_list_rounded, label: 'ফিল্টার ও নির্বাচন'),
+          _SectionHeader(
+              icon: Icons.filter_list_rounded, label: 'ফিল্টার ও নির্বাচন'),
           const SizedBox(height: 16),
 
           // Section badge
@@ -909,19 +987,23 @@ class _HighSchoolQPaperGeneratorPageState
             width: double.infinity,
             height: 52,
             child: _loadingQuestions
-              ? const Center(child: CircularProgressIndicator(color: _kPrimary))
-              : ElevatedButton.icon(
-                  icon: const Icon(Icons.cloud_download_rounded),
-                  label: const Text('প্রশ্ন লোড করুন', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kPrimary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 4,
-                    shadowColor: _kPrimary.withOpacity(0.4),
+                ? const Center(
+                    child: CircularProgressIndicator(color: _kPrimary))
+                : ElevatedButton.icon(
+                    icon: const Icon(Icons.cloud_download_rounded),
+                    label: const Text('প্রশ্ন লোড করুন',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      elevation: 4,
+                      shadowColor: _kPrimary.withOpacity(0.4),
+                    ),
+                    onPressed: _fetchQuestions,
                   ),
-                  onPressed: _fetchQuestions,
-                ),
           ),
         ],
       ),
@@ -941,7 +1023,12 @@ class _HighSchoolQPaperGeneratorPageState
       decoration: BoxDecoration(
         color: _kCardBg,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3))
+        ],
       ),
       child: DropdownButtonFormField<T>(
         value: value,
@@ -949,15 +1036,20 @@ class _HighSchoolQPaperGeneratorPageState
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, color: _kPrimary),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none),
           filled: true,
           fillColor: _kCardBg,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
-        items: items.map((item) => DropdownMenuItem<T>(
-          value: item,
-          child: Text(displayText(item)),
-        )).toList(),
+        items: items
+            .map((item) => DropdownMenuItem<T>(
+                  value: item,
+                  child: Text(displayText(item)),
+                ))
+            .toList(),
         onChanged: enabled ? onChanged : null,
       ),
     );
@@ -975,19 +1067,24 @@ class _HighSchoolQPaperGeneratorPageState
           children: [
             const Icon(Icons.menu_book_rounded, color: _kPrimary, size: 20),
             const SizedBox(width: 8),
-            const Text('অধ্যায় নির্বাচন করুন', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _kDarkText)),
+            const Text('অধ্যায় নির্বাচন করুন',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: _kDarkText)),
             const Spacer(),
             TextButton(
               onPressed: _selectedChapterNumbers.isEmpty
-                ? null
-                : () => setState(() => _selectedChapterNumbers.clear()),
+                  ? null
+                  : () => setState(() => _selectedChapterNumbers.clear()),
               child: const Text('সব বাদ দিন'),
             ),
           ],
         ),
         const SizedBox(height: 10),
         if (_loadingChapters)
-          const Center(child: Padding(
+          const Center(
+              child: Padding(
             padding: EdgeInsets.all(16.0),
             child: CircularProgressIndicator(color: _kAccent),
           ))
@@ -1003,7 +1100,9 @@ class _HighSchoolQPaperGeneratorPageState
               children: [
                 Icon(Icons.info_outline, color: Colors.orange),
                 SizedBox(width: 8),
-                Expanded(child: Text('কোনো অধ্যায় পাওয়া যায়নি — সব অধ্যায় থেকে প্রশ্ন লোড হবে।')),
+                Expanded(
+                    child: Text(
+                        'কোনো অধ্যায় পাওয়া যায়নি — সব অধ্যায় থেকে প্রশ্ন লোড হবে।')),
               ],
             ),
           )
@@ -1012,13 +1111,15 @@ class _HighSchoolQPaperGeneratorPageState
             spacing: 8,
             runSpacing: 8,
             children: _availableChapters.map((ch) {
-              final selected = _selectedChapterNumbers.contains(ch.chapterNumber);
+              final selected =
+                  _selectedChapterNumbers.contains(ch.chapterNumber);
               return FilterChip(
                 selected: selected,
                 label: Text('অধ্যায় ${ch.chapterNumber}: ${ch.chapterName}'),
                 selectedColor: _kPrimary.withOpacity(0.15),
                 checkmarkColor: _kPrimary,
-                side: BorderSide(color: selected ? _kPrimary : Colors.grey.shade300),
+                side: BorderSide(
+                    color: selected ? _kPrimary : Colors.grey.shade300),
                 onSelected: (v) => setState(() {
                   if (v) {
                     _selectedChapterNumbers.add(ch.chapterNumber);
@@ -1080,9 +1181,13 @@ class _HighSchoolQPaperGeneratorPageState
                 ),
                 const SizedBox(height: 8),
                 // CQ cards for this chapter
-                ...byChapter[chNum]!.where((q) => q.isCq).map((q) => _buildQuestionCard(q)),
+                ...byChapter[chNum]!
+                    .where((q) => q.isCq)
+                    .map((q) => _buildQuestionCard(q)),
                 // MCQ cards for this chapter
-                ...byChapter[chNum]!.where((q) => q.isMcq).map((q) => _buildQuestionCard(q)),
+                ...byChapter[chNum]!
+                    .where((q) => q.isMcq)
+                    .map((q) => _buildQuestionCard(q)),
                 const SizedBox(height: 16),
               ],
             ],
@@ -1097,7 +1202,12 @@ class _HighSchoolQPaperGeneratorPageState
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: _kPrimary,
-        boxShadow: [BoxShadow(color: _kPrimary.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+              color: _kPrimary.withOpacity(0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Row(
         children: [
@@ -1106,9 +1216,19 @@ class _HighSchoolQPaperGeneratorPageState
               spacing: 12,
               runSpacing: 4,
               children: [
-                _CountBadge(label: 'CQ', selected: _selectedCqs.length, total: _totalCqs, color: _kCqColor),
-                _CountBadge(label: 'MCQ', selected: _selectedMcqs.length, total: _totalMcqs, color: _kMcqColor),
-                Text('মোট নম্বর: $_totalSelectedMarks', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                _CountBadge(
+                    label: 'CQ',
+                    selected: _selectedCqs.length,
+                    total: _totalCqs,
+                    color: _kCqColor),
+                _CountBadge(
+                    label: 'MCQ',
+                    selected: _selectedMcqs.length,
+                    total: _totalMcqs,
+                    color: _kMcqColor),
+                Text('মোট নম্বর: $_totalSelectedMarks',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -1118,10 +1238,12 @@ class _HighSchoolQPaperGeneratorPageState
             style: ElevatedButton.styleFrom(
               backgroundColor: _kAccent,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
-            child: const Text('PDF তৈরি করুন ➜', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            child: const Text('PDF তৈরি করুন ➜',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           ),
         ],
       ),
@@ -1130,7 +1252,7 @@ class _HighSchoolQPaperGeneratorPageState
 
   Widget _buildQuestionCard(HighSchoolQuestion q) {
     final isExpanded = _expandedCards[q.id] == true;
-    final typeColor  = q.isCq ? _kCqColor : _kMcqColor;
+    final typeColor = q.isCq ? _kCqColor : _kMcqColor;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -1144,7 +1266,9 @@ class _HighSchoolQPaperGeneratorPageState
         ),
         boxShadow: [
           BoxShadow(
-            color: q.isSelected ? _kPrimary.withOpacity(0.12) : Colors.black.withOpacity(0.05),
+            color: q.isSelected
+                ? _kPrimary.withOpacity(0.12)
+                : Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -1163,7 +1287,8 @@ class _HighSchoolQPaperGeneratorPageState
                   Checkbox(
                     value: q.isSelected,
                     activeColor: _kPrimary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5)),
                     onChanged: (_) => _toggleQuestion(q),
                   ),
                   const SizedBox(width: 4),
@@ -1174,8 +1299,10 @@ class _HighSchoolQPaperGeneratorPageState
                   Expanded(
                     child: Text(
                       q.isCq
-                        ? (q.stemText.isEmpty ? '(কোনো উদ্দীপক নেই)' : q.stemText)
-                        : (q.mcqData?.text ?? ''),
+                          ? (q.stemText.isEmpty
+                              ? '(কোনো উদ্দীপক নেই)'
+                              : q.stemText)
+                          : (q.mcqData?.text ?? ''),
                       maxLines: isExpanded ? 10 : 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 13, color: _kDarkText),
@@ -1184,12 +1311,18 @@ class _HighSchoolQPaperGeneratorPageState
                   const SizedBox(width: 8),
                   Column(
                     children: [
-                      Text('${q.totalMarks}', style: const TextStyle(fontWeight: FontWeight.bold, color: _kPrimary, fontSize: 15)),
-                      const Text('নম্বর', style: TextStyle(fontSize: 10, color: _kSubText)),
+                      Text('${q.totalMarks}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _kPrimary,
+                              fontSize: 15)),
+                      const Text('নম্বর',
+                          style: TextStyle(fontSize: 10, color: _kSubText)),
                     ],
                   ),
                   const SizedBox(width: 4),
-                  Icon(isExpanded ? Icons.expand_less : Icons.expand_more, color: _kSubText),
+                  Icon(isExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: _kSubText),
                 ],
               ),
             ),
@@ -1200,9 +1333,15 @@ class _HighSchoolQPaperGeneratorPageState
             child: Row(
               children: [
                 if (q.boardYearTag.isNotEmpty)
-                  _TagChip(label: q.boardYearTag, color: Colors.purple.shade100, textColor: Colors.purple.shade800),
+                  _TagChip(
+                      label: q.boardYearTag,
+                      color: Colors.purple.shade100,
+                      textColor: Colors.purple.shade800),
                 const SizedBox(width: 6),
-                _TagChip(label: 'অধ্যায় ${q.chapterNumber}: ${q.chapterName}', color: Colors.teal.shade50, textColor: Colors.teal.shade700),
+                _TagChip(
+                    label: 'অধ্যায় ${q.chapterNumber}: ${q.chapterName}',
+                    color: Colors.teal.shade50,
+                    textColor: Colors.teal.shade700),
               ],
             ),
           ),
@@ -1228,30 +1367,46 @@ class _HighSchoolQPaperGeneratorPageState
             if (q.stemImageUrl.isNotEmpty) ...[
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(q.stemImageUrl, height: 160, fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                child: Image.network(
+                  q.stemImageUrl,
+                  height: 160,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.grey),
                 ),
               ),
               const SizedBox(height: 8),
             ],
             ...q.cqSubQuestions.map((sq) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 22, height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(color: _kCqColor, borderRadius: BorderRadius.circular(4)),
-                    child: Text(sq.label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 22,
+                        height: 22,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                            color: _kCqColor,
+                            borderRadius: BorderRadius.circular(4)),
+                        child: Text(sq.label,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: Text(sq.text,
+                              style: const TextStyle(fontSize: 13))),
+                      const SizedBox(width: 8),
+                      Text('[${sq.mark}]',
+                          style:
+                              const TextStyle(color: _kSubText, fontSize: 12)),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(sq.text, style: const TextStyle(fontSize: 13))),
-                  const SizedBox(width: 8),
-                  Text('[${sq.mark}]', style: const TextStyle(color: _kSubText, fontSize: 12)),
-                ],
-              ),
-            )),
+                )),
           ],
         ),
       );
@@ -1276,17 +1431,32 @@ class _HighSchoolQPaperGeneratorPageState
               child: Row(
                 children: [
                   Container(
-                    width: 22, height: 22,
+                    width: 22,
+                    height: 22,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: isCorrect ? Colors.green.shade400 : Colors.grey.shade200,
+                      color: isCorrect
+                          ? Colors.green.shade400
+                          : Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(letter, style: TextStyle(color: isCorrect ? Colors.white : Colors.black87, fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: Text(letter,
+                        style: TextStyle(
+                            color: isCorrect ? Colors.white : Colors.black87,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(mcq.options[i], style: TextStyle(fontSize: 13, color: isCorrect ? Colors.green.shade700 : Colors.black87))),
-                  if (isCorrect) const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                  Expanded(
+                      child: Text(mcq.options[i],
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: isCorrect
+                                  ? Colors.green.shade700
+                                  : Colors.black87))),
+                  if (isCorrect)
+                    const Icon(Icons.check_circle,
+                        size: 16, color: Colors.green),
                 ],
               ),
             );
@@ -1306,7 +1476,8 @@ class _HighSchoolQPaperGeneratorPageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader(icon: Icons.edit_document, label: 'পরীক্ষার তথ্য পূরণ করুন'),
+          _SectionHeader(
+              icon: Icons.edit_document, label: 'পরীক্ষার তথ্য পূরণ করুন'),
           const SizedBox(height: 16),
 
           // Summary chips
@@ -1314,28 +1485,53 @@ class _HighSchoolQPaperGeneratorPageState
             spacing: 8,
             runSpacing: 8,
             children: [
-              _InfoChip(icon: Icons.quiz_rounded, label: 'CQ: ${_selectedCqs.length}টি'),
-              _InfoChip(icon: Icons.format_list_bulleted_rounded, label: 'MCQ: ${_selectedMcqs.length}টি'),
-              _InfoChip(icon: Icons.star_rounded, label: 'মোট নম্বর: $_totalSelectedMarks'),
+              _InfoChip(
+                  icon: Icons.quiz_rounded,
+                  label: 'CQ: ${_selectedCqs.length}টি'),
+              _InfoChip(
+                  icon: Icons.format_list_bulleted_rounded,
+                  label: 'MCQ: ${_selectedMcqs.length}টি'),
+              _InfoChip(
+                  icon: Icons.star_rounded,
+                  label: 'মোট নম্বর: $_totalSelectedMarks'),
             ],
           ),
           const SizedBox(height: 20),
 
-          _buildTextField(ctrl: _schoolCtrl, label: 'শিক্ষা প্রতিষ্ঠানের নাম', icon: Icons.account_balance_rounded),
+          _buildTextField(
+              ctrl: _schoolCtrl,
+              label: 'শিক্ষা প্রতিষ্ঠানের নাম',
+              icon: Icons.account_balance_rounded),
           const SizedBox(height: 14),
-          _buildTextField(ctrl: _examCtrl, label: 'পরীক্ষার নাম', icon: Icons.description_rounded),
+          _buildTextField(
+              ctrl: _examCtrl,
+              label: 'পরীক্ষার নাম',
+              icon: Icons.description_rounded),
           const SizedBox(height: 14),
-          _buildTextField(ctrl: _subjectCtrl, label: 'বিষয়', icon: Icons.book_rounded),
+          _buildTextField(
+              ctrl: _subjectCtrl, label: 'বিষয়', icon: Icons.book_rounded),
           const SizedBox(height: 14),
-          _buildTextField(ctrl: _classCtrl, label: 'শ্রেণি ও শাখা', icon: Icons.class_rounded),
+          _buildTextField(
+              ctrl: _classCtrl,
+              label: 'শ্রেণি ও শাখা',
+              icon: Icons.class_rounded),
           const SizedBox(height: 14),
-          _buildTextField(ctrl: _timeCtrl, label: 'সময়', icon: Icons.access_time_rounded),
+          _buildTextField(
+              ctrl: _timeCtrl, label: 'সময়', icon: Icons.access_time_rounded),
           const SizedBox(height: 14),
-          _buildTextField(ctrl: _marksCtrl, label: 'পূর্ণমান', icon: Icons.stars_rounded, keyboardType: TextInputType.number),
+          _buildTextField(
+              ctrl: _marksCtrl,
+              label: 'পূর্ণমান',
+              icon: Icons.stars_rounded,
+              keyboardType: TextInputType.number),
           const SizedBox(height: 18),
 
           // ── Stem image size ──────────────────────────────────────────────
           _buildImageSizeSelector(),
+          const SizedBox(height: 14),
+
+          // ── Column layout ───────────────────────────────────────────────
+          _buildLayoutSelector(),
           const SizedBox(height: 28),
 
           // Primary Action: PDF View & Download
@@ -1343,19 +1539,23 @@ class _HighSchoolQPaperGeneratorPageState
             width: double.infinity,
             height: 56,
             child: _generating
-              ? const Center(child: CircularProgressIndicator(color: _kPrimary))
-              : ElevatedButton.icon(
-                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 22),
-                  label: const Text('PDF দেখুন ও ডাউনলোড করুন', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kPrimary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 6,
-                    shadowColor: _kPrimary.withOpacity(0.5),
+                ? const Center(
+                    child: CircularProgressIndicator(color: _kPrimary))
+                : ElevatedButton.icon(
+                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 22),
+                    label: const Text('PDF দেখুন ও ডাউনলোড করুন',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      elevation: 6,
+                      shadowColor: _kPrimary.withOpacity(0.5),
+                    ),
+                    onPressed: _generateAndPreviewPdf,
                   ),
-                  onPressed: _generateAndPreviewPdf,
-                ),
           ),
           const SizedBox(height: 12),
 
@@ -1367,11 +1567,14 @@ class _HighSchoolQPaperGeneratorPageState
                   height: 48,
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.print_rounded, size: 20),
-                    label: const Text('প্রিন্ট করুন', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    label: const Text('প্রিন্ট করুন',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.bold)),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _kPrimary,
                       side: const BorderSide(color: _kPrimary, width: 1.5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
                     ),
                     onPressed: _generating ? null : _generateAndPreviewPdf,
                   ),
@@ -1383,11 +1586,15 @@ class _HighSchoolQPaperGeneratorPageState
                   height: 48,
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.share_rounded, size: 20),
-                    label: const Text('PDF শেয়ার', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    label: const Text('PDF শেয়ার',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.bold)),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF0284C7),
-                      side: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      side: const BorderSide(
+                          color: Color(0xFF0284C7), width: 1.5),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
                     ),
                     onPressed: _generating ? null : _sharePdfFile,
                   ),
@@ -1408,7 +1615,8 @@ class _HighSchoolQPaperGeneratorPageState
               style: ElevatedButton.styleFrom(
                 backgroundColor: _kAccent,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
                 elevation: 3,
                 shadowColor: _kAccent.withOpacity(0.4),
               ),
@@ -1416,7 +1624,9 @@ class _HighSchoolQPaperGeneratorPageState
             ),
           ),
           const SizedBox(height: 10),
-          _SectionHeader(icon: Icons.file_download_rounded, label: 'অন্যান্য ফরম্যাটে এক্সপোর্ট ও সংরক্ষণ'),
+          _SectionHeader(
+              icon: Icons.file_download_rounded,
+              label: 'অন্যান্য ফরম্যাটে এক্সপোর্ট ও সংরক্ষণ'),
           const SizedBox(height: 6),
           const Text(
             'পিডিএফ ছাড়াও ওয়ার্ড এডিটর, ব্রাউজার বা মেসেজিং অ্যাপের জন্য যেকোনো ফরম্যাটে প্রশ্নপত্র সংরক্ষণ ও শেয়ার করুন:',
@@ -1434,12 +1644,16 @@ class _HighSchoolQPaperGeneratorPageState
             ),
             child: Row(
               children: [
-                const Icon(Icons.copy_all_rounded, color: Color(0xFF059669), size: 24),
+                const Icon(Icons.copy_all_rounded,
+                    color: Color(0xFF059669), size: 24),
                 const SizedBox(width: 10),
                 const Expanded(
                   child: Text(
                     'সম্পূর্ণ প্রশ্নপত্রের টেক্সট কপি করুন (WhatsApp / Messenger / Notepad)',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF065F46)),
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF065F46)),
                   ),
                 ),
                 ElevatedButton(
@@ -1447,11 +1661,15 @@ class _HighSchoolQPaperGeneratorPageState
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF10B981),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text('কপি', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                  child: const Text('কপি',
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -1464,7 +1682,8 @@ class _HighSchoolQPaperGeneratorPageState
             accentColor: const Color(0xFF2B579A),
             title: 'Microsoft Word (.doc)',
             badge: 'এডিটেবল ওয়ার্ড ফাইল',
-            description: 'কম্পিউটার বা ফোনে MS Word/WPS/Docs এ প্রশ্ন এডিট ও প্রিন্ট করার জন্য।',
+            description:
+                'কম্পিউটার বা ফোনে MS Word/WPS/Docs এ প্রশ্ন এডিট ও প্রিন্ট করার জন্য।',
             onOpen: () => _exportWord(open: true),
             onShare: () => _exportWord(open: false),
           ),
@@ -1475,7 +1694,8 @@ class _HighSchoolQPaperGeneratorPageState
             accentColor: const Color(0xFFEA580C),
             title: 'Web Page (.html)',
             badge: 'ব্রাউজার ও প্রিন্ট উপযোগী',
-            description: 'যেকোনো ব্রাউজারে ওপেন করুন এবং কীবোর্ডে Ctrl+P চেপে সুন্দরভাবে প্রিন্ট করুন।',
+            description:
+                'যেকোনো ব্রাউজারে ওপেন করুন এবং কীবোর্ডে Ctrl+P চেপে সুন্দরভাবে প্রিন্ট করুন।',
             onOpen: () => _exportHtml(open: true),
             onShare: () => _exportHtml(open: false),
           ),
@@ -1486,7 +1706,8 @@ class _HighSchoolQPaperGeneratorPageState
             accentColor: const Color(0xFF475569),
             title: 'Plain Text (.txt)',
             badge: 'নোটপ্যাড বা হালকা ফাইল',
-            description: 'সব ডিভাইসে কোনো ফরম্যাটিং ঝামেলা ছাড়াই সাধারণ টেক্সট হিসেবে পড়ার জন্য।',
+            description:
+                'সব ডিভাইসে কোনো ফরম্যাটিং ঝামেলা ছাড়াই সাধারণ টেক্সট হিসেবে পড়ার জন্য।',
             onOpen: () => _exportText(open: true),
             onShare: () => _exportText(open: false),
           ),
@@ -1497,7 +1718,8 @@ class _HighSchoolQPaperGeneratorPageState
             accentColor: const Color(0xFF7C3AED),
             title: 'Markdown (.md)',
             badge: 'নোশন ও ডিজিটাল নোট',
-            description: 'Notion, Obsidian, GitHub বা অন্যান্য মার্কডাউন নোট অ্যাপে সংরক্ষণের জন্য।',
+            description:
+                'Notion, Obsidian, GitHub বা অন্যান্য মার্কডাউন নোট অ্যাপে সংরক্ষণের জন্য।',
             onOpen: () => _exportMarkdown(open: true),
             onShare: () => _exportMarkdown(open: false),
           ),
@@ -1508,7 +1730,8 @@ class _HighSchoolQPaperGeneratorPageState
             accentColor: const Color(0xFF059669),
             title: 'JSON Data (.json)',
             badge: 'ডিজিটাল ব্যাকআপ',
-            description: 'প্রশ্নের ডেটাবেজ ব্যাকআপ ও ডিজিটাল আদান-প্রদানের জন্য সম্পূর্ণ স্ট্রাকচার্ড ডেটা।',
+            description:
+                'প্রশ্নের ডেটাবেজ ব্যাকআপ ও ডিজিটাল আদান-প্রদানের জন্য সম্পূর্ণ স্ট্রাকচার্ড ডেটা।',
             onOpen: () => _exportJson(open: true),
             onShare: () => _exportJson(open: false),
           ),
@@ -1520,8 +1743,9 @@ class _HighSchoolQPaperGeneratorPageState
 
   /// Lets the user control how large stem images appear in every export format.
   Widget _buildImageSizeSelector() {
-    final withImages =
-        _selectedQuestions.where((q) => q.stemImageUrl.trim().isNotEmpty).length;
+    final withImages = _selectedQuestions
+        .where((q) => q.stemImageUrl.trim().isNotEmpty)
+        .length;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1538,7 +1762,10 @@ class _HighSchoolQPaperGeneratorPageState
               const Icon(Icons.image_outlined, size: 18, color: _kPrimary),
               const SizedBox(width: 8),
               const Text('উদ্দীপক ছবির আকার',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _kDarkText)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: _kDarkText)),
               const Spacer(),
               Text(
                 withImages > 0 ? '$withImages টি ছবি' : 'কোনো ছবি নেই',
@@ -1560,7 +1787,9 @@ class _HighSchoolQPaperGeneratorPageState
                       duration: const Duration(milliseconds: 180),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: selected ? _kPrimary.withOpacity(0.10) : Colors.grey.shade100,
+                        color: selected
+                            ? _kPrimary.withOpacity(0.10)
+                            : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: selected ? _kPrimary : Colors.transparent,
@@ -1574,7 +1803,8 @@ class _HighSchoolQPaperGeneratorPageState
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                              fontWeight:
+                                  selected ? FontWeight.bold : FontWeight.w500,
                               color: selected ? _kPrimary : _kDarkText,
                             ),
                           ),
@@ -1585,7 +1815,9 @@ class _HighSchoolQPaperGeneratorPageState
                               width: 22,
                               height: 22 * (size.maxHeightPt / 220),
                               decoration: BoxDecoration(
-                                color: selected ? _kPrimary.withOpacity(0.35) : Colors.grey.shade400,
+                                color: selected
+                                    ? _kPrimary.withOpacity(0.35)
+                                    : Colors.grey.shade400,
                                 borderRadius: BorderRadius.circular(3),
                               ),
                             ),
@@ -1602,6 +1834,150 @@ class _HighSchoolQPaperGeneratorPageState
           Text(
             _imageSize.description,
             style: const TextStyle(fontSize: 11, color: _kSubText),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// One two-way column toggle for either section.
+  Widget _buildLayoutRow({
+    required String label,
+    required int count,
+    required String unit,
+    required QuestionLayout value,
+    required ValueChanged<QuestionLayout> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('$label কলাম',
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: _kDarkText)),
+            const SizedBox(width: 8),
+            Text(
+              count > 0 ? '$count টি $unit' : 'কোনো $unit নেই',
+              style: const TextStyle(fontSize: 11, color: _kSubText),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: QuestionLayout.values.map((option) {
+            final selected = value == option;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => onChanged(option),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? _kPrimary.withOpacity(0.10)
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: selected ? _kPrimary : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Column glyph so the choice reads at a glance.
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: List.generate(
+                            option.mcqColumns,
+                            (_) => Container(
+                              width: 9,
+                              height: 20,
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 1.5),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? _kPrimary.withOpacity(0.55)
+                                    : Colors.grey.shade400,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          option.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight:
+                                selected ? FontWeight.bold : FontWeight.w500,
+                            color: selected ? _kPrimary : _kDarkText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  /// Independent column controls for the CQ and MCQ sections.
+  Widget _buildLayoutSelector() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.view_column_outlined,
+                  size: 18, color: _kPrimary),
+              const SizedBox(width: 8),
+              const Text('প্রশ্নের কলাম',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: _kDarkText)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildLayoutRow(
+            label: 'সৃজনশীল (CQ)',
+            unit: 'CQ',
+            count: _selectedCqs.length,
+            value: _cqLayout,
+            onChanged: (v) => setState(() => _cqLayout = v),
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          _buildLayoutRow(
+            label: 'বহুনির্বাচনি (MCQ)',
+            unit: 'MCQ',
+            count: _selectedMcqs.length,
+            value: _mcqLayout,
+            onChanged: (v) => setState(() => _mcqLayout = v),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'CQ ও MCQ আলাদাভাবে সাজানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
+            style: TextStyle(fontSize: 11, color: _kSubText),
           ),
         ],
       ),
@@ -1658,31 +2034,44 @@ class _StepIndicator extends StatelessWidget {
             return Expanded(
               child: Container(
                 height: 2,
-                color: stepIndex < currentStep ? _kPrimary : Colors.grey.shade200,
+                color:
+                    stepIndex < currentStep ? _kPrimary : Colors.grey.shade200,
               ),
             );
           }
           final stepIndex = i ~/ 2;
           final active = stepIndex == currentStep;
-          final done   = stepIndex < currentStep;
+          final done = stepIndex < currentStep;
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
-                width: 32, height: 32,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: done ? _kAccent : (active ? _kPrimary : Colors.grey.shade200),
+                  color: done
+                      ? _kAccent
+                      : (active ? _kPrimary : Colors.grey.shade200),
                 ),
                 child: Center(
                   child: done
-                    ? const Icon(Icons.check, size: 18, color: Colors.white)
-                    : Text('${stepIndex + 1}', style: TextStyle(color: active ? Colors.white : Colors.grey.shade500, fontWeight: FontWeight.bold)),
+                      ? const Icon(Icons.check, size: 18, color: Colors.white)
+                      : Text('${stepIndex + 1}',
+                          style: TextStyle(
+                              color:
+                                  active ? Colors.white : Colors.grey.shade500,
+                              fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 4),
-              Text(steps[stepIndex], style: TextStyle(fontSize: 10, color: active ? _kPrimary : Colors.grey.shade500, fontWeight: active ? FontWeight.bold : FontWeight.normal)),
+              Text(steps[stepIndex],
+                  style: TextStyle(
+                      fontSize: 10,
+                      color: active ? _kPrimary : Colors.grey.shade500,
+                      fontWeight:
+                          active ? FontWeight.bold : FontWeight.normal)),
             ],
           );
         }),
@@ -1698,16 +2087,22 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-    children: [
-      Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: _kPrimary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: _kPrimary, size: 22),
-      ),
-      const SizedBox(width: 12),
-      Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kDarkText)),
-    ],
-  );
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+                color: _kPrimary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: _kPrimary, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _kDarkText)),
+        ],
+      );
 }
 
 class _InfoChip extends StatelessWidget {
@@ -1717,45 +2112,58 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [_kPrimary.withOpacity(0.1), _kAccent.withOpacity(0.1)]),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: _kPrimary.withOpacity(0.2)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: _kPrimary),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 12, color: _kDarkText, fontWeight: FontWeight.w500)),
-      ],
-    ),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+              colors: [_kPrimary.withOpacity(0.1), _kAccent.withOpacity(0.1)]),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _kPrimary.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: _kPrimary),
+            const SizedBox(width: 6),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: _kDarkText,
+                    fontWeight: FontWeight.w500)),
+          ],
+        ),
+      );
 }
 
 class _ChapterGroupHeader extends StatelessWidget {
   final String chapterNumber;
   final String chapterName;
-  const _ChapterGroupHeader({required this.chapterNumber, required this.chapterName});
+  const _ChapterGroupHeader(
+      {required this.chapterNumber, required this.chapterName});
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [_kPrimary.withOpacity(0.08), _kAccent.withOpacity(0.05)]),
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: _kPrimary.withOpacity(0.15)),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.folder_special_rounded, color: _kPrimary, size: 18),
-        const SizedBox(width: 8),
-        Text('অধ্যায় $chapterNumber: $chapterName',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: _kDarkText, fontSize: 13)),
-      ],
-    ),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            _kPrimary.withOpacity(0.08),
+            _kAccent.withOpacity(0.05)
+          ]),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _kPrimary.withOpacity(0.15)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.folder_special_rounded,
+                color: _kPrimary, size: 18),
+            const SizedBox(width: 8),
+            Text('অধ্যায় $chapterNumber: $chapterName',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _kDarkText,
+                    fontSize: 13)),
+          ],
+        ),
+      );
 }
 
 class _TypeBadge extends StatelessWidget {
@@ -1765,28 +2173,32 @@ class _TypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
-      borderRadius: BorderRadius.circular(6),
-      border: Border.all(color: color.withOpacity(0.4)),
-    ),
-    child: Text(type, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withOpacity(0.4)),
+        ),
+        child: Text(type,
+            style: TextStyle(
+                color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+      );
 }
 
 class _TagChip extends StatelessWidget {
   final String label;
   final Color color;
   final Color textColor;
-  const _TagChip({required this.label, required this.color, required this.textColor});
+  const _TagChip(
+      {required this.label, required this.color, required this.textColor});
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
-    child: Text(label, style: TextStyle(fontSize: 10, color: textColor)),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+            color: color, borderRadius: BorderRadius.circular(20)),
+        child: Text(label, style: TextStyle(fontSize: 10, color: textColor)),
+      );
 }
 
 class _CountBadge extends StatelessWidget {
@@ -1794,14 +2206,24 @@ class _CountBadge extends StatelessWidget {
   final int selected;
   final int total;
   final Color color;
-  const _CountBadge({required this.label, required this.selected, required this.total, required this.color});
+  const _CountBadge(
+      {required this.label,
+      required this.selected,
+      required this.total,
+      required this.color});
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(color: color.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-    child: Text('$label: $selected/$total', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+            color: color.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(20)),
+        child: Text('$label: $selected/$total',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold)),
+      );
 }
 
 class _ExportFormatCard extends StatelessWidget {
@@ -1867,7 +2289,8 @@ class _ExportFormatCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: accentColor.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(4),
@@ -1899,12 +2322,15 @@ class _ExportFormatCard extends StatelessWidget {
                   height: 38,
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.folder_open_rounded, size: 16),
-                    label: const Text('ওপেন করুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    label: const Text('ওপেন করুন',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: accentColor,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: onOpen,
                   ),
@@ -1915,11 +2341,17 @@ class _ExportFormatCard extends StatelessWidget {
                 child: SizedBox(
                   height: 38,
                   child: OutlinedButton.icon(
-                    icon: Icon(Icons.share_rounded, size: 16, color: accentColor),
-                    label: Text('শেয়ার', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: accentColor)),
+                    icon:
+                        Icon(Icons.share_rounded, size: 16, color: accentColor),
+                    label: Text('শেয়ার',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: accentColor)),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: accentColor.withOpacity(0.5)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                     onPressed: onShare,
                   ),
@@ -1932,4 +2364,3 @@ class _ExportFormatCard extends StatelessWidget {
     );
   }
 }
-
