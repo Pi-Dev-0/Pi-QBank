@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 import '../models/highschool_question.dart';
 import '../services/highschool_qbank_service.dart';
 import '../services/highschool_export_service.dart';
+import '../pages/question_paper_preview_page.dart';
 import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
 import '../bijoy_helper/bijoy_helper.dart' as bh;
@@ -115,6 +116,9 @@ class _HighSchoolQPaperGeneratorPageState
   final _timeCtrl     = TextEditingController(text: '২ ঘন্টা ৩০ মিনিট');
   final _marksCtrl    = TextEditingController();
   bool _generating    = false;
+
+  /// How stem images are sized across PDF / Word / HTML exports.
+  StemImageSize _imageSize = StemImageSize.medium;
 
   // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _stepAnim =
@@ -309,8 +313,9 @@ class _HighSchoolQPaperGeneratorPageState
   Future<void> _exportWord({bool open = true}) async {
     try {
       // Word will not reliably render a remote <img>, so embed the bytes.
-      final stemImages =
-          await HighSchoolExportService.prefetchStemImages(_selectedQuestions);
+      final stemImages = _imageSize.isVisible
+          ? await HighSchoolExportService.prefetchStemImages(_selectedQuestions)
+          : <String, Uint8List>{};
       final doc = HighSchoolExportService.generateWordDoc(
         schoolName: _schoolCtrl.text,
         examName: _examCtrl.text,
@@ -320,6 +325,7 @@ class _HighSchoolQPaperGeneratorPageState
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
         imageBytes: stemImages,
+        imageSize: _imageSize,
       );
       final file = await HighSchoolExportService.saveFile(
         content: doc,
@@ -349,6 +355,7 @@ class _HighSchoolQPaperGeneratorPageState
         time: _timeCtrl.text,
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
+        imageSize: _imageSize,
       );
       final file = await HighSchoolExportService.saveFile(
         content: html,
@@ -378,6 +385,7 @@ class _HighSchoolQPaperGeneratorPageState
         time: _timeCtrl.text,
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
+        imageSize: _imageSize,
       );
       final file = await HighSchoolExportService.saveFile(
         content: text,
@@ -407,6 +415,7 @@ class _HighSchoolQPaperGeneratorPageState
         time: _timeCtrl.text,
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
+        imageSize: _imageSize,
       );
       final file = await HighSchoolExportService.saveFile(
         content: md,
@@ -455,6 +464,57 @@ class _HighSchoolQPaperGeneratorPageState
     }
   }
 
+  /// Open the full-page live preview of the generated HTML.
+  Future<void> _openLivePreview() async {
+    if (_selectedQuestions.isEmpty) {
+      _showError('প্রিভিউ করার জন্য অন্তত একটি প্রশ্ন নির্বাচন করুন।');
+      return;
+    }
+
+    // Linux desktop and web have no WebView host, so the in-app preview cannot
+    // run there. Fall back to opening the very same HTML in the system browser.
+    if (!QuestionPaperPreviewPage.supportsWebView) {
+      await _previewInSystemBrowser();
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QuestionPaperPreviewPage(
+          schoolName: _schoolCtrl.text,
+          examName: _examCtrl.text,
+          subject: _subjectCtrl.text,
+          className: _classCtrl.text,
+          time: _timeCtrl.text,
+          totalMarks: _marksCtrl.text,
+          questions: _selectedQuestions,
+          imageSize: _imageSize,
+        ),
+      ),
+    );
+  }
+
+  /// Preview fallback for platforms without a WebView: write the preview HTML
+  /// to a temp file and hand it to the default browser.
+  Future<void> _previewInSystemBrowser() async {
+    final html = HighSchoolExportService.generateHtml(
+      schoolName: _schoolCtrl.text,
+      examName: _examCtrl.text,
+      subject: _subjectCtrl.text,
+      className: _classCtrl.text,
+      time: _timeCtrl.text,
+      totalMarks: _marksCtrl.text,
+      questions: _selectedQuestions,
+      imageSize: _imageSize,
+    );
+    final file = await HighSchoolExportService.saveFile(
+      content: html,
+      fileName: '${_getBaseFileName()}_preview.html',
+    );
+    if (!mounted) return;
+    await HighSchoolExportService.openExportedFile(context, file);
+  }
+
   void _copyAllText() {
     final text = HighSchoolExportService.generatePlainText(
       schoolName: _schoolCtrl.text,
@@ -464,6 +524,7 @@ class _HighSchoolQPaperGeneratorPageState
       time: _timeCtrl.text,
       totalMarks: _marksCtrl.text,
       questions: _selectedQuestions,
+      imageSize: _imageSize,
     );
     HighSchoolExportService.copyToClipboard(context, text);
   }
@@ -475,8 +536,9 @@ class _HighSchoolQPaperGeneratorPageState
 
     // Stem images must be downloaded up front: the pdf package renders from
     // bytes, and MultiPage.build() is synchronous so it cannot fetch there.
-    final stemImages =
-        await HighSchoolExportService.prefetchStemImages(_selectedQuestions);
+    final stemImages = _imageSize.isVisible
+        ? await HighSchoolExportService.prefetchStemImages(_selectedQuestions)
+        : <String, Uint8List>{};
 
     // Use SutonnyMJ font with Bijoy encoding conversion (proven approach)
     pw.Font? banglaFont;
@@ -553,6 +615,7 @@ class _HighSchoolQPaperGeneratorPageState
                 smallStyle: smallStyle,
                 toBijoy: toBijoy,
                 stemImages: stemImages,
+                imageSize: _imageSize,
               ),
             );
             widgets.add(pw.SizedBox(height: 12));
@@ -640,10 +703,12 @@ class _HighSchoolQPaperGeneratorPageState
     required pw.TextStyle boldStyle,
     required pw.TextStyle smallStyle,
     required String Function(String) toBijoy,
-    Map<String, Uint8List> stemImages = const {}}) {
+    Map<String, Uint8List> stemImages = const {},
+    StemImageSize imageSize = StemImageSize.medium}) {
     final totalMark = question.totalMarks;
-    final stemBytes =
-        stemImages[HighSchoolExportService.resolveImageUrl(question.stemImageUrl)];
+    final stemBytes = imageSize.isVisible
+        ? stemImages[HighSchoolExportService.resolveImageUrl(question.stemImageUrl)]
+        : null;
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -681,7 +746,7 @@ class _HighSchoolQPaperGeneratorPageState
               alignment: pw.Alignment.center,
               child: pw.Image(
                 pw.MemoryImage(stemBytes),
-                height: 150,
+                height: imageSize.maxHeightPt,
                 fit: pw.BoxFit.contain,
               ),
             ),
@@ -1267,6 +1332,10 @@ class _HighSchoolQPaperGeneratorPageState
           _buildTextField(ctrl: _timeCtrl, label: 'সময়', icon: Icons.access_time_rounded),
           const SizedBox(height: 14),
           _buildTextField(ctrl: _marksCtrl, label: 'পূর্ণমান', icon: Icons.stars_rounded, keyboardType: TextInputType.number),
+          const SizedBox(height: 18),
+
+          // ── Stem image size ──────────────────────────────────────────────
+          _buildImageSizeSelector(),
           const SizedBox(height: 28),
 
           // Primary Action: PDF View & Download
@@ -1329,6 +1398,24 @@ class _HighSchoolQPaperGeneratorPageState
           const SizedBox(height: 28),
 
           // ── Multi-Format Export Section ──────────────────────────────────
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.visibility_rounded, size: 20),
+              label: const Text('লাইভ প্রিভিউ দেখুন',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 3,
+                shadowColor: _kAccent.withOpacity(0.4),
+              ),
+              onPressed: _openLivePreview,
+            ),
+          ),
+          const SizedBox(height: 10),
           _SectionHeader(icon: Icons.file_download_rounded, label: 'অন্যান্য ফরম্যাটে এক্সপোর্ট ও সংরক্ষণ'),
           const SizedBox(height: 6),
           const Text(
@@ -1426,6 +1513,96 @@ class _HighSchoolQPaperGeneratorPageState
             onShare: () => _exportJson(open: false),
           ),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  /// Lets the user control how large stem images appear in every export format.
+  Widget _buildImageSizeSelector() {
+    final withImages =
+        _selectedQuestions.where((q) => q.stemImageUrl.trim().isNotEmpty).length;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.image_outlined, size: 18, color: _kPrimary),
+              const SizedBox(width: 8),
+              const Text('উদ্দীপক ছবির আকার',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: _kDarkText)),
+              const Spacer(),
+              Text(
+                withImages > 0 ? '$withImages টি ছবি' : 'কোনো ছবি নেই',
+                style: TextStyle(fontSize: 11, color: _kSubText),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: StemImageSize.values.map((size) {
+              final selected = _imageSize == size;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => setState(() => _imageSize = size),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: selected ? _kPrimary.withOpacity(0.10) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: selected ? _kPrimary : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Text(
+                            size.label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                              color: selected ? _kPrimary : _kDarkText,
+                            ),
+                          ),
+                          if (size.isVisible) ...[
+                            const SizedBox(height: 5),
+                            // Proportional height bar so the sizes are visual.
+                            Container(
+                              width: 22,
+                              height: 22 * (size.maxHeightPt / 220),
+                              decoration: BoxDecoration(
+                                color: selected ? _kPrimary.withOpacity(0.35) : Colors.grey.shade400,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _imageSize.description,
+            style: const TextStyle(fontSize: 11, color: _kSubText),
+          ),
         ],
       ),
     );

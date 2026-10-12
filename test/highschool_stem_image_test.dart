@@ -90,7 +90,82 @@ void main() {
       expect(txt, contains('uc?export=download&id=FILEID123'));
     });
 
-    test('sniffs the real image format instead of assuming png', () {
+    group('image size control', () {
+    final url = 'https://example.com/fig.png';
+    final qs = [cq(stemImageUrl: url)];
+
+    String htmlFor(ex.StemImageSize size) =>
+        ex.HighSchoolExportService.generateHtml(
+          schoolName: 'S', examName: 'E', subject: 'M',
+          className: 'C', time: 'T', totalMarks: '10',
+          questions: qs, imageSize: size,
+        );
+
+    test('hidden omits the image entirely', () {
+      expect(htmlFor(ex.StemImageSize.hidden), isNot(contains('<img')));
+      expect(htmlFor(ex.StemImageSize.hidden), isNot(contains('fig.png')));
+    });
+
+    test('sizes grow small -> medium -> large', () {
+      double maxHeightPx(ex.StemImageSize s) {
+        final m = RegExp(r'max-height:([\d.]+)px').firstMatch(htmlFor(s));
+        expect(m, isNotNull, reason: 'no max-height in ${s.label}');
+        return double.parse(m!.group(1)!);
+      }
+
+      final small = maxHeightPx(ex.StemImageSize.small);
+      final medium = maxHeightPx(ex.StemImageSize.medium);
+      final large = maxHeightPx(ex.StemImageSize.large);
+      expect(small, lessThan(medium));
+      expect(medium, lessThan(large));
+    });
+
+    test('word honours hidden as well', () {
+      final doc = ex.HighSchoolExportService.generateWordDoc(
+        schoolName: 'S', examName: 'E', subject: 'M',
+        className: 'C', time: 'T', totalMarks: '10',
+        questions: qs, imageSize: ex.StemImageSize.hidden,
+      );
+      expect(doc, isNot(contains('<img')));
+    });
+
+    test('markdown and text respect hidden', () {
+      final md = ex.HighSchoolExportService.generateMarkdown(
+        schoolName: 'S', examName: 'E', subject: 'M',
+        className: 'C', time: 'T', totalMarks: '10',
+        questions: qs, imageSize: ex.StemImageSize.hidden,
+      );
+      final txt = ex.HighSchoolExportService.generatePlainText(
+        schoolName: 'S', examName: 'E', subject: 'M',
+        className: 'C', time: 'T', totalMarks: '10',
+        questions: qs, imageSize: ex.StemImageSize.hidden,
+      );
+      expect(md, isNot(contains('fig.png')));
+      expect(txt, isNot(contains('fig.png')));
+    });
+
+    test('metrics are ordered and hidden is zero', () {
+      expect(ex.StemImageSize.hidden.maxHeightPt, 0);
+      expect(ex.StemImageSize.hidden.isVisible, isFalse);
+      expect(ex.StemImageSize.small.maxHeightPt,
+          lessThan(ex.StemImageSize.medium.maxHeightPt));
+      expect(ex.StemImageSize.medium.maxHeightPt,
+          lessThan(ex.StemImageSize.large.maxHeightPt));
+    });
+
+    test('preview page exposes a full html document', () {
+      final h = ex.HighSchoolExportService.generateHtml(
+        schoolName: 'S', examName: 'E', subject: 'M',
+        className: 'C', time: 'T', totalMarks: '10',
+        questions: qs,
+      );
+      expect(h.trimLeft(), startsWith('<!DOCTYPE html>'));
+      expect(h, contains('</html>'));
+      expect(h, contains('window.print()'));
+    });
+  });
+
+  test('sniffs the real image format instead of assuming png', () {
       expect(ex.HighSchoolExportService.sniffImageMime(_tinyPng), 'image/png');
       final jpeg = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 0, 0]);
       expect(ex.HighSchoolExportService.sniffImageMime(jpeg), 'image/jpeg');

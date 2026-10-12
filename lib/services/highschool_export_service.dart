@@ -14,6 +14,87 @@ import '../models/highschool_question.dart';
 /// - Plain Text (.txt)
 /// - Markdown (.md)
 /// - JSON Data (.json)
+/// How stem images are sized in an export.
+///
+/// The same setting drives PDF (points), Word (points) and HTML (pixels) so the
+/// question paper looks consistent no matter which format the student receives.
+enum StemImageSize {
+  /// Leave stem images out entirely.
+  hidden,
+
+  /// Thumbnail — good when there are many figures and space is tight.
+  small,
+
+  /// Default — readable on a phone screen and on paper.
+  medium,
+
+  /// Large figure, for diagrams that need detail.
+  large,
+}
+
+extension StemImageSizeMetrics on StemImageSize {
+  /// Max height in points, used by PDF and Word. 0 means "don't render".
+  double get maxHeightPt {
+    switch (this) {
+      case StemImageSize.hidden:
+        return 0;
+      case StemImageSize.small:
+        return 70;
+      case StemImageSize.medium:
+        return 130;
+      case StemImageSize.large:
+        return 220;
+    }
+  }
+
+  /// Max width in points. Diagrams are rarely wider than they are tall, and
+  /// letting them run to the full column makes small figures look lost.
+  double get maxWidthPt {
+    switch (this) {
+      case StemImageSize.hidden:
+        return 0;
+      case StemImageSize.small:
+        return 140;
+      case StemImageSize.medium:
+        return 250;
+      case StemImageSize.large:
+        return 400;
+    }
+  }
+
+  /// Max height in CSS pixels for HTML (browsers render at ~1.33x points).
+  double get maxHeightPx => maxHeightPt * 1.333;
+
+  bool get isVisible => this != StemImageSize.hidden;
+
+  /// Bengali label for the UI selector.
+  String get label {
+    switch (this) {
+      case StemImageSize.hidden:
+        return 'ছবি রাখবেন না';
+      case StemImageSize.small:
+        return 'ছোট';
+      case StemImageSize.medium:
+        return 'মাঝারি';
+      case StemImageSize.large:
+        return 'বড়';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case StemImageSize.hidden:
+        return 'শুধু লেখা, কোনো ছবি যাবে না';
+      case StemImageSize.small:
+        return 'ছোট থাম্বনেইল';
+      case StemImageSize.medium:
+        return 'সাধারণ আকার (প্রস্তাবিত)';
+      case StemImageSize.large:
+        return 'বড় ডায়াগ্রামের জন্য';
+    }
+  }
+}
+
 class HighSchoolExportService {
   HighSchoolExportService._();
 
@@ -114,8 +195,10 @@ class HighSchoolExportService {
   static String _stemImageMarkup(
     HighSchoolQuestion q, {
     Map<String, Uint8List>? bytes,
-    required String widthStyle,
+    required StemImageSize size,
+    required bool usePoints,
   }) {
+    if (!size.isVisible) return '';
     final resolved = resolveImageUrl(q.stemImageUrl);
     if (resolved.isEmpty) return '';
 
@@ -124,13 +207,26 @@ class HighSchoolExportService {
         ? 'data:${sniffImageMime(imageBytes)};base64,${base64Encode(imageBytes)}'
         : _escapeXml(resolved);
 
+    final unit = usePoints ? 'pt' : 'px';
+    final maxH = usePoints ? size.maxHeightPt : size.maxHeightPx;
+    final maxW = usePoints ? size.maxWidthPt : size.maxWidthPt * 1.333;
+
     return '<img src="$src" alt="উদ্দীপক চিত্র" '
-        'style="$widthStyle" />';
+        'style="display:block; margin:4pt 0 6pt 0; '
+        'max-width:${_trimNum(maxW)}$unit; max-height:${_trimNum(maxH)}$unit; '
+        'object-fit:contain; '
+        '${usePoints ? '' : 'margin-left:auto; margin-right:auto;'}" />';
   }
 
-  /// True when the stem image is available (bytes or a usable URL).
-  static bool _hasStemImage(HighSchoolQuestion q) =>
-      resolveImageUrl(q.stemImageUrl).isNotEmpty;
+  /// Trim a double for CSS output (no trailing ".0").
+  static String _trimNum(double v) {
+    if (v == v.roundToDouble()) return v.round().toString();
+    return v.toStringAsFixed(1);
+  }
+
+  /// True when the stem image should appear at all.
+  static bool _hasStemImage(HighSchoolQuestion q, StemImageSize size) =>
+      size.isVisible && resolveImageUrl(q.stemImageUrl).isNotEmpty;
 
   static String _stemImageUrlOf(HighSchoolQuestion q) =>
       resolveImageUrl(q.stemImageUrl);
@@ -147,6 +243,7 @@ class HighSchoolExportService {
     required String time,
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
+    StemImageSize imageSize = StemImageSize.medium,
   }) {
     final buffer = StringBuffer();
     final divider = '=' * 50;
@@ -189,7 +286,7 @@ class HighSchoolExportService {
         if (q.boardYearTag.isNotEmpty) {
           buffer.writeln('   [উৎস: ${q.boardYearTag}]');
         }
-        if (_hasStemImage(q)) {
+        if (_hasStemImage(q, imageSize)) {
           // Plain text cannot embed an image, so surface the link.
           buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
         }
@@ -246,6 +343,7 @@ class HighSchoolExportService {
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
     Map<String, Uint8List>? imageBytes,
+    StemImageSize imageSize = StemImageSize.medium,
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
@@ -406,7 +504,7 @@ class HighSchoolExportService {
       <b>$index.</b> ${_escapeXml(q.stemText)}
       ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
     </div>
-    ${_stemImageMarkup(q, bytes: imageBytes, widthStyle: 'max-width:420pt; max-height:320pt; margin:4pt 0 6pt 0; display:block;')}
+    ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
     <table class="cq-sub-table">
 ''');
         for (final sq in q.cqSubQuestions) {
@@ -487,6 +585,7 @@ class HighSchoolExportService {
     required String time,
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
+    StemImageSize imageSize = StemImageSize.medium,
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
@@ -666,7 +765,7 @@ class HighSchoolExportService {
         <b>$index.</b> ${_escapeXml(q.stemText)}
         ${q.boardYearTag.isNotEmpty ? '<small style="color:#64748b;"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
       </div>
-      ${_stemImageMarkup(q, widthStyle: 'display:block; max-width:100%; max-height:340px; margin:0 auto 12px auto; object-fit:contain;')}
+      ${_stemImageMarkup(q, size: imageSize, usePoints: false)}
 ''');
         for (final sq in q.cqSubQuestions) {
           buffer.write('''
@@ -737,6 +836,7 @@ class HighSchoolExportService {
     required String time,
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
+    StemImageSize imageSize = StemImageSize.medium,
   }) {
     final buffer = StringBuffer();
     if (schoolName.trim().isNotEmpty) {
@@ -761,7 +861,7 @@ class HighSchoolExportService {
         if (q.boardYearTag.isNotEmpty) {
           buffer.writeln('> *উৎস: ${q.boardYearTag}*');
         }
-        if (_hasStemImage(q)) {
+        if (_hasStemImage(q, imageSize)) {
           buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})');
         }
         buffer.writeln();
