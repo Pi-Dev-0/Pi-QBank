@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../widgets/loading_widget.dart';
@@ -18,14 +20,23 @@ class OnlinePDFViewerPage extends StatefulWidget {
 }
 
 class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   bool _isLoading = true;
   bool _hasError = false;
+
+  bool get _isWebViewSupported =>
+      !kIsWeb &&
+      defaultTargetPlatform != TargetPlatform.linux &&
+      WebViewPlatform.instance != null;
 
   @override
   void initState() {
     super.initState();
-    _initializeController();
+    if (_isWebViewSupported) {
+      _initializeController();
+    } else {
+      _isLoading = false;
+    }
   }
 
   void _initializeController() {
@@ -127,17 +138,117 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
     ''';
   }
 
+  Future<void> _openInBrowser() async {
+    final uri = Uri.parse(widget.pdfUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _reload() async {
+    if (_controller == null) return;
     setState(() {
       _isLoading = true;
       _hasError = false;
     });
     // Reloading HTML content
-    _controller.loadHtmlString(_buildPdfHtml());
+    _controller!.loadHtmlString(_buildPdfHtml());
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_isWebViewSupported) {
+      return Scaffold(
+        backgroundColor: Colors.grey.shade50,
+        appBar: CustomAppBar(
+          title: widget.title,
+          actions: [
+            IconButton(
+              tooltip: 'Open in Browser',
+              icon: const Icon(Icons.open_in_browser),
+              onPressed: _openInBrowser,
+            ),
+          ],
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(28.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.picture_as_pdf,
+                            size: 48, color: Colors.red.shade700),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        widget.title,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Embedded PDF viewing is not supported on Linux desktop. You can open and view this PDF directly in your browser or document viewer.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                            height: 1.4),
+                      ),
+                      const SizedBox(height: 28),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _openInBrowser,
+                            icon: const Icon(Icons.open_in_browser),
+                            label: const Text('Open PDF'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Back'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     if (_isLoading) {
       return const Scaffold(
         body: LoadingWidget(
@@ -161,7 +272,8 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
       ),
       body: Stack(
         children: [
-          if (!_hasError) WebViewWidget(controller: _controller),
+          if (!_hasError && _controller != null)
+            WebViewWidget(controller: _controller!),
           if (_hasError)
             Center(
               child: Column(

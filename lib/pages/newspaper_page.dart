@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:pi_qbank/widgets/loading_widget.dart';
 
@@ -20,9 +22,8 @@ class NewspaperPage extends StatefulWidget {
 
 class _NewspaperPageState extends State<NewspaperPage>
     with TickerProviderStateMixin {
-  // Controller is declared non-late and initialized synchronously to avoid
-  // LateInitializationError when build() runs before async work completes.
-  late final WebViewController _controller;
+  // Controller is declared nullable and initialized only on supported platforms
+  WebViewController? _controller;
   bool _isLoading = true;
   double _progress = 0;
   bool _isPickerActive = false;
@@ -30,6 +31,11 @@ class _NewspaperPageState extends State<NewspaperPage>
   late String _siteKey;
   late AnimationController _bannerAnimController;
   late Animation<double> _bannerAnim;
+
+  bool get _isWebViewSupported =>
+      !kIsWeb &&
+      defaultTargetPlatform != TargetPlatform.linux &&
+      WebViewPlatform.instance != null;
 
   // ─── SharedPreferences helpers ────────────────────────────────────────────
 
@@ -57,14 +63,14 @@ class _NewspaperPageState extends State<NewspaperPage>
   // Clears previous interval via window.__piAdblockTimer to avoid accumulation.
 
   void _applyAllBlockRules() {
-    if (_userRules.isEmpty) return;
+    if (_controller == null || _userRules.isEmpty) return;
 
     // Build the full CSS text and safely encode it as a JS string literal.
     final cssContent =
         '${_userRules.join(', ')} { display: none !important; visibility: hidden !important; opacity: 0 !important; max-height: 0 !important; overflow: hidden !important; }';
     final safeCSS = json.encode(cssContent); // produces "..." with escaping
 
-    _controller.runJavaScript('''
+    _controller!.runJavaScript('''
       (function() {
         var styleId = 'pi-adblock-style';
         var cssText = $safeCSS;
@@ -221,21 +227,23 @@ class _NewspaperPageState extends State<NewspaperPage>
   // ─── Picker toggle ────────────────────────────────────────────────────────
 
   void _togglePicker() {
+    if (_controller == null) return;
     setState(() => _isPickerActive = !_isPickerActive);
     if (_isPickerActive) {
       _bannerAnimController.forward();
-      _controller.runJavaScript(_pickerJS);
+      _controller!.runJavaScript(_pickerJS);
     } else {
       _bannerAnimController.reverse();
-      _controller.runJavaScript(_disablePickerJS);
+      _controller!.runJavaScript(_disablePickerJS);
     }
   }
 
   void _disablePicker() {
+    if (_controller == null) return;
     if (_isPickerActive) {
       setState(() => _isPickerActive = false);
       _bannerAnimController.reverse();
-      _controller.runJavaScript(_disablePickerJS);
+      _controller!.runJavaScript(_disablePickerJS);
     }
   }
 
@@ -347,7 +355,7 @@ class _NewspaperPageState extends State<NewspaperPage>
           setState(() => _userRules.clear());
           await _saveUserRules();
           // Remove the style tag entirely when there are no custom rules
-          _controller.runJavaScript('''
+          _controller?.runJavaScript('''
             (function() {
               if (window.__piAdblockTimer) clearInterval(window.__piAdblockTimer);
               var el = document.getElementById('pi-adblock-style');
@@ -375,41 +383,51 @@ class _NewspaperPageState extends State<NewspaperPage>
     _bannerAnim =
         CurvedAnimation(parent: _bannerAnimController, curve: Curves.easeOut);
 
-    // ⚠️ Initialize controller SYNCHRONOUSLY so build() never sees it unready.
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel(
-        'AdBlockerChannel',
-        onMessageReceived: (JavaScriptMessage msg) {
-          _onSelectorReceived(msg.message);
-        },
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (int progress) {
-            setState(() => _progress = progress / 100);
+    if (_isWebViewSupported) {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..addJavaScriptChannel(
+          'AdBlockerChannel',
+          onMessageReceived: (JavaScriptMessage msg) {
+            _onSelectorReceived(msg.message);
           },
-          onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-              _progress = 0;
-              _isPickerActive = false;
-            });
-            _bannerAnimController.reset();
-          },
-          onPageFinished: (String url) {
-            setState(() => _isLoading = false);
-            // Apply merged rules (server + user) once page DOM is ready
-            _applyAllBlockRules();
-          },
-          onWebResourceError: (WebResourceError error) {},
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.url));
+        )
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onProgress: (int progress) {
+              setState(() => _progress = progress / 100);
+            },
+            onPageStarted: (String url) {
+              setState(() {
+                _isLoading = true;
+                _progress = 0;
+                _isPickerActive = false;
+              });
+              _bannerAnimController.reset();
+            },
+            onPageFinished: (String url) {
+              setState(() => _isLoading = false);
+              // Apply merged rules (server + user) once page DOM is ready
+              _applyAllBlockRules();
+            },
+            onWebResourceError: (WebResourceError error) {},
+          ),
+        )
+        ..loadRequest(Uri.parse(widget.url));
 
-    // Load persisted rules in background; _applyAllBlockRules() inside
-    // _loadUserRules() will re-inject CSS if the page finishes first.
-    _loadUserRules();
+      // Load persisted rules in background; _applyAllBlockRules() inside
+      // _loadUserRules() will re-inject CSS if the page finishes first.
+      _loadUserRules();
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  Future<void> _openInBrowser() async {
+    final uri = Uri.parse(widget.url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
@@ -422,12 +440,117 @@ class _NewspaperPageState extends State<NewspaperPage>
 
   @override
   Widget build(BuildContext context) {
+    if (!_isWebViewSupported) {
+      return Scaffold(
+        backgroundColor: Colors.grey.shade50,
+        appBar: AppBar(
+          title: Text(widget.name,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Open in Browser',
+              icon: const Icon(Icons.open_in_browser),
+              onPressed: _openInBrowser,
+            ),
+          ],
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(28.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.deepOrange.shade50,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.newspaper,
+                            size: 48, color: Colors.deepOrange.shade700),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        widget.name,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.url,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Embedded web view is not supported on Linux desktop. You can read ${widget.name} directly in your default browser.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                            height: 1.4),
+                      ),
+                      const SizedBox(height: 28),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _openInBrowser,
+                            icon: const Icon(Icons.open_in_browser),
+                            label: const Text('Open in Browser'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepOrange.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Back'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) return;
-        if (await _controller.canGoBack()) {
-          _controller.goBack();
+        if (_controller != null && await _controller!.canGoBack()) {
+          _controller!.goBack();
         } else {
           if (!context.mounted) return;
           Navigator.of(context).pop();
@@ -485,7 +608,7 @@ class _NewspaperPageState extends State<NewspaperPage>
         ),
         body: Stack(
           children: [
-            WebViewWidget(controller: _controller),
+            if (_controller != null) WebViewWidget(controller: _controller!),
             if (_isLoading) LoadingWidget(progress: _progress),
             // Picker active banner
             Positioned(

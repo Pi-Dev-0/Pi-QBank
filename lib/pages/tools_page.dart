@@ -273,35 +273,177 @@ class _ToolsPageState extends State<ToolsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isAndroid = Theme.of(context).platform == TargetPlatform.android;
+
+    // Keep Android layout completely unmodified
+    if (isAndroid) {
+      return Scaffold(
+        backgroundColor: Colors.grey.shade50,
+        appBar: const CustomAppBar(
+          title: 'Tools',
+        ),
+        drawer: const AppDrawer(),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                crossAxisSpacing: 16.0,
+                mainAxisSpacing: 16.0,
+                childAspectRatio: 0.9,
+                children: _toolItems.map((item) {
+                  return _buildToolCard(context, item);
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Adaptive layout for Linux desktop / non-Android platforms using MediaQuery
+    final double screenWidth = MediaQuery.of(context).size.width;
+
+    final int crossAxisCount;
+    final double childAspectRatio;
+    final double horizontalPadding;
+    final double spacing;
+
+    if (screenWidth < 600) {
+      crossAxisCount = 2;
+      childAspectRatio = 0.9;
+      horizontalPadding = 16.0;
+      spacing = 10.0;
+    } else if (screenWidth < 900) {
+      crossAxisCount = 3;
+      childAspectRatio = 1.05;
+      horizontalPadding = 24.0;
+      spacing = 16.0;
+    } else if (screenWidth < 1200) {
+      crossAxisCount = 3;
+      childAspectRatio = 1.2;
+      horizontalPadding = 32.0;
+      spacing = 20.0;
+    } else {
+      crossAxisCount = 3;
+      childAspectRatio = 1.25;
+      horizontalPadding = 40.0;
+      spacing = 24.0;
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
-      appBar: CustomAppBar(
+      appBar: const CustomAppBar(
         title: 'Tools',
       ),
       drawer: const AppDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 16.0,
-              mainAxisSpacing: 16.0,
-              childAspectRatio: 0.9,
-              children: _toolItems.map((item) {
-                return _buildToolCard(context, item);
-              }).toList(),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: 24.0,
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                  childAspectRatio: childAspectRatio,
+                  children: _toolItems.map((item) {
+                    return _buildToolCard(context, item);
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildToolCard(BuildContext context, ToolItem item) {
+    final bool isAndroid = Theme.of(context).platform == TargetPlatform.android;
+
+    final Widget cardContent = Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: item.accentColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(item.icon, size: 24, color: item.accentColor),
+          ),
+          const SizedBox(height: 12),
+          Flexible(
+            child: Text(
+              item.title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Flexible(
+            child: Text(
+              item.description,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey.shade600,
+                height: 1.2,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: item.accentColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Try now',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: item.accentColor,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(Icons.arrow_forward, size: 10, color: item.accentColor),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -321,77 +463,7 @@ class _ToolsPageState extends State<ToolsPage> {
           borderRadius: BorderRadius.circular(20),
           child: Stack(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: item.accentColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(item.icon, size: 24, color: item.accentColor),
-                    ),
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: Text(
-                        item.title,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Flexible(
-                      child: Text(
-                        item.description,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                          height: 1.2,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: item.accentColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Try now',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: item.accentColor,
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          Icon(Icons.arrow_forward,
-                              size: 10, color: item.accentColor),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              isAndroid ? cardContent : Positioned.fill(child: cardContent),
               Positioned(
                 top: 8,
                 right: 8,

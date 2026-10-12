@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:pi_qbank/widgets/loading_widget.dart';
 import 'package:pi_qbank/constants/app_colors.dart';
@@ -218,14 +220,20 @@ class _WebViewScreen extends StatefulWidget {
 }
 
 class _WebViewScreenState extends State<_WebViewScreen> {
-  late final WebViewController controller;
+  WebViewController? controller;
   double _progress = 0.0;
   bool _isLoading = true;
+
+  bool get _isWebViewSupported =>
+      !kIsWeb &&
+      defaultTargetPlatform != TargetPlatform.linux &&
+      WebViewPlatform.instance != null;
 
   @override
   void initState() {
     super.initState();
-    controller = WebViewController()
+    if (_isWebViewSupported) {
+      controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))
       ..setNavigationDelegate(
@@ -246,7 +254,7 @@ class _WebViewScreenState extends State<_WebViewScreen> {
             });
             // Inject JavaScript to hide elements.
             // This script runs periodically to hide dynamically loaded content.
-            controller.runJavaScript("""
+            controller?.runJavaScript("""
               (function() {
                   const styleId = 'gemini-hide-elements-style';
                   const css = `
@@ -288,17 +296,126 @@ class _WebViewScreenState extends State<_WebViewScreen> {
       ..loadRequest(
         Uri.parse(widget.url),
       );
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  Future<void> _openInBrowser() async {
+    final uri = Uri.parse(widget.url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_isWebViewSupported) {
+      return Scaffold(
+        backgroundColor: Colors.grey.shade50,
+        appBar: CustomAppBar(
+          title: widget.title,
+          actions: [
+            IconButton(
+              tooltip: 'Open in Browser',
+              icon: const Icon(Icons.open_in_browser),
+              onPressed: _openInBrowser,
+            ),
+          ],
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(28.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.deepPurple.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.school,
+                            size: 48, color: AppColors.deepPurple),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        widget.title,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.url,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Embedded web view is not supported on Linux desktop. You can open and view this link directly in your browser.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade700,
+                            height: 1.4),
+                      ),
+                      const SizedBox(height: 28),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _openInBrowser,
+                            icon: const Icon(Icons.open_in_browser),
+                            label: const Text('Open in Browser'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.deepPurple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Back'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: CustomAppBar(
         title: widget.title,
       ),
       body: Stack(
         children: [
-          WebViewWidget(controller: controller),
+          if (controller != null) WebViewWidget(controller: controller!),
           if (_isLoading)
             LoadingWidget(
                 progress: _progress, loadingText: 'Loading ${widget.title}...'),
