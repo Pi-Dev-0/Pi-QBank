@@ -175,14 +175,16 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const body   = JSON.parse(e.postData.contents);
-    const action = body.action || "addQuestions";
+    const rawBody = e.postData.contents;
+    const body    = rawBody.replace(/\+/g, ' ');
+    const parsed  = JSON.parse(body);
+    const action  = parsed.action || "addQuestions";
 
     if (action !== "addQuestions" && action !== "addBulk") {
       return jsonResponse({ status: "ERROR", message: "Unknown action: " + action });
     }
 
-    const questions = body.questions;
+    const questions = parsed.questions;
     if (!questions || !Array.isArray(questions) || questions.length === 0) {
       return jsonResponse({ status: "ERROR", message: "No questions provided." });
     }
