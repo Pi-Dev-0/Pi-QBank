@@ -44,10 +44,15 @@ pw.TextSpan buildPdfTextSpan(
     return pw.TextSpan(text: '', style: banglaStyle);
   }
 
+  // The Bijoy converter inserts U+00AD (soft hyphen) as a reordering marker.
+  // It is invisible in normal text, but no font here has a glyph for it, so it
+  // would render as a black box in the middle of a word ("প্ল্যাটফর্ম").
+  String clean(String s) => s.replaceAll('­', '');
+
   return pw.TextSpan(
     children: segments
         .map((seg) => pw.TextSpan(
-              text: seg.text,
+              text: clean(seg.text),
               style: seg.isBangla
                   ? banglaStyle
                   : banglaStyle.copyWith(

@@ -106,6 +106,24 @@ void main() {
     test('empty input is safe', () {
       expect(buildPdfTextSpan('', banglaStyle()).text, '');
     });
+
+    test('the Bijoy soft-hyphen reorder marker is stripped', () {
+      // U+00AD is inserted by the converter and has no glyph in any bundled
+      // font, which would draw a black box inside the word. (The Bangla run is
+      // Bijoy-encoded here, so compare against the raw converter output.)
+      final raw = bh.unicodeToBijoy('প্ল্যাটফর্ম');
+      expect(raw.contains('­'), isTrue,
+          reason: 'converter is expected to insert U+00AD');
+
+      final span = buildPdfTextSpan('Pi-QBank প্ল্যাটফর্ম থেকে', banglaStyle());
+      final all = (span.children as List)
+          .cast<pw.TextSpan>()
+          .map((k) => k.text ?? '')
+          .join();
+      expect(all, isNot(contains('­')));
+      // Only the marker is gone — the rest of the text is untouched.
+      expect(all.replaceAll('­', '').length, greaterThan(raw.length));
+    });
   });
 
   group('Bijoy conversion leaves no Bengali Unicode codepoints', () {
@@ -177,7 +195,13 @@ void main() {
   });
 
   group('math symbol fallback', () {
-    const symbols = '∩∪∈∅≠≤≥×√Σ−αβ²→≈±∀∃';
+    // Audited set: the glyphs Bangladeshi school maths papers actually use.
+    const symbols = '–—…•×÷±−≠≡≈≤≥'
+        '∩∪⊂⊃⊆⊇∅∈∉∀∃¬∧∨'
+        '√∛∑∏∫∮∞∂∇∴∵°′″½¼¾'
+        '→←↑↓↔⇒⇔⟹'
+        '²³¹αβγδθλμπρστφχψωΓΔΘΛΠΣΦΩ'
+        '✓✔✗✘☑☐★☆●○■□▲△▼▽◆※†§¶';
 
     /// Render [text] and capture the pdf package's "Unable to find a font" log.
     Future<List<String>> missingFontLogs(
@@ -233,6 +257,19 @@ void main() {
         fallbackFont: mathFont,
       );
       expect(logs, isEmpty);
+    });
+
+    test('em dash and subset-or-equal are covered', () async {
+      // Both were reported as "Unable to find a font to draw".
+      final mathFont = pw.Font.ttf(
+        ByteData.sublistView(
+            File('assets/fonts/MathSymbols.ttf').readAsBytesSync()),
+      );
+      final logs = await missingFontLogs(
+        'প্রশ্ন — A ⊆ B, তাই A ∩ B ≠ ∅',
+        fallbackFont: mathFont,
+      );
+      expect(logs, isEmpty, reason: logs.join(' | '));
     });
 
     test('fontFallback survives the Latin copyWith path', () {

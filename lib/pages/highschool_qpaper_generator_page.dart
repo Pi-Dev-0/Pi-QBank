@@ -642,16 +642,18 @@ class _HighSchoolQPaperGeneratorPageState
           smallStyle: smallStyle,
         ));
 
-        widgets.add(pw.SizedBox(height: 12));
-        widgets.add(pw.Divider(thickness: 1.5, color: PdfColors.black));
-        widgets.add(pw.SizedBox(height: 10));
+        widgets.add(pw.SizedBox(height: 16));
 
         // ── CQ Section ─────────────────────────────────────────────────────
         if (cqs.isNotEmpty) {
+          widgets.add(_pdfSectionBanner(
+              'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', boldStyle.copyWith(fontSize: 11)));
+          widgets.add(pw.SizedBox(height: 4));
           widgets.add(pw.RichText(
-              text: _mixedText('সৃজনশীল প্রশ্নাবলি (CQ)',
-                  boldStyle.copyWith(fontSize: 12))));
-          widgets.add(pw.SizedBox(height: 8));
+              text: _mixedText('[যেকোনো নির্ধারিত সংখ্যক প্রশ্নের উত্তর দাও]',
+                  smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
+              textAlign: pw.TextAlign.center));
+          widgets.add(pw.SizedBox(height: 10));
 
           for (int i = 0; i < cqs.length; i += _cqLayout.mcqColumns) {
             final cols = _cqLayout.mcqColumns;
@@ -683,16 +685,20 @@ class _HighSchoolQPaperGeneratorPageState
 
         // ── MCQ Section ────────────────────────────────────────────────────
         if (mcqs.isNotEmpty) {
-          widgets.add(pw.Divider());
-          widgets.add(pw.SizedBox(height: 6));
+          widgets.add(pw.SizedBox(height: 16));
+          widgets.add(_pdfSectionBanner(
+              'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
+              boldStyle.copyWith(fontSize: 11)));
+          widgets.add(pw.SizedBox(height: 4));
           widgets.add(pw.RichText(
-              text: _mixedText('বহুনির্বাচনি প্রশ্নাবলি (MCQ)',
-                  boldStyle.copyWith(fontSize: 12))));
-          widgets.add(pw.SizedBox(height: 8));
+              text: _mixedText('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
+                  smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
+              textAlign: pw.TextAlign.center));
+          widgets.add(pw.SizedBox(height: 10));
 
           // MCQ arranged in 1 or 2 columns per the layout setting
-          final mcqRows = <pw.Widget>[];
           final cols = _mcqLayout.mcqColumns;
+          final stackOptions = cols > 1;
           for (int i = 0; i < mcqs.length; i += cols) {
             final rowChildren = <pw.Widget>[];
             for (int c = 0; c < cols; c++) {
@@ -700,18 +706,29 @@ class _HighSchoolQPaperGeneratorPageState
               final idx = i + c;
               rowChildren.add(pw.Expanded(
                 child: idx < mcqs.length
-                    ? _buildPdfMcqItem(idx + 1, mcqs[idx], baseStyle, boldStyle)
+                    ? _buildPdfMcqItem(idx + 1, mcqs[idx], baseStyle,
+                        stackOptions: stackOptions)
                     : pw.SizedBox(),
               ));
             }
-            mcqRows.add(pw.Row(
+            widgets.add(pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: rowChildren,
             ));
-            mcqRows.add(pw.SizedBox(height: 8));
+            widgets.add(pw.SizedBox(height: 6));
+            widgets.add(_pdfDashedLine());
+            widgets.add(pw.SizedBox(height: 6));
           }
-          widgets.addAll(mcqRows);
         }
+
+        widgets.add(pw.SizedBox(height: 12));
+        widgets.add(pw.Divider(thickness: 0.8, color: PdfColors.grey300));
+        widgets.add(pw.SizedBox(height: 6));
+        widgets.add(pw.RichText(
+          text: _mixedText('জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে',
+              smallStyle),
+          textAlign: pw.TextAlign.center,
+        ));
 
         return widgets;
       },
@@ -720,6 +737,44 @@ class _HighSchoolQPaperGeneratorPageState
     return doc.save();
   }
 
+  /// A dashed horizontal rule, matching the HTML export's dashed separators.
+  pw.Widget _pdfDashedLine({PdfColor color = PdfColors.grey400}) {
+    return pw.LayoutBuilder(builder: (ctx, constraints) {
+      // LayoutBuilder hands back BoxConstraints (null outside a layout pass).
+      final width = constraints?.maxWidth;
+      const dash = 4.0;
+      const gap = 3.0;
+      final available =
+          (width == null || width.isInfinite) ? 400.0 : width;
+      final count = (available / (dash + gap)).floor().clamp(1, 400);
+      return pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: List.generate(
+          count,
+          (_) => pw.Container(width: dash, height: 0.6, color: color),
+        ),
+      );
+    });
+  }
+
+  /// Grey section heading bar, mirroring the HTML `.section-banner`.
+  pw.Widget _pdfSectionBanner(String label, pw.TextStyle style) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey200,
+        border: pw.Border.all(color: PdfColors.grey300),
+        borderRadius: pw.BorderRadius.circular(4),
+      ),
+      child: pw.RichText(
+        text: _mixedText(label, style),
+        textAlign: pw.TextAlign.center,
+      ),
+    );
+  }
+
+  /// Mirrors the HTML header: big centred titles above a ruled meta bar.
   pw.Widget _buildPdfHeader({
     required String schoolName,
     required String examName,
@@ -735,32 +790,31 @@ class _HighSchoolQPaperGeneratorPageState
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
-        if (schoolName.isNotEmpty)
+        if (schoolName.trim().isNotEmpty)
           pw.RichText(
-              text: _mixedText(schoolName, headerStyle.copyWith(fontSize: 16))),
-        pw.SizedBox(height: 4),
+              text: _mixedText(schoolName, headerStyle.copyWith(fontSize: 15))),
+        pw.SizedBox(height: 2),
         pw.RichText(
-            text: _mixedText(examName, boldStyle.copyWith(fontSize: 13))),
+            text: _mixedText(examName, boldStyle.copyWith(fontSize: 12))),
+        pw.SizedBox(height: 8),
+        pw.Divider(thickness: 1.2, color: PdfColors.black),
         pw.SizedBox(height: 6),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.RichText(text: _mixedText('বিষয়: $subject', baseStyle)),
-            pw.RichText(text: _mixedText('শ্রেণি: $className', baseStyle)),
-          ],
-        ),
-        pw.SizedBox(height: 4),
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.RichText(text: _mixedText('সময়: $time', baseStyle)),
+            pw.RichText(text: _mixedText('বিষয়: $subject', boldStyle)),
+            pw.RichText(text: _mixedText('শ্রেণি: $className', boldStyle)),
+            pw.RichText(text: _mixedText('সময়: $time', boldStyle)),
             pw.RichText(text: _mixedText('পূর্ণমান: $totalMarks', boldStyle)),
           ],
         ),
+        pw.SizedBox(height: 6),
+        pw.Divider(thickness: 1.2, color: PdfColors.black),
       ],
     );
   }
 
+  /// Mirrors the HTML `.cq-card`: plain border, no badges, no colour.
   pw.Widget _buildPdfCqCard(
       {required int index,
       required HighSchoolQuestion question,
@@ -769,49 +823,26 @@ class _HighSchoolQPaperGeneratorPageState
       required pw.TextStyle smallStyle,
       Map<String, Uint8List> stemImages = const {},
       StemImageSize imageSize = StemImageSize.medium}) {
-    final totalMark = question.totalMarks;
     final stemBytes = imageSize.isVisible
         ? stemImages[
             HighSchoolExportService.resolveImageUrl(question.stemImageUrl)]
         : null;
 
+    final tag = question.boardYearTag.trim();
+    final stemLabel = tag.isEmpty
+        ? '$index. ${question.stemText}'
+        : '$index. ${question.stemText}  [$tag]';
+
     return pw.Container(
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400),
+        border: pw.Border.all(color: PdfColors.grey300),
         borderRadius: pw.BorderRadius.circular(4),
       ),
       padding: const pw.EdgeInsets.all(8),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // Badge row
-          pw.Row(
-            children: [
-              pw.Container(
-                padding:
-                    const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.blue100,
-                  borderRadius: pw.BorderRadius.circular(3),
-                ),
-                child: pw.RichText(
-                    text: _mixedText(
-                        'CQ', smallStyle.copyWith(color: PdfColors.blue800))),
-              ),
-              pw.SizedBox(width: 6),
-              if (question.boardYearTag.isNotEmpty)
-                pw.RichText(
-                    text: _mixedText(question.boardYearTag, smallStyle)),
-              pw.Spacer(),
-              pw.RichText(
-                  text: _mixedText('মোট: $totalMark নম্বর',
-                      smallStyle.copyWith(fontWeight: pw.FontWeight.bold))),
-            ],
-          ),
-          pw.SizedBox(height: 6),
-          // Stem
-          pw.RichText(
-              text: _mixedText('$index. ${question.stemText}', baseStyle)),
+          pw.RichText(text: _mixedText(stemLabel, baseStyle)),
           if (stemBytes != null) ...[
             pw.SizedBox(height: 6),
             pw.Container(
@@ -823,19 +854,22 @@ class _HighSchoolQPaperGeneratorPageState
               ),
             ),
           ],
-          pw.SizedBox(height: 6),
-          // Sub-questions
+          pw.SizedBox(height: 4),
+          // Sub-questions: text on the left, bold mark right-aligned.
           ...question.cqSubQuestions.map((sq) {
             return pw.Padding(
-              padding: const pw.EdgeInsets.only(left: 12, bottom: 3),
+              padding: const pw.EdgeInsets.only(left: 6, top: 3),
               child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.RichText(text: _mixedText('${sq.label}. ', boldStyle)),
                   pw.Expanded(
-                      child: pw.RichText(text: _mixedText(sq.text, baseStyle))),
-                  pw.SizedBox(width: 8),
-                  pw.RichText(text: _mixedText('[${sq.mark}]', smallStyle)),
+                    child: pw.RichText(
+                        text: _mixedText('(${sq.label}) ${sq.text}', baseStyle)),
+                  ),
+                  pw.SizedBox(width: 10),
+                  pw.RichText(
+                      text: _mixedText('[${sq.mark}]',
+                          smallStyle.copyWith(fontWeight: pw.FontWeight.bold))),
                 ],
               ),
             );
@@ -845,28 +879,49 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
+  /// Mirrors the HTML `.mcq-card` / `.mcq-options`.
   pw.Widget _buildPdfMcqItem(
     int index,
     HighSchoolQuestion q,
-    pw.TextStyle baseStyle,
-    pw.TextStyle boldStyle,
-  ) {
+    pw.TextStyle baseStyle, {
+    bool stackOptions = false,
+  }) {
     final mcq = q.mcqData;
     if (mcq == null) return pw.SizedBox();
+
+    final letters = ['ক', 'খ', 'গ', 'ঘ'];
+    final options = mcq.options;
+
+    // Single column -> options two-per-row (as in the HTML). Double column ->
+    // stack them, because a half-width cell cannot fit two side by side.
+    final perRow = stackOptions ? 1 : 2;
+    final rows = <pw.Widget>[];
+    for (int i = 0; i < options.length; i += perRow) {
+      final cells = <pw.Widget>[];
+      for (int c = 0; c < perRow; c++) {
+        final idx = i + c;
+        if (idx >= options.length) break;
+        final letter =
+            idx < letters.length ? letters[idx] : (idx + 1).toString();
+        cells.add(pw.Expanded(
+          child: pw.RichText(
+              text: _mixedText('($letter) ${options[idx]}', baseStyle)),
+        ));
+        if (c < perRow - 1 && idx + 1 < options.length) {
+          cells.add(pw.SizedBox(width: 12));
+        }
+      }
+      rows.add(pw.Padding(
+        padding: const pw.EdgeInsets.only(left: 10, top: 2),
+        child: pw.Row(children: cells),
+      ));
+    }
+
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.RichText(text: _mixedText('$index. ${mcq.text}', baseStyle)),
-        pw.SizedBox(height: 3),
-        ...List.generate(mcq.options.length, (i) {
-          final letters = ['ক', 'খ', 'গ', 'ঘ'];
-          final letter = i < letters.length ? letters[i] : '${i + 1}';
-          return pw.Padding(
-            padding: const pw.EdgeInsets.only(left: 10, bottom: 2),
-            child: pw.RichText(
-                text: _mixedText('$letter. ${mcq.options[i]}', baseStyle)),
-          );
-        }),
+        ...rows,
       ],
     );
   }
