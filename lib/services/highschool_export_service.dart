@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -15,6 +16,124 @@ import '../models/highschool_question.dart';
 /// - JSON Data (.json)
 class HighSchoolExportService {
   HighSchoolExportService._();
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Stem image helpers
+  //
+  // PDF and Word need the actual image bytes; HTML/Markdown only need a URL
+  // that a browser can load. Both depend on the URL being *directly fetchable*,
+  // which a Google Drive sharing link is not.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Largest image we will embed, to stop a few huge originals from blowing up
+  /// the exported file (and the base64 payload Word embeds inline).
+  static const int maxImageBytes = 5 * 1024 * 1024;
+  static const Duration _imageTimeout = Duration(seconds: 20);
+
+  /// Turn a Google Drive sharing link into a direct-download link.
+  /// Any other URL is returned unchanged.
+  static String resolveImageUrl(String rawUrl) {
+    final url = rawUrl.trim();
+    if (url.isEmpty) return url;
+    if (!url.contains('drive.google.com')) return url;
+
+    // .../file/d/<ID>/view  |  .../file/d/<ID>/preview  |  .../open?id=<ID>
+    final fileMatch = RegExp(r'/file/d/([a-zA-Z0-9_-]+)').firstMatch(url);
+    if (fileMatch != null) {
+      return 'https://drive.google.com/uc?export=download&id=${fileMatch.group(1)}';
+    }
+    final idMatch = RegExp(r'[?&]id=([a-zA-Z0-9_-]+)').firstMatch(url);
+    if (idMatch != null) {
+      return 'https://drive.google.com/uc?export=download&id=${idMatch.group(1)}';
+    }
+    return url;
+  }
+
+  /// Download every distinct stem image once, keyed by *resolved* URL.
+  ///
+  /// Failures are skipped rather than thrown: an unreachable image must not
+  /// block the whole export. Returns an empty map when nothing could be
+  /// downloaded, and callers fall back to a plain URL reference.
+  static Future<Map<String, Uint8List>> prefetchStemImages(
+    List<HighSchoolQuestion> questions,
+  ) async {
+    final wanted = <String>{};
+    for (final q in questions) {
+      final resolved = resolveImageUrl(q.stemImageUrl);
+      if (resolved.isNotEmpty) wanted.add(resolved);
+    }
+    if (wanted.isEmpty) return <String, Uint8List>{};
+
+    final out = <String, Uint8List>{};
+    for (final url in wanted) {
+      try {
+        final res = await http
+            .get(Uri.parse(url))
+            .timeout(_imageTimeout);
+        if (res.statusCode != 200 || res.bodyBytes.isEmpty) continue;
+        if (res.bodyBytes.length > maxImageBytes) continue;
+        // Sanity check: Drive answers a blocked/large file with HTML.
+        final isHtml = res.headers['content-type']?.contains('text/html') ?? false;
+        if (isHtml) continue;
+        out[url] = res.bodyBytes;
+      } catch (_) {
+        // Ignore — this image will be referenced by URL instead.
+      }
+    }
+    return out;
+  }
+
+  /// Identify the image format from its magic bytes.
+  ///
+  /// Stem diagrams are very often JPEG or WEBP, so guessing "png" would emit a
+  /// wrong MIME type in the data URI. Falls back to image/png.
+  static String sniffImageMime(Uint8List bytes) {
+    bool starts(List<int> sig, [int offset = 0]) {
+      if (bytes.length < offset + sig.length) return false;
+      for (var i = 0; i < sig.length; i++) {
+        if (bytes[offset + i] != sig[i]) return false;
+      }
+      return true;
+    }
+
+    if (starts([0x89, 0x50, 0x4E, 0x47])) return 'image/png';
+    if (starts([0xFF, 0xD8, 0xFF])) return 'image/jpeg';
+    if (starts([0x47, 0x49, 0x46, 0x38])) return 'image/gif';
+    if (starts([0x42, 0x4D])) return 'image/bmp';
+    // RIFF....WEBP
+    if (starts([0x52, 0x49, 0x46, 0x46]) && starts([0x57, 0x45, 0x42, 0x50], 8)) {
+      return 'image/webp';
+    }
+    return 'image/png';
+  }
+
+  /// An `<img>`/data-URI fragment for the stem image, or '' when there is none.
+  ///
+  /// [bytes] lets Word embed the image inline (Word will not reliably render a
+  /// remote <img src>); HTML/Markdown pass null and just link to the URL.
+  static String _stemImageMarkup(
+    HighSchoolQuestion q, {
+    Map<String, Uint8List>? bytes,
+    required String widthStyle,
+  }) {
+    final resolved = resolveImageUrl(q.stemImageUrl);
+    if (resolved.isEmpty) return '';
+
+    final imageBytes = bytes?[resolved];
+    final src = imageBytes != null
+        ? 'data:${sniffImageMime(imageBytes)};base64,${base64Encode(imageBytes)}'
+        : _escapeXml(resolved);
+
+    return '<img src="$src" alt="উদ্দীপক চিত্র" '
+        'style="$widthStyle" />';
+  }
+
+  /// True when the stem image is available (bytes or a usable URL).
+  static bool _hasStemImage(HighSchoolQuestion q) =>
+      resolveImageUrl(q.stemImageUrl).isNotEmpty;
+
+  static String _stemImageUrlOf(HighSchoolQuestion q) =>
+      resolveImageUrl(q.stemImageUrl);
 
   // ─────────────────────────────────────────────────────────────────────────
   // 1. Plain Text Format
@@ -70,6 +189,10 @@ class HighSchoolExportService {
         if (q.boardYearTag.isNotEmpty) {
           buffer.writeln('   [উৎস: ${q.boardYearTag}]');
         }
+        if (_hasStemImage(q)) {
+          // Plain text cannot embed an image, so surface the link.
+          buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
+        }
 
         for (final sq in q.cqSubQuestions) {
           final markStr = sq.mark > 0 ? ' [${sq.mark}]' : '';
@@ -122,6 +245,7 @@ class HighSchoolExportService {
     required String time,
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
+    Map<String, Uint8List>? imageBytes,
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
@@ -197,6 +321,12 @@ class HighSchoolExportService {
     .cq-stem {
       font-size: 11pt;
       margin-bottom: 4pt;
+    }
+    .cq-stem-img {
+      max-width: 420pt;
+      max-height: 320pt;
+      margin: 4pt 0 6pt 0;
+      display: block;
     }
     .cq-sub-table {
       width: 100%;
@@ -276,6 +406,7 @@ class HighSchoolExportService {
       <b>$index.</b> ${_escapeXml(q.stemText)}
       ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
     </div>
+    ${_stemImageMarkup(q, bytes: imageBytes, widthStyle: 'max-width:420pt; max-height:320pt; margin:4pt 0 6pt 0; display:block;')}
     <table class="cq-sub-table">
 ''');
         for (final sq in q.cqSubQuestions) {
@@ -452,6 +583,13 @@ class HighSchoolExportService {
       page-break-inside: avoid;
     }
     .cq-stem { font-size: 15px; margin-bottom: 12px; }
+    .cq-stem-img {
+      display: block;
+      max-width: 100%;
+      max-height: 340px;
+      margin: 0 auto 12px auto;
+      object-fit: contain;
+    }
     .cq-sub-item {
       display: flex;
       justify-content: space-between;
@@ -528,6 +666,7 @@ class HighSchoolExportService {
         <b>$index.</b> ${_escapeXml(q.stemText)}
         ${q.boardYearTag.isNotEmpty ? '<small style="color:#64748b;"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
       </div>
+      ${_stemImageMarkup(q, widthStyle: 'display:block; max-width:100%; max-height:340px; margin:0 auto 12px auto; object-fit:contain;')}
 ''');
         for (final sq in q.cqSubQuestions) {
           buffer.write('''
@@ -621,6 +760,9 @@ class HighSchoolExportService {
         buffer.writeln('**$index.** ${q.stemText.trim()}');
         if (q.boardYearTag.isNotEmpty) {
           buffer.writeln('> *উৎস: ${q.boardYearTag}*');
+        }
+        if (_hasStemImage(q)) {
+          buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})');
         }
         buffer.writeln();
         for (final sq in q.cqSubQuestions) {

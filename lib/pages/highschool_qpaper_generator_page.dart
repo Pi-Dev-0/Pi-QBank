@@ -308,6 +308,9 @@ class _HighSchoolQPaperGeneratorPageState
 
   Future<void> _exportWord({bool open = true}) async {
     try {
+      // Word will not reliably render a remote <img>, so embed the bytes.
+      final stemImages =
+          await HighSchoolExportService.prefetchStemImages(_selectedQuestions);
       final doc = HighSchoolExportService.generateWordDoc(
         schoolName: _schoolCtrl.text,
         examName: _examCtrl.text,
@@ -316,6 +319,7 @@ class _HighSchoolQPaperGeneratorPageState
         time: _timeCtrl.text,
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
+        imageBytes: stemImages,
       );
       final file = await HighSchoolExportService.saveFile(
         content: doc,
@@ -469,6 +473,11 @@ class _HighSchoolQPaperGeneratorPageState
     final cqs  = _selectedCqs;
     final mcqs = _selectedMcqs;
 
+    // Stem images must be downloaded up front: the pdf package renders from
+    // bytes, and MultiPage.build() is synchronous so it cannot fetch there.
+    final stemImages =
+        await HighSchoolExportService.prefetchStemImages(_selectedQuestions);
+
     // Use SutonnyMJ font with Bijoy encoding conversion (proven approach)
     pw.Font? banglaFont;
     try {
@@ -543,6 +552,7 @@ class _HighSchoolQPaperGeneratorPageState
                 boldStyle: boldStyle,
                 smallStyle: smallStyle,
                 toBijoy: toBijoy,
+                stemImages: stemImages,
               ),
             );
             widgets.add(pw.SizedBox(height: 12));
@@ -629,8 +639,11 @@ class _HighSchoolQPaperGeneratorPageState
     required pw.TextStyle baseStyle,
     required pw.TextStyle boldStyle,
     required pw.TextStyle smallStyle,
-    required String Function(String) toBijoy}) {
+    required String Function(String) toBijoy,
+    Map<String, Uint8List> stemImages = const {}}) {
     final totalMark = question.totalMarks;
+    final stemBytes =
+        stemImages[HighSchoolExportService.resolveImageUrl(question.stemImageUrl)];
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -662,6 +675,17 @@ class _HighSchoolQPaperGeneratorPageState
           pw.SizedBox(height: 6),
           // Stem
           pw.Text(toBijoy('$index. ${question.stemText}'), style: baseStyle),
+          if (stemBytes != null) ...[
+            pw.SizedBox(height: 6),
+            pw.Container(
+              alignment: pw.Alignment.center,
+              child: pw.Image(
+                pw.MemoryImage(stemBytes),
+                height: 150,
+                fit: pw.BoxFit.contain,
+              ),
+            ),
+          ],
           pw.SizedBox(height: 6),
           // Sub-questions
           ...question.cqSubQuestions.map((sq) {
