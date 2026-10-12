@@ -2,7 +2,7 @@
   "action": "addQuestions",
   "questions": [
     {
-      "class": "Class 9-10",
+      "class": "Class (9-10) SSC",
       "subject": "উচ্চতর গণিত",
       "chapter_number": "1",
       "chapter_name": "সেট ও ফাংশন",
@@ -18,7 +18,7 @@
       "board_year_tag": "Dhaka Board 2023"
     },
     {
-      "class": "Class 9-10",
+      "class": "Class (9-10) SSC",
       "subject": "উচ্চতর গণিত",
       "chapter_number": "3",
       "chapter_name": "বীজগাণিতিক রাশি",
@@ -34,7 +34,7 @@
       "board_year_tag": "Rajshahi Board 2024"
     },
     {
-      "class": "Class 9-10",
+      "class": "Class (9-10) SSC",
       "subject": "উচ্চতর গণিত",
       "chapter_number": "1",
       "chapter_name": "সেট ও ফাংশন",
@@ -49,7 +49,7 @@
       "board_year_tag": "SSC Model Test"
     },
     {
-      "class": "Class 9-10",
+      "class": "Class (9-10) SSC",
       "subject": "পদার্থবিজ্ঞান",
       "chapter_number": "2",
       "chapter_name": "গতি",

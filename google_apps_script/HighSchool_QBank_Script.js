@@ -58,6 +58,94 @@ function jsonResponse(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Canonical class list (must stay in sync with the app + web uploader)
+//
+//   Class 6 | Class 7 | Class 8 | Class (9-10) SSC | Class (11-12) HSC
+//
+// Rows written before this split carry grouped labels ("Class 6-8", "Class 9-10",
+// "Class 11-12 (HSC)"). LEGACY_CLASS_ALIASES maps each canonical class to the
+// old labels that should still resolve to it, so pre-split data keeps showing up
+// instead of silently disappearing. Re-tag those rows in the sheet with a
+// specific class and the alias can be dropped.
+//
+// New uploads are normalised to a canonical label (see canonicalizeClass), so
+// ambiguous old labels are rejected on write rather than stored.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CANONICAL_CLASSES = [
+  "Class 6",
+  "Class 7",
+  "Class 8",
+  "Class (9-10) SSC",
+  "Class (11-12) HSC",
+];
+
+const LEGACY_CLASS_ALIASES = {
+  "class 6":           ["class 6-8"],
+  "class 7":           ["class 6-8"],
+  "class 8":           ["class 6-8"],
+  "class (9-10) ssc":  ["class 9-10", "class 9-10 ssc"],
+  "class (11-12) hsc": ["class 11-12 (hsc)", "class 11-12 hsc"],
+};
+
+function _norm(value) {
+  return String(value == null ? "" : value).trim().toLowerCase();
+}
+
+function _canonicalLabel(lowerKey) {
+  for (let i = 0; i < CANONICAL_CLASSES.length; i++) {
+    if (CANONICAL_CLASSES[i].toLowerCase() === lowerKey) return CANONICAL_CLASSES[i];
+  }
+  return null;
+}
+
+/**
+ * Normalise a class to its canonical label.
+ * Returns null when the value is unknown or maps to more than one class
+ * (e.g. the old grouped "Class 6-8", which cannot be split automatically).
+ */
+function canonicalizeClass(value) {
+  const v = _norm(value);
+  if (!v) return null;
+
+  const exact = _canonicalLabel(v);
+  if (exact) return exact;
+
+  // Reverse lookup: unambiguous legacy label -> canonical label.
+  let found = null;
+  for (let i = 0; i < CANONICAL_CLASSES.length; i++) {
+    const key = CANONICAL_CLASSES[i].toLowerCase();
+    const aliases = LEGACY_CLASS_ALIASES[key] || [];
+    if (aliases.indexOf(v) !== -1) {
+      if (found) return null; // ambiguous
+      found = CANONICAL_CLASSES[i];
+    }
+  }
+  return found;
+}
+
+/**
+ * Class match for reads: true when the row's class is the requested class, or a
+ * legacy label that belongs to it. Never a substring match — that is exactly what
+ * made "Class 6" and "Class 7" indistinguishable when the labels were grouped.
+ */
+function matchesClass(rowClass, filterClass) {
+  const rowNorm = _norm(rowClass);
+  const fcNorm = _norm(filterClass);
+  if (!rowNorm || !fcNorm) return false;
+  if (rowNorm === fcNorm) return true;
+  return (LEGACY_CLASS_ALIASES[fcNorm] || []).indexOf(rowNorm) !== -1;
+}
+
+/** Loose subject match — subjects are free text, so substring is acceptable. */
+function matchesSubject(rowSubject, filterSubject) {
+  const rs = _norm(rowSubject);
+  const fs = _norm(filterSubject);
+  if (!rs || !fs) return false;
+  return rs === fs || rs.indexOf(fs) !== -1;
+}
+
 function rowToObject(row) {
   const obj = {};
   HEADERS.forEach((key, idx) => {
@@ -77,7 +165,7 @@ function rowToObject(row) {
 //
 // Query parameters:
 //   action     "getQuestions" (default) | "getChapters"
-//   class      (required) e.g. "Class 9-10"
+//   class      (required) e.g. "Class (9-10) SSC"
 //   subject    (required) e.g. "Higher Math"
 //   chapters   (optional, comma-separated) e.g. "1,3,5"
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,10 +181,7 @@ function doGet(e) {
       if (!filterClass || !filterSubject) {
         return jsonResponse({ status: "ERROR", message: "Missing class or subject." });
       }
-      const chapters = getChaptersForClassSubject(
-        filterClass.toLowerCase(),
-        filterSubject.toLowerCase()
-      );
+      const chapters = getChaptersForClassSubject(filterClass, filterSubject);
       return jsonResponse({ status: "SUCCESS", data: chapters });
     }
 
@@ -123,17 +208,14 @@ function doGet(e) {
       .getRange(2, 1, lastRow - 1, HEADERS.length)
       .getValues();
 
-    const fcLower = filterClass.toLowerCase();
-    const fsLower = filterSubject.toLowerCase();
-
     const results = data
       .filter((row) => {
-        const rowClass   = String(row[1]).trim().toLowerCase();
-        const rowSubject = String(row[2]).trim().toLowerCase();
+        const rowClass   = row[1];
+        const rowSubject = row[2];
         const rowChapter = String(row[3]).trim();
 
-        const classMatch   = rowClass === fcLower || rowClass.includes(fcLower);
-        const subjectMatch = rowSubject === fsLower || rowSubject.includes(fsLower);
+        const classMatch   = matchesClass(rowClass, filterClass);
+        const subjectMatch = matchesSubject(rowSubject, filterSubject);
         const chapterMatch =
           filterChapters.length === 0 || filterChapters.includes(rowChapter);
 
@@ -159,7 +241,7 @@ function doGet(e) {
 //   "action": "addQuestions",
 //   "questions": [
 //     {
-//       "class": "Class 9-10",
+//       "class": "Class (9-10) SSC",
 //       "subject": "উচ্চতর গণিত",
 //       "chapter_number": "1",
 //       "chapter_name": "সেট ও ফাংশন",
@@ -189,9 +271,30 @@ function doPost(e) {
       return jsonResponse({ status: "ERROR", message: "No questions provided." });
     }
 
+    // Normalise each question's class to a canonical label. Legacy grouped labels
+    // ("Class 9-10", …) are migrated on upload so the sheet never accumulates
+    // rows the app cannot query. Anything unrecognised is rejected up front.
+    const invalid = [];
+    const canonicalClasses = questions.map((q, i) => {
+      const cls = String((q && q["class"]) || "").trim();
+      const canonical = canonicalizeClass(cls);
+      if (!canonical) invalid.push('#' + (i + 1) + ' ("' + cls + '")');
+      return canonical;
+    });
+    if (invalid.length > 0) {
+      return jsonResponse({
+        status: "ERROR",
+        message:
+          "Invalid class on question(s) " +
+          invalid.join(", ") +
+          ". Valid values: " +
+          CANONICAL_CLASSES.join(" | "),
+      });
+    }
+
     const sheet = getSheet();
 
-    const rows = questions.map((q) => {
+    const rows = questions.map((q, i) => {
       const subJson =
         typeof q.sub_questions_json === "string"
           ? q.sub_questions_json
@@ -199,7 +302,7 @@ function doPost(e) {
 
       return [
         q.id              || generateId(),
-        q["class"]        || "",
+        canonicalClasses[i],
         q.subject         || "",
         String(q.chapter_number || ""),
         q.chapter_name    || "",
@@ -230,7 +333,7 @@ function doPost(e) {
 // Helper: return unique chapters for a class+subject combo
 // ─────────────────────────────────────────────────────────────────────────────
 
-function getChaptersForClassSubject(fcLower, fsLower) {
+function getChaptersForClassSubject(filterClass, filterSubject) {
   const sheet   = getSheet();
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
@@ -241,11 +344,9 @@ function getChaptersForClassSubject(fcLower, fsLower) {
 
   const chaptersMap = {};
   data.forEach((row) => {
-    const rowClass   = String(row[1]).trim().toLowerCase();
-    const rowSubject = String(row[2]).trim().toLowerCase();
     if (
-      (rowClass === fcLower || rowClass.includes(fcLower)) &&
-      (rowSubject === fsLower || rowSubject.includes(fsLower))
+      matchesClass(row[1], filterClass) &&
+      matchesSubject(row[2], filterSubject)
     ) {
       const num  = String(row[3]).trim();
       const name = String(row[4]).trim();
