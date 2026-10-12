@@ -915,11 +915,22 @@
         </div>
       </div>
 
-      <!-- Upload Section -->
+      <!-- Upload & Export Section -->
       <div class="upload-section">
         <button class="upload-btn" id="uploadBtn" onclick="uploadQuestions()">
           <span>🚀</span> Upload All to Google Sheet
         </button>
+        <div style="display: flex; gap: 10px; margin-top: 14px; justify-content: center; flex-wrap: wrap;">
+          <button type="button" onclick="downloadQueueJson()" style="padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text);">
+            💾 Export JSON (.json)
+          </button>
+          <button type="button" onclick="downloadQueueWord()" style="padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; cursor: pointer; font-weight: 600; font-size: 13px; color: #2B579A;">
+            📄 Export Word (.doc)
+          </button>
+          <button type="button" onclick="downloadQueueTxt()" style="padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text);">
+            📝 Export Text (.txt)
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1420,6 +1431,87 @@
         showStatus('error', 'Network error. Check your connection and the APPS_SCRIPT_URL.');
       };
       xhr.send(payload);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Export Helpers
+    // ─────────────────────────────────────────────────────────────
+
+    function downloadFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadQueueJson() {
+      if (questionQueue.length === 0) {
+        showStatus('error', 'No questions to export. Add some first.');
+        return;
+      }
+      const data = JSON.stringify({ questions: questionQueue }, null, 2);
+      downloadFile('Pi-QBank_Questions.json', data, 'application/json');
+    }
+
+    function downloadQueueTxt() {
+      if (questionQueue.length === 0) {
+        showStatus('error', 'No questions to export. Add some first.');
+        return;
+      }
+      let txt = '==================================================\nPi-QBank Questions Export\n==================================================\n\n';
+      questionQueue.forEach((q, idx) => {
+        txt += `${idx + 1}. [${q.question_type}] ${q.class} - ${q.subject} (অধ্যায় ${q.chapter_number}: ${q.chapter_name})\n`;
+        if (q.stem_text) txt += `উদ্দীপক/প্রশ্ন: ${q.stem_text}\n`;
+        if (q.question_type === 'CQ' && Array.isArray(q.sub_questions_json)) {
+          q.sub_questions_json.forEach(sq => {
+            txt += `   (${sq.label}) ${sq.text} [${sq.mark}]\n`;
+          });
+        } else if (q.question_type === 'MCQ' && q.sub_questions_json && q.sub_questions_json.options) {
+          q.sub_questions_json.options.forEach((opt, oi) => {
+            const letter = ['ক', 'খ', 'গ', 'ঘ'][oi] || `${oi + 1}`;
+            txt += `   (${letter}) ${opt}\n`;
+          });
+          if (q.sub_questions_json.correct_ans) txt += `   সঠিক উত্তর: ${q.sub_questions_json.correct_ans}\n`;
+        }
+        txt += '\n--------------------------------------------------\n\n';
+      });
+      downloadFile('Pi-QBank_Questions.txt', txt, 'text/plain;charset=utf-8');
+    }
+
+    function downloadQueueWord() {
+      if (questionQueue.length === 0) {
+        showStatus('error', 'No questions to export. Add some first.');
+        return;
+      }
+      let html = '<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">';
+      html += '<style>body{font-family:Segoe UI,Hind Siliguri,sans-serif;line-height:1.5;padding:20px;} .q-item{margin-bottom:15px;border-bottom:1px solid #ccc;padding-bottom:10px;}</style></head><body>';
+      html += '<h2 style="text-align:center;">Pi-QBank Questions Export</h2>';
+      questionQueue.forEach((q, idx) => {
+        html += `<div class="q-item"><b>${idx + 1}. [${q.question_type}]</b> ${q.class} - ${q.subject} (অধ্যায় ${q.chapter_number}: ${q.chapter_name})<br/>`;
+        if (q.stem_text) html += `<p>${q.stem_text}</p>`;
+        if (q.question_type === 'CQ' && Array.isArray(q.sub_questions_json)) {
+          html += '<ul>';
+          q.sub_questions_json.forEach(sq => {
+            html += `<li><b>(${sq.label})</b> ${sq.text} [${sq.mark}]</li>`;
+          });
+          html += '</ul>';
+        } else if (q.question_type === 'MCQ' && q.sub_questions_json && q.sub_questions_json.options) {
+          html += '<ul>';
+          q.sub_questions_json.options.forEach((opt, oi) => {
+            const letter = ['ক', 'খ', 'গ', 'ঘ'][oi] || `${oi + 1}`;
+            html += `<li>(${letter}) ${opt}</li>`;
+          });
+          html += '</ul>';
+        }
+        html += '</div>';
+      });
+      html += '</body></html>';
+      downloadFile('Pi-QBank_Questions.doc', html, 'application/msword;charset=utf-8');
     }
   </script>
 </body>

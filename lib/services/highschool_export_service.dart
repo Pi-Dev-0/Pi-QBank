@@ -1,0 +1,767 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import '../models/highschool_question.dart';
+
+/// Service responsible for exporting High School question papers in multiple formats:
+/// - Microsoft Word (.doc with Word XML/HTML formatting)
+/// - Web / HTML (.html with print CSS)
+/// - Plain Text (.txt)
+/// - Markdown (.md)
+/// - JSON Data (.json)
+class HighSchoolExportService {
+  HighSchoolExportService._();
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 1. Plain Text Format
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static String generatePlainText({
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required List<HighSchoolQuestion> questions,
+  }) {
+    final buffer = StringBuffer();
+    final divider = '=' * 50;
+    final thinDivider = '-' * 50;
+
+    buffer.writeln(divider);
+    if (schoolName.trim().isNotEmpty) {
+      buffer.writeln(schoolName.trim());
+    }
+    if (examName.trim().isNotEmpty) {
+      buffer.writeln(examName.trim());
+    }
+    buffer.writeln(divider);
+
+    final metaLine1 = <String>[];
+    if (subject.trim().isNotEmpty) metaLine1.add('বিষয়: $subject');
+    if (className.trim().isNotEmpty) metaLine1.add('শ্রেণি: $className');
+    if (metaLine1.isNotEmpty) buffer.writeln(metaLine1.join('  |  '));
+
+    final metaLine2 = <String>[];
+    if (time.trim().isNotEmpty) metaLine2.add('সময়: $time');
+    if (totalMarks.trim().isNotEmpty) metaLine2.add('পূর্ণমান: $totalMarks');
+    if (metaLine2.isNotEmpty) buffer.writeln(metaLine2.join('  |  '));
+    buffer.writeln(thinDivider);
+    buffer.writeln();
+
+    final cqs = questions.where((q) => q.isCq).toList();
+    final mcqs = questions.where((q) => q.isMcq).toList();
+
+    // CQ Section
+    if (cqs.isNotEmpty) {
+      buffer.writeln('【 ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ) 】');
+      buffer.writeln('[নিচের উদ্দীপকগুলো পড়ে সংশ্লিষ্ট প্রশ্নের উত্তর দাও]');
+      buffer.writeln();
+
+      for (int i = 0; i < cqs.length; i++) {
+        final q = cqs[i];
+        final index = i + 1;
+        buffer.writeln('$index. ${q.stemText.trim()}');
+        if (q.boardYearTag.isNotEmpty) {
+          buffer.writeln('   [উৎস: ${q.boardYearTag}]');
+        }
+
+        for (final sq in q.cqSubQuestions) {
+          final markStr = sq.mark > 0 ? ' [${sq.mark}]' : '';
+          buffer.writeln('   (${sq.label}) ${sq.text}$markStr');
+        }
+        buffer.writeln();
+      }
+    }
+
+    // MCQ Section
+    if (mcqs.isNotEmpty) {
+      buffer.writeln(thinDivider);
+      buffer.writeln('【 খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ) 】');
+      buffer.writeln('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]');
+      buffer.writeln();
+
+      const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+      for (int i = 0; i < mcqs.length; i++) {
+        final q = mcqs[i];
+        final mcq = q.mcqData;
+        final index = i + 1;
+        if (mcq == null) continue;
+
+        buffer.writeln('$index. ${mcq.text.trim()}');
+        final options = mcq.options;
+        for (int optIdx = 0; optIdx < options.length; optIdx++) {
+          final letter = optIdx < bengaliLetters.length
+              ? bengaliLetters[optIdx]
+              : '${optIdx + 1}';
+          buffer.writeln('   ($letter) ${options[optIdx]}');
+        }
+        buffer.writeln();
+      }
+    }
+
+    buffer.writeln(divider);
+    buffer.writeln('জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে');
+    return buffer.toString();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2. Microsoft Word Document (.doc via Word-HTML format)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static String generateWordDoc({
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required List<HighSchoolQuestion> questions,
+  }) {
+    final cqs = questions.where((q) => q.isCq).toList();
+    final mcqs = questions.where((q) => q.isMcq).toList();
+
+    final buffer = StringBuffer();
+    buffer.write('''
+<html xmlns:o='urn:schemas-microsoft-com:office:office'
+      xmlns:w='urn:schemas-microsoft-com:office:word'
+      xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset='utf-8'>
+  <title>${_escapeXml(examName.isEmpty ? 'Question Paper' : examName)}</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>100</w:Zoom>
+      <w:DoNotOptimizeForBrowser/>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
+  <style>
+    @page Section1 {
+      size: 595.45pt 841.9pt; /* A4 */
+      margin: 1.0in 0.8in 1.0in 0.8in;
+      mso-header-margin: 36.0pt;
+      mso-footer-margin: 36.0pt;
+      mso-paper-source: 0;
+    }
+    div.Section1 { page: Section1; }
+    body {
+      font-family: 'Kalpurush', 'SolaimanLipi', 'Nirmala UI', 'Vrinda', 'Times New Roman', serif;
+      font-size: 11pt;
+      line-height: 1.45;
+      color: #000000;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 8pt;
+      border-bottom: 2pt solid #000000;
+      padding-bottom: 6pt;
+    }
+    .school-title {
+      font-size: 18pt;
+      font-weight: bold;
+      text-align: center;
+      margin: 0 0 4pt 0;
+    }
+    .exam-title {
+      font-size: 14pt;
+      font-weight: bold;
+      text-align: center;
+      margin: 0 0 6pt 0;
+    }
+    .meta-row {
+      font-size: 11pt;
+      font-weight: bold;
+    }
+    .section-title {
+      font-size: 13pt;
+      font-weight: bold;
+      text-align: center;
+      background-color: #f0f0f0;
+      padding: 4pt;
+      margin: 12pt 0 8pt 0;
+      border: 1pt solid #cccccc;
+    }
+    .cq-box {
+      margin-bottom: 12pt;
+      page-break-inside: avoid;
+    }
+    .cq-stem {
+      font-size: 11pt;
+      margin-bottom: 4pt;
+    }
+    .cq-sub-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-left: 12pt;
+    }
+    .cq-sub-label {
+      width: 25pt;
+      font-weight: bold;
+      vertical-align: top;
+    }
+    .cq-sub-text {
+      vertical-align: top;
+    }
+    .cq-sub-mark {
+      width: 40pt;
+      text-align: right;
+      font-weight: bold;
+      vertical-align: top;
+    }
+    .mcq-container {
+      margin-bottom: 8pt;
+      page-break-inside: avoid;
+    }
+    .mcq-question {
+      font-weight: 500;
+      margin-bottom: 3pt;
+    }
+    .mcq-options-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-left: 10pt;
+    }
+    .mcq-opt-cell {
+      width: 50%;
+      padding: 2pt 4pt;
+      vertical-align: top;
+    }
+    .footer-note {
+      margin-top: 20pt;
+      border-top: 1pt dashed #888888;
+      font-size: 9pt;
+      color: #666666;
+      text-align: center;
+      padding-top: 6pt;
+    }
+  </style>
+</head>
+<body>
+<div class="Section1">
+  <div class="header-table">
+    ${schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
+    ${examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
+    <table style="width:100%; border:none; margin-top:4pt;">
+      <tr class="meta-row">
+        <td style="text-align:left;">বিষয়: ${_escapeXml(subject)}</td>
+        <td style="text-align:center;">শ্রেণি: ${_escapeXml(className)}</td>
+        <td style="text-align:right;">সময়: ${_escapeXml(time)} | পূর্ণমান: ${_escapeXml(totalMarks)}</td>
+      </tr>
+    </table>
+  </div>
+''');
+
+    // CQ Section
+    if (cqs.isNotEmpty) {
+      buffer.write('''
+  <div class="section-title">ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)</div>
+  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[যেকোনো নির্ধারিত সংখ্যক প্রশ্নের উত্তর দাও]</div>
+''');
+
+      for (int i = 0; i < cqs.length; i++) {
+        final q = cqs[i];
+        final index = i + 1;
+        buffer.write('''
+  <div class="cq-box">
+    <div class="cq-stem">
+      <b>$index.</b> ${_escapeXml(q.stemText)}
+      ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
+    </div>
+    <table class="cq-sub-table">
+''');
+        for (final sq in q.cqSubQuestions) {
+          buffer.write('''
+      <tr>
+        <td class="cq-sub-label">(${_escapeXml(sq.label)})</td>
+        <td class="cq-sub-text">${_escapeXml(sq.text)}</td>
+        <td class="cq-sub-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</td>
+      </tr>
+''');
+        }
+        buffer.write('''
+    </table>
+  </div>
+''');
+      }
+    }
+
+    // MCQ Section
+    if (mcqs.isNotEmpty) {
+      buffer.write('''
+  <div class="section-title">খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)</div>
+  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]</div>
+''');
+
+      const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+      for (int i = 0; i < mcqs.length; i++) {
+        final q = mcqs[i];
+        final mcq = q.mcqData;
+        final index = i + 1;
+        if (mcq == null) continue;
+
+        buffer.write('''
+  <div class="mcq-container">
+    <div class="mcq-question"><b>$index.</b> ${_escapeXml(mcq.text)}</div>
+    <table class="mcq-options-table">
+''');
+        final options = mcq.options;
+        for (int opt = 0; opt < options.length; opt += 2) {
+          final l1 = opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
+          final o1 = options[opt];
+          final has2 = opt + 1 < options.length;
+          final l2 = has2 && (opt + 1) < bengaliLetters.length ? bengaliLetters[opt + 1] : '${opt + 2}';
+          final o2 = has2 ? options[opt + 1] : '';
+
+          buffer.write('''
+      <tr>
+        <td class="mcq-opt-cell">($l1) ${_escapeXml(o1)}</td>
+        <td class="mcq-opt-cell">${has2 ? '($l2) ${_escapeXml(o2)}' : ''}</td>
+      </tr>
+''');
+        }
+        buffer.write('''
+    </table>
+  </div>
+''');
+      }
+    }
+
+    buffer.write('''
+  <div class="footer-note">জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে</div>
+</div>
+</body>
+</html>
+''');
+    return buffer.toString();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 3. Web / HTML Format (Print-optimized, responsive)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static String generateHtml({
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required List<HighSchoolQuestion> questions,
+  }) {
+    final cqs = questions.where((q) => q.isCq).toList();
+    final mcqs = questions.where((q) => q.isMcq).toList();
+
+    final buffer = StringBuffer();
+    buffer.write('''
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${_escapeXml(examName.isEmpty ? 'Question Paper' : examName)} - Pi-QBank</title>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --text: #1e293b;
+      --border: #cbd5e1;
+      --bg: #f8fafc;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Hind Siliguri', 'SolaimanLipi', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 24px;
+    }
+    .no-print-toolbar {
+      max-width: 820px;
+      margin: 0 auto 20px auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 14px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: #4338ca; }
+    .btn-outline { background: white; border: 1px solid #cbd5e1; color: var(--text); }
+    .btn-outline:hover { background: #f1f5f9; }
+
+    .paper-sheet {
+      max-width: 820px;
+      margin: 0 auto;
+      background: white;
+      padding: 48px;
+      border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .school-title { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+    .exam-title { font-size: 18px; font-weight: 600; text-align: center; margin-bottom: 12px; }
+    .meta-bar {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      padding: 10px 0;
+      border-top: 1.5px solid var(--text);
+      border-bottom: 1.5px solid var(--text);
+      margin-bottom: 24px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .section-banner {
+      text-align: center;
+      font-size: 16px;
+      font-weight: 700;
+      background: #f1f5f9;
+      padding: 6px 12px;
+      border-radius: 6px;
+      margin: 24px 0 16px 0;
+      border: 1px solid #e2e8f0;
+    }
+    .cq-card {
+      margin-bottom: 20px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      page-break-inside: avoid;
+    }
+    .cq-stem { font-size: 15px; margin-bottom: 12px; }
+    .cq-sub-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 14px;
+      padding-left: 12px;
+    }
+    .cq-mark { font-weight: 700; min-width: 30px; text-align: right; }
+    .mcq-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .mcq-card {
+      padding: 12px;
+      border-bottom: 1px dashed var(--border);
+      page-break-inside: avoid;
+    }
+    .mcq-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+      margin-top: 6px;
+      padding-left: 16px;
+      font-size: 14px;
+    }
+    .footer-watermark {
+      margin-top: 32px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 12px;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .no-print-toolbar { display: none !important; }
+      .paper-sheet { box-shadow: none; border-radius: 0; padding: 20px 24px; max-width: 100%; }
+      .cq-card { border: 1px solid #999; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print-toolbar">
+    <div><b>Pi-QBank</b> প্রশ্নপত্র প্রিভিউ</div>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-primary" onclick="window.print()">🖨️ প্রিন্ট / PDF সংরক্ষণ</button>
+    </div>
+  </div>
+
+  <div class="paper-sheet">
+    ${schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
+    ${examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
+    
+    <div class="meta-bar">
+      <div>বিষয়: ${_escapeXml(subject)}</div>
+      <div>শ্রেণি: ${_escapeXml(className)}</div>
+      <div>সময়: ${_escapeXml(time)}</div>
+      <div>পূর্ণমান: ${_escapeXml(totalMarks)}</div>
+    </div>
+''');
+
+    if (cqs.isNotEmpty) {
+      buffer.write('''
+    <div class="section-banner">ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)</div>
+''');
+      for (int i = 0; i < cqs.length; i++) {
+        final q = cqs[i];
+        final index = i + 1;
+        buffer.write('''
+    <div class="cq-card">
+      <div class="cq-stem">
+        <b>$index.</b> ${_escapeXml(q.stemText)}
+        ${q.boardYearTag.isNotEmpty ? '<small style="color:#64748b;"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
+      </div>
+''');
+        for (final sq in q.cqSubQuestions) {
+          buffer.write('''
+      <div class="cq-sub-item">
+        <div><b>(${_escapeXml(sq.label)})</b> ${_escapeXml(sq.text)}</div>
+        <div class="cq-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</div>
+      </div>
+''');
+        }
+        buffer.write('''
+    </div>
+''');
+      }
+    }
+
+    if (mcqs.isNotEmpty) {
+      buffer.write('''
+    <div class="section-banner">খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)</div>
+    <div class="mcq-grid">
+''');
+      const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+      for (int i = 0; i < mcqs.length; i++) {
+        final q = mcqs[i];
+        final mcq = q.mcqData;
+        final index = i + 1;
+        if (mcq == null) continue;
+
+        buffer.write('''
+      <div class="mcq-card">
+        <div><b>$index.</b> ${_escapeXml(mcq.text)}</div>
+        <div class="mcq-options">
+''');
+        final options = mcq.options;
+        for (int opt = 0; opt < options.length; opt++) {
+          final l = opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
+          buffer.write('''
+          <div>($l) ${_escapeXml(options[opt])}</div>
+''');
+        }
+        buffer.write('''
+        </div>
+      </div>
+''');
+      }
+      buffer.write('''
+    </div>
+''');
+    }
+
+    buffer.write('''
+    <div class="footer-watermark">জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে</div>
+  </div>
+</body>
+</html>
+''');
+    return buffer.toString();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 4. Markdown Format (.md)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static String generateMarkdown({
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required List<HighSchoolQuestion> questions,
+  }) {
+    final buffer = StringBuffer();
+    if (schoolName.trim().isNotEmpty) {
+      buffer.writeln('# ${schoolName.trim()}\n');
+    }
+    if (examName.trim().isNotEmpty) {
+      buffer.writeln('## ${examName.trim()}\n');
+    }
+
+    buffer.writeln('**বিষয়:** $subject | **শ্রেণি:** $className | **সময়:** $time | **পূর্ণমান:** $totalMarks\n');
+    buffer.writeln('---\n');
+
+    final cqs = questions.where((q) => q.isCq).toList();
+    final mcqs = questions.where((q) => q.isMcq).toList();
+
+    if (cqs.isNotEmpty) {
+      buffer.writeln('### ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)\n');
+      for (int i = 0; i < cqs.length; i++) {
+        final q = cqs[i];
+        final index = i + 1;
+        buffer.writeln('**$index.** ${q.stemText.trim()}');
+        if (q.boardYearTag.isNotEmpty) {
+          buffer.writeln('> *উৎস: ${q.boardYearTag}*');
+        }
+        buffer.writeln();
+        for (final sq in q.cqSubQuestions) {
+          buffer.writeln('- **(${sq.label})** ${sq.text} `[${sq.mark}]`');
+        }
+        buffer.writeln();
+      }
+    }
+
+    if (mcqs.isNotEmpty) {
+      buffer.writeln('---\n');
+      buffer.writeln('### খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)\n');
+      const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+      for (int i = 0; i < mcqs.length; i++) {
+        final q = mcqs[i];
+        final mcq = q.mcqData;
+        final index = i + 1;
+        if (mcq == null) continue;
+
+        buffer.writeln('**$index.** ${mcq.text.trim()}');
+        for (int opt = 0; opt < mcq.options.length; opt++) {
+          final l = opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
+          buffer.writeln('- ($l) ${mcq.options[opt]}');
+        }
+        buffer.writeln();
+      }
+    }
+
+    buffer.writeln('\n*জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে*');
+    return buffer.toString();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 5. JSON Format (.json)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static String generateJson({
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required List<HighSchoolQuestion> questions,
+  }) {
+    final data = {
+      'exam_info': {
+        'school_name': schoolName,
+        'exam_name': examName,
+        'subject': subject,
+        'class': className,
+        'time': time,
+        'total_marks': totalMarks,
+        'generated_at': DateTime.now().toIso8601String(),
+        'platform': 'Pi-QBank',
+      },
+      'questions': questions.map((q) => q.toJson()).toList(),
+    };
+    return const JsonEncoder.withIndent('  ').convert(data);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // File I/O & Sharing Helpers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static Future<File> saveFile({
+    required String content,
+    required String fileName,
+    List<int>? bytes,
+  }) async {
+    final tempDir = await getTemporaryDirectory();
+    final sanitizedName = fileName.replaceAll(RegExp(r'[^\w\.-]'), '_');
+    final file = File('${tempDir.path}/$sanitizedName');
+    if (bytes != null) {
+      await file.writeAsBytes(bytes);
+    } else {
+      await file.writeAsString(content, encoding: utf8);
+    }
+    return file;
+  }
+
+  static Future<void> openExportedFile(BuildContext context, File file) async {
+    try {
+      final result = await OpenFile.open(file.path);
+      if (result.type != ResultType.done && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ফাইলটি সরাসরি ওপেন করা যায়নি: ${result.message}'),
+            backgroundColor: Colors.amber.shade800,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ত্রুটি: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  static Future<void> shareExportedFile(File file, {String? text}) async {
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      text: text ?? 'Pi-QBank Question Paper',
+    );
+  }
+
+  static void copyToClipboard(
+    BuildContext context,
+    String text, {
+    String message = 'প্রশ্নপত্রের টেক্সট সফলভাবে কপি করা হয়েছে!',
+  }) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: const Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  static String _escapeXml(String input) {
+    return input
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+  }
+}

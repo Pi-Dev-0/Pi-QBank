@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 
 import '../models/highschool_question.dart';
 import '../services/highschool_qbank_service.dart';
+import '../services/highschool_export_service.dart';
 import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
 import '../bijoy_helper/bijoy_helper.dart' as bh;
@@ -248,8 +249,14 @@ class _HighSchoolQPaperGeneratorPageState
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Step 3 — PDF generation
+  // Step 3 — Multi-format generation & export
   // ─────────────────────────────────────────────────────────────────────────
+
+  String _getBaseFileName() {
+    final sub = _subjectCtrl.text.trim().isNotEmpty ? _subjectCtrl.text.trim() : 'QuestionPaper';
+    final exam = _examCtrl.text.trim().isNotEmpty ? '_${_examCtrl.text.trim()}' : '';
+    return '$sub$exam'.replaceAll(RegExp(r'[^\w\u0980-\u09FF-]'), '_');
+  }
 
   Future<void> _generateAndPreviewPdf() async {
     setState(() => _generating = true);
@@ -262,6 +269,185 @@ class _HighSchoolQPaperGeneratorPageState
     } finally {
       if (mounted) setState(() => _generating = false);
     }
+  }
+
+  Future<void> _sharePdfFile() async {
+    setState(() => _generating = true);
+    try {
+      final pdfBytes = await _buildPdf();
+      final file = await HighSchoolExportService.saveFile(
+        content: '',
+        fileName: '${_getBaseFileName()}.pdf',
+        bytes: pdfBytes,
+      );
+      if (!mounted) return;
+      await HighSchoolExportService.shareExportedFile(
+        file,
+        text: '${_examCtrl.text.trim().isNotEmpty ? _examCtrl.text : "Question Paper"} - PDF Document',
+      );
+    } catch (e) {
+      _showError('PDF শেয়ার করতে ব্যর্থ: $e');
+    } finally {
+      if (mounted) setState(() => _generating = false);
+    }
+  }
+
+  Future<void> _exportWord({bool open = true}) async {
+    try {
+      final doc = HighSchoolExportService.generateWordDoc(
+        schoolName: _schoolCtrl.text,
+        examName: _examCtrl.text,
+        subject: _subjectCtrl.text,
+        className: _classCtrl.text,
+        time: _timeCtrl.text,
+        totalMarks: _marksCtrl.text,
+        questions: _selectedQuestions,
+      );
+      final file = await HighSchoolExportService.saveFile(
+        content: doc,
+        fileName: '${_getBaseFileName()}.doc',
+      );
+      if (!mounted) return;
+      if (open) {
+        await HighSchoolExportService.openExportedFile(context, file);
+      } else {
+        await HighSchoolExportService.shareExportedFile(
+          file,
+          text: '${_examCtrl.text} - Word Document',
+        );
+      }
+    } catch (e) {
+      _showError('Word ফাইল তৈরি করতে সমস্যা: $e');
+    }
+  }
+
+  Future<void> _exportHtml({bool open = true}) async {
+    try {
+      final html = HighSchoolExportService.generateHtml(
+        schoolName: _schoolCtrl.text,
+        examName: _examCtrl.text,
+        subject: _subjectCtrl.text,
+        className: _classCtrl.text,
+        time: _timeCtrl.text,
+        totalMarks: _marksCtrl.text,
+        questions: _selectedQuestions,
+      );
+      final file = await HighSchoolExportService.saveFile(
+        content: html,
+        fileName: '${_getBaseFileName()}.html',
+      );
+      if (!mounted) return;
+      if (open) {
+        await HighSchoolExportService.openExportedFile(context, file);
+      } else {
+        await HighSchoolExportService.shareExportedFile(
+          file,
+          text: '${_examCtrl.text} - HTML Web Page',
+        );
+      }
+    } catch (e) {
+      _showError('HTML ফাইল তৈরি করতে সমস্যা: $e');
+    }
+  }
+
+  Future<void> _exportText({bool open = true}) async {
+    try {
+      final text = HighSchoolExportService.generatePlainText(
+        schoolName: _schoolCtrl.text,
+        examName: _examCtrl.text,
+        subject: _subjectCtrl.text,
+        className: _classCtrl.text,
+        time: _timeCtrl.text,
+        totalMarks: _marksCtrl.text,
+        questions: _selectedQuestions,
+      );
+      final file = await HighSchoolExportService.saveFile(
+        content: text,
+        fileName: '${_getBaseFileName()}.txt',
+      );
+      if (!mounted) return;
+      if (open) {
+        await HighSchoolExportService.openExportedFile(context, file);
+      } else {
+        await HighSchoolExportService.shareExportedFile(
+          file,
+          text: '${_examCtrl.text} - Plain Text',
+        );
+      }
+    } catch (e) {
+      _showError('টেক্সট ফাইল তৈরি করতে সমস্যা: $e');
+    }
+  }
+
+  Future<void> _exportMarkdown({bool open = true}) async {
+    try {
+      final md = HighSchoolExportService.generateMarkdown(
+        schoolName: _schoolCtrl.text,
+        examName: _examCtrl.text,
+        subject: _subjectCtrl.text,
+        className: _classCtrl.text,
+        time: _timeCtrl.text,
+        totalMarks: _marksCtrl.text,
+        questions: _selectedQuestions,
+      );
+      final file = await HighSchoolExportService.saveFile(
+        content: md,
+        fileName: '${_getBaseFileName()}.md',
+      );
+      if (!mounted) return;
+      if (open) {
+        await HighSchoolExportService.openExportedFile(context, file);
+      } else {
+        await HighSchoolExportService.shareExportedFile(
+          file,
+          text: '${_examCtrl.text} - Markdown Document',
+        );
+      }
+    } catch (e) {
+      _showError('Markdown ফাইল তৈরি করতে সমস্যা: $e');
+    }
+  }
+
+  Future<void> _exportJson({bool open = true}) async {
+    try {
+      final json = HighSchoolExportService.generateJson(
+        schoolName: _schoolCtrl.text,
+        examName: _examCtrl.text,
+        subject: _subjectCtrl.text,
+        className: _classCtrl.text,
+        time: _timeCtrl.text,
+        totalMarks: _marksCtrl.text,
+        questions: _selectedQuestions,
+      );
+      final file = await HighSchoolExportService.saveFile(
+        content: json,
+        fileName: '${_getBaseFileName()}.json',
+      );
+      if (!mounted) return;
+      if (open) {
+        await HighSchoolExportService.openExportedFile(context, file);
+      } else {
+        await HighSchoolExportService.shareExportedFile(
+          file,
+          text: '${_examCtrl.text} - JSON Data',
+        );
+      }
+    } catch (e) {
+      _showError('JSON ফাইল তৈরি করতে সমস্যা: $e');
+    }
+  }
+
+  void _copyAllText() {
+    final text = HighSchoolExportService.generatePlainText(
+      schoolName: _schoolCtrl.text,
+      examName: _examCtrl.text,
+      subject: _subjectCtrl.text,
+      className: _classCtrl.text,
+      time: _timeCtrl.text,
+      totalMarks: _marksCtrl.text,
+      questions: _selectedQuestions,
+    );
+    HighSchoolExportService.copyToClipboard(context, text);
   }
 
   Future<Uint8List> _buildPdf() async {
@@ -1045,7 +1231,7 @@ class _HighSchoolQPaperGeneratorPageState
           _buildTextField(ctrl: _marksCtrl, label: 'পূর্ণমান', icon: Icons.stars_rounded, keyboardType: TextInputType.number),
           const SizedBox(height: 28),
 
-          // Generate PDF button
+          // Primary Action: PDF View & Download
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -1066,21 +1252,142 @@ class _HighSchoolQPaperGeneratorPageState
           ),
           const SizedBox(height: 12),
 
-          // Print button
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.print_rounded),
-              label: const Text('প্রিন্ট করুন', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _kPrimary,
-                side: const BorderSide(color: _kPrimary, width: 1.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          // Secondary Row: Quick Print & Share PDF
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.print_rounded, size: 20),
+                    label: const Text('প্রিন্ট করুন', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _kPrimary,
+                      side: const BorderSide(color: _kPrimary, width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: _generating ? null : _generateAndPreviewPdf,
+                  ),
+                ),
               ),
-              onPressed: _generating ? null : _generateAndPreviewPdf,
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.share_rounded, size: 20),
+                    label: const Text('PDF শেয়ার', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0284C7),
+                      side: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: _generating ? null : _sharePdfFile,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+
+          // ── Multi-Format Export Section ──────────────────────────────────
+          _SectionHeader(icon: Icons.file_download_rounded, label: 'অন্যান্য ফরম্যাটে এক্সপোর্ট ও সংরক্ষণ'),
+          const SizedBox(height: 6),
+          const Text(
+            'পিডিএফ ছাড়াও ওয়ার্ড এডিটর, ব্রাউজার বা মেসেজিং অ্যাপের জন্য যেকোনো ফরম্যাটে প্রশ্নপত্র সংরক্ষণ ও শেয়ার করুন:',
+            style: TextStyle(fontSize: 13, color: _kSubText),
+          ),
+          const SizedBox(height: 16),
+
+          // Copy All Text Banner
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFA7F3D0)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.copy_all_rounded, color: Color(0xFF059669), size: 24),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'সম্পূর্ণ প্রশ্নপত্রের টেক্সট কপি করুন (WhatsApp / Messenger / Notepad)',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF065F46)),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: _copyAllText,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('কপি', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: 16),
+
+          // Format Cards
+          _ExportFormatCard(
+            icon: Icons.article_rounded,
+            accentColor: const Color(0xFF2B579A),
+            title: 'Microsoft Word (.doc)',
+            badge: 'এডিটেবল ওয়ার্ড ফাইল',
+            description: 'কম্পিউটার বা ফোনে MS Word/WPS/Docs এ প্রশ্ন এডিট ও প্রিন্ট করার জন্য।',
+            onOpen: () => _exportWord(open: true),
+            onShare: () => _exportWord(open: false),
+          ),
+          const SizedBox(height: 10),
+
+          _ExportFormatCard(
+            icon: Icons.language_rounded,
+            accentColor: const Color(0xFFEA580C),
+            title: 'Web Page (.html)',
+            badge: 'ব্রাউজার ও প্রিন্ট উপযোগী',
+            description: 'যেকোনো ব্রাউজারে ওপেন করুন এবং কীবোর্ডে Ctrl+P চেপে সুন্দরভাবে প্রিন্ট করুন।',
+            onOpen: () => _exportHtml(open: true),
+            onShare: () => _exportHtml(open: false),
+          ),
+          const SizedBox(height: 10),
+
+          _ExportFormatCard(
+            icon: Icons.text_snippet_rounded,
+            accentColor: const Color(0xFF475569),
+            title: 'Plain Text (.txt)',
+            badge: 'নোটপ্যাড বা হালকা ফাইল',
+            description: 'সব ডিভাইসে কোনো ফরম্যাটিং ঝামেলা ছাড়াই সাধারণ টেক্সট হিসেবে পড়ার জন্য।',
+            onOpen: () => _exportText(open: true),
+            onShare: () => _exportText(open: false),
+          ),
+          const SizedBox(height: 10),
+
+          _ExportFormatCard(
+            icon: Icons.code_rounded,
+            accentColor: const Color(0xFF7C3AED),
+            title: 'Markdown (.md)',
+            badge: 'নোশন ও ডিজিটাল নোট',
+            description: 'Notion, Obsidian, GitHub বা অন্যান্য মার্কডাউন নোট অ্যাপে সংরক্ষণের জন্য।',
+            onOpen: () => _exportMarkdown(open: true),
+            onShare: () => _exportMarkdown(open: false),
+          ),
+          const SizedBox(height: 10),
+
+          _ExportFormatCard(
+            icon: Icons.data_object_rounded,
+            accentColor: const Color(0xFF059669),
+            title: 'JSON Data (.json)',
+            badge: 'ডিজিটাল ব্যাকআপ',
+            description: 'প্রশ্নের ডেটাবেজ ব্যাকআপ ও ডিজিটাল আদান-প্রদানের জন্য সম্পূর্ণ স্ট্রাকচার্ড ডেটা।',
+            onOpen: () => _exportJson(open: true),
+            onShare: () => _exportJson(open: false),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -1281,3 +1588,133 @@ class _CountBadge extends StatelessWidget {
     child: Text('$label: $selected/$total', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
   );
 }
+
+class _ExportFormatCard extends StatelessWidget {
+  final IconData icon;
+  final Color accentColor;
+  final String title;
+  final String badge;
+  final String description;
+  final VoidCallback onOpen;
+  final VoidCallback onShare;
+
+  const _ExportFormatCard({
+    required this.icon,
+    required this.accentColor,
+    required this.title,
+    required this.badge,
+    required this.description,
+    required this.onOpen,
+    required this.onShare,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accentColor, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: _kDarkText,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        badge,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: const TextStyle(fontSize: 12, color: _kSubText),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 38,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.folder_open_rounded, size: 16),
+                    label: const Text('ওপেন করুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: onOpen,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 38,
+                  child: OutlinedButton.icon(
+                    icon: Icon(Icons.share_rounded, size: 16, color: accentColor),
+                    label: Text('শেয়ার', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: accentColor)),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: accentColor.withOpacity(0.5)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: onShare,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
