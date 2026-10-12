@@ -77,6 +77,8 @@ class AppConfig {
       String.fromEnvironment('NU_ISLAMIC_STUDIES_API');
   static const String adApi = String.fromEnvironment('AD_API');
   static const String adSecret = String.fromEnvironment('AD_SECRET');
+  static const String highSchoolQBankApi =
+      String.fromEnvironment('HS_QBANK_API', defaultValue: '');
 
   // Add more configuration values as needed
 

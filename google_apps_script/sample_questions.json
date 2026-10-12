@@ -1,0 +1,67 @@
+{
+  "action": "addQuestions",
+  "questions": [
+    {
+      "class": "Class 9-10",
+      "subject": "উচ্চতর গণিত",
+      "chapter_number": "1",
+      "chapter_name": "সেট ও ফাংশন",
+      "question_type": "CQ",
+      "stem_text": "মনে করো, U = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, A = {x : x একটি মৌলিক সংখ্যা এবং x ≤ 10}, B = {x : x, 4 এর গুণিতক এবং x ≤ 10}।",
+      "stem_image_url": "",
+      "sub_questions_json": [
+        { "label": "ক", "mark": 1, "text": "A ∩ B নির্ণয় করো।" },
+        { "label": "খ", "mark": 2, "text": "A ∪ B নির্ণয় করো এবং ভেনচিত্রে প্রকাশ করো।" },
+        { "label": "গ", "mark": 3, "text": "প্রমাণ করো যে, (A ∪ B)' = A' ∩ B' (ডি মর্গান-এর সূত্র)।" },
+        { "label": "ঘ", "mark": 4, "text": "A এবং B এর মধ্যে কোনো উপসেট সম্পর্ক আছে কিনা বিশ্লেষণ করো।" }
+      ],
+      "board_year_tag": "Dhaka Board 2023"
+    },
+    {
+      "class": "Class 9-10",
+      "subject": "উচ্চতর গণিত",
+      "chapter_number": "3",
+      "chapter_name": "বীজগাণিতিক রাশি",
+      "question_type": "CQ",
+      "stem_text": "f(x) = x³ − 6x² + 11x − 6 একটি বহুপদী রাশি।",
+      "stem_image_url": "https://drive.google.com/uc?id=EXAMPLE_IMAGE_ID",
+      "sub_questions_json": [
+        { "label": "ক", "mark": 1, "text": "f(1) এর মান নির্ণয় করো।" },
+        { "label": "খ", "mark": 2, "text": "f(x) কে (x − 1) দিয়ে ভাগ করো এবং ভাগফল ও ভাগশেষ নির্ণয় করো।" },
+        { "label": "গ", "mark": 3, "text": "f(x) = 0 সমীকরণের মূলগুলো নির্ণয় করো।" },
+        { "label": "ঘ", "mark": 4, "text": "প্রমাণ করো যে মূলগুলোর যোগফল, দুই দুইটি মূলের গুণফলের সমষ্টি এবং তিনটি মূলের গুণফল মধ্যে ভিয়েটা-র সূত্র প্রযোজ্য।" }
+      ],
+      "board_year_tag": "Rajshahi Board 2024"
+    },
+    {
+      "class": "Class 9-10",
+      "subject": "উচ্চতর গণিত",
+      "chapter_number": "1",
+      "chapter_name": "সেট ও ফাংশন",
+      "question_type": "MCQ",
+      "stem_text": "",
+      "stem_image_url": "",
+      "sub_questions_json": {
+        "text": "যদি A = {1, 2, 3} এবং B = {3, 4, 5} হয়, তাহলে A ∩ B = কত?",
+        "options": ["{1, 2, 3, 4, 5}", "{3}", "{1, 2}", "{4, 5}"],
+        "correct_ans": "{3}"
+      },
+      "board_year_tag": "SSC Model Test"
+    },
+    {
+      "class": "Class 9-10",
+      "subject": "পদার্থবিজ্ঞান",
+      "chapter_number": "2",
+      "chapter_name": "গতি",
+      "question_type": "MCQ",
+      "stem_text": "",
+      "stem_image_url": "",
+      "sub_questions_json": {
+        "text": "একটি বস্তু 10 m/s বেগে চলছে এবং 2 m/s² ত্বরণে ত্বরান্বিত হচ্ছে। 5 সেকেন্ড পরে বস্তুর বেগ কত হবে?",
+        "options": ["15 m/s", "20 m/s", "25 m/s", "30 m/s"],
+        "correct_ans": "20 m/s"
+      },
+      "board_year_tag": "Cumilla Board 2023"
+    }
+  ]
+}

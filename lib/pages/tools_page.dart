@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pi_qbank/pages/exam_paper_builder_page.dart';
+import 'package:pi_qbank/pages/highschool_qpaper_generator_page.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/pages/prepare_short_test_page.dart';
 import 'package:pi_qbank/pages/question_generator_page.dart';
@@ -101,6 +102,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const ExamPaperBuilderPage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.menu_book_rounded,
+        title: 'প্রশ্নপত্র তৈরি (HS)',
+        description: 'গুগল শিট থেকে প্রশ্ন এনে PDF প্রশ্নপত্র তৈরি করুন',
+        accentColor: const Color(0xFF5C35E3),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const HighSchoolQPaperGeneratorPage(),
             ),
           );
         },

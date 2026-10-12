@@ -148,6 +148,7 @@ import 'pages/notes_remainder_page.dart';
 import 'pages/hand_notes/hand_notes_page.dart';
 import 'services/adsterra_service.dart';
 import 'pages/ai_model_settings_page.dart';
+import 'pages/highschool_qpaper_generator_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -350,6 +351,10 @@ class MyApp extends StatelessWidget {
         '/ruet': (context) => const RUETPage(),
         '/kuet': (context) => const KUETPage(),
         '/duet': (context) => const DUETPage(),
+
+        // HighSchool Question Paper Generator
+        '/hs_qpaper_generator': (context) =>
+            const HighSchoolQPaperGeneratorPage(),
       },
     );
   }
