@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:pi_qbank/config/app_config.dart';
 import 'package:flutter/material.dart';
@@ -64,11 +65,17 @@ class AdsterraService {
   }
 
   static Widget showAd() {
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      return const SizedBox.shrink();
+    }
     return const _GlobalAdWidget();
   }
 
   static Future<bool> showAdDialog(BuildContext context) async {
     try {
+      if (!Platform.isAndroid && !Platform.isIOS) {
+        return true;
+      }
       await _fetchAdUrls();
 
       // Fix for use_build_context_synchronously
@@ -118,11 +125,19 @@ class _AdDialogContentState extends State<_AdDialogContent> {
   }
 
   void _initController() {
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
-      ..setUserAgent('Mozilla/5.0');
-    _loadAd();
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      if (mounted) Navigator.of(context).pop(true);
+      return;
+    }
+    try {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.white)
+        ..setUserAgent('Mozilla/5.0');
+      _loadAd();
+    } catch (_) {
+      if (mounted) Navigator.of(context).pop(true);
+    }
   }
 
   void _loadAd() {
@@ -298,36 +313,39 @@ class _GlobalAdWidgetState extends State<_GlobalAdWidget> {
   int _retryCount = 0;
 
   Future<void> _initController() async {
-    await AdsterraService._fetchAdUrls();
-    final url = AdsterraService._adUrl;
-    if (url == null) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
 
-    final controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
-      ..enableZoom(false)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onWebResourceError: (error) {
-            //debugprint to view output
-            if (_retryCount < AdsterraService._adUrls.length) {
-              _retryCount++;
-              AdsterraService._nextUrl();
-              final nextUrl = AdsterraService._adUrl;
-              if (nextUrl != null) {
-                _controller?.loadRequest(Uri.parse(nextUrl));
+    try {
+      await AdsterraService._fetchAdUrls();
+      final url = AdsterraService._adUrl;
+      if (url == null) return;
+
+      final controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0x00000000))
+        ..enableZoom(false)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onWebResourceError: (error) {
+              if (_retryCount < AdsterraService._adUrls.length) {
+                _retryCount++;
+                AdsterraService._nextUrl();
+                final nextUrl = AdsterraService._adUrl;
+                if (nextUrl != null) {
+                  _controller?.loadRequest(Uri.parse(nextUrl));
+                }
               }
-            }
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(url));
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse(url));
 
-    if (mounted) {
-      setState(() {
-        _controller = controller;
-      });
-    }
+      if (mounted) {
+        setState(() {
+          _controller = controller;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
