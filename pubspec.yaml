@@ -121,9 +121,9 @@ flutter:
     - assets/fonts/
 
   fonts:
-    - family: SuttonnyMJ
+    - family: SutonnyMJ
       fonts:
-        - asset: assets/fonts/SutonnyMJ Regular.ttf # Assuming this file will be added by the user
+        - asset: assets/fonts/SutonnyMJ Regular.ttf
 
   # Add flutter_launcher_icons configuration
 flutter_icons:

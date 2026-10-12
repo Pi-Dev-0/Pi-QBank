@@ -8,6 +8,7 @@ import '../models/highschool_question.dart';
 import '../services/highschool_qbank_service.dart';
 import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
+import '../bijoy_helper/bijoy_helper.dart' as bh;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour & design tokens
@@ -268,17 +269,17 @@ class _HighSchoolQPaperGeneratorPageState
     final cqs  = _selectedCqs;
     final mcqs = _selectedMcqs;
 
-    // Load a Bangla-compatible font from assets
-    // (SutonnyMJ is already declared in pubspec.yaml)
-    // For full Unicode Bangla we use a Google Noto font loaded from network.
-    // Fallback gracefully if unavailable.
+    // Use SutonnyMJ font with Bijoy encoding conversion (proven approach)
     pw.Font? banglaFont;
     try {
       final fontData = await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
       banglaFont = pw.Font.ttf(fontData);
     } catch (_) {
-      // Font not found – use default
+      // Font not found – PDF will show blank for Bangla text
     }
+
+    // Helper: convert Unicode Bengali to Bijoy encoding for SutonnyMJ font
+    String toBijoy(String text) => bh.unicodeToBijoy(text);
 
     final baseStyle = pw.TextStyle(
       font: banglaFont,
@@ -320,6 +321,7 @@ class _HighSchoolQPaperGeneratorPageState
           boldStyle:  boldStyle,
           headerStyle: headerStyle,
           smallStyle: smallStyle,
+          toBijoy:   toBijoy,
         ));
 
         widgets.add(pw.SizedBox(height: 12));
@@ -328,7 +330,7 @@ class _HighSchoolQPaperGeneratorPageState
 
         // ── CQ Section ─────────────────────────────────────────────────────
         if (cqs.isNotEmpty) {
-          widgets.add(pw.Text('সৃজনশীল প্রশ্নাবলি (CQ)', style: boldStyle.copyWith(fontSize: 12)));
+          widgets.add(pw.Text(toBijoy('সৃজনশীল প্রশ্নাবলি (CQ)'), style: boldStyle.copyWith(fontSize: 12)));
           widgets.add(pw.SizedBox(height: 8));
 
           for (int i = 0; i < cqs.length; i++) {
@@ -340,6 +342,7 @@ class _HighSchoolQPaperGeneratorPageState
                 baseStyle: baseStyle,
                 boldStyle: boldStyle,
                 smallStyle: smallStyle,
+                toBijoy: toBijoy,
               ),
             );
             widgets.add(pw.SizedBox(height: 12));
@@ -350,15 +353,15 @@ class _HighSchoolQPaperGeneratorPageState
         if (mcqs.isNotEmpty) {
           widgets.add(pw.Divider());
           widgets.add(pw.SizedBox(height: 6));
-          widgets.add(pw.Text('বহুনির্বাচনি প্রশ্নাবলি (MCQ)', style: boldStyle.copyWith(fontSize: 12)));
+          widgets.add(pw.Text(toBijoy('বহুনির্বাচনি প্রশ্নাবলি (MCQ)'), style: boldStyle.copyWith(fontSize: 12)));
           widgets.add(pw.SizedBox(height: 8));
 
           // MCQ in 2-column grid
           final mcqRows = <pw.Widget>[];
           for (int i = 0; i < mcqs.length; i += 2) {
-            final left  = _buildPdfMcqItem(i + 1,     mcqs[i],     baseStyle, boldStyle);
+            final left  = _buildPdfMcqItem(i + 1,     mcqs[i],     baseStyle, boldStyle, toBijoy);
             final right = (i + 1 < mcqs.length)
-              ? _buildPdfMcqItem(i + 2, mcqs[i + 1], baseStyle, boldStyle)
+              ? _buildPdfMcqItem(i + 2, mcqs[i + 1], baseStyle, boldStyle, toBijoy)
               : pw.SizedBox();
             mcqRows.add(pw.Row(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -391,28 +394,29 @@ class _HighSchoolQPaperGeneratorPageState
     required pw.TextStyle boldStyle,
     required pw.TextStyle headerStyle,
     required pw.TextStyle smallStyle,
+    required String Function(String) toBijoy,
   }) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
         if (schoolName.isNotEmpty)
-          pw.Text(schoolName, style: headerStyle.copyWith(fontSize: 16)),
+          pw.Text(toBijoy(schoolName), style: headerStyle.copyWith(fontSize: 16)),
         pw.SizedBox(height: 4),
-        pw.Text(examName, style: boldStyle.copyWith(fontSize: 13)),
+        pw.Text(toBijoy(examName), style: boldStyle.copyWith(fontSize: 13)),
         pw.SizedBox(height: 6),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text('বিষয়: $subject', style: baseStyle),
-            pw.Text('শ্রেণি: $className', style: baseStyle),
+            pw.Text(toBijoy('বিষয়: $subject'), style: baseStyle),
+            pw.Text(toBijoy('শ্রেণি: $className'), style: baseStyle),
           ],
         ),
         pw.SizedBox(height: 4),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
-            pw.Text('সময়: $time', style: baseStyle),
-            pw.Text('পূর্ণমান: $totalMarks', style: boldStyle),
+            pw.Text(toBijoy('সময়: $time'), style: baseStyle),
+            pw.Text(toBijoy('পূর্ণমান: $totalMarks'), style: boldStyle),
           ],
         ),
       ],
@@ -424,7 +428,8 @@ class _HighSchoolQPaperGeneratorPageState
     required HighSchoolQuestion question,
     required pw.TextStyle baseStyle,
     required pw.TextStyle boldStyle,
-    required pw.TextStyle smallStyle}) {
+    required pw.TextStyle smallStyle,
+    required String Function(String) toBijoy}) {
     final totalMark = question.totalMarks;
 
     return pw.Container(
@@ -449,14 +454,14 @@ class _HighSchoolQPaperGeneratorPageState
               ),
               pw.SizedBox(width: 6),
               if (question.boardYearTag.isNotEmpty)
-                pw.Text(question.boardYearTag, style: smallStyle),
+                pw.Text(toBijoy(question.boardYearTag), style: smallStyle),
               pw.Spacer(),
-              pw.Text('মোট: $totalMark নম্বর', style: smallStyle.copyWith(fontWeight: pw.FontWeight.bold)),
+              pw.Text(toBijoy('মোট: $totalMark নম্বর'), style: smallStyle.copyWith(fontWeight: pw.FontWeight.bold)),
             ],
           ),
           pw.SizedBox(height: 6),
           // Stem
-          pw.Text('$index. ${question.stemText}', style: baseStyle),
+          pw.Text(toBijoy('$index. ${question.stemText}'), style: baseStyle),
           pw.SizedBox(height: 6),
           // Sub-questions
           ...question.cqSubQuestions.map((sq) {
@@ -465,10 +470,10 @@ class _HighSchoolQPaperGeneratorPageState
               child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('${sq.label}. ', style: boldStyle),
-                  pw.Expanded(child: pw.Text(sq.text, style: baseStyle)),
+                  pw.Text(toBijoy('${sq.label}. '), style: boldStyle),
+                  pw.Expanded(child: pw.Text(toBijoy(sq.text), style: baseStyle)),
                   pw.SizedBox(width: 8),
-                  pw.Text('[${sq.mark}]', style: smallStyle),
+                  pw.Text(toBijoy('[${sq.mark}]'), style: smallStyle),
                 ],
               ),
             );
@@ -483,20 +488,21 @@ class _HighSchoolQPaperGeneratorPageState
     HighSchoolQuestion q,
     pw.TextStyle baseStyle,
     pw.TextStyle boldStyle,
+    String Function(String) toBijoy,
   ) {
     final mcq = q.mcqData;
     if (mcq == null) return pw.SizedBox();
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text('$index. ${mcq.text}', style: baseStyle),
+        pw.Text(toBijoy('$index. ${mcq.text}'), style: baseStyle),
         pw.SizedBox(height: 3),
         ...List.generate(mcq.options.length, (i) {
           final letters = ['ক', 'খ', 'গ', 'ঘ'];
           final letter = i < letters.length ? letters[i] : '${i + 1}';
           return pw.Padding(
             padding: const pw.EdgeInsets.only(left: 10, bottom: 2),
-            child: pw.Text('$letter. ${mcq.options[i]}', style: baseStyle),
+            child: pw.Text(toBijoy('$letter. ${mcq.options[i]}'), style: baseStyle),
           );
         }),
       ],
