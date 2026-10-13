@@ -61,6 +61,32 @@ class McqQuestion {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Short question (RQ) model
+//
+// A short answer question is a single prompt with a mark value: no stem, no
+// sub-questions and no options.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ShortQuestion {
+  final String text;
+  final int mark;
+
+  const ShortQuestion({
+    required this.text,
+    this.mark = 1,
+  });
+
+  factory ShortQuestion.fromJson(Map<String, dynamic> json) {
+    return ShortQuestion(
+      text: json['text'] as String? ?? '',
+      mark: (json['mark'] as num?)?.toInt() ?? 1,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'text': text, 'mark': mark};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Chapter info helper
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -96,12 +122,13 @@ class HighSchoolQuestion {
   final String subject;
   final String chapterNumber;
   final String chapterName;
-  final String questionType; // 'CQ' | 'MCQ'
+  final String questionType; // 'CQ' | 'MCQ' | 'RQ'
   final String stemText;
   final String stemImageUrl;
 
-  /// For CQ: List<CqSubQuestion>
+  /// For CQ:  List<CqSubQuestion>
   /// For MCQ: McqQuestion
+  /// For RQ:  ShortQuestion
   final dynamic subQuestionsData;
 
   final String boardYearTag;
@@ -126,6 +153,11 @@ class HighSchoolQuestion {
   bool get isCq => questionType.toUpperCase() == 'CQ';
   bool get isMcq => questionType.toUpperCase() == 'MCQ';
 
+  /// Short answer question (RQ / সংক্ষিপ্ত প্রশ্ন).
+  bool get isShort =>
+      questionType.toUpperCase() == 'RQ' ||
+      questionType.toUpperCase() == 'SHORT';
+
   /// Parsed CQ sub-questions (returns empty list for MCQ)
   List<CqSubQuestion> get cqSubQuestions {
     if (!isCq) return [];
@@ -144,10 +176,34 @@ class HighSchoolQuestion {
     return null;
   }
 
+  /// Parsed short-question data (returns null for CQ/MCQ).
+  ///
+  /// Falls back to [stemText] when the stored payload is missing, so a row
+  /// typed straight into the Sheet as `{"text": "...", "mark": 2}` — or even
+  /// just a plain string — still renders.
+  ShortQuestion? get shortData {
+    if (!isShort) return null;
+    final data = subQuestionsData;
+    if (data is ShortQuestion) return data;
+    if (data is Map) {
+      return ShortQuestion.fromJson(Map<String, dynamic>.from(data));
+    }
+    if (data is String && data.trim().isNotEmpty) {
+      return ShortQuestion(text: data);
+    }
+    if (stemText.trim().isNotEmpty) {
+      return ShortQuestion(text: stemText);
+    }
+    return null;
+  }
+
   /// Total marks for this question
   int get totalMarks {
     if (isCq) {
       return cqSubQuestions.fold(0, (sum, sq) => sum + sq.mark);
+    }
+    if (isShort) {
+      return shortData?.mark ?? 1;
     }
     return 1; // MCQ = 1 mark each
   }
@@ -177,6 +233,23 @@ class HighSchoolQuestion {
         }
       } else {
         parsed = <CqSubQuestion>[];
+      }
+    } else if (qType == 'RQ' || qType == 'SHORT') {
+      // Short answer question: { "text": "...", "mark": 2 }
+      final stem = json['stem_text'] as String? ?? '';
+      if (rawSub is Map) {
+        parsed = ShortQuestion.fromJson(Map<String, dynamic>.from(rawSub));
+      } else if (rawSub is String) {
+        try {
+          final decoded = jsonDecode(rawSub);
+          parsed = decoded is Map
+              ? ShortQuestion.fromJson(Map<String, dynamic>.from(decoded))
+              : ShortQuestion(text: rawSub);
+        } catch (_) {
+          parsed = ShortQuestion(text: stem.isNotEmpty ? stem : rawSub);
+        }
+      } else {
+        parsed = ShortQuestion(text: stem);
       }
     } else {
       // MCQ
@@ -212,6 +285,8 @@ class HighSchoolQuestion {
     dynamic subJson;
     if (isCq) {
       subJson = cqSubQuestions.map((e) => e.toJson()).toList();
+    } else if (isShort) {
+      subJson = shortData?.toJson();
     } else {
       subJson = mcqData?.toJson();
     }

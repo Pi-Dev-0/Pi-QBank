@@ -20,6 +20,7 @@ const _kPrimary = Color(0xFF5C35E3); // vibrant indigo-violet
 const _kAccent = Color(0xFF00C6AB); // teal-mint accent
 const _kCqColor = Color(0xFF3A7BF7); // blue for CQ
 const _kMcqColor = Color(0xFFE86339); // warm orange for MCQ
+const _kRqColor = Color(0xFF0E9F6E); // green for short questions (RQ)
 const _kBg = Color(0xFFF4F3FF);
 const _kCardBg = Colors.white;
 const _kDarkText = Color(0xFF1E1B3A);
@@ -114,6 +115,11 @@ class _HighSchoolQPaperGeneratorPageState
   final _classCtrl = TextEditingController();
   final _timeCtrl = TextEditingController(text: '২ ঘন্টা ৩০ মিনিট');
   final _marksCtrl = TextEditingController();
+
+  /// "যেকোনো N টি প্রশ্নের উত্তর দাও" — leave blank (or 0) to omit the note.
+  final _cqAnswerAnyCtrl = TextEditingController();
+  int get _cqAnswerCount => int.tryParse(_cqAnswerAnyCtrl.text.trim()) ?? 0;
+
   bool _generating = false;
 
   /// How stem images are sized across PDF / Word / HTML exports.
@@ -152,6 +158,7 @@ class _HighSchoolQPaperGeneratorPageState
     _classCtrl.dispose();
     _timeCtrl.dispose();
     _marksCtrl.dispose();
+    _cqAnswerAnyCtrl.dispose();
     super.dispose();
   }
 
@@ -166,8 +173,37 @@ class _HighSchoolQPaperGeneratorPageState
   List<HighSchoolQuestion> get _selectedMcqs =>
       _selectedQuestions.where((q) => q.isMcq).toList();
 
+  List<HighSchoolQuestion> get _selectedShorts =>
+      _selectedQuestions.where((q) => q.isShort).toList();
+
   int get _totalCqs => _fetchedQuestions.where((q) => q.isCq).length;
   int get _totalMcqs => _fetchedQuestions.where((q) => q.isMcq).length;
+  int get _totalShorts => _fetchedQuestions.where((q) => q.isShort).length;
+
+  /// Ids that appear more than once in the loaded questions.
+  ///
+  /// Apps Script rejects duplicate ids on upload, but the sheet can still be
+  /// edited by hand, and two rows sharing an id would otherwise share one
+  /// expand/collapse state — tapping one question would toggle another.
+  Set<String> get _duplicateIds {
+    final counts = <String, int>{};
+    for (final q in _fetchedQuestions) {
+      if (q.id.isEmpty) continue;
+      counts[q.id] = (counts[q.id] ?? 0) + 1;
+    }
+    return {
+      for (final e in counts.entries)
+        if (e.value > 1) e.key
+    };
+  }
+
+  /// Stable per-question UI key: the id when it is unique, otherwise a
+  /// composite that still identifies the row.
+  String _cardKey(HighSchoolQuestion q, int index) {
+    if (q.id.isNotEmpty && !_duplicateIds.contains(q.id)) return q.id;
+    return '~${q.className}|${q.subject}|${q.chapterNumber}|'
+        '${q.chapterName}|${q.questionType}|${q.stemText}|$index';
+  }
 
   int get _totalSelectedMarks =>
       _selectedQuestions.fold(0, (sum, q) => sum + q.totalMarks);
@@ -567,6 +603,7 @@ class _HighSchoolQPaperGeneratorPageState
     final doc = pw.Document();
     final cqs = _selectedCqs;
     final mcqs = _selectedMcqs;
+    final shorts = _selectedShorts;
 
     // Stem images must be downloaded up front: the pdf package renders from
     // bytes, and MultiPage.build() is synchronous so it cannot fetch there.
@@ -648,11 +685,17 @@ class _HighSchoolQPaperGeneratorPageState
         if (cqs.isNotEmpty) {
           widgets.add(_pdfSectionBanner(
               'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', boldStyle.copyWith(fontSize: 11)));
-          widgets.add(pw.SizedBox(height: 4));
-          widgets.add(pw.RichText(
-              text: _mixedText('[যেকোনো নির্ধারিত সংখ্যক প্রশ্নের উত্তর দাও]',
+          // Optional "answer any N questions" note.
+          final answerAny = _cqAnswerCount;
+          if (answerAny > 0) {
+            widgets.add(pw.SizedBox(height: 4));
+            widgets.add(pw.RichText(
+              text: _mixedText(
+                  '[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
                   smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
-              textAlign: pw.TextAlign.center));
+              textAlign: pw.TextAlign.center,
+            ));
+          }
           widgets.add(pw.SizedBox(height: 10));
 
           for (int i = 0; i < cqs.length; i += _cqLayout.mcqColumns) {
@@ -718,6 +761,34 @@ class _HighSchoolQPaperGeneratorPageState
             widgets.add(pw.SizedBox(height: 6));
             widgets.add(_pdfDashedLine());
             widgets.add(pw.SizedBox(height: 6));
+          }
+        }
+
+        // ── Short question section (গ-বিভাগ) ───────────────────────────────
+        if (shorts.isNotEmpty) {
+          widgets.add(pw.SizedBox(height: 16));
+          widgets.add(_pdfSectionBanner(
+              'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)', boldStyle.copyWith(fontSize: 11)));
+          widgets.add(pw.SizedBox(height: 10));
+
+          for (int i = 0; i < shorts.length; i++) {
+            final data = shorts[i].shortData;
+            if (data == null || data.text.trim().isEmpty) continue;
+            widgets.add(pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 6),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: pw.RichText(
+                        text: _mixedText('${i + 1}. ${data.text}', baseStyle)),
+                  ),
+                  pw.SizedBox(width: 12),
+                  pw.RichText(
+                      text: _mixedText('[${data.mark}]', boldStyle)),
+                ],
+              ),
+            ));
           }
         }
 
@@ -828,10 +899,9 @@ class _HighSchoolQPaperGeneratorPageState
             HighSchoolExportService.resolveImageUrl(question.stemImageUrl)]
         : null;
 
-    final tag = question.boardYearTag.trim();
-    final stemLabel = tag.isEmpty
-        ? '$index. ${question.stemText}'
-        : '$index. ${question.stemText}  [$tag]';
+    // The board/year tag is deliberately not printed — it is editorial metadata,
+    // not part of the question paper.
+    final stemLabel = '$index. ${question.stemText}';
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -1238,11 +1308,15 @@ class _HighSchoolQPaperGeneratorPageState
                 // CQ cards for this chapter
                 ...byChapter[chNum]!
                     .where((q) => q.isCq)
-                    .map((q) => _buildQuestionCard(q)),
+                    .map((q) => _buildQuestionCard(q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
                 // MCQ cards for this chapter
                 ...byChapter[chNum]!
                     .where((q) => q.isMcq)
-                    .map((q) => _buildQuestionCard(q)),
+                    .map((q) => _buildQuestionCard(q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                // Short-question cards for this chapter
+                ...byChapter[chNum]!
+                    .where((q) => q.isShort)
+                    .map((q) => _buildQuestionCard(q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
                 const SizedBox(height: 16),
               ],
             ],
@@ -1281,6 +1355,12 @@ class _HighSchoolQPaperGeneratorPageState
                     selected: _selectedMcqs.length,
                     total: _totalMcqs,
                     color: _kMcqColor),
+                if (_totalShorts > 0)
+                  _CountBadge(
+                      label: 'RQ',
+                      selected: _selectedShorts.length,
+                      total: _totalShorts,
+                      color: _kRqColor),
                 Text('মোট নম্বর: $_totalSelectedMarks',
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold)),
@@ -1305,9 +1385,18 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
-  Widget _buildQuestionCard(HighSchoolQuestion q) {
-    final isExpanded = _expandedCards[q.id] == true;
-    final typeColor = q.isCq ? _kCqColor : _kMcqColor;
+  /// One-line summary shown in the collapsed question card.
+  static String _previewText(HighSchoolQuestion q) {
+    if (q.isShort) return q.shortData?.text ?? '';
+    if (q.isCq) return q.stemText.isEmpty ? '(কোনো উদ্দীপক নেই)' : q.stemText;
+    return q.mcqData?.text ?? '';
+  }
+
+  Widget _buildQuestionCard(HighSchoolQuestion q, String cardKey) {
+    final isExpanded = _expandedCards[cardKey] == true;
+    final typeColor = q.isCq
+        ? _kCqColor
+        : (q.isShort ? _kRqColor : _kMcqColor);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -1334,7 +1423,7 @@ class _HighSchoolQPaperGeneratorPageState
           // Header row
           InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => setState(() => _expandedCards[q.id] = !isExpanded),
+            onTap: () => setState(() => _expandedCards[cardKey] = !isExpanded),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
@@ -1353,11 +1442,7 @@ class _HighSchoolQPaperGeneratorPageState
                   // Preview text
                   Expanded(
                     child: Text(
-                      q.isCq
-                          ? (q.stemText.isEmpty
-                              ? '(কোনো উদ্দীপক নেই)'
-                              : q.stemText)
-                          : (q.mcqData?.text ?? ''),
+                      _previewText(q),
                       maxLines: isExpanded ? 10 : 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 13, color: _kDarkText),
@@ -1408,6 +1493,28 @@ class _HighSchoolQPaperGeneratorPageState
   }
 
   Widget _buildExpandedDetail(HighSchoolQuestion q) {
+    if (q.isShort) {
+      final data = q.shortData;
+      return Container(
+        margin: const EdgeInsets.fromLTRB(56, 0, 12, 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.teal.shade50,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+                child: Text(data?.text ?? '',
+                    style: const TextStyle(fontSize: 13))),
+            const SizedBox(width: 8),
+            Text('[${data?.mark ?? q.totalMarks}]',
+                style: const TextStyle(color: _kSubText, fontSize: 12)),
+          ],
+        ),
+      );
+    }
     if (q.isCq) {
       return Container(
         margin: const EdgeInsets.fromLTRB(56, 0, 12, 12),
@@ -1547,6 +1654,9 @@ class _HighSchoolQPaperGeneratorPageState
                   icon: Icons.format_list_bulleted_rounded,
                   label: 'MCQ: ${_selectedMcqs.length}টি'),
               _InfoChip(
+                  icon: Icons.short_text_rounded,
+                  label: 'RQ: ${_selectedShorts.length}টি'),
+              _InfoChip(
                   icon: Icons.star_rounded,
                   label: 'মোট নম্বর: $_totalSelectedMarks'),
             ],
@@ -1579,6 +1689,15 @@ class _HighSchoolQPaperGeneratorPageState
               label: 'পূর্ণমান',
               icon: Icons.stars_rounded,
               keyboardType: TextInputType.number),
+          const SizedBox(height: 14),
+          _buildTextField(
+              ctrl: _cqAnswerAnyCtrl,
+              label: 'যেকোনো কয়টি CQ-র উত্তর দিতে হবে (খালি রাখলে লেখা হবে না)',
+              icon: Icons.rule_rounded,
+              keyboardType: TextInputType.number,
+              helperText: _selectedCqs.isEmpty
+                  ? null
+                  : 'সর্বোচ্চ ${_selectedCqs.length} — যেমন: যেকোনো ৫ টি প্রশ্নের উত্তর দাও'),
           const SizedBox(height: 18),
 
           // ── Stem image size ──────────────────────────────────────────────
@@ -2044,6 +2163,7 @@ class _HighSchoolQPaperGeneratorPageState
     required String label,
     required IconData icon,
     TextInputType? keyboardType,
+    String? helperText,
   }) {
     return TextField(
       controller: ctrl,
@@ -2061,6 +2181,8 @@ class _HighSchoolQPaperGeneratorPageState
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _kPrimary, width: 2),
         ),
+        helperText: helperText,
+        helperStyle: const TextStyle(fontSize: 11, color: _kSubText),
         filled: true,
         fillColor: _kCardBg,
       ),

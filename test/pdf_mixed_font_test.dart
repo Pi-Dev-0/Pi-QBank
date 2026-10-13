@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pi_qbank/bijoy_helper/bijoy_helper.dart' as bh;
+import 'package:pi_qbank/models/highschool_question.dart';
 import 'package:pi_qbank/utils/pdf_mixed_text.dart';
 
 pw.Font loadSutonny() => pw.Font.ttf(
@@ -107,7 +108,93 @@ void main() {
       expect(buildPdfTextSpan('', banglaStyle()).text, '');
     });
 
-    test('the Bijoy soft-hyphen reorder marker is stripped', () {
+    group('short questions (RQ)', () {
+    HighSchoolQuestion rq({
+      String type = 'RQ',
+      String text = 'সমান্তর সরলরেখার ঢাল কত?',
+      int mark = 2,
+      Object? sub, // defaults to a decoded Map; pass a String to simulate the Sheet
+    }) {
+      return HighSchoolQuestion.fromJson({
+        'id': 'r1',
+        'class': 'Class (9-10) SSC',
+        'subject': 'উচ্চতর গণিত',
+        'chapter_number': '2',
+        'chapter_name': 'সমীকরণ',
+        'question_type': type,
+        'stem_text': text,
+        'stem_image_url': '',
+        'sub_questions_json': sub ?? {'text': text, 'mark': mark},
+        'board_year_tag': '',
+      });
+    }
+
+    test('is recognised as its own type, not CQ or MCQ', () {
+      final q = rq();
+      expect(q.isShort, isTrue);
+      expect(q.isCq, isFalse);
+      expect(q.isMcq, isFalse);
+    });
+
+    test('accepts the SHORT alias', () {
+      expect(rq(type: 'SHORT').isShort, isTrue);
+    });
+
+    test('reads text and mark', () {
+      final q = rq();
+      expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
+      expect(q.shortData?.mark, 2);
+      expect(q.totalMarks, 2);
+    });
+
+    test('survives a JSON-encoded payload (what the Sheet actually returns)',
+        () {
+      final q = rq(sub: '{"text":"সমান্তর সরলরেখার ঢাল কত?","mark":2}');
+      expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
+      expect(q.shortData?.mark, 2);
+    });
+
+    test('survives a bare string payload', () {
+      final q = rq(sub: 'সমান্তর সরলরেখার ঢাল কত?');
+      expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
+      expect(q.shortData?.mark, 1);
+    });
+
+    test('falls back to stem_text when the payload is empty', () {
+      final q = rq(sub: <Object>[]);
+      expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
+    });
+
+    test('round-trips through toJson', () {
+      final q = rq();
+      final back = HighSchoolQuestion.fromJson(q.toJson());
+      expect(back.isShort, isTrue);
+      expect(back.shortData?.text, q.shortData?.text);
+      expect(back.shortData?.mark, q.shortData?.mark);
+    });
+
+    test('CQ and MCQ are unaffected', () {
+      final cq = HighSchoolQuestion.fromJson({
+        'id': 'c1',
+        'class': 'Class (9-10) SSC',
+        'subject': 's',
+        'chapter_number': '1',
+        'chapter_name': 'c',
+        'question_type': 'CQ',
+        'stem_text': 'stem',
+        'stem_image_url': '',
+        'sub_questions_json': [
+          {'label': 'ক', 'mark': 2, 'text': 'a'},
+        ],
+        'board_year_tag': '',
+      });
+      expect(cq.isShort, isFalse);
+      expect(cq.shortData, isNull);
+      expect(cq.totalMarks, 2);
+    });
+  });
+
+  test('the Bijoy soft-hyphen reorder marker is stripped', () {
       // U+00AD is inserted by the converter and has no glyph in any bundled
       // font, which would draw a black box inside the word. (The Bangla run is
       // Bijoy-encoded here, so compare against the raw converter output.)

@@ -9,7 +9,12 @@
  *  C  = subject
  *  D  = chapter_number
  *  E  = chapter_name
- *  F  = question_type  (CQ | MCQ)
+ *  F  = question_type  (CQ | MCQ | RQ)
+ *
+ * sub_questions_json shape depends on the type:
+ *   CQ  -> [ { label, mark, text }, ... ]
+ *   MCQ -> { text, options: [...], correct_ans }
+ *   RQ  -> { text, mark }                (short answer question)
  *  G  = stem_text
  *  H  = stem_image_url
  *  I  = sub_questions_json
@@ -50,6 +55,25 @@ function getSheet() {
 
 function generateId() {
   return Utilities.getUuid();
+}
+
+/**
+ * All ids currently in column A, lower-cased for case-insensitive comparison.
+ *
+ * Read as a lookup keyed by the id rather than a flat list so a large sheet
+ * stays O(n) per check instead of O(n) per question.
+ */
+function readExistingIds(sheet) {
+  const ids = Object.create(null);
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return ids;
+
+  const columnA = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (let i = 0; i < columnA.length; i++) {
+    const v = String(columnA[i][0] == null ? "" : columnA[i][0]).trim();
+    if (v) ids[v.toLowerCase()] = true;
+  }
+  return ids;
 }
 
 function jsonResponse(data) {
@@ -104,6 +128,46 @@ function _canonicalLabel(lowerKey) {
  * Normalise a class to its canonical label.
  * Returns null when the value is unknown or maps to more than one class
  * (e.g. the old grouped "Class 6-8", which cannot be split automatically).
+ */
+// ─────────────────────────────────────────────────────────────────────────────
+// Question types
+//
+//   CQ  -> creative question     (stem + sub-questions)
+//   MCQ -> multiple choice       (text + options + correct answer)
+//   RQ  -> short answer question (text + mark)
+//
+// Rows typed as "SHORT", "SA", "Short Question" etc. are folded to RQ so the app
+// can rely on a single code.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CANONICAL_QUESTION_TYPES = ["CQ", "MCQ", "RQ"];
+
+const QUESTION_TYPE_ALIASES = {
+  CQ: [],
+  MCQ: [],
+  RQ: ["short", "shortanswer", "sa", "short question", "shortanswerquestion"],
+};
+
+function canonicalizeQuestionType(value) {
+  const v = _norm(value);
+  if (!v) return null;
+  for (let i = 0; i < CANONICAL_QUESTION_TYPES.length; i++) {
+    const t = CANONICAL_QUESTION_TYPES[i];
+    if (t.toLowerCase() === v) return t;
+  }
+  for (let i = 0; i < CANONICAL_QUESTION_TYPES.length; i++) {
+    const t = CANONICAL_QUESTION_TYPES[i];
+    const aliases = QUESTION_TYPE_ALIASES[t] || [];
+    for (let j = 0; j < aliases.length; j++) {
+      if (aliases[j] === v) return t;
+    }
+  }
+  return null;
+}
+
+/**
+ * Map any accepted spelling of a class onto its canonical label.
+ * Returns null when the value cannot be resolved.
  */
 function canonicalizeClass(value) {
   const v = _norm(value);
@@ -253,6 +317,11 @@ function doGet(e) {
 //     }
 //   ]
 // }
+//
+// A short-answer question instead uses:
+//   "question_type": "RQ",
+//   "stem_text": "সমান্তর সরলরেখার ঢাল কত?",
+//   "sub_questions_json": { "text": "সমান্তর সরলরেখার ঢাল কত?", "mark": 2 }
 // ─────────────────────────────────────────────────────────────────────────────
 
 function doPost(e) {
@@ -292,7 +361,64 @@ function doPost(e) {
       });
     }
 
+// Same idea for the question type, so the app only ever sees CQ | MCQ | RQ.
+    const badTypes = [];
+    const canonicalQuestionTypes = questions.map((q, i) => {
+      const raw = String((q && q.question_type) || "").trim();
+      const canonical = canonicalizeQuestionType(raw);
+      if (!canonical) badTypes.push('#' + (i + 1) + ' ("' + raw + '")');
+      return canonical || "CQ";
+    });
+    if (badTypes.length > 0) {
+      return jsonResponse({
+        status: "ERROR",
+        message:
+          "Invalid question_type on question(s) " +
+          badTypes.join(", ") +
+          ". Valid values: " +
+          CANONICAL_QUESTION_TYPES.join(" | ") +
+          ' (RQ = short answer question).',
+      });
+    }
+
+    // ── Duplicate id check ────────────────────────────────────────────────
+    //
+    // The script is the authority for identity: any row without an id gets a
+    // fresh UUID here, and a client-supplied id is treated as an idempotency
+    // key. Re-uploading the same queue therefore cannot create duplicate rows.
+    //
+    // Policy: reject the WHOLE batch if any supplied id is already used, either
+    // elsewhere in this batch or by an existing row. Nothing is written.
     const sheet = getSheet();
+    const existingIds = readExistingIds(sheet);
+    const seenInBatch = Object.create(null);
+    const duplicates = [];
+
+    questions.forEach((q, i) => {
+      const raw = String((q && q.id) || "").trim();
+      if (!raw) return; // server will generate one
+
+      const key = raw.toLowerCase();
+      if (seenInBatch[key]) {
+        duplicates.push(raw + " (repeated in this upload)");
+        return;
+      }
+      seenInBatch[key] = true;
+      if (existingIds[key]) {
+        duplicates.push(raw + " (already in sheet)");
+      }
+    });
+
+    if (duplicates.length > 0) {
+      return jsonResponse({
+        status: "ERROR",
+        message:
+          "Duplicate question id — nothing was uploaded: " +
+          duplicates.join(", ") +
+          ". Each question must have a unique id. Remove the duplicate(s) " +
+          "from the queue and try again.",
+      });
+    }
 
     const rows = questions.map((q, i) => {
       const subJson =
@@ -306,7 +432,7 @@ function doPost(e) {
         q.subject         || "",
         String(q.chapter_number || ""),
         q.chapter_name    || "",
-        q.question_type   || "CQ",
+        canonicalQuestionTypes[i],
         q.stem_text       || "",
         q.stem_image_url  || "",
         subJson,

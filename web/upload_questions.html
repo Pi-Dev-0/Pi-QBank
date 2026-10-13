@@ -200,7 +200,7 @@
     /* ── Question Type Toggle ──────────────── */
     .type-toggle {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
     }
     .type-btn {
@@ -689,6 +689,11 @@
               <span class="type-label">MCQ</span>
               <span class="type-desc">Multiple Choice</span>
             </div>
+            <div class="type-btn" id="btnRq" onclick="setType('RQ')">
+              <span class="type-icon">✏️</span>
+              <span class="type-label">RQ</span>
+              <span class="type-desc">Short Answer</span>
+            </div>
           </div>
         </div>
       </div>
@@ -733,6 +738,27 @@
           <button class="add-btn" onclick="addMcqOption()" style="margin-top:10px;">
             <span>+</span> Add Option
           </button>
+        </div>
+      </div>
+
+      <!-- RQ Card -->
+      <div class="card" id="rqCard" style="display:none;">
+        <div class="card-header">
+          <div class="icon icon-green">✏️</div>
+          <div>
+            <h2>Short Question (RQ)</h2>
+            <p>একটি লাইনে প্রশ্ন ও নম্বর</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Question Text <span class="required">*</span></label>
+            <textarea id="rqText" placeholder="যেমন: সমান্তর সরলরেখার ঢাল কত?"></textarea>
+          </div>
+          <div class="form-group" style="max-width:180px;">
+            <label>Marks <span class="required">*</span></label>
+            <input type="number" id="rqMark" value="1" min="1" max="10">
+          </div>
         </div>
       </div>
 
@@ -875,6 +901,38 @@
         { "label": "খ", "mark": 2, "text": "A ∪ B নির্ণয় করো।" },
         { "label": "গ", "mark": 3, "text": "প্রমাণ করো যে A ∪ B = B ∪ A" }
       ],
+      "board_year_tag": "Dhaka Board 2023"
+    }
+  ]
+}</div>
+          </div>
+
+          <!-- RQ Example -->
+          <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+              <h3 style="font-size: 15px; font-weight: 700; color: var(--text);">
+                ✏️ RQ (Short Answer)
+              </h3>
+              <button onclick="copyExample('rqExample')" style="padding: 8px 16px; background: #0E9F6E; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                📋 Copy
+              </button>
+            </div>
+            <div class="json-preview" id="rqExample" style="font-size: 11.5px;">{
+  "action": "addQuestions",
+  "questions": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440002",
+      "class": "Class (9-10) SSC",
+      "subject": "উচ্চতর গণিত",
+      "chapter_number": "2",
+      "chapter_name": "সমীকরণ ও অসমতা",
+      "question_type": "RQ",
+      "stem_text": "সমান্তর সরলরেখার ঢাল কত?",
+      "stem_image_url": "",
+      "sub_questions_json": {
+        "text": "সমান্তর সরলরেখার ঢাল কত?",
+        "mark": 2
+      },
       "board_year_tag": "Dhaka Board 2023"
     }
   ]
@@ -1029,8 +1087,10 @@
       currentType = type;
       document.getElementById('btnCq').classList.toggle('active', type === 'CQ');
       document.getElementById('btnMcq').classList.toggle('active', type === 'MCQ');
+      document.getElementById('btnRq').classList.toggle('active', type === 'RQ');
       document.getElementById('cqCard').style.display = type === 'CQ' ? 'block' : 'none';
       document.getElementById('mcqCard').style.display = type === 'MCQ' ? 'block' : 'none';
+      document.getElementById('rqCard').style.display = type === 'RQ' ? 'block' : 'none';
       updatePreview();
     }
 
@@ -1146,6 +1206,12 @@
             html += `<div class="subq"><span class="label">${escapeHtml(label)}.</span><span>${escapeHtml(text)}</span><span class="mark"> [${mark}]</span></div>`;
           }
         });
+      } else if (currentType === 'RQ') {
+        const text = document.getElementById('rqText').value;
+        const mark = document.getElementById('rqMark').value;
+        if (text) {
+          html += `<div class="mcq-opt"><span class="marker">✏️</span><span>${escapeHtml(text)}</span><span class="mark"> [${mark}]</span></div>`;
+        }
       } else {
         const text = document.getElementById('mcqText').value;
         if (text) {
@@ -1198,7 +1264,7 @@
           return null;
         }
         subJson = subqs;
-      } else {
+      } else if (currentType === 'MCQ') {
         const text = document.getElementById('mcqText').value;
         if (!text) {
           showStatus('error', 'Please enter the MCQ question text.');
@@ -1223,6 +1289,15 @@
           return null;
         }
         subJson = { text, options, correct_ans: correctAns };
+      } else {
+        // Short question (RQ)
+        const text = document.getElementById('rqText').value.trim();
+        if (!text) {
+          showStatus('error', 'Please enter the short question text.');
+          return null;
+        }
+        const mark = parseInt(document.getElementById('rqMark').value) || 1;
+        subJson = { text, mark };
       }
 
       return {
@@ -1232,7 +1307,7 @@
         chapter_number: chNum,
         chapter_name: chName,
         question_type: currentType,
-        stem_text: currentType === 'CQ' ? document.getElementById('cqStem').value : '',
+        stem_text: currentType === 'CQ' ? document.getElementById('cqStem').value : (currentType === 'RQ' ? document.getElementById('rqText').value.trim() : ''),
         stem_image_url: imgUrl,
         sub_questions_json: subJson,
         board_year_tag: board
@@ -1346,14 +1421,18 @@
       }
 
       list.innerHTML = questionQueue.map((q, i) => {
-        const icon = q.question_type === 'CQ' ? '📖' : '✅';
-        const bg = q.question_type === 'CQ' ? '#EEF2FF' : '#FFF7ED';
-        const title = q.question_type === 'CQ'
-          ? (q.stem_text || '').substring(0, 60)
-          : (q.sub_questions_json?.text || '').substring(0, 60);
-        const marks = q.question_type === 'CQ'
-          ? q.sub_questions_json.reduce((s, sq) => s + sq.mark, 0) + ' marks'
-          : '1 mark';
+        const isCq = q.question_type === 'CQ';
+        const isRq = q.question_type === 'RQ';
+        const icon = isCq ? '📖' : (isRq ? '✏️' : '✅');
+        const bg = isCq ? '#EEF2FF' : (isRq ? '#ECFDF5' : '#FFF7ED');
+        const title = (isCq
+          ? (q.stem_text || '')
+          : ((q.sub_questions_json && q.sub_questions_json.text) || q.stem_text || '')).substring(0, 60);
+        const marks = isCq
+          ? (Array.isArray(q.sub_questions_json)
+              ? q.sub_questions_json.reduce((s, sq) => s + sq.mark, 0)
+              : 0) + ' marks'
+          : (isRq ? (q.sub_questions_json?.mark ?? 1) + ' mark' : '1 mark');
 
         return `
           <div class="queue-item">
@@ -1481,6 +1560,8 @@
             txt += `   (${letter}) ${opt}\n`;
           });
           if (q.sub_questions_json.correct_ans) txt += `   সঠিক উত্তর: ${q.sub_questions_json.correct_ans}\n`;
+        } else if (q.question_type === 'RQ') {
+          txt += `   উত্তর: [${q.sub_questions_json?.mark ?? 1}]\n`;
         }
         txt += '\n--------------------------------------------------\n\n';
       });
@@ -1511,6 +1592,8 @@
             html += `<li>(${letter}) ${opt}</li>`;
           });
           html += '</ul>';
+        } else if (q.question_type === 'RQ') {
+          html += `<p>উত্তর: [${q.sub_questions_json?.mark ?? 1}]</p>`;
         }
         html += '</div>';
       });

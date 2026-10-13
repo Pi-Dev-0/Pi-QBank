@@ -97,8 +97,8 @@ extension StemImageSizeMetrics on StemImageSize {
 
 /// How MCQ questions are arranged on the page.
 ///
-/// Only MCQs are affected. CQ questions are full-width blocks (stem + figure +
-/// sub-questions) and splitting them across columns would break them apart.
+/// Applied to the CQ and MCQ sections. Short questions (RQ) are one line each
+/// and are never split across columns.
 enum QuestionLayout {
   /// One question per row, running the full width of the page.
   single,
@@ -297,6 +297,7 @@ class HighSchoolExportService {
 
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
+    final shorts = questions.where((q) => q.isShort).toList();
 
     // CQ Section
     if (cqs.isNotEmpty) {
@@ -350,6 +351,20 @@ class HighSchoolExportService {
       }
     }
 
+    // Short question section (গ-বিভাগ)
+    if (shorts.isNotEmpty) {
+      buffer.writeln(thinDivider);
+      buffer.writeln('【 গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ) 】');
+      buffer.writeln();
+      for (int i = 0; i < shorts.length; i++) {
+        final data = shorts[i].shortData;
+        if (data == null || data.text.trim().isEmpty) continue;
+        final markStr = data.mark > 0 ? ' [${data.mark}]' : '';
+        buffer.writeln('${i + 1}. ${data.text.trim()}$markStr');
+      }
+      buffer.writeln();
+    }
+
     buffer.writeln(divider);
     buffer.writeln('জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে');
     return buffer.toString();
@@ -374,6 +389,7 @@ class HighSchoolExportService {
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
+    final shorts = questions.where((q) => q.isShort).toList();
 
     final buffer = StringBuffer();
     buffer.write('''
@@ -504,6 +520,18 @@ class HighSchoolExportService {
       width: 50%;
       padding: 2pt 4pt;
       vertical-align: top;
+    }
+    .rq-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12pt;
+      margin-bottom: 6pt;
+      font-size: 11pt;
+      page-break-inside: avoid;
+    }
+    .rq-mark {
+      font-weight: bold;
+      white-space: nowrap;
     }
     .footer-note {
       margin-top: 20pt;
@@ -650,6 +678,24 @@ class HighSchoolExportService {
 ''');
     }
 
+    // Short question section (গ-বিভাগ)
+    if (shorts.isNotEmpty) {
+      buffer.write('''
+  <div class="section-title">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)</div>
+  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সংক্ষেপে উত্তর দাও]</div>
+''');
+      for (int i = 0; i < shorts.length; i++) {
+        final data = shorts[i].shortData;
+        if (data == null || data.text.trim().isEmpty) continue;
+        buffer.write('''
+  <div class="rq-item">
+    <span>${i + 1}. ${_escapeXml(data.text)}</span>
+    <span class="rq-mark">[${data.mark}]</span>
+  </div>
+''');
+      }
+    }
+
     buffer.write('''
   <div class="footer-note">জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে</div>
 </div>
@@ -677,6 +723,7 @@ class HighSchoolExportService {
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
+    final shorts = questions.where((q) => q.isShort).toList();
 
     final buffer = StringBuffer();
     buffer.write('''
@@ -808,6 +855,18 @@ class HighSchoolExportService {
       padding-left: 16px;
       font-size: 14px;
     }
+    .rq-list { margin-top: 4px; }
+    .rq-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 16px;
+      font-size: 15px;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--border);
+      page-break-inside: avoid;
+    }
+    .rq-mark { font-weight: 700; white-space: nowrap; }
     .footer-watermark {
       margin-top: 32px;
       text-align: center;
@@ -913,6 +972,27 @@ class HighSchoolExportService {
 ''');
     }
 
+    // Short question section (গ-বিভাগ)
+    if (shorts.isNotEmpty) {
+      buffer.write('''
+    <div class="section-banner">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)</div>
+    <div class="rq-list">
+''');
+      for (int i = 0; i < shorts.length; i++) {
+        final data = shorts[i].shortData;
+        if (data == null || data.text.trim().isEmpty) continue;
+        buffer.write('''
+      <div class="rq-item">
+        <div><b>${i + 1}.</b> ${_escapeXml(data.text)}</div>
+        <div class="rq-mark">[${data.mark}]</div>
+      </div>
+''');
+      }
+      buffer.write('''
+    </div>
+''');
+    }
+
     buffer.write('''
     <div class="footer-watermark">জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে</div>
   </div>
@@ -950,6 +1030,7 @@ class HighSchoolExportService {
 
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
+    final shorts = questions.where((q) => q.isShort).toList();
 
     if (cqs.isNotEmpty) {
       buffer.writeln('### ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)\n');
@@ -989,6 +1070,17 @@ class HighSchoolExportService {
         }
         buffer.writeln();
       }
+    }
+
+    if (shorts.isNotEmpty) {
+      buffer.writeln('---\n');
+      buffer.writeln('### গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)\n');
+      for (int i = 0; i < shorts.length; i++) {
+        final data = shorts[i].shortData;
+        if (data == null || data.text.trim().isEmpty) continue;
+        buffer.writeln('**${i + 1}.** ${data.text.trim()} `[${data.mark}]`');
+      }
+      buffer.writeln();
     }
 
     buffer.writeln('\n*জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে*');
