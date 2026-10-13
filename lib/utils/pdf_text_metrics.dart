@@ -66,54 +66,86 @@ class PdfTextMetrics {
   final pdf.PdfFont _latin;
   final pdf.PdfFont _latinBold;
 
-  /// True when [text] contains a codepoint Latin-1 cannot encode.
+  /// Advance width of the box the pdf package draws in place of a rune that
+  /// no font in the chain covers, in em.
   ///
-  /// Latin-1 covers U+0000–U+00FF, so `× ÷ ± °` are fine but `≤ √ π − → ²`
-  /// are not.
-  static bool _needsUnicodeFont(String text) {
-    for (final rune in text.runes) {
-      if (rune > 0xFF) return true;
-    }
-    return false;
-  }
+  /// `text.dart`'s `_addPlaceholder` builds a
+  /// `SizedBox(height: fontSize, width: fontSize / 2)`, so an unrenderable
+  /// character is *not* free space — it occupies half an em. Measuring it as
+  /// zero is what makes a two-column layout drift on a question containing one,
+  /// because the estimate and the page then disagree about how wide it is.
+  static const double _placeholderWidthEm = 0.5;
 
-  pdf.PdfFont _fontForRun(bool isBangla, String text, bool bold) {
-    if (isBangla) return _bangla ?? _latin;
-    if (!_needsUnicodeFont(text)) return bold ? _latinBold : _latin;
-    return _symbol ?? _bangla ?? _latin;
+  /// Height of that box, in em (`SizedBox(height: fontSize)`).
+  ///
+  /// Taller than any text line, so its presence raises the line box.
+  static const double _placeholderHeightEm = 1.0;
+
+  /// The fonts the renderer would try, in order, for a run.
+  ///
+  /// Same chain as the `pw.TextSpan`: the run's own font, then its
+  /// `fontFallback` list. The renderer walks it per rune, so the measurer has
+  /// to as well — a Bangla run can still carry a math symbol, and a Latin run
+  /// can carry one too.
+  List<pdf.PdfFont> _fontChain(bool isBangla, bool bold) {
+    final chain = <pdf.PdfFont>[
+      isBangla ? (_bangla ?? _latin) : (bold ? _latinBold : _latin),
+    ];
+    for (final font in [_symbol, _bangla]) {
+      if (font != null && !chain.contains(font)) chain.add(font);
+    }
+    return chain;
   }
 
   /// Split [text] into pieces that each belong to a single measuring font.
   ///
   /// A single run can mix scripts — `"x ≤ 5"` is ASCII with a math symbol in
-  /// the middle — and the symbol has to move to a different font, so runs are
-  /// subdivided at the Latin-1 boundary rather than measured as a unit.
+  /// the middle — and the symbol has to move to a different font. Runes are
+  /// therefore grouped by *which font in the chain actually covers them*,
+  /// which is how the renderer groups them.
+  ///
+  /// Splitting by script instead used to mis-measure in two ways: a symbol
+  /// inside a Bangla run was measured with the Bangla font, which has no such
+  /// glyph, and a rune no font covers came out zero-width while the page still
+  /// drew a box for it.
   List<_Segment> _segments(String text, bool bold) {
     final out = <_Segment>[];
     for (final run in splitPdfTextRuns(text)) {
       if (run.isEmpty) continue;
-      var buffer = StringBuffer();
-      bool? bufferNeedsUnicode;
+      final chain = _fontChain(run.isBangla, bold);
 
-      void flush(bool needsUnicode) {
-        if (buffer.isEmpty) return;
-        final chunk = buffer.toString();
-        buffer = StringBuffer();
-        out.add(_Segment(
-            chunk, _fontForRun(run.isBangla, chunk, bold), needsUnicode));
+      final buffer = StringBuffer();
+      pdf.PdfFont? bufferFont;
+
+      void flush() {
+        final font = bufferFont;
+        if (buffer.isEmpty || font == null) {
+          buffer.clear();
+          return;
+        }
+        out.add(_Segment(buffer.toString(), font));
+        buffer.clear();
       }
 
       for (final rune in run.text.runes) {
-        final needsUnicode = rune > 0xFF;
-        if (bufferNeedsUnicode == null) {
-          bufferNeedsUnicode = needsUnicode;
-        } else if (needsUnicode != bufferNeedsUnicode) {
-          flush(bufferNeedsUnicode);
-          bufferNeedsUnicode = needsUnicode;
+        // First font in the chain with a glyph, as the renderer does. Null
+        // means the page will draw a placeholder box instead.
+        pdf.PdfFont? match;
+        for (final font in chain) {
+          if (font.isRuneSupported(rune)) {
+            match = font;
+            break;
+          }
         }
+        // Undrawable runes are kept as their own segment so [textWidth] and
+        // [_tokenize] can charge them the placeholder box they really get.
+        final font = match ?? _undrawable;
+
+        if (bufferFont != null && !identical(bufferFont, font)) flush();
+        bufferFont = font;
         buffer.writeCharCode(rune);
       }
-      flush(bufferNeedsUnicode ?? false);
+      flush();
     }
     return out;
   }
@@ -136,7 +168,9 @@ class PdfTextMetrics {
     if (text.isEmpty) return 0;
     var em = 0.0;
     for (final segment in _segments(text, bold)) {
-      em += _metricsOf(segment.font, segment.text).advanceWidth;
+      em += segment.isUndrawable
+          ? _placeholderWidthEm * segment.text.runes.length
+          : _metricsOf(segment.font, segment.text).advanceWidth;
     }
     return em * fontSize;
   }
@@ -150,6 +184,11 @@ class PdfTextMetrics {
     var maxHeight = 0.0;
     final seen = <pdf.PdfFont>{};
     for (final segment in _segments(text, bold)) {
+      if (segment.isUndrawable) {
+        // SizedBox(height: fontSize) — taller than any glyph line.
+        maxHeight = _placeholderHeightEm;
+        continue;
+      }
       if (!seen.add(segment.font)) continue;
       final h = _metricsOf(segment.font, segment.text).maxHeight;
       if (h > maxHeight) maxHeight = h;
@@ -218,6 +257,14 @@ class PdfTextMetrics {
     for (final segment in _segments(text, bold)) {
       final font = segment.font;
       final buffer = StringBuffer();
+      if (segment.isUndrawable) {
+        // Each rune became its own SizedBox on the page, and a box does not
+        // break at spaces, so they stay separate unbreakable tokens.
+        for (var i = 0; i < segment.text.runes.length; i++) {
+          tokens.add(_Token(width: _placeholderWidthEm, isSpace: false));
+        }
+        continue;
+      }
       for (final rune in segment.text.runes) {
         if (rune == 0x20) {
           if (buffer.isNotEmpty) {
@@ -244,14 +291,31 @@ class PdfTextMetrics {
   }
 }
 
+/// Sentinel font standing for "no font in the chain covers these runes".
+///
+/// Identity only — it is never asked for metrics, because
+/// [_placeholderWidthEm] already describes what the page draws instead.
+final pdf.PdfFont _undrawable = const _UndrawableFont();
+
+class _UndrawableFont implements pdf.PdfFont {
+  const _UndrawableFont();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw StateError('An undrawable rune must not be measured with a font');
+}
+
 class _Segment {
-  const _Segment(this.text, this.font, this.needsUnicodeFont);
+  const _Segment(this.text, this.font);
 
   final String text;
+
+  /// The font that covers every rune in [text], or the undrawable sentinel if
+  /// no font does.
   final pdf.PdfFont font;
 
-  /// Whether this piece needed a TrueType font because it is outside Latin-1.
-  final bool needsUnicodeFont;
+  /// True when no font can draw this piece and the page draws a placeholder.
+  bool get isUndrawable => font is _UndrawableFont;
 }
 
 class _Token {

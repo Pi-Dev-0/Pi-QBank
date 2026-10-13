@@ -125,7 +125,12 @@ flutter:
       fonts:
         - asset: assets/fonts/SutonnyMJ Regular.ttf
     # Math/symbol glyphs that SutonnyMJ (Bijoy-ANSI) and the PDF base-14 fonts
-    # lack: ∩ ∪ ∈ ∅ ≠ ≤ ≥ × √ Σ − α β ² → ≈ ± …
+    # lack: ∩ ∪ ∈ ∅ ≠ ≤ ≥ × √ Σ − α β ² → ≈ ± … and geometry such as ∠ ⊥ ∥.
+    # A DejaVu Sans subset covering whole Unicode blocks, rebuilt with
+    # tools/build_math_symbols_font.py — it used to be a hand-picked codepoint
+    # list, which is how U+2220 and U+22A5 ended up missing.
+    # Known gap: DejaVu has no U+27C2 (⟂) or U+20D5 (⃕); those render as the
+    # placeholder box the pdf package draws, and are measured to match it.
     - family: MathSymbols
       fonts:
         - asset: assets/fonts/MathSymbols.ttf
