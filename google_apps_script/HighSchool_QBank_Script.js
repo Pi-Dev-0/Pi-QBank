@@ -351,11 +351,63 @@ function doGet(e) {
 //   "short_mark": 2                // marks for this short question
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Request body
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Parse the POST body as JSON.
+//
+// The web uploader deliberately sends `Content-Type: text/plain;charset=utf-8`,
+// because that is the one content type Apps Script accepts from a browser
+// without a CORS preflight. That detail matters: "+" is a LITERAL PLUS SIGN in
+// text/plain, and only means a space in application/x-www-form-urlencoded.
+//
+// This script used to rewrite every "+" to a space before parsing, on the
+// assumption the body was form-encoded. It is not, so every maths question
+// containing arithmetic was silently corrupted on the way to the sheet:
+// "4(AM² + CN²)" arrived as "4(AM²   CN²)" — and the upload still reported
+// success. Form decoding is therefore applied only to a body that really is
+// form-encoded.
+//
+// Throws a readable message rather than letting JSON.parse's own error escape,
+// so the uploader shows something actionable.
+function parseRequestBody(e) {
+  const postData = e && e.postData;
+  const raw = postData && postData.contents != null
+    ? String(postData.contents)
+    : "";
+
+  if (raw.trim() === "") {
+    throw new Error(
+      "Empty request body. Send JSON with Content-Type: text/plain;charset=utf-8."
+    );
+  }
+
+  // The uploader's path, and the only one that carries questions.
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    // Fall through: only a urlencoded body still deserves the "+" treatment.
+  }
+
+  const contentType = String((postData && postData.type) || "").toLowerCase();
+  if (contentType.indexOf("application/x-www-form-urlencoded") === 0) {
+    try {
+      return JSON.parse(raw.replace(/\+/g, " "));
+    } catch (err) {
+      throw new Error("Malformed urlencoded body: " + err.message);
+    }
+  }
+
+  throw new Error(
+    "Expected a JSON body but could not parse it as JSON " +
+      "(Content-Type: " + (contentType || "none") + ")."
+  );
+}
+
 function doPost(e) {
   try {
-    const rawBody = e.postData.contents;
-    const body    = rawBody.replace(/\+/g, ' ');
-    const parsed  = JSON.parse(body);
+    const parsed  = parseRequestBody(e);
     const action  = parsed.action || "addQuestions";
 
     if (action !== "addQuestions" && action !== "addBulk") {
@@ -498,7 +550,26 @@ function doPost(e) {
       ];
     });
 
-    // Bulk-append all rows in one call
+    // Bulk-append all rows in one call.
+    //
+    // Do NOT pass an input option here. Both ways of asking for RAW have
+    // failed on this project's runtime:
+    //
+    //   setValues(rows, SpreadsheetApp.InputOption.RAW)
+    //       -> "TypeError: Cannot read properties of undefined (reading 'RAW')"
+    //          because SpreadsheetApp.InputOption comes back undefined.
+    //
+    //   setValues(rows, "RAW")
+    //       -> "Exception: the parameters (number[],String) do not match the
+    //          method signature" — the second argument must be the enum type,
+    //          not a string, whatever the docs imply about its value.
+    //
+    // So this uses the single-argument form. The cost is that it writes with
+    // USER_ENTERED, which would treat a cell *starting* with "=", "+", "-" or
+    // "@" as a formula. That is not the corruption that actually bit this
+    // project: a "+" in the middle of a sentence — "4(AM² + CN²)" — is plain
+    // text under USER_ENTERED and is stored correctly. The middle-of-string
+    // damage came from the body's own "+"-to-space rewrite, fixed above.
     sheet
       .getRange(sheet.getLastRow() + 1, 1, rows.length, HEADERS.length)
       .setValues(rows);

@@ -1498,16 +1498,30 @@
       xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
       xhr.onload = function () {
         btn.disabled = false;
+        const body = xhr.responseText || '';
+        let result = null;
         try {
-          const result = JSON.parse(xhr.responseText);
-          if (result.status === 'SUCCESS') {
-            showStatus('success', `✅ ${result.message || 'Upload successful!'} (${result.inserted || questionQueue.length} questions)`);
-          } else {
-            showStatus('error', `Upload failed: ${result.message || 'Unknown error'}`);
-          }
+          result = JSON.parse(body);
         } catch (e) {
-          // Cross-origin responses may be blocked; assume success
-          showStatus('success', `Upload request sent for ${questionQueue.length} question${questionQueue.length > 1 ? 's' : ''}! Check your Google Sheet to confirm.`);
+          // Not JSON. Do NOT call this a success: Apps Script answers with an
+          // HTML page when the POST is redirected to a sign-in/consent screen
+          // or the script fails to load, and reporting those as "uploaded"
+          // hides the problem until someone checks the sheet by hand.
+          showStatus(
+            'error',
+            'Upload failed: the server did not return JSON ' +
+              `(HTTP ${xhr.status}, ${(xhr.getResponseHeader('content-type') || 'no content type')}). ` +
+              'If this is a Google sign-in or "needs authorisation" page, open the Apps Script ' +
+              'editor, run the function once to grant access, then redeploy. ' +
+              'Server said: ' + body.replace(/\s+/g, ' ').slice(0, 300)
+          );
+          return;
+        }
+
+        if (result.status === 'SUCCESS') {
+          showStatus('success', `✅ ${result.message || 'Upload successful!'} (${result.inserted || questionQueue.length} questions)`);
+        } else {
+          showStatus('error', `Upload failed: ${result.message || 'Unknown error'}`);
         }
         questionQueue = [];
         renderQueue();
@@ -1517,6 +1531,11 @@
         btn.disabled = false;
         showStatus('error', 'Network error. Check your connection and the APPS_SCRIPT_URL.');
       };
+      xhr.ontimeout = function () {
+        btn.disabled = false;
+        showStatus('error', 'The upload timed out. The Apps Script may be waiting for authorisation — open its editor and run the function once.');
+      };
+      xhr.timeout = 120000;
       xhr.send(payload);
     }
 

@@ -189,6 +189,46 @@ class _HighSchoolQPaperGeneratorPageState
   /// When false the paper is a single set, exactly as before.
   bool _twoSets = false;
 
+  /// Order the sections are printed in. Defaults to the paper's original
+  /// arrangement: CQ, then the short questions, then MCQ.
+  final List<_SectionKind> _sectionOrder = [
+    _SectionKind.cq,
+    _SectionKind.rq,
+    _SectionKind.mcq,
+  ];
+
+  /// Sections that actually hold questions, in the user's order.
+  ///
+  /// An empty section is left out of the list rather than shown greyed out, so
+  /// a drag always moves something the reader can see.
+  List<_SectionKind> get _activeSections =>
+      _sectionOrder.where((k) => _questionsOf(k).isNotEmpty).toList();
+
+  List<HighSchoolQuestion> _questionsOf(_SectionKind kind) {
+    if (kind.isCq) return _selectedCqs;
+    if (kind.isMcq) return _selectedMcqs;
+    return _selectedShorts;
+  }
+
+  /// Marks in a section, summed the same way as the grand total.
+  int _marksOf(_SectionKind kind) =>
+      _questionsOf(kind).fold(0, (sum, q) => sum + q.totalMarks);
+
+  /// True when CQ is immediately followed by the short questions.
+  ///
+  /// The merged two-column flow only exists while the two types are
+  /// neighbours: they are emitted as one continuous run of blocks, so anything
+  /// placed between them would have to be pulled back out of that flow.
+  /// Separating them by dragging therefore turns the merge off, and the paper
+  /// falls back to two ordinary sections in the order chosen here.
+  bool get _mergesCqAndShorts {
+    final order = _activeSections;
+    for (var i = 0; i + 1 < order.length; i++) {
+      if (order[i].isCq && order[i + 1].isRq) return true;
+    }
+    return false;
+  }
+
   /// Names shown on each set's banner.
   final List<TextEditingController> _setLabelControllers = [
     TextEditingController(text: 'ক-সেট'),
@@ -288,6 +328,30 @@ class _HighSchoolQPaperGeneratorPageState
 
   int get _totalSelectedMarks =>
       _selectedQuestions.fold(0, (sum, q) => sum + q.totalMarks);
+
+  /// Marks split by question type, plus how many of them the current filter or
+  /// search is keeping off screen.
+  ///
+  /// One total across three types cannot be checked by eye. Filter the picker
+  /// to CQ and the total still counts every selected MCQ and RQ, so the marks
+  /// on the visible cards stop adding up to it — which looks exactly like a
+  /// broken sum even though the paper would carry all of them.
+  ({int cq, int mcq, int rq, int hidden}) get _marksBreakdown {
+    final visible = _visibleQuestions.toSet();
+    var cq = 0, mcq = 0, rq = 0, hidden = 0;
+    for (final q in _selectedQuestions) {
+      final marks = q.totalMarks;
+      if (q.isCq) {
+        cq += marks;
+      } else if (q.isMcq) {
+        mcq += marks;
+      } else if (q.isShort) {
+        rq += marks;
+      }
+      if (!visible.contains(q)) hidden += marks;
+    }
+    return (cq: cq, mcq: mcq, rq: rq, hidden: hidden);
+  }
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
@@ -838,15 +902,196 @@ class _HighSchoolQPaperGeneratorPageState
         ) +
         PdfLayout.headerAfterGap);
 
-    // CQ and the short questions become one flow when the paper is a two-set,
-    // two-column sheet; the heading for each is then emitted wherever the flow
-    // reaches that type instead of each section starting a fresh row. MCQ moves
-    // after them and stays its own block.
-    final mergeCqAndShorts = _twoSets &&
+    // The sections are declared below as closures and dispatched in the order
+    // the reader arranged them, so dragging one in the last step really does
+    // move it on the page. CQ and the short questions share one continuous
+    // flow only while they sit next to each other; see [_mergesCqAndShorts].
+
+    // ── CQ Section ─────────────────────────────────────────────────────
+    void emitCq() {
+      if (cqs.isNotEmpty) {
+        final cqBanner = _pdfSectionBanner(
+            'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', boldStyle.copyWith(fontSize: 11));
+        if (_inlineSectionBanner(_cqLayout)) {
+          // Drawn inside the first block's left column instead of spanning the
+          // page; its height is charged to the flow so the block still fits.
+          flow.consume(bannerHeight);
+        } else {
+          widgets.add(cqBanner);
+          flow.consume(bannerHeight);
+        }
+        // Optional "answer any N questions" note.
+        final answerAny = _cqAnswerCount;
+        if (answerAny > 0) {
+          widgets.add(pw.SizedBox(height: 4));
+          widgets.add(pw.RichText(
+            text: _mixedText('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
+                smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
+            textAlign: pw.TextAlign.center,
+          ));
+          flow.consume(4 +
+              metrics.lineHeight('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
+                  fontSize: PdfLayout.smallFontSize));
+        }
+        widgets.add(pw.SizedBox(height: 10));
+        flow.consume(bannerHeight + 10);
+
+        // Balanced newspaper columns rather than rows of two, so a short
+        // question no longer inherits the full height of the tallest
+        // question beside it. Questions are packed as fragments, which lets
+        // the foot of a page be filled instead of left blank. See
+        // [balanceColumns] and [PdfPageFlow].
+        final cqCols = _cqLayout.mcqColumns;
+        final cqWidth = PdfLayout.columnWidth(cqCols);
+        final cqFragments = <PdfFlowFragment>[];
+        for (int i = 0; i < cqs.length; i++) {
+          final parts = PdfLayout.cqFragments(
+            index: i + 1,
+            question: cqs[i],
+            columnWidth: cqWidth,
+            metrics: metrics,
+            hasImage: stemImages.containsKey(
+                HighSchoolExportService.resolveImageUrl(cqs[i].stemImageUrl)),
+            imageSize: _imageSize,
+          );
+          for (var p = 0; p < parts.length; p++) {
+            cqFragments.add(PdfFlowFragment(
+              height: parts[p],
+              question: i,
+              indexInQuestion: p,
+              isFirst: p == 0,
+              isLast: p == parts.length - 1,
+            ));
+          }
+        }
+
+        final cqRows = flow.layoutFragments(
+            fragments: cqFragments, columns: cqCols, trailingGap: 16);
+
+        // One unbreakable row of columns per page's worth of questions, so a
+        // long section still flows instead of overflowing a single block.
+        for (var bi = 0; bi < cqRows.length; bi++) {
+          final row = cqRows[bi];
+          final columns = <List<pw.Widget>>[];
+          for (final column in row) {
+            columns.add(_buildPdfFragmentColumn(
+              column,
+              itemBuilder: (qIndex, from, to) => _buildPdfCqCard(
+                index: qIndex + 1,
+                question: cqs[qIndex],
+                baseStyle: baseStyle,
+                boldStyle: boldStyle,
+                smallStyle: smallStyle,
+                markStyle: cqMarkStyle,
+                stemImages: stemImages,
+                imageSize: _imageSize,
+                partFrom: from,
+                partTo: to,
+              ),
+              afterQuestion: () => pw.SizedBox(height: PdfLayout.cqCardGap),
+            ));
+          }
+          if (bi == 0 &&
+              _inlineSectionBanner(_cqLayout) &&
+              columns.isNotEmpty) {
+            columns.first.insert(0, cqBanner);
+          }
+          widgets.add(_pdfColumnRow(columns));
+          widgets.add(pw.SizedBox(height: 16));
+        }
+      }
+    }
+
+    // ── MCQ Section ────────────────────────────────────────────────────
+    void emitMcq() {
+      _appendPdfMcqSection(
+        widgets,
+        flow,
+        mcqs: mcqs,
+        baseStyle: baseStyle,
+        boldStyle: boldStyle,
+        smallStyle: smallStyle,
+        bannerHeight: bannerHeight,
+        metrics: metrics,
+      );
+    }
+
+    // ── Short question section (গ-বিভাগ) ───────────────────────────────
+    void emitRq() {
+      if (shorts.isNotEmpty) {
+        final rqBanner = _pdfSectionBanner(
+            'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)', boldStyle.copyWith(fontSize: 11));
+        final rqInline = _inlineSectionBanner(_rqLayout);
+        if (!rqInline) {
+          widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
+          widgets.add(rqBanner);
+        }
+        widgets.add(pw.SizedBox(height: 10));
+        flow.consume(PdfLayout.sectionGap + bannerHeight + 10);
+
+        final rqCols = _rqLayout.mcqColumns;
+        final rqWidth = PdfLayout.columnWidth(rqCols);
+        final rqRows = flow.layout(
+          heights: [
+            for (int i = 0; i < shorts.length; i++)
+              PdfLayout.rqHeight(
+                index: i + 1,
+                question: shorts[i],
+                columnWidth: rqWidth,
+                metrics: metrics,
+              ),
+          ],
+          columns: rqCols,
+          trailingGap: 0,
+        );
+
+        for (var bi = 0; bi < rqRows.length; bi++) {
+          final row = rqRows[bi];
+          final columns = <List<pw.Widget>>[];
+          for (final column in row) {
+            columns.add(_buildPdfFragmentColumn(
+              column,
+              // A short question is a single line, so it is never split.
+              itemBuilder: (i, from, to) {
+                final data = shorts[i].shortData;
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.RichText(
+                            text: _mixedText(
+                                '${i + 1}. ${data!.text}', baseStyle)),
+                      ),
+                      pw.SizedBox(width: 12),
+                      pw.RichText(
+                          text: _mixedText('[${data.mark}]', rqMarkStyle)),
+                    ],
+                  ),
+                );
+              },
+              afterQuestion: () => pw.SizedBox.shrink(),
+            ));
+          }
+          if (bi == 0 && rqInline && columns.isNotEmpty) {
+            columns.first.insert(0, rqBanner);
+          }
+          widgets.add(_pdfColumnRow(columns));
+        }
+      }
+    }
+
+    // ── Dispatch, in the order the reader arranged ─────────────────────
+    //
+    // CQ and the short questions are emitted as one continuous run of blocks
+    // when they sit next to each other on a two-set, two-column sheet; the
+    // heading for each then lands wherever that flow reaches its type instead
+    // of each section starting a fresh full-width row. Separating them with a
+    // drag turns the merge off and both print as ordinary sections.
+    final mergeCqAndShorts = _mergesCqAndShorts &&
         _cqLayout.mcqColumns > 1 &&
-        _rqLayout.mcqColumns > 1 &&
-        cqs.isNotEmpty &&
-        shorts.isNotEmpty;
+        _rqLayout.mcqColumns > 1;
 
     if (mergeCqAndShorts) {
       _appendPdfCqAndShortSection(
@@ -863,191 +1108,27 @@ class _HighSchoolQPaperGeneratorPageState
         bannerHeight: bannerHeight,
         stemImages: stemImages,
       );
-      _appendPdfMcqSection(
-        widgets,
-        flow,
-        mcqs: mcqs,
-        baseStyle: baseStyle,
-        boldStyle: boldStyle,
-        smallStyle: smallStyle,
-        bannerHeight: bannerHeight,
-        metrics: metrics,
-      );
+      for (final kind in _activeSections) {
+        if (kind.isMcq) emitMcq();
+      }
       return;
     }
 
-    // ── CQ Section ─────────────────────────────────────────────────────
-    if (cqs.isNotEmpty) {
-      final cqBanner = _pdfSectionBanner(
-          'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', boldStyle.copyWith(fontSize: 11));
-      if (_inlineSectionBanner(_cqLayout)) {
-        // Drawn inside the first block's left column instead of spanning the
-        // page; its height is charged to the flow so the block still fits.
-        flow.consume(bannerHeight);
+    for (final kind in _activeSections) {
+      if (kind.isCq) {
+        emitCq();
+      } else if (kind.isMcq) {
+        emitMcq();
       } else {
-        widgets.add(cqBanner);
-        flow.consume(bannerHeight);
-      }
-      // Optional "answer any N questions" note.
-      final answerAny = _cqAnswerCount;
-      if (answerAny > 0) {
-        widgets.add(pw.SizedBox(height: 4));
-        widgets.add(pw.RichText(
-          text: _mixedText('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
-              smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
-          textAlign: pw.TextAlign.center,
-        ));
-        flow.consume(4 +
-            metrics.lineHeight('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
-                fontSize: PdfLayout.smallFontSize));
-      }
-      widgets.add(pw.SizedBox(height: 10));
-      flow.consume(bannerHeight + 10);
-
-      // Balanced newspaper columns rather than rows of two, so a short
-      // question no longer inherits the full height of the tallest
-      // question beside it. Questions are packed as fragments, which lets
-      // the foot of a page be filled instead of left blank. See
-      // [balanceColumns] and [PdfPageFlow].
-      final cqCols = _cqLayout.mcqColumns;
-      final cqWidth = PdfLayout.columnWidth(cqCols);
-      final cqFragments = <PdfFlowFragment>[];
-      for (int i = 0; i < cqs.length; i++) {
-        final parts = PdfLayout.cqFragments(
-          index: i + 1,
-          question: cqs[i],
-          columnWidth: cqWidth,
-          metrics: metrics,
-          hasImage: stemImages.containsKey(
-              HighSchoolExportService.resolveImageUrl(cqs[i].stemImageUrl)),
-          imageSize: _imageSize,
-        );
-        for (var p = 0; p < parts.length; p++) {
-          cqFragments.add(PdfFlowFragment(
-            height: parts[p],
-            question: i,
-            indexInQuestion: p,
-            isFirst: p == 0,
-            isLast: p == parts.length - 1,
-          ));
-        }
-      }
-
-      final cqRows = flow.layoutFragments(
-          fragments: cqFragments, columns: cqCols, trailingGap: 16);
-
-      // One unbreakable row of columns per page's worth of questions, so a
-      // long section still flows instead of overflowing a single block.
-      for (var bi = 0; bi < cqRows.length; bi++) {
-        final row = cqRows[bi];
-        final columns = <List<pw.Widget>>[];
-        for (final column in row) {
-          columns.add(_buildPdfFragmentColumn(
-            column,
-            itemBuilder: (qIndex, from, to) => _buildPdfCqCard(
-              index: qIndex + 1,
-              question: cqs[qIndex],
-              baseStyle: baseStyle,
-              boldStyle: boldStyle,
-              smallStyle: smallStyle,
-              markStyle: cqMarkStyle,
-              stemImages: stemImages,
-              imageSize: _imageSize,
-              partFrom: from,
-              partTo: to,
-            ),
-            afterQuestion: () => pw.SizedBox(height: PdfLayout.cqCardGap),
-          ));
-        }
-        if (bi == 0 && _inlineSectionBanner(_cqLayout) && columns.isNotEmpty) {
-          columns.first.insert(0, cqBanner);
-        }
-        widgets.add(_pdfColumnRow(columns));
-        widgets.add(pw.SizedBox(height: 16));
-      }
-    }
-
-    // ── MCQ Section ────────────────────────────────────────────────────
-    _appendPdfMcqSection(
-      widgets,
-      flow,
-      mcqs: mcqs,
-      baseStyle: baseStyle,
-      boldStyle: boldStyle,
-      smallStyle: smallStyle,
-      bannerHeight: bannerHeight,
-      metrics: metrics,
-    );
-
-    // ── Short question section (গ-বিভাগ) ───────────────────────────────
-    if (shorts.isNotEmpty) {
-      final rqBanner = _pdfSectionBanner(
-          'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)', boldStyle.copyWith(fontSize: 11));
-      final rqInline = _inlineSectionBanner(_rqLayout);
-      if (!rqInline) {
-        widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
-        widgets.add(rqBanner);
-      }
-      widgets.add(pw.SizedBox(height: 10));
-      flow.consume(PdfLayout.sectionGap + bannerHeight + 10);
-
-      final rqCols = _rqLayout.mcqColumns;
-      final rqWidth = PdfLayout.columnWidth(rqCols);
-      final rqRows = flow.layout(
-        heights: [
-          for (int i = 0; i < shorts.length; i++)
-            PdfLayout.rqHeight(
-              index: i + 1,
-              question: shorts[i],
-              columnWidth: rqWidth,
-              metrics: metrics,
-            ),
-        ],
-        columns: rqCols,
-        trailingGap: 0,
-      );
-
-      for (var bi = 0; bi < rqRows.length; bi++) {
-        final row = rqRows[bi];
-        final columns = <List<pw.Widget>>[];
-        for (final column in row) {
-          columns.add(_buildPdfFragmentColumn(
-            column,
-            // A short question is a single line, so it is never split.
-            itemBuilder: (i, from, to) {
-              final data = shorts[i].shortData;
-              return pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
-                child: pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Expanded(
-                      child: pw.RichText(
-                          text:
-                              _mixedText('${i + 1}. ${data!.text}', baseStyle)),
-                    ),
-                    pw.SizedBox(width: 12),
-                    pw.RichText(
-                        text: _mixedText('[${data.mark}]', rqMarkStyle)),
-                  ],
-                ),
-              );
-            },
-            afterQuestion: () => pw.SizedBox.shrink(),
-          ));
-        }
-        if (bi == 0 && rqInline && columns.isNotEmpty) {
-          columns.first.insert(0, rqBanner);
-        }
-        widgets.add(_pdfColumnRow(columns));
+        emitRq();
       }
     }
   }
 
   /// The MCQ section as its own block.
   ///
-  /// Extracted so it can be emitted either between CQ and the short questions,
-  /// or — when those two are merged into a single flow — after them.
+  /// Extracted so it can be emitted anywhere the dispatch puts it, or — when
+  /// CQ and the short questions share a flow — after them.
   void _appendPdfMcqSection(
     List<pw.Widget> widgets,
     PdfPageFlow flow, {
@@ -1502,9 +1583,11 @@ class _HighSchoolQPaperGeneratorPageState
                   text: _mixedText('সেট: $setLabel',
                       boldStyle.copyWith(color: PdfColors.grey700))),
             pw.RichText(text: _mixedText('বিষয়: $subject', boldStyle)),
-            pw.RichText(text: _mixedText('শ্রেণি: $className', boldStyle)),
+            // Class and total marks are metadata, not headings. Bolding every
+            // field made the meta bar compete with the exam name above it.
+            pw.RichText(text: _mixedText('শ্রেণি: $className', baseStyle)),
             pw.RichText(text: _mixedText('সময়: $time', boldStyle)),
-            pw.RichText(text: _mixedText('পূর্ণমান: $totalMarks', boldStyle)),
+            pw.RichText(text: _mixedText('পূর্ণমান: $totalMarks', baseStyle)),
           ],
         ),
         pw.SizedBox(height: PdfLayout.headerMetaGap),
@@ -2086,6 +2169,35 @@ class _HighSchoolQPaperGeneratorPageState
               ],
             ),
           ),
+          // Selected questions stay in the total even when the filter hides
+          // them, so the cards on screen stop adding up to it. Say so, rather
+          // than leaving the reader to think the sum is wrong.
+          if (_marksBreakdown.hidden > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      size: 15, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ফিল্টারের বাইরে ${_marksBreakdown.hidden} নম্বরের নির্বাচিত '
+                      'প্রশ্ন আছে — মোট নম্বরে ধরা হয়েছে, তাই দেখা কার্ডের নম্বরের '
+                      'চেয়ে মোট বেশি দেখাবে।',
+                      style: const TextStyle(fontSize: 11, color: Colors.amber),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2438,8 +2550,25 @@ class _HighSchoolQPaperGeneratorPageState
               _InfoChip(
                   icon: Icons.star_rounded,
                   label: 'মোট নম্বর: $_totalSelectedMarks'),
+              // A single total cannot be checked against the cards on screen,
+              // so break it down by type before the paper is generated.
+              if (_marksBreakdown.cq > 0)
+                _InfoChip(
+                    icon: Icons.calculate_outlined,
+                    label: 'CQ নম্বর: ${_marksBreakdown.cq}'),
+              if (_marksBreakdown.mcq > 0)
+                _InfoChip(
+                    icon: Icons.checklist_outlined,
+                    label: 'MCQ নম্বর: ${_marksBreakdown.mcq}'),
+              if (_marksBreakdown.rq > 0)
+                _InfoChip(
+                    icon: Icons.short_text_rounded,
+                    label: 'RQ নম্বর: ${_marksBreakdown.rq}'),
             ],
           ),
+          const SizedBox(height: 18),
+
+          _buildSectionOrderEditor(),
           const SizedBox(height: 20),
 
           _buildTextField(
@@ -3071,6 +3200,85 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
+  /// Drag list for choosing the order the sections print in.
+  ///
+  /// Built from [_activeSections] rather than [_sectionOrder] so an empty
+  /// section is never shown: a drag should always move something visible.
+  Widget _buildSectionOrderEditor() {
+    final sections = _activeSections;
+    if (sections.length < 2) return const SizedBox.shrink();
+
+    final merged = _mergesCqAndShorts;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.reorder_rounded, size: 18, color: _kPrimary),
+            const SizedBox(width: 8),
+            const Text('বিভাগের ক্রম',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: _kDarkText)),
+            const Spacer(),
+            Text('ধরে টেনে বদলান',
+                style: TextStyle(fontSize: 11, color: _kSubText)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          buildDefaultDragHandles: false,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: sections.length,
+          onReorder: (oldIndex, newIndex) {
+            setState(() {
+              if (newIndex > oldIndex) newIndex -= 1;
+              // The visible list skips empty sections, so translate its
+              // indices back onto the full order before moving anything.
+              final kind = sections[oldIndex];
+              _sectionOrder.remove(kind);
+              final anchor = newIndex >= sections.length
+                  ? _sectionOrder.length
+                  : _sectionOrder.indexOf(sections[newIndex]);
+              _sectionOrder.insert(anchor, kind);
+            });
+          },
+          itemBuilder: (context, index) {
+            final kind = sections[index];
+            return _SectionOrderTile(
+              key: ValueKey(kind),
+              kind: kind,
+              questionCount: _questionsOf(kind).length,
+              marks: _marksOf(kind),
+              index: index,
+              dragIndex: sections.length,
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: _kPrimary.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            merged
+                ? 'সৃজনশীল ও সংক্ষিপ্ত প্রশ্ন পরপর আছে, তাই দুটি একটিই '
+                    'প্রবাহে একসাথে বসবে। মাঝে কোনো বিভাগ না সরালে এই যুক্ত '
+                    'বিন্যাস থাকবে।'
+                : 'সৃজনশীল ও সংক্ষিপ্ত প্রশ্ন পরপর নেই, তাই এরা আলাদা বিভাগ হিসেবে '
+                    'বসবে। দুটি পরপর করলে আবার একটিই প্রবাহে জুটে যাবে।',
+            style: const TextStyle(fontSize: 11, color: _kSubText),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController ctrl,
     required String label,
@@ -3427,6 +3635,118 @@ class _PickFilterChip extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: selected ? FontWeight.bold : FontWeight.w400,
                     color: selected ? Colors.white : _kSubText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A question section on the paper, in the order the reader arranges them.
+///
+/// The paper used to hard-code one order, and a different one when CQ and the
+/// short questions were merged, so there was no way to print the sections in
+/// the order a particular exam wanted.
+enum _SectionKind {
+  cq('ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', 'সৃজনশীল প্রশ্ন', _kCqColor),
+  rq('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)', 'সংক্ষিপ্ত প্রশ্ন', _kRqColor),
+  mcq('খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)', 'বহুনির্বাচনী প্রশ্ন', _kMcqColor);
+
+  const _SectionKind(this.banner, this.shortName, this.color);
+
+  /// Exactly the text the PDF section banner draws, so the reorder list and the
+  /// printed paper cannot drift apart.
+  final String banner;
+
+  /// Compact name for the drag list.
+  final String shortName;
+
+  final Color color;
+
+  bool get isCq => this == _SectionKind.cq;
+  bool get isMcq => this == _SectionKind.mcq;
+  bool get isRq => this == _SectionKind.rq;
+}
+
+/// One draggable row in the section-order list.
+class _SectionOrderTile extends StatelessWidget {
+  const _SectionOrderTile({
+    super.key,
+    required this.kind,
+    required this.questionCount,
+    required this.marks,
+    required this.index,
+    required this.dragIndex,
+  });
+
+  final _SectionKind kind;
+  final int questionCount;
+  final int marks;
+  final int index;
+  final int dragIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: kind.color.withOpacity(0.35)),
+        ),
+        child: ReorderableDragStartListener(
+          index: index,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            child: Row(
+              children: [
+                ReorderableDragStartListener(
+                  index: index,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.grab,
+                    child: Icon(Icons.drag_indicator_rounded,
+                        size: 20, color: kind.color),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        kind.banner,
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.bold,
+                            color: _kDarkText),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$questionCount টি প্রশ্ন  ·  $marks নম্বর',
+                        style: const TextStyle(fontSize: 11, color: _kSubText),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: kind.color.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${index + 1}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: kind.color,
+                    ),
                   ),
                 ),
               ],
