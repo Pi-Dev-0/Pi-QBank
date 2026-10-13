@@ -1499,7 +1499,7 @@ class _HighSchoolQPaperGeneratorPageState
         widgets.add(pw.SizedBox(height: 6));
         widgets.add(pw.RichText(
           text: _mixedText(
-              'জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে', smallStyle),
+              'Generated from the Pi-QBank platform — https://pi-qbank.blogspot.com', smallStyle),
           textAlign: pw.TextAlign.center,
         ));
 
