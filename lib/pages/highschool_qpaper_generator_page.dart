@@ -8,7 +8,9 @@ import '../models/highschool_question.dart';
 import '../services/highschool_qbank_service.dart';
 import '../services/highschool_export_service.dart';
 import '../pages/question_paper_preview_page.dart';
+import '../utils/pdf_column_layout.dart';
 import '../utils/pdf_mixed_text.dart';
+import '../utils/pdf_text_metrics.dart';
 import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
 
@@ -599,6 +601,31 @@ class _HighSchoolQPaperGeneratorPageState
     return buildPdfTextSpan(text, style, bold: bold);
   }
 
+  // ── Multi-column geometry ────────────────────────────────────────────────
+  //
+  // Widths and height estimates come from PdfLayout so the split is computed
+  // against the same numbers the widgets below are built with.
+
+  /// Lay out pre-balanced columns side by side.
+  static pw.Widget _pdfColumnRow(List<List<pw.Widget>> columns) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < columns.length; i++) ...[
+          if (i > 0) pw.SizedBox(width: PdfLayout.gutter),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              mainAxisAlignment: pw.MainAxisAlignment.start,
+              children: columns[i],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+
   Future<Uint8List> _buildPdf() async {
     final doc = pw.Document();
     final cqs = _selectedCqs;
@@ -613,9 +640,11 @@ class _HighSchoolQPaperGeneratorPageState
 
     // Bangla: SutonnyMJ (Bijoy-ANSI encoding).
     pw.Font? banglaFont;
+    ByteData? banglaFontData;
     try {
       final fontData =
           await rootBundle.load('assets/fonts/SutonnyMJ Regular.ttf');
+      banglaFontData = fontData;
       banglaFont = pw.Font.ttf(fontData);
     } catch (_) {
       // Font not found – PDF will show blank for Bangla text
@@ -625,13 +654,24 @@ class _HighSchoolQPaperGeneratorPageState
     // the PDF base-14 fonts carry them, so without this the pdf package logs
     // "Unable to find a font to draw ..." and draws nothing.
     pw.Font? mathFont;
+    ByteData? mathFontData;
     try {
       final fontData = await rootBundle.load('assets/fonts/MathSymbols.ttf');
+      mathFontData = fontData;
       mathFont = pw.Font.ttf(fontData);
     } catch (_) {
       // Font not found – math symbols will be skipped
     }
     final fallback = mathFont == null ? const <pw.Font>[] : <pw.Font>[mathFont];
+
+    // Measures text with the very fonts used below, so the multi-column split
+    // is computed from real glyph widths rather than a character-count guess.
+    // The symbol font is needed here too: base-14 fonts throw outright on
+    // anything outside Latin-1, so ≤ √ π − must be measured with a TTF.
+    final metrics = PdfTextMetrics(
+      banglaFontData: banglaFontData,
+      symbolFontData: mathFontData,
+    );
 
     final baseStyle = pw.TextStyle(
       font: banglaFont,
@@ -665,6 +705,13 @@ class _HighSchoolQPaperGeneratorPageState
       build: (ctx) {
         final widgets = <pw.Widget>[];
 
+        // Replays the page fill so each block of columns is sized to the space
+        // actually left. Without this the CQ block is budgeted for a whole page,
+        // never fits under the masthead, and jumps to page 2 — leaving page 1
+        // almost blank. See PdfPageFlow.
+        final flow = PdfPageFlow(contentHeight: PdfLayout.contentHeight);
+        final bannerHeight = PdfLayout.sectionBannerHeight(metrics);
+
         // ── Header ─────────────────────────────────────────────────────────
         widgets.add(_buildPdfHeader(
           schoolName: _schoolCtrl.text,
@@ -680,6 +727,16 @@ class _HighSchoolQPaperGeneratorPageState
         ));
 
         widgets.add(pw.SizedBox(height: 16));
+        flow.consume(PdfLayout.headerHeight(
+          metrics: metrics,
+          schoolName: _schoolCtrl.text,
+          examName: _examCtrl.text,
+          subject: _subjectCtrl.text,
+          className: _classCtrl.text,
+          time: _timeCtrl.text,
+          totalMarks: _marksCtrl.text,
+        ) +
+            16);
 
         // ── CQ Section ─────────────────────────────────────────────────────
         if (cqs.isNotEmpty) {
@@ -695,34 +752,61 @@ class _HighSchoolQPaperGeneratorPageState
                   smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
               textAlign: pw.TextAlign.center,
             ));
+            flow.consume(4 +
+                metrics.lineHeight('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
+                    fontSize: PdfLayout.smallFontSize));
           }
           widgets.add(pw.SizedBox(height: 10));
+          flow.consume(bannerHeight + 10);
 
-          for (int i = 0; i < cqs.length; i += _cqLayout.mcqColumns) {
-            final cols = _cqLayout.mcqColumns;
-            final rowChildren = <pw.Widget>[];
-            for (int c = 0; c < cols; c++) {
-              if (c > 0) rowChildren.add(pw.SizedBox(width: 16));
-              final idx = i + c;
-              rowChildren.add(pw.Expanded(
-                child: idx < cqs.length
-                    ? _buildPdfCqCard(
-                        index: idx + 1,
-                        question: cqs[idx],
-                        baseStyle: baseStyle,
-                        boldStyle: boldStyle,
-                        smallStyle: smallStyle,
-                        stemImages: stemImages,
-                        imageSize: _imageSize,
-                      )
-                    : pw.SizedBox(),
-              ));
+          // Balanced newspaper columns rather than rows of two, so a short
+          // question no longer inherits the full height of the tallest
+          // question beside it. See [balanceColumns].
+          final cqCols = _cqLayout.mcqColumns;
+          final cqWidth = PdfLayout.columnWidth(cqCols);
+          final cqRows = flow.layout(
+            heights: [
+              for (int i = 0; i < cqs.length; i++)
+                // The gap is counted per card because the builder emits one
+                // after every card, including the last in a column.
+                PdfLayout.cqHeight(
+                  index: i + 1,
+                  question: cqs[i],
+                  columnWidth: cqWidth,
+                  metrics: metrics,
+                  hasImage: stemImages.containsKey(
+                      HighSchoolExportService.resolveImageUrl(
+                          cqs[i].stemImageUrl)),
+                  imageSize: _imageSize,
+                ) +
+                    PdfLayout.cqCardGap,
+            ],
+            columns: cqCols,
+            trailingGap: 16,
+          );
+
+          // One unbreakable row of columns per page's worth of questions, so a long
+          // section still flows instead of overflowing a single block.
+          for (final row in cqRows) {
+            final columns = <List<pw.Widget>>[];
+            for (final group in row) {
+              final column = <pw.Widget>[];
+              for (final qIndex in group) {
+                column.add(_buildPdfCqCard(
+                  index: qIndex + 1,
+                  question: cqs[qIndex],
+                  baseStyle: baseStyle,
+                  boldStyle: boldStyle,
+                  smallStyle: smallStyle,
+                  stemImages: stemImages,
+                  imageSize: _imageSize,
+                ));
+                column.add(pw.SizedBox(height: PdfLayout.cqCardGap));
+              }
+              columns.add(column);
             }
-            widgets.add(pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: rowChildren,
-            ));
-            widgets.add(pw.SizedBox(height: 12));
+            widgets.add(_pdfColumnRow(columns));
+            widgets.add(pw.SizedBox(height: 16));
           }
         }
 
@@ -738,29 +822,52 @@ class _HighSchoolQPaperGeneratorPageState
                   smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
               textAlign: pw.TextAlign.center));
           widgets.add(pw.SizedBox(height: 10));
+          flow.consume(16 +
+              bannerHeight +
+              4 +
+              metrics.lineHeight('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
+                  fontSize: PdfLayout.smallFontSize) +
+              10);
 
-          // MCQ arranged in 1 or 2 columns per the layout setting
+          // MCQ arranged in balanced columns per the layout setting.
           final cols = _mcqLayout.mcqColumns;
           final stackOptions = cols > 1;
-          for (int i = 0; i < mcqs.length; i += cols) {
-            final rowChildren = <pw.Widget>[];
-            for (int c = 0; c < cols; c++) {
-              if (c > 0) rowChildren.add(pw.SizedBox(width: 16));
-              final idx = i + c;
-              rowChildren.add(pw.Expanded(
-                child: idx < mcqs.length
-                    ? _buildPdfMcqItem(idx + 1, mcqs[idx], baseStyle,
-                        stackOptions: stackOptions)
-                    : pw.SizedBox(),
-              ));
+          final mcqWidth = PdfLayout.columnWidth(cols);
+          final mcqRows = flow.layout(
+            heights: [
+              for (int i = 0; i < mcqs.length; i++)
+                PdfLayout.mcqHeight(
+                  index: i + 1,
+                  question: mcqs[i],
+                  columnWidth: mcqWidth,
+                  metrics: metrics,
+                  stackOptions: stackOptions,
+                ),
+            ],
+            columns: cols,
+            trailingGap: 12,
+          );
+
+          for (final row in mcqRows) {
+            final columns = <List<pw.Widget>>[];
+            for (final group in row) {
+              final column = <pw.Widget>[];
+              for (var k = 0; k < group.length; k++) {
+                column.add(_buildPdfMcqItem(group[k] + 1, mcqs[group[k]],
+                    baseStyle,
+                    stackOptions: stackOptions));
+                // The rule belongs *between* questions, so a column that ends
+                // on a question is not left with a trailing divider.
+                if (k < group.length - 1) {
+                  column.add(pw.SizedBox(height: 6));
+                  column.add(_pdfDashedLine());
+                  column.add(pw.SizedBox(height: 6));
+                }
+              }
+              columns.add(column);
             }
-            widgets.add(pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: rowChildren,
-            ));
-            widgets.add(pw.SizedBox(height: 6));
-            widgets.add(_pdfDashedLine());
-            widgets.add(pw.SizedBox(height: 6));
+            widgets.add(_pdfColumnRow(columns));
+            widgets.add(pw.SizedBox(height: 12));
           }
         }
 

@@ -2,6 +2,40 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../bijoy_helper/bijoy_helper.dart' as bh;
 
+/// One contiguous run of text drawn with a single font.
+class PdfTextRun {
+  const PdfTextRun(this.text, this.isBangla);
+
+  final String text;
+
+  /// True when the run is Bangla and must be drawn in the Bijoy-ANSI font.
+  final bool isBangla;
+
+  bool get isEmpty => text.isEmpty;
+}
+
+/// Split [text] into alternating Bangla / Latin runs, exactly as the PDF will
+/// draw them.
+///
+/// Both the renderer ([buildPdfTextSpan]) and the layout estimator
+/// ([PdfTextMetrics]) go through this function, so a measured line count can
+/// never disagree with the rendered one. Splitting the logic would let a
+/// stray soft hyphen or a differently-classified run silently desynchronise
+/// the two.
+///
+/// The Bijoy converter inserts U+00AD (soft hyphen) as a reordering marker. It
+/// is invisible in normal text, but no font here has a glyph for it, so it
+/// would render as a black box in the middle of a word ("প্ল্যাটফর্ম").
+List<PdfTextRun> splitPdfTextRuns(String text) {
+  final segments = bh.BanglaTextProcessor.processText(text);
+  if (segments.isEmpty) {
+    return const [PdfTextRun('', false)];
+  }
+  return segments
+      .map((seg) => PdfTextRun(seg.text.replaceAll('­', ''), seg.isBangla))
+      .toList();
+}
+
 /// Build a [pw.TextSpan] for text that mixes Bangla and Latin in the PDF.
 ///
 /// ## Why this exists
@@ -39,21 +73,16 @@ pw.TextSpan buildPdfTextSpan(
 }) {
   final latin = bold ? pw.Font.helveticaBold() : pw.Font.helvetica();
 
-  final segments = bh.BanglaTextProcessor.processText(text);
-  if (segments.isEmpty) {
+  final runs = splitPdfTextRuns(text);
+  if (runs.isEmpty || (runs.length == 1 && runs.first.isEmpty)) {
     return pw.TextSpan(text: '', style: banglaStyle);
   }
 
-  // The Bijoy converter inserts U+00AD (soft hyphen) as a reordering marker.
-  // It is invisible in normal text, but no font here has a glyph for it, so it
-  // would render as a black box in the middle of a word ("প্ল্যাটফর্ম").
-  String clean(String s) => s.replaceAll('­', '');
-
   return pw.TextSpan(
-    children: segments
-        .map((seg) => pw.TextSpan(
-              text: clean(seg.text),
-              style: seg.isBangla
+    children: runs
+        .map((run) => pw.TextSpan(
+              text: run.text,
+              style: run.isBangla
                   ? banglaStyle
                   : banglaStyle.copyWith(
                       // `font:` alone would be discarded — see the note above.

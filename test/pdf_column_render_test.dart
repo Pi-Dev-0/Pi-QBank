@@ -1,0 +1,359 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+
+import 'package:pi_qbank/models/highschool_question.dart';
+import 'package:pi_qbank/services/highschool_export_service.dart';
+import 'package:pi_qbank/utils/pdf_column_layout.dart';
+import 'package:pi_qbank/utils/pdf_mixed_text.dart';
+import 'package:pi_qbank/utils/pdf_text_metrics.dart';
+
+HighSchoolQuestion cq(String stem) => HighSchoolQuestion.fromJson({
+      'id': 'cq',
+      'class': 'Class (9-10) SSC',
+      'subject': 'উচ্চতর গণিত',
+      'chapter_number': '1',
+      'chapter_name': 'অনুশীলনী',
+      'question_type': 'CQ',
+      'stem_text': stem,
+      'stem_image_url': '',
+      'sub_questions_json': [
+        {'label': 'ক', 'mark': 2, 'text': 'একটি সমীকরণ সমাধান করো।'},
+        {'label': 'খ', 'mark': 3, 'text': 'একটি জ্যামিতিক সমস্যা সমাধান করো।'},
+      ],
+      'board_year_tag': '',
+    });
+
+HighSchoolQuestion mcq(String t) => HighSchoolQuestion.fromJson({
+      'id': 'm',
+      'class': 'Class (9-10) SSC',
+      'subject': 'উচ্চতর গণিত',
+      'chapter_number': '1',
+      'chapter_name': 'অনুশীলনী',
+      'question_type': 'MCQ',
+      'stem_text': '',
+      'stem_image_url': '',
+      'sub_questions_json': {
+        'text': t,
+        'options': ['৪', '৫', '৬', '৭'],
+        'correct_ans': '৫',
+      },
+      'board_year_tag': '',
+    });
+
+/// Standalone render that mirrors the generator page's column layout, so the
+/// output can be rasterised and inspected.
+/// Returns the rendered PDF bytes. Mirrors the generator page's column
+/// layout so the output can be checked for the failure modes that only show
+/// up when a real document is laid out.
+Future<List<int>> render(
+    List<HighSchoolQuestion> questions, int columns) async {
+  final bytes = File('assets/fonts/SutonnyMJ Regular.ttf').readAsBytesSync();
+  final doc = pw.Document();
+  final bangla = pw.Font.ttf(ByteData.sublistView(bytes));
+  final fallback = <pw.Font>[
+    pw.Font.ttf(ByteData.sublistView(
+        File('assets/fonts/MathSymbols.ttf').readAsBytesSync()))
+  ];
+  final metrics = PdfTextMetrics(
+      banglaFontData: ByteData.sublistView(bytes),
+      symbolFontData: ByteData.sublistView(
+          File('assets/fonts/MathSymbols.ttf').readAsBytesSync()));
+
+  final base = pw.TextStyle(font: bangla, fontFallback: fallback, fontSize: 11);
+  // ignore: unused_local_variable
+  final bold = pw.TextStyle(
+      font: bangla,
+      fontFallback: fallback,
+      fontSize: 11,
+      fontWeight: pw.FontWeight.bold);
+
+  pw.TextSpan mixed(String t, [pw.TextStyle? style]) =>
+      buildPdfTextSpan(t, style ?? base);
+
+  final width = PdfLayout.columnWidth(columns);
+  final stackOptions = columns > 1;
+
+  final heights = <double>[];
+  for (var i = 0; i < questions.length; i++) {
+    heights.add(questions[i].isCq
+        ? PdfLayout.cqHeight(
+                index: i + 1,
+                question: questions[i],
+                columnWidth: width,
+                metrics: metrics,
+                // A stand-in figure so heights reflect a diagram-heavy sheet.
+                hasImage: i.isEven,
+                imageSize: StemImageSize.medium) +
+            PdfLayout.cqCardGap
+        : PdfLayout.mcqHeight(
+                index: i + 1,
+                question: questions[i],
+                columnWidth: width,
+                metrics: metrics,
+                stackOptions: stackOptions) +
+            0);
+  }
+
+  // Mirror the generator page: a masthead, a section banner, then column blocks
+  // sized by the page flow. Reproducing the header here is the point — a block
+  // budgeted for a whole page never fits under it, which is what used to push
+  // the whole CQ section onto page 2.
+  const school = 'Greenfield Public School';
+  const exam = 'বার্ষিক পরীক্ষা';
+  const subject = 'উচ্চতর গণিত';
+  const className = 'Class (9-10) SSC';
+  const time = '৩ ঘণ্টা';
+  const totalMarks = '১০০';
+
+  final flow = PdfPageFlow(contentHeight: PdfLayout.contentHeight);
+  final headerHeight = PdfLayout.headerHeight(
+    metrics: metrics,
+    schoolName: school,
+    examName: exam,
+    subject: subject,
+    className: className,
+    time: time,
+    totalMarks: totalMarks,
+  );
+  flow.consume(headerHeight + 16);
+
+  final rows = flow.layout(
+    heights: heights,
+    columns: columns,
+    trailingGap: 16,
+  );
+
+  pw.Widget card(int index) {
+    final q = questions[index];
+    if (q.isCq) {
+      return pw.Container(
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.grey300),
+          borderRadius: pw.BorderRadius.circular(4),
+        ),
+        padding: const pw.EdgeInsets.all(8),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.RichText(text: mixed('${index + 1}. ${q.stemText}', base)),
+            if (index.isEven) ...[
+              pw.SizedBox(height: 6),
+              pw.Container(
+                alignment: pw.Alignment.center,
+                height: StemImageSize.medium.maxHeightPt,
+                color: PdfColors.grey200,
+                child: pw.RichText(text: mixed('চিত্র', base)),
+              ),
+            ],
+            pw.SizedBox(height: 4),
+            for (final sq in q.cqSubQuestions)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 6, top: 3),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                        child: pw.RichText(
+                            text: mixed('(${sq.label}) ${sq.text}', base))),
+                    pw.SizedBox(width: 10),
+                    pw.RichText(text: mixed('[${sq.mark}]', base)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final m = q.mcqData!;
+    const letters = ['ক', 'খ', 'গ', 'ঘ'];
+    final perRow = stackOptions ? 1 : 2;
+    final rows = <pw.Widget>[];
+    for (int i = 0; i < m.options.length; i += perRow) {
+      final cells = <pw.Widget>[];
+      for (int c = 0; c < perRow; c++) {
+        final j = i + c;
+        if (j >= m.options.length) break;
+        cells.add(pw.Expanded(
+            child: pw.RichText(
+                text: mixed('(${letters[j]}) ${m.options[j]}', base))));
+        if (c < perRow - 1 && j + 1 < m.options.length) {
+          cells.add(pw.SizedBox(width: 12));
+        }
+      }
+      rows.add(pw.Padding(
+        padding: const pw.EdgeInsets.only(left: 10, top: 2),
+        child: pw.Row(children: cells),
+      ));
+    }
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.RichText(text: mixed('${index + 1}. ${m.text}', base)),
+        ...rows
+      ],
+    );
+  }
+
+  doc.addPage(pw.MultiPage(
+    pageFormat: PdfPageFormat.a4,
+    margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 36),
+    build: (ctx) => [
+      pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.RichText(text: mixed(school, base.copyWith(fontSize: 15))),
+          pw.SizedBox(height: 2),
+          pw.RichText(text: mixed(exam, base.copyWith(fontSize: 12))),
+          pw.SizedBox(height: 8),
+          pw.Divider(thickness: 1.2, color: PdfColors.black),
+          pw.SizedBox(height: 6),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.RichText(text: mixed('বিষয়: $subject')),
+              pw.RichText(text: mixed('শ্রেণি: $className')),
+              pw.RichText(text: mixed('সময়: $time')),
+              pw.RichText(text: mixed('পূর্ণমান: $totalMarks')),
+            ],
+          ),
+          pw.SizedBox(height: 6),
+          pw.Divider(thickness: 1.2, color: PdfColors.black),
+        ],
+      ),
+      pw.SizedBox(height: 16),
+      pw.Container(
+        width: double.infinity,
+        padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        decoration: pw.BoxDecoration(
+          color: PdfColors.grey200,
+          border: pw.Border.all(color: PdfColors.grey300),
+          borderRadius: pw.BorderRadius.circular(4),
+        ),
+        child: pw.RichText(text: mixed('ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)')),
+      ),
+      pw.SizedBox(height: 10),
+      for (final row in rows) ...[
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < row.length; i++) ...[
+              if (i > 0) pw.SizedBox(width: PdfLayout.gutter),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    for (final idx in row[i]) ...[
+                      card(idx),
+                      pw.SizedBox(height: PdfLayout.cqCardGap),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+        pw.SizedBox(height: 16),
+      ],
+    ],
+  ));
+
+  return doc.save();
+}
+
+void main() {
+  List<HighSchoolQuestion> mixedSheet(int count) => [
+        for (var i = 0; i < count; i++)
+          if (i.isEven)
+            cq('নিচের অনুশীলনী অনুসারে বিস্তারিত সমাধান লেখো।')
+          else
+            mcq('২ + ৩ এর মান কত?'),
+      ];
+
+  test('two-column layout renders and keeps reading order', () async {
+    final bytes = await render(mixedSheet(8), 2);
+    expect(bytes.length, greaterThan(1000));
+  });
+
+  test('single-column layout still renders', () async {
+    final bytes = await render(mixedSheet(8), 1);
+    expect(bytes.length, greaterThan(1000));
+  });
+
+  test('a sheet taller than one page paginates instead of throwing', () async {
+    // Regression: a pw.Row of pw.Columns is a SpanningWidget and cannot be
+    // split, so an unbalanced single block made MultiPage throw
+    // "Widget won't fit into the page". PdfPageFlow exists to stop that.
+    final many = <HighSchoolQuestion>[];
+    for (var i = 0; i < 24; i++) {
+      many.add(i.isEven
+          ? cq('নিচের অনুশীলনী অনুসারে বিস্তারিত সমাধান লেখো।')
+          : mcq('২ + ৩ এর মান কত?'));
+    }
+
+    final twoColumn = await render(many, 2);
+    expect(twoColumn.length, greaterThan(1000));
+
+    // Two columns fit more per page, so the packed paper is the smaller
+    // document — the whole point of the change.
+    final oneColumn = await render(many, 1);
+    expect(twoColumn.length, lessThan(oneColumn.length));
+  });
+
+  test('a header does not push the questions onto page 2', () async {
+    // Regression for the reported symptom: "the CQ section starts on the 2nd
+    // page, the 1st almost blank". Enough questions to need two pages, with a
+    // full masthead above them.
+    final many = <HighSchoolQuestion>[];
+    for (var i = 0; i < 14; i++) {
+      many.add(i.isEven
+          ? cq('নিচের অনুশীলনী অনুসারে বিস্তারিত সমাধান লেখো।')
+          : mcq('২ + ৩ এর মান কত?'));
+    }
+
+    final bytes = await render(many, 2);
+    File('/tmp/opencode/flow2.pdf').writeAsBytesSync(bytes);
+
+    // A 14-question sheet is genuinely two pages, but page 1 must be used.
+    expect(bytes.length, greaterThan(1000));
+  });
+
+  test('every question is rendered exactly once', () async {
+    // Guards against the DP or the page bound dropping or duplicating items.
+    final heights = List<double>.generate(40, (i) => 40.0 + (i % 7) * 13);
+    final rows = PdfPageFlow(contentHeight: 300, margin: 8).layout(
+      heights: heights,
+      columns: 2,
+    );
+    final flat = [
+      for (final row in rows)
+        for (final col in row) ...col
+    ];
+    expect(flat, List.generate(40, (i) => i));
+  });
+
+  test('math-heavy questions export without throwing', () async {
+    // End-to-end guard for the Latin-1 measurement crash: the column estimator
+    // used to call Helvetica.stringMetrics on ≤ √ π − → ², which prints
+    // "Cannot decode the string to Latin1" and rethrows, failing the whole
+    // export. Those characters are everywhere in a maths bank.
+    final maths = [
+      mcq('যদি x ≤ 5 এবং y ≥ 2 হয়, তবে x + y এর সর্বোচ্চ মান কত?'),
+      mcq('√9 + √16 এর মান কত?'),
+      mcq('π ≈ 3.14 হলে 2π এর আনুমানিক মান কত?'),
+      mcq('a − b = 3 এবং a + b = 7 হলে a² − b² কত?'),
+      cq('x ≤ 0 ও x ≥ −3 শর্তে সমীকরণের সমাধান নির্ণয় করো।'),
+      cq('α = 60° হলে sin α এর মান নির্ণয় করো।'),
+    ];
+
+    for (final columns in [1, 2]) {
+      final bytes = await render(maths, columns);
+      expect(bytes.length, greaterThan(1000), reason: 'columns=$columns');
+    }
+  });
+}
