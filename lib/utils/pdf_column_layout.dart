@@ -126,7 +126,17 @@ class PdfLayout {
   static const double headerExamGap = 5; // exam name -> first rule
   static const double headerMetaGap = 2; // rules <-> the meta row
   static const double headerDivider = 1.2; // rule thickness
-  static const double headerAfterGap = 5; // header -> first section banner
+
+  /// Space above a section banner.
+  ///
+  /// The same value before every banner — the CQ one straight after the
+  /// masthead, and the MCQ and RQ ones after the previous section — so the
+  /// three sections are visually consistent instead of one being tighter than
+  /// the others.
+  static const double sectionGap = 5;
+
+  /// The masthead's own name for [sectionGap], for readability at the call site.
+  static const double headerAfterGap = sectionGap;
 
   /// Height of the school/exam header, mirroring the header widget.
   ///

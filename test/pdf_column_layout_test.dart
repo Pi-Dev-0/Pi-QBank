@@ -707,6 +707,33 @@ void main() {
       final flow = PdfPageFlow(contentHeight: PdfLayout.contentHeight);
       expect(flow.layout(heights: const [], columns: 2), isEmpty);
     });
+
+    test('every section banner gets the same gap above it', () {
+      // Regression: the masthead->CQ gap had been tightened while the MCQ and
+      // RQ banners kept the old 16pt, so the three sections looked different.
+      // They now all read one constant.
+      expect(PdfLayout.headerAfterGap, PdfLayout.sectionGap);
+      expect(PdfLayout.sectionGap, lessThanOrEqualTo(6));
+    });
+
+    test('masthead gaps are tight', () {
+      expect(PdfLayout.headerExamGap, lessThanOrEqualTo(6));
+      expect(PdfLayout.headerMetaGap, lessThanOrEqualTo(3));
+    });
+
+    test('the masthead leaves more room for questions than before', () {
+      final h = PdfLayout.headerHeight(
+        metrics: m,
+        schoolName: 'Greenfield Public School',
+        examName: 'বার্ষিক পরীক্ষা ২০২৬',
+        subject: 'সাধারণ গণিত',
+        className: 'Class 8',
+        time: '২ ঘণ্টা ৩০ মিনিট',
+        totalMarks: '170',
+      );
+      // Was ~70pt with 16pt below it; the tighter masthead frees real space.
+      expect(h, lessThan(60));
+    });
   });
 }
 

@@ -880,7 +880,7 @@ class _HighSchoolQPaperGeneratorPageState
 
         // ── MCQ Section ────────────────────────────────────────────────────
         if (mcqs.isNotEmpty) {
-          widgets.add(pw.SizedBox(height: 16));
+          widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
           widgets.add(_pdfSectionBanner('খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
               boldStyle.copyWith(fontSize: 11)));
           widgets.add(pw.SizedBox(height: 4));
@@ -889,7 +889,7 @@ class _HighSchoolQPaperGeneratorPageState
                   smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
               textAlign: pw.TextAlign.center));
           widgets.add(pw.SizedBox(height: 10));
-          flow.consume(16 +
+          flow.consume(PdfLayout.sectionGap +
               bannerHeight +
               4 +
               metrics.lineHeight('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
@@ -946,11 +946,11 @@ class _HighSchoolQPaperGeneratorPageState
 
         // ── Short question section (গ-বিভাগ) ───────────────────────────────
         if (shorts.isNotEmpty) {
-          widgets.add(pw.SizedBox(height: 16));
+          widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
           widgets.add(_pdfSectionBanner('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
               boldStyle.copyWith(fontSize: 11)));
           widgets.add(pw.SizedBox(height: 10));
-          flow.consume(16 + bannerHeight + 10);
+          flow.consume(PdfLayout.sectionGap + bannerHeight + 10);
 
           final rqCols = _rqLayout.mcqColumns;
           final rqWidth = PdfLayout.columnWidth(rqCols);
