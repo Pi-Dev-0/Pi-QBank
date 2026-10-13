@@ -110,6 +110,11 @@ class _HighSchoolQPaperGeneratorPageState
   bool _loadingQuestions = false;
   final Map<String, bool> _expandedCards = {};
 
+  /// Which question type the picker is showing.
+  _PickFilter _pickFilter = _PickFilter.all;
+  final _pickSearchCtrl = TextEditingController();
+  String _pickSearchQuery = '';
+
   // ── Step 3 state ──────────────────────────────────────────────────────────
   final _schoolCtrl = TextEditingController();
   final _examCtrl = TextEditingController(text: 'বার্ষিক পরীক্ষা ২০২৬');
@@ -165,6 +170,7 @@ class _HighSchoolQPaperGeneratorPageState
     _timeCtrl.dispose();
     _marksCtrl.dispose();
     _cqAnswerAnyCtrl.dispose();
+    _pickSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -322,11 +328,12 @@ class _HighSchoolQPaperGeneratorPageState
         className: _selectedClass!,
         subject: _selectedSubject!,
       );
+      if (!mounted) return;
       setState(() => _availableChapters = chapters);
     } catch (e) {
-      _showError('অধ্যায় লোড করতে ব্যর্থ: ${e.toString()}');
+      _showError('অধ্যায় লোড করতে ব্যর্থ: ${_friendlyError(e)}');
     } finally {
-      setState(() => _loadingChapters = false);
+      if (mounted) setState(() => _loadingChapters = false);
     }
   }
 
@@ -354,9 +361,9 @@ class _HighSchoolQPaperGeneratorPageState
       });
       await _goToStep(1);
     } catch (e) {
-      _showError('প্রশ্ন লোড করতে ব্যর্থ: ${e.toString()}');
+      _showError('প্রশ্ন লোড করতে ব্যর্থ: ${_friendlyError(e)}');
     } finally {
-      setState(() => _loadingQuestions = false);
+      if (mounted) setState(() => _loadingQuestions = false);
     }
   }
 
@@ -368,13 +375,37 @@ class _HighSchoolQPaperGeneratorPageState
     setState(() => q.isSelected = !q.isSelected);
   }
 
+  /// The questions the picker is currently showing: filtered by type and
+  /// narrowed by the search box.
+  ///
+  /// Selection itself lives on the question, so filtering never hides a
+  /// selection — the counter bar still reports every selected question.
+  List<HighSchoolQuestion> get _visibleQuestions {
+    final query = _pickSearchQuery.trim().toLowerCase();
+    return _fetchedQuestions.where((q) {
+      if (!_pickFilter.matches(q)) return false;
+      if (query.isEmpty) return true;
+      return q.stemText.toLowerCase().contains(query) ||
+          q.chapterName.toLowerCase().contains(query) ||
+          q.questionType.toLowerCase().contains(query) ||
+          (q.mcqData?.text.toLowerCase().contains(query) ?? false) ||
+          (q.shortData?.text.toLowerCase().contains(query) ?? false) ||
+          q.cqSubQuestions.any((s) => s.text.toLowerCase().contains(query));
+    }).toList();
+  }
+
+  /// True when a filter or search is narrowing the list, so the select-all
+  /// buttons can say they only affect what is on screen.
+  bool get _pickIsNarrowed =>
+      _pickFilter != _PickFilter.all || _pickSearchQuery.trim().isNotEmpty;
+
   void _selectAll() => setState(() {
-        for (final q in _fetchedQuestions) {
+        for (final q in _visibleQuestions) {
           q.isSelected = true;
         }
       });
   void _deselectAll() => setState(() {
-        for (final q in _fetchedQuestions) {
+        for (final q in _visibleQuestions) {
           q.isSelected = false;
         }
       });
@@ -1624,6 +1655,32 @@ class _HighSchoolQPaperGeneratorPageState
   // Error helper
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// Turn an exception into something the reader can act on.
+  ///
+  /// `e.toString()` on a failed HTTP call exposes `dart:io` internals ("Only
+  /// HTTP and HTTPS URLs are supported", raw socket errors), which explains
+  /// nothing. The two cases worth separating are a build with no endpoint
+  /// configured and a genuine network problem.
+  String _friendlyError(Object error) {
+    if (error is QBankNotConfiguredException) {
+      return 'সার্ভার ঠিকানা সেট করা নেই। '
+          'HS_QBANK_API দিয়ে অ্যাপটি আবার বিল্ড করুন।';
+    }
+    final text = error.toString();
+    if (text.contains('SocketException') ||
+        text.contains('Failed host lookup') ||
+        text.contains('Connection refused')) {
+      return 'সার্ভারে পৌঁছানো যায়নি। ইন্টারনেট সংযোগ দেখুন।';
+    }
+    if (text.contains('HandshakeException') || text.contains('CERTIFICATE')) {
+      return 'নিরাপদ সংযোগ (SSL) প্রতিষ্ঠা করা যায়নি।';
+    }
+    if (text.contains('timeout') || text.contains('TimeoutException')) {
+      return 'সময়োত্তীর্ণ হয়েছে। সংযোগ দ্রুত নয়, আবার চেষ্টা করুন।';
+    }
+    return text;
+  }
+
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1888,8 +1945,9 @@ class _HighSchoolQPaperGeneratorPageState
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildStep2() {
+    final visible = _visibleQuestions;
     final byChapter = <String, List<HighSchoolQuestion>>{};
-    for (final q in _fetchedQuestions) {
+    for (final q in visible) {
       byChapter.putIfAbsent(q.chapterNumber, () => []).add(q);
     }
     final chapterNumbers = byChapter.keys.toList()
@@ -1899,6 +1957,8 @@ class _HighSchoolQPaperGeneratorPageState
       children: [
         // Sticky counter bar
         _buildStickyBar(),
+        // Type filter + search
+        _buildPickFilterBar(visible.length),
         // Question list
         Expanded(
           child: ListView(
@@ -1909,13 +1969,14 @@ class _HighSchoolQPaperGeneratorPageState
                 children: [
                   TextButton.icon(
                     icon: const Icon(Icons.done_all_rounded, size: 18),
-                    label: const Text('সব নির্বাচন'),
+                    label:
+                        Text(_pickIsNarrowed ? 'এই তালিকার সব' : 'সব নির্বাচন'),
                     onPressed: _selectAll,
                   ),
                   const SizedBox(width: 8),
                   TextButton.icon(
                     icon: const Icon(Icons.remove_done_rounded, size: 18),
-                    label: const Text('বাদ দিন'),
+                    label: Text(_pickIsNarrowed ? 'এই তালিকা বাদ' : 'বাদ দিন'),
                     style: TextButton.styleFrom(foregroundColor: Colors.grey),
                     onPressed: _deselectAll,
                   ),
@@ -1943,10 +2004,90 @@ class _HighSchoolQPaperGeneratorPageState
                         q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
                 const SizedBox(height: 16),
               ],
+              if (visible.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Text(
+                      _pickIsNarrowed
+                          ? 'কোনো প্রশ্ন মেলেনি। ফিল্টার বা সার্চ বদলে দেখুন।'
+                          : 'কোনো প্রশ্ন পাওয়া যায়নি।',
+                      style: const TextStyle(color: _kSubText),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  /// Chips to narrow the picker to one question type, plus a search box.
+  ///
+  /// Sits outside the list so it stays put while the questions scroll.
+  Widget _buildPickFilterBar(int visibleCount) {
+    int countOf(_PickFilter f) => _fetchedQuestions.where(f.matches).length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 38,
+            child: TextField(
+              controller: _pickSearchCtrl,
+              onChanged: (v) => setState(() => _pickSearchQuery = v),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+                prefixIcon: const Icon(Icons.search, size: 19),
+                hintText: 'অনুসন্ধান…',
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                suffixIcon: _pickSearchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          _pickSearchCtrl.clear();
+                          setState(() => _pickSearchQuery = '');
+                        },
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final f in _PickFilter.values) ...[
+                  _PickFilterChip(
+                    label: f.badge,
+                    title: f.title,
+                    count: countOf(f),
+                    color: f.color,
+                    selected: _pickFilter == f,
+                    onTap: () => setState(() => _pickFilter = f),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                if (_pickIsNarrowed)
+                  Text('$visibleCount টি দেখানো হচ্ছে',
+                      style: const TextStyle(fontSize: 11, color: _kSubText)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3186,6 +3327,111 @@ class _SetChip extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Which question type the picker is showing.
+///
+/// CQ, MCQ and short questions arrive interleaved from the sheet, so without
+/// this the list reads as one mixed pile and picking a coherent paper means
+/// scrolling past everything you do not want.
+enum _PickFilter {
+  all('সব', 'সব প্রশ্ন', _kPrimary),
+  cq('CQ', 'সৃজনশীল', _kCqColor),
+  mcq('MCQ', 'বহুনির্বাচনি', _kMcqColor),
+  rq('RQ', 'সংক্ষিপ্ত', _kRqColor);
+
+  const _PickFilter(this.badge, this.title, this.color);
+
+  /// The letter shown on the chip, matching the badge on a question card.
+  final String badge;
+
+  /// Spoken name, used as the chip tooltip.
+  final String title;
+
+  /// Matches the colour of this type's badge, so the two agree at a glance.
+  final Color color;
+
+  bool matches(HighSchoolQuestion q) {
+    switch (this) {
+      case _PickFilter.all:
+        return true;
+      case _PickFilter.cq:
+        return q.isCq;
+      case _PickFilter.mcq:
+        return q.isMcq;
+      case _PickFilter.rq:
+        return q.isShort;
+    }
+  }
+}
+
+/// A tappable type chip for the picker: letter, name and how many exist.
+///
+/// Shows the full count even when narrowed to another type, so it stays a
+/// truthful menu of what could be shown rather than only what is on screen.
+class _PickFilterChip extends StatelessWidget {
+  final String label;
+  final String title;
+  final int count;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PickFilterChip({
+    required this.label,
+    required this.title,
+    required this.count,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Colors.white : color;
+    return Tooltip(
+      message: title,
+      child: Material(
+        color: selected ? color : color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? color : color.withOpacity(0.35),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: fg,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w400,
+                    color: selected ? Colors.white : _kSubText,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -8,8 +8,10 @@ class AppConfig {
       String.fromEnvironment('NOTIFICATION_API');
   static const String youtubeApiKey = String.fromEnvironment('YOUTUBE_API_KEY');
   static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
-  static const String openRouterApiKey = String.fromEnvironment('OPENROUTER_API_KEY', defaultValue: '');
-  static const String openRouterBaseUrl = 'https://openrouter.ai/api/v1/chat/completions';
+  static const String openRouterApiKey =
+      String.fromEnvironment('OPENROUTER_API_KEY', defaultValue: '');
+  static const String openRouterBaseUrl =
+      'https://openrouter.ai/api/v1/chat/completions';
   static const String openRouterModelId = 'google/gemini-2.0-flash-001';
   static const String fileUploadApi =
       String.fromEnvironment('UPLOADCARE_PUBLIC_KEY');
@@ -77,8 +79,19 @@ class AppConfig {
       String.fromEnvironment('NU_ISLAMIC_STUDIES_API');
   static const String adApi = String.fromEnvironment('AD_API');
   static const String adSecret = String.fromEnvironment('AD_SECRET');
-  static const String highSchoolQBankApi =
-      String.fromEnvironment('HS_QBANK_API', defaultValue: '');
+
+  /// Deployed Apps Script for the high-school question bank.
+  ///
+  /// This one carries a real default on purpose. It used to default to `''`,
+  /// so any build that did not pass `--dart-define=HS_QBANK_API=...` shipped a
+  /// question generator that could not load anything — which is how the Linux
+  /// desktop build broke while Android worked. The define can still override
+  /// it, so nothing is lost.
+  static const String highSchoolQBankApi = String.fromEnvironment(
+    'HS_QBANK_API',
+    defaultValue: 'https://script.google.com/macros/s/'
+        'AKfycbztYwdYoZyBXrKcvee-GLDQZJhSRlP8kHHjjDCkwTvtWVMdmXxDSJzgE9kIQI28EhDU/exec',
+  );
 
   // Add more configuration values as needed
 
