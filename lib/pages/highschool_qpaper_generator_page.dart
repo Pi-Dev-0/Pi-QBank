@@ -739,6 +739,23 @@ class _HighSchoolQPaperGeneratorPageState
       fontSize: 9,
       color: PdfColors.grey700,
     );
+    // Marks are annotations, not content: normal weight and a soft grey, so a
+    // printed paper's question text reads before its `[2]` / `[3]` labels.
+    // Deliberately neither black nor grey700 — the two extremes that made the
+    // marks either shout or disappear on paper.
+    final markColor = PdfColors.grey500;
+    final cqMarkStyle = pw.TextStyle(
+      font: banglaFont,
+      fontFallback: fallback,
+      fontSize: PdfLayout.smallFontSize,
+      color: markColor,
+    );
+    final rqMarkStyle = pw.TextStyle(
+      font: banglaFont,
+      fontFallback: fallback,
+      fontSize: PdfLayout.bodyFontSize,
+      color: markColor,
+    );
 
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
@@ -847,6 +864,7 @@ class _HighSchoolQPaperGeneratorPageState
                   baseStyle: baseStyle,
                   boldStyle: boldStyle,
                   smallStyle: smallStyle,
+                  markStyle: cqMarkStyle,
                   stemImages: stemImages,
                   imageSize: _imageSize,
                   partFrom: from,
@@ -970,7 +988,7 @@ class _HighSchoolQPaperGeneratorPageState
                         ),
                         pw.SizedBox(width: 12),
                         pw.RichText(
-                            text: _mixedText('[${data.mark}]', boldStyle)),
+                            text: _mixedText('[${data.mark}]', rqMarkStyle)),
                       ],
                     ),
                   );
@@ -1081,6 +1099,7 @@ class _HighSchoolQPaperGeneratorPageState
       required pw.TextStyle baseStyle,
       required pw.TextStyle boldStyle,
       required pw.TextStyle smallStyle,
+      required pw.TextStyle markStyle,
       Map<String, Uint8List> stemImages = const {},
       StemImageSize imageSize = StemImageSize.medium,
       int partFrom = 0,
@@ -1140,9 +1159,7 @@ class _HighSchoolQPaperGeneratorPageState
                             '(${subs[k].label}) ${subs[k].text}', baseStyle)),
                   ),
                   pw.SizedBox(width: 10),
-                  pw.RichText(
-                      text: _mixedText('[${subs[k].mark}]',
-                          smallStyle.copyWith(fontWeight: pw.FontWeight.bold))),
+                  pw.RichText(text: _mixedText('[${subs[k].mark}]', markStyle)),
                 ],
               ),
             ),

@@ -89,15 +89,13 @@ class PdfLayout {
     if (data == null || data.text.trim().isEmpty) return 0;
 
     final mark = '[${data.mark}]';
-    final markWidth =
-        metrics.textWidth(mark, fontSize: bodyFontSize, bold: true);
+    final markWidth = metrics.textWidth(mark, fontSize: bodyFontSize);
     final textHeight = metrics.blockHeight(
       '$index. ${data.text}',
       width: columnWidth - 12 - markWidth,
       fontSize: bodyFontSize,
     );
-    final markHeight =
-        metrics.lineHeight(mark, fontSize: bodyFontSize, bold: true);
+    final markHeight = metrics.lineHeight(mark, fontSize: bodyFontSize);
 
     return rqGap + (textHeight > markHeight ? textHeight : markHeight);
   }
@@ -213,15 +211,13 @@ class PdfLayout {
     final parts = <double>[head];
     for (final sq in question.cqSubQuestions) {
       final mark = '[${sq.mark}]';
-      final markWidth =
-          metrics.textWidth(mark, fontSize: smallFontSize, bold: true);
+      final markWidth = metrics.textWidth(mark, fontSize: smallFontSize);
       final textHeight = metrics.blockHeight(
         '(${sq.label}) ${sq.text}',
         width: inner - cqSubIndent - cqMarkGap - markWidth,
         fontSize: bodyFontSize,
       );
-      final markHeight =
-          metrics.lineHeight(mark, fontSize: smallFontSize, bold: true);
+      final markHeight = metrics.lineHeight(mark, fontSize: smallFontSize);
       // The SizedBox(height: 4) before the sub-questions rides on the first
       // sub-question, matching where the builder draws it.
       parts.add(cqSubTop +
