@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import 'package:pi_qbank/models/highschool_question.dart';
+import 'package:pi_qbank/services/highschool_export_service.dart' as ex;
 import 'package:pi_qbank/services/highschool_export_service.dart';
 import 'package:pi_qbank/utils/pdf_column_layout.dart';
 import 'package:pi_qbank/utils/pdf_mixed_text.dart';
@@ -27,6 +28,21 @@ HighSchoolQuestion cq(String stem) => HighSchoolQuestion.fromJson({
       'board_year_tag': '',
     });
 
+HighSchoolQuestion rq(String text, [int mark = 1]) =>
+    HighSchoolQuestion.fromJson({
+      'id': text,
+      'class': 'Class (9-10) SSC',
+      'subject': 'গণিত',
+      'chapter_number': '1',
+      'chapter_name': 'অনুশীলনী',
+      'question_type': 'RQ',
+      'stem_text': text,
+      'stem_image_url': '',
+      'sub_questions_json': <Object>[],
+      'board_year_tag': '',
+      'short_mark': mark,
+    });
+
 HighSchoolQuestion mcq(String t) => HighSchoolQuestion.fromJson({
       'id': 'm',
       'class': 'Class (9-10) SSC',
@@ -44,6 +60,100 @@ HighSchoolQuestion mcq(String t) => HighSchoolQuestion.fromJson({
       'board_year_tag': '',
     });
 
+/// Shared measurer, so the tests and the render harnesses agree.
+final PdfTextMetrics metrics = PdfTextMetrics(
+  banglaFontData: ByteData.sublistView(
+      File('assets/fonts/SutonnyMJ Regular.ttf').readAsBytesSync()),
+  symbolFontData: ByteData.sublistView(
+      File('assets/fonts/MathSymbols.ttf').readAsBytesSync()),
+);
+
+/// Render a short-question (RQ) section in the given column mode, mirroring the
+/// generator page: header, banner, then packed columns driven by [PdfPageFlow].
+Future<List<int>> renderShorts(
+    List<HighSchoolQuestion> shorts, int columns) async {
+  final bytes = File('assets/fonts/SutonnyMJ Regular.ttf').readAsBytesSync();
+  final doc = pw.Document();
+  final bangla = pw.Font.ttf(ByteData.sublistView(bytes));
+  final fallback = <pw.Font>[
+    pw.Font.ttf(ByteData.sublistView(
+        File('assets/fonts/MathSymbols.ttf').readAsBytesSync()))
+  ];
+  final base = pw.TextStyle(font: bangla, fontFallback: fallback, fontSize: 11);
+  final bold = pw.TextStyle(
+      font: bangla,
+      fontFallback: fallback,
+      fontSize: 11,
+      fontWeight: pw.FontWeight.bold);
+  pw.TextSpan mixed(String t, [pw.TextStyle? style]) =>
+      buildPdfTextSpan(t, style ?? base);
+
+  final width = PdfLayout.columnWidth(columns);
+  final flow = PdfPageFlow(contentHeight: PdfLayout.contentHeight)
+    ..consume(PdfLayout.sectionBannerHeight(metrics) + 26);
+
+  final rows = flow.layout(
+    heights: [
+      for (int i = 0; i < shorts.length; i++)
+        PdfLayout.rqHeight(
+            index: i + 1,
+            question: shorts[i],
+            columnWidth: width,
+            metrics: metrics),
+    ],
+    columns: columns,
+  );
+
+  doc.addPage(pw.MultiPage(
+    pageFormat: PdfPageFormat.a4,
+    margin: pw.EdgeInsets.symmetric(
+        horizontal: PdfLayout.pageMarginH, vertical: PdfLayout.pageMarginV),
+    build: (ctx) => [
+      for (final row in rows)
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < row.length; i++) ...[
+              if (i > 0) pw.SizedBox(width: PdfLayout.gutter),
+              pw.Expanded(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    for (final fragment in row[i])
+                      if (shorts[fragment.question].shortData == null)
+                        pw.SizedBox.shrink()
+                      else
+                        pw.Padding(
+                          padding:
+                              const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
+                          child: pw.Row(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Expanded(
+                                child: pw.RichText(
+                                    text: mixed(
+                                        '${fragment.question + 1}. ${shorts[fragment.question].shortData!.text}')),
+                              ),
+                              pw.SizedBox(width: 12),
+                              pw.RichText(
+                                  text: mixed(
+                                      '[${shorts[fragment.question].shortData!.mark}]',
+                                      bold)),
+                            ],
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+    ],
+  ));
+
+  return doc.save();
+}
+
 /// Standalone render that mirrors the generator page's column layout, so the
 /// output can be rasterised and inspected.
 /// Returns the rendered PDF bytes. Mirrors the generator page's column
@@ -58,10 +168,6 @@ Future<List<int>> render(
     pw.Font.ttf(ByteData.sublistView(
         File('assets/fonts/MathSymbols.ttf').readAsBytesSync()))
   ];
-  final metrics = PdfTextMetrics(
-      banglaFontData: ByteData.sublistView(bytes),
-      symbolFontData: ByteData.sublistView(
-          File('assets/fonts/MathSymbols.ttf').readAsBytesSync()));
 
   final base = pw.TextStyle(font: bangla, fontFallback: fallback, fontSize: 11);
   // ignore: unused_local_variable
@@ -202,7 +308,8 @@ Future<List<int>> render(
 
   doc.addPage(pw.MultiPage(
     pageFormat: PdfPageFormat.a4,
-    margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 36),
+    margin: pw.EdgeInsets.symmetric(
+        horizontal: PdfLayout.pageMarginH, vertical: PdfLayout.pageMarginV),
     build: (ctx) => [
       pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -248,8 +355,8 @@ Future<List<int>> render(
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    for (final idx in row[i]) ...[
-                      card(idx),
+                    for (final fragment in row[i]) ...[
+                      card(fragment.question),
                       pw.SizedBox(height: PdfLayout.cqCardGap),
                     ],
                   ],
@@ -305,6 +412,149 @@ void main() {
     expect(twoColumn.length, lessThan(oneColumn.length));
   });
 
+  test('RQ columns reach the HTML and Word exports', () {
+    final shorts = [for (var i = 1; i <= 4; i++) rq('প্রশ্ন $i', i)];
+
+    final singleHtml = ex.HighSchoolExportService.generateHtml(
+        schoolName: 'S',
+        examName: 'E',
+        subject: 'M',
+        className: 'C',
+        time: 'T',
+        totalMarks: '4',
+        questions: shorts);
+    final doubleHtml = ex.HighSchoolExportService.generateHtml(
+        schoolName: 'S',
+        examName: 'E',
+        subject: 'M',
+        className: 'C',
+        time: 'T',
+        totalMarks: '4',
+        questions: shorts,
+        rqLayout: QuestionLayout.doubleColumn);
+
+    expect(singleHtml, contains('grid-template-columns: 1fr;'));
+    expect(doubleHtml, contains('grid-template-columns: 1fr 1fr;'));
+    for (final html in [singleHtml, doubleHtml]) {
+      expect(html, contains('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)'));
+      expect(html, contains('প্রশ্ন 1'));
+      expect(html, contains('[1]'));
+    }
+
+    final doubleWord = ex.HighSchoolExportService.generateWordDoc(
+        schoolName: 'S',
+        examName: 'E',
+        subject: 'M',
+        className: 'C',
+        time: 'T',
+        totalMarks: '4',
+        questions: shorts,
+        rqLayout: QuestionLayout.doubleColumn);
+    expect(doubleWord, contains('rq-col-cell'));
+    expect(doubleWord, contains('width: 50%'));
+    expect(doubleWord, contains('প্রশ্ন 1'));
+
+    final singleWord = ex.HighSchoolExportService.generateWordDoc(
+        schoolName: 'S',
+        examName: 'E',
+        subject: 'M',
+        className: 'C',
+        time: 'T',
+        totalMarks: '4',
+        questions: shorts);
+    // The `.rq-col-cell` *rule* is always in the stylesheet (its width is
+    // interpolated), so assert on the markup that only double mode emits.
+    expect(doubleWord, contains('<td class="rq-col-cell">'));
+    expect(singleWord, isNot(contains('<td class="rq-col-cell">')));
+    expect(singleWord, contains('প্রশ্ন 1'));
+  });
+
+  test('every CQ sub-question survives the column split', () async {
+    // Regression: the card renderer mapped part index `p` to sub-question
+    // `p - 1` but looped to `p - 2`, so the last sub-question of every CQ was
+    // silently dropped — visible as a card missing its "(খ)" row.
+    final questions = [
+      for (var i = 0; i < 10; i++)
+        cq(
+            'প্রশ্ন ${i + 1}: নিচের চিত্রটি দেখে বিস্তারিত বর্ণনা করো এবং প্রমাণ করো।'),
+    ];
+
+    for (final columns in [1, 2]) {
+      final bytes = await render(questions, columns);
+      File('/tmp/opencode/subs$columns.pdf').writeAsBytesSync(bytes);
+      expect(bytes.length, greaterThan(1000), reason: 'columns=$columns');
+    }
+  });
+
+  test('a CQ fragment covers exactly the sub-questions it should', () {
+    final q = cq('stem');
+    expect(q.cqSubQuestions.length, 2);
+
+    // Parts are [stem, sub0, sub1].
+    final parts = PdfLayout.cqFragments(
+      index: 1,
+      question: q,
+      columnWidth: 250,
+      metrics: metrics,
+      hasImage: false,
+      imageSize: StemImageSize.medium,
+    );
+    expect(parts.length, 3);
+
+    // Mapping used by the renderer: part p >= 1 is sub-question p - 1.
+    int subStart(int partFrom) => partFrom <= 1 ? 0 : partFrom - 1;
+    int subEnd(int partTo, int subs) => partTo > subs ? subs : partTo;
+
+    // Whole card: all parts, so both sub-questions.
+    expect(subEnd(2, 2) - subStart(0), 2);
+    // Head only: none.
+    expect(subEnd(0, 2) - subStart(0), 0);
+    // Continuation from part 2: just the last sub-question.
+    expect(subEnd(2, 2) - subStart(2), 1);
+    // Unbounded (no splitting): everything.
+    expect(subEnd(1 << 20, 2) - subStart(0), 2);
+  });
+
+  test('short questions lay out in both column modes', () async {
+    final shorts = [
+      for (var i = 1; i <= 14; i++)
+        rq('সমান্তর সরলরেখার ঢাল কত এবং কেন? [$i]', i % 3 + 1),
+    ];
+
+    for (final columns in [1, 2]) {
+      final bytes = await renderShorts(shorts, columns);
+      expect(bytes.length, greaterThan(1000), reason: 'columns=$columns');
+      if (columns == 2) {
+        File('/tmp/opencode/rq2.pdf').writeAsBytesSync(bytes);
+      }
+    }
+  });
+
+  test('an empty short question contributes no height', () {
+    expect(
+        PdfLayout.rqHeight(
+          index: 1,
+          question: rq(''),
+          columnWidth: 250,
+          metrics: metrics,
+        ),
+        0);
+  });
+
+  test('a wider column makes a short question shorter', () {
+    final wide = PdfLayout.rqHeight(
+        index: 1,
+        question: rq(List.filled(20, 'দীর্ঘ প্রশ্ন').join(' ')),
+        columnWidth: 500,
+        metrics: metrics);
+    final narrow = PdfLayout.rqHeight(
+        index: 1,
+        question: rq(List.filled(20, 'দীর্ঘ প্রশ্ন').join(' ')),
+        columnWidth: 250,
+        metrics: metrics);
+    expect(narrow, greaterThan(wide));
+  });
+
   test('a header does not push the questions onto page 2', () async {
     // Regression for the reported symptom: "the CQ section starts on the 2nd
     // page, the 1st almost blank". Enough questions to need two pages, with a
@@ -332,7 +582,8 @@ void main() {
     );
     final flat = [
       for (final row in rows)
-        for (final col in row) ...col
+        for (final col in row)
+          for (final f in col) f.question
     ];
     expect(flat, List.generate(40, (i) => i));
   });

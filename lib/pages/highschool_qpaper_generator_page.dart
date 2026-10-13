@@ -133,6 +133,10 @@ class _HighSchoolQPaperGeneratorPageState
   /// How MCQ questions are arranged (single or double column).
   QuestionLayout _mcqLayout = QuestionLayout.doubleColumn;
 
+  /// Short questions stay single-column by default: they are one line each, so
+  /// two columns only helps when there are many of them.
+  QuestionLayout _rqLayout = QuestionLayout.single;
+
   // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _stepAnim = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 400));
@@ -383,6 +387,7 @@ class _HighSchoolQPaperGeneratorPageState
         imageSize: _imageSize,
         cqLayout: _cqLayout,
         mcqLayout: _mcqLayout,
+        rqLayout: _rqLayout,
       );
       final file = await HighSchoolExportService.saveFile(
         content: doc,
@@ -415,6 +420,7 @@ class _HighSchoolQPaperGeneratorPageState
         imageSize: _imageSize,
         cqLayout: _cqLayout,
         mcqLayout: _mcqLayout,
+        rqLayout: _rqLayout,
       );
       final file = await HighSchoolExportService.saveFile(
         content: html,
@@ -550,6 +556,7 @@ class _HighSchoolQPaperGeneratorPageState
           imageSize: _imageSize,
           cqLayout: _cqLayout,
           mcqLayout: _mcqLayout,
+          rqLayout: _rqLayout,
         ),
       ),
     );
@@ -569,6 +576,7 @@ class _HighSchoolQPaperGeneratorPageState
       imageSize: _imageSize,
       cqLayout: _cqLayout,
       mcqLayout: _mcqLayout,
+      rqLayout: _rqLayout,
     );
     final file = await HighSchoolExportService.saveFile(
       content: html,
@@ -625,6 +633,39 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
+  /// Turn a column of [PdfFlowFragment]s into widgets.
+  ///
+  /// Consecutive fragments belonging to the same question are rebuilt as one
+  /// widget, so a question that fits is drawn exactly as it always was. Only a
+  /// question that genuinely straddles a column boundary is drawn as more than
+  /// one piece, and it keeps its number in each piece.
+  ///
+  /// [afterQuestion] is emitted only when a question actually ends in this
+  /// column. That mirrors the height estimates, which fold the trailing gap
+  /// into a question's final fragment only — so a question split across
+  /// columns carries its gap on the continuation, never on both halves.
+  List<pw.Widget> _buildPdfFragmentColumn(
+    List<PdfFlowFragment> column, {
+    required pw.Widget Function(int index, int from, int to) itemBuilder,
+    required pw.Widget Function() afterQuestion,
+  }) {
+    final widgets = <pw.Widget>[];
+    var i = 0;
+
+    while (i < column.length) {
+      final question = column[i].question;
+      var j = i;
+      while (j + 1 < column.length && column[j + 1].question == question) {
+        j++;
+      }
+      widgets.add(itemBuilder(
+          question, column[i].indexInQuestion, column[j].indexInQuestion));
+      if (column[j].isLast) widgets.add(afterQuestion());
+      i = j + 1;
+    }
+
+    return widgets;
+  }
 
   Future<Uint8List> _buildPdf() async {
     final doc = pw.Document();
@@ -701,7 +742,10 @@ class _HighSchoolQPaperGeneratorPageState
 
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 36),
+      // Bound to PdfLayout so the page and the flow simulation can never disagree
+      // about how much room a page actually has.
+      margin: pw.EdgeInsets.symmetric(
+          horizontal: PdfLayout.pageMarginH, vertical: PdfLayout.pageMarginV),
       build: (ctx) {
         final widgets = <pw.Widget>[];
 
@@ -728,27 +772,26 @@ class _HighSchoolQPaperGeneratorPageState
 
         widgets.add(pw.SizedBox(height: 16));
         flow.consume(PdfLayout.headerHeight(
-          metrics: metrics,
-          schoolName: _schoolCtrl.text,
-          examName: _examCtrl.text,
-          subject: _subjectCtrl.text,
-          className: _classCtrl.text,
-          time: _timeCtrl.text,
-          totalMarks: _marksCtrl.text,
-        ) +
+              metrics: metrics,
+              schoolName: _schoolCtrl.text,
+              examName: _examCtrl.text,
+              subject: _subjectCtrl.text,
+              className: _classCtrl.text,
+              time: _timeCtrl.text,
+              totalMarks: _marksCtrl.text,
+            ) +
             16);
 
         // ── CQ Section ─────────────────────────────────────────────────────
         if (cqs.isNotEmpty) {
-          widgets.add(_pdfSectionBanner(
-              'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', boldStyle.copyWith(fontSize: 11)));
+          widgets.add(_pdfSectionBanner('ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
+              boldStyle.copyWith(fontSize: 11)));
           // Optional "answer any N questions" note.
           final answerAny = _cqAnswerCount;
           if (answerAny > 0) {
             widgets.add(pw.SizedBox(height: 4));
             widgets.add(pw.RichText(
-              text: _mixedText(
-                  '[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
+              text: _mixedText('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
                   smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
               textAlign: pw.TextAlign.center,
             ));
@@ -761,38 +804,44 @@ class _HighSchoolQPaperGeneratorPageState
 
           // Balanced newspaper columns rather than rows of two, so a short
           // question no longer inherits the full height of the tallest
-          // question beside it. See [balanceColumns].
+          // question beside it. Questions are packed as fragments, which lets
+          // the foot of a page be filled instead of left blank. See
+          // [balanceColumns] and [PdfPageFlow].
           final cqCols = _cqLayout.mcqColumns;
           final cqWidth = PdfLayout.columnWidth(cqCols);
-          final cqRows = flow.layout(
-            heights: [
-              for (int i = 0; i < cqs.length; i++)
-                // The gap is counted per card because the builder emits one
-                // after every card, including the last in a column.
-                PdfLayout.cqHeight(
-                  index: i + 1,
-                  question: cqs[i],
-                  columnWidth: cqWidth,
-                  metrics: metrics,
-                  hasImage: stemImages.containsKey(
-                      HighSchoolExportService.resolveImageUrl(
-                          cqs[i].stemImageUrl)),
-                  imageSize: _imageSize,
-                ) +
-                    PdfLayout.cqCardGap,
-            ],
-            columns: cqCols,
-            trailingGap: 16,
-          );
+          final cqFragments = <PdfFlowFragment>[];
+          for (int i = 0; i < cqs.length; i++) {
+            final parts = PdfLayout.cqFragments(
+              index: i + 1,
+              question: cqs[i],
+              columnWidth: cqWidth,
+              metrics: metrics,
+              hasImage: stemImages.containsKey(
+                  HighSchoolExportService.resolveImageUrl(cqs[i].stemImageUrl)),
+              imageSize: _imageSize,
+            );
+            for (var p = 0; p < parts.length; p++) {
+              cqFragments.add(PdfFlowFragment(
+                height: parts[p],
+                question: i,
+                indexInQuestion: p,
+                isFirst: p == 0,
+                isLast: p == parts.length - 1,
+              ));
+            }
+          }
 
-          // One unbreakable row of columns per page's worth of questions, so a long
-          // section still flows instead of overflowing a single block.
+          final cqRows = flow.layoutFragments(
+              fragments: cqFragments, columns: cqCols, trailingGap: 16);
+
+          // One unbreakable row of columns per page's worth of questions, so a
+          // long section still flows instead of overflowing a single block.
           for (final row in cqRows) {
             final columns = <List<pw.Widget>>[];
-            for (final group in row) {
-              final column = <pw.Widget>[];
-              for (final qIndex in group) {
-                column.add(_buildPdfCqCard(
+            for (final column in row) {
+              columns.add(_buildPdfFragmentColumn(
+                column,
+                itemBuilder: (qIndex, from, to) => _buildPdfCqCard(
                   index: qIndex + 1,
                   question: cqs[qIndex],
                   baseStyle: baseStyle,
@@ -800,10 +849,11 @@ class _HighSchoolQPaperGeneratorPageState
                   smallStyle: smallStyle,
                   stemImages: stemImages,
                   imageSize: _imageSize,
-                ));
-                column.add(pw.SizedBox(height: PdfLayout.cqCardGap));
-              }
-              columns.add(column);
+                  partFrom: from,
+                  partTo: to,
+                ),
+                afterQuestion: () => pw.SizedBox(height: PdfLayout.cqCardGap),
+              ));
             }
             widgets.add(_pdfColumnRow(columns));
             widgets.add(pw.SizedBox(height: 16));
@@ -813,8 +863,7 @@ class _HighSchoolQPaperGeneratorPageState
         // ── MCQ Section ────────────────────────────────────────────────────
         if (mcqs.isNotEmpty) {
           widgets.add(pw.SizedBox(height: 16));
-          widgets.add(_pdfSectionBanner(
-              'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
+          widgets.add(_pdfSectionBanner('খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
               boldStyle.copyWith(fontSize: 11)));
           widgets.add(pw.SizedBox(height: 4));
           widgets.add(pw.RichText(
@@ -833,38 +882,44 @@ class _HighSchoolQPaperGeneratorPageState
           final cols = _mcqLayout.mcqColumns;
           final stackOptions = cols > 1;
           final mcqWidth = PdfLayout.columnWidth(cols);
-          final mcqRows = flow.layout(
-            heights: [
-              for (int i = 0; i < mcqs.length; i++)
-                PdfLayout.mcqHeight(
-                  index: i + 1,
-                  question: mcqs[i],
-                  columnWidth: mcqWidth,
-                  metrics: metrics,
-                  stackOptions: stackOptions,
-                ),
-            ],
-            columns: cols,
-            trailingGap: 12,
-          );
+          final mcqFragments = <PdfFlowFragment>[];
+          for (int i = 0; i < mcqs.length; i++) {
+            final parts = PdfLayout.mcqFragments(
+              index: i + 1,
+              question: mcqs[i],
+              columnWidth: mcqWidth,
+              metrics: metrics,
+              stackOptions: stackOptions,
+            );
+            for (var p = 0; p < parts.length; p++) {
+              mcqFragments.add(PdfFlowFragment(
+                height: parts[p],
+                question: i,
+                indexInQuestion: p,
+                isFirst: p == 0,
+                isLast: p == parts.length - 1,
+              ));
+            }
+          }
+
+          final mcqRows = flow.layoutFragments(
+              fragments: mcqFragments, columns: cols, trailingGap: 12);
 
           for (final row in mcqRows) {
             final columns = <List<pw.Widget>>[];
-            for (final group in row) {
-              final column = <pw.Widget>[];
-              for (var k = 0; k < group.length; k++) {
-                column.add(_buildPdfMcqItem(group[k] + 1, mcqs[group[k]],
-                    baseStyle,
-                    stackOptions: stackOptions));
+            for (final column in row) {
+              columns.add(_buildPdfFragmentColumn(
+                column,
+                itemBuilder: (qIndex, from, to) => _buildPdfMcqItem(
+                    qIndex + 1, mcqs[qIndex], baseStyle,
+                    stackOptions: stackOptions, partFrom: from, partTo: to),
                 // The rule belongs *between* questions, so a column that ends
                 // on a question is not left with a trailing divider.
-                if (k < group.length - 1) {
-                  column.add(pw.SizedBox(height: 6));
-                  column.add(_pdfDashedLine());
-                  column.add(pw.SizedBox(height: 6));
-                }
-              }
-              columns.add(column);
+                afterQuestion: () => pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 6, bottom: 6),
+                  child: _pdfDashedLine(),
+                ),
+              ));
             }
             widgets.add(_pdfColumnRow(columns));
             widgets.add(pw.SizedBox(height: 12));
@@ -874,28 +929,56 @@ class _HighSchoolQPaperGeneratorPageState
         // ── Short question section (গ-বিভাগ) ───────────────────────────────
         if (shorts.isNotEmpty) {
           widgets.add(pw.SizedBox(height: 16));
-          widgets.add(_pdfSectionBanner(
-              'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)', boldStyle.copyWith(fontSize: 11)));
+          widgets.add(_pdfSectionBanner('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
+              boldStyle.copyWith(fontSize: 11)));
           widgets.add(pw.SizedBox(height: 10));
+          flow.consume(16 + bannerHeight + 10);
 
-          for (int i = 0; i < shorts.length; i++) {
-            final data = shorts[i].shortData;
-            if (data == null || data.text.trim().isEmpty) continue;
-            widgets.add(pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 6),
-              child: pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(
-                    child: pw.RichText(
-                        text: _mixedText('${i + 1}. ${data.text}', baseStyle)),
-                  ),
-                  pw.SizedBox(width: 12),
-                  pw.RichText(
-                      text: _mixedText('[${data.mark}]', boldStyle)),
-                ],
-              ),
-            ));
+          final rqCols = _rqLayout.mcqColumns;
+          final rqWidth = PdfLayout.columnWidth(rqCols);
+          final rqRows = flow.layout(
+            heights: [
+              for (int i = 0; i < shorts.length; i++)
+                PdfLayout.rqHeight(
+                  index: i + 1,
+                  question: shorts[i],
+                  columnWidth: rqWidth,
+                  metrics: metrics,
+                ),
+            ],
+            columns: rqCols,
+            trailingGap: 0,
+          );
+
+          for (final row in rqRows) {
+            final columns = <List<pw.Widget>>[];
+            for (final column in row) {
+              columns.add(_buildPdfFragmentColumn(
+                column,
+                // A short question is a single line, so it is never split.
+                itemBuilder: (i, from, to) {
+                  final data = shorts[i].shortData;
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
+                    child: pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Expanded(
+                          child: pw.RichText(
+                              text: _mixedText(
+                                  '${i + 1}. ${data!.text}', baseStyle)),
+                        ),
+                        pw.SizedBox(width: 12),
+                        pw.RichText(
+                            text: _mixedText('[${data.mark}]', boldStyle)),
+                      ],
+                    ),
+                  );
+                },
+                afterQuestion: () => pw.SizedBox.shrink(),
+              ));
+            }
+            widgets.add(_pdfColumnRow(columns));
           }
         }
 
@@ -903,8 +986,8 @@ class _HighSchoolQPaperGeneratorPageState
         widgets.add(pw.Divider(thickness: 0.8, color: PdfColors.grey300));
         widgets.add(pw.SizedBox(height: 6));
         widgets.add(pw.RichText(
-          text: _mixedText('জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে',
-              smallStyle),
+          text: _mixedText(
+              'জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে', smallStyle),
           textAlign: pw.TextAlign.center,
         ));
 
@@ -922,8 +1005,7 @@ class _HighSchoolQPaperGeneratorPageState
       final width = constraints?.maxWidth;
       const dash = 4.0;
       const gap = 3.0;
-      final available =
-          (width == null || width.isInfinite) ? 400.0 : width;
+      final available = (width == null || width.isInfinite) ? 400.0 : width;
       final count = (available / (dash + gap)).floor().clamp(1, 400);
       return pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -1000,7 +1082,9 @@ class _HighSchoolQPaperGeneratorPageState
       required pw.TextStyle boldStyle,
       required pw.TextStyle smallStyle,
       Map<String, Uint8List> stemImages = const {},
-      StemImageSize imageSize = StemImageSize.medium}) {
+      StemImageSize imageSize = StemImageSize.medium,
+      int partFrom = 0,
+      int partTo = 1 << 20}) {
     final stemBytes = imageSize.isVisible
         ? stemImages[
             HighSchoolExportService.resolveImageUrl(question.stemImageUrl)]
@@ -1009,6 +1093,15 @@ class _HighSchoolQPaperGeneratorPageState
     // The board/year tag is deliberately not printed — it is editorial metadata,
     // not part of the question paper.
     final stemLabel = '$index. ${question.stemText}';
+
+    // Part 0 is the stem (with its figure); part `p` (p >= 1) is sub-question
+    // `p - 1`. So the parts in [partFrom, partTo] cover sub-questions
+    // [partFrom - 1, partTo - 1] — meaning the last one drawn has index
+    // `partTo - 1` and the loop bound is `partTo`, not `partTo - 1`.
+    final subs = question.cqSubQuestions;
+    final showStem = partFrom == 0;
+    final subStart = partFrom <= 1 ? 0 : partFrom - 1;
+    final subEnd = partTo > subs.length ? subs.length : partTo;
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -1019,38 +1112,40 @@ class _HighSchoolQPaperGeneratorPageState
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.RichText(text: _mixedText(stemLabel, baseStyle)),
-          if (stemBytes != null) ...[
-            pw.SizedBox(height: 6),
-            pw.Container(
-              alignment: pw.Alignment.center,
-              child: pw.Image(
-                pw.MemoryImage(stemBytes),
-                height: imageSize.maxHeightPt,
-                fit: pw.BoxFit.contain,
+          if (showStem) ...[
+            pw.RichText(text: _mixedText(stemLabel, baseStyle)),
+            if (stemBytes != null) ...[
+              pw.SizedBox(height: 6),
+              pw.Container(
+                alignment: pw.Alignment.center,
+                child: pw.Image(
+                  pw.MemoryImage(stemBytes),
+                  height: imageSize.maxHeightPt,
+                  fit: pw.BoxFit.contain,
+                ),
               ),
-            ),
+            ],
           ],
-          pw.SizedBox(height: 4),
+          if (subEnd > subStart) pw.SizedBox(height: 4),
           // Sub-questions: text on the left, bold mark right-aligned.
-          ...question.cqSubQuestions.map((sq) {
-            return pw.Padding(
+          for (int k = subStart; k < subEnd && k < subs.length; k++)
+            pw.Padding(
               padding: const pw.EdgeInsets.only(left: 6, top: 3),
               child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Expanded(
                     child: pw.RichText(
-                        text: _mixedText('(${sq.label}) ${sq.text}', baseStyle)),
+                        text: _mixedText(
+                            '(${subs[k].label}) ${subs[k].text}', baseStyle)),
                   ),
                   pw.SizedBox(width: 10),
                   pw.RichText(
-                      text: _mixedText('[${sq.mark}]',
+                      text: _mixedText('[${subs[k].mark}]',
                           smallStyle.copyWith(fontWeight: pw.FontWeight.bold))),
                 ],
               ),
-            );
-          }),
+            ),
         ],
       ),
     );
@@ -1062,6 +1157,8 @@ class _HighSchoolQPaperGeneratorPageState
     HighSchoolQuestion q,
     pw.TextStyle baseStyle, {
     bool stackOptions = false,
+    int partFrom = 0,
+    int partTo = 1 << 20,
   }) {
     final mcq = q.mcqData;
     if (mcq == null) return pw.SizedBox();
@@ -1072,8 +1169,20 @@ class _HighSchoolQPaperGeneratorPageState
     // Single column -> options two-per-row (as in the HTML). Double column ->
     // stack them, because a half-width cell cannot fit two side by side.
     final perRow = stackOptions ? 1 : 2;
+
+    // Part 0 is the stem; the remaining parts are successive rows of options.
+    // Rendering a slice lets a question continue into the next column or page
+    // rather than leaving the foot of this one empty.
+    final rowStart = partFrom <= 0 ? 0 : (partFrom - 1) * perRow;
+    final rowEnd = partTo <= 1 ? 0 : partTo * perRow;
+    final lastRow = rowEnd > options.length
+        ? (options.length / perRow).ceil()
+        : rowEnd ~/ perRow;
+
     final rows = <pw.Widget>[];
-    for (int i = 0; i < options.length; i += perRow) {
+    for (int i = rowStart;
+        i < lastRow * perRow && i < options.length;
+        i += perRow) {
       final cells = <pw.Widget>[];
       for (int c = 0; c < perRow; c++) {
         final idx = i + c;
@@ -1097,7 +1206,8 @@ class _HighSchoolQPaperGeneratorPageState
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.RichText(text: _mixedText('$index. ${mcq.text}', baseStyle)),
+        if (partFrom == 0)
+          pw.RichText(text: _mixedText('$index. ${mcq.text}', baseStyle)),
         ...rows,
       ],
     );
@@ -1413,17 +1523,17 @@ class _HighSchoolQPaperGeneratorPageState
                 ),
                 const SizedBox(height: 8),
                 // CQ cards for this chapter
-                ...byChapter[chNum]!
-                    .where((q) => q.isCq)
-                    .map((q) => _buildQuestionCard(q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                ...byChapter[chNum]!.where((q) => q.isCq).map((q) =>
+                    _buildQuestionCard(
+                        q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
                 // MCQ cards for this chapter
-                ...byChapter[chNum]!
-                    .where((q) => q.isMcq)
-                    .map((q) => _buildQuestionCard(q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                ...byChapter[chNum]!.where((q) => q.isMcq).map((q) =>
+                    _buildQuestionCard(
+                        q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
                 // Short-question cards for this chapter
-                ...byChapter[chNum]!
-                    .where((q) => q.isShort)
-                    .map((q) => _buildQuestionCard(q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                ...byChapter[chNum]!.where((q) => q.isShort).map((q) =>
+                    _buildQuestionCard(
+                        q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
                 const SizedBox(height: 16),
               ],
             ],
@@ -1501,9 +1611,7 @@ class _HighSchoolQPaperGeneratorPageState
 
   Widget _buildQuestionCard(HighSchoolQuestion q, String cardKey) {
     final isExpanded = _expandedCards[cardKey] == true;
-    final typeColor = q.isCq
-        ? _kCqColor
-        : (q.isShort ? _kRqColor : _kMcqColor);
+    final typeColor = q.isCq ? _kCqColor : (q.isShort ? _kRqColor : _kMcqColor);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -1799,7 +1907,8 @@ class _HighSchoolQPaperGeneratorPageState
           const SizedBox(height: 14),
           _buildTextField(
               ctrl: _cqAnswerAnyCtrl,
-              label: 'যেকোনো কয়টি CQ-র উত্তর দিতে হবে (খালি রাখলে লেখা হবে না)',
+              label:
+                  'যেকোনো কয়টি CQ-র উত্তর দিতে হবে (খালি রাখলে লেখা হবে না)',
               icon: Icons.rule_rounded,
               keyboardType: TextInputType.number,
               helperText: _selectedCqs.isEmpty
@@ -2255,9 +2364,19 @@ class _HighSchoolQPaperGeneratorPageState
             value: _mcqLayout,
             onChanged: (v) => setState(() => _mcqLayout = v),
           ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          _buildLayoutRow(
+            label: 'সংক্ষিপ্ত (RQ)',
+            unit: 'RQ',
+            count: _selectedShorts.length,
+            value: _rqLayout,
+            onChanged: (v) => setState(() => _rqLayout = v),
+          ),
           const SizedBox(height: 12),
           const Text(
-            'CQ ও MCQ আলাদাভাবে সাজানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
+            'CQ, MCQ ও RQ আলাদাভাবে সাজানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
             style: TextStyle(fontSize: 11, color: _kSubText),
           ),
         ],

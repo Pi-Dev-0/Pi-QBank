@@ -386,6 +386,7 @@ class HighSchoolExportService {
     StemImageSize imageSize = StemImageSize.medium,
     QuestionLayout cqLayout = QuestionLayout.single,
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
+    QuestionLayout rqLayout = QuestionLayout.single,
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
@@ -520,6 +521,11 @@ class HighSchoolExportService {
       width: 50%;
       padding: 2pt 4pt;
       vertical-align: top;
+    }
+    .rq-col-cell {
+      width: ${rqLayout.isDouble ? '50%' : '100%'};
+      vertical-align: top;
+      padding: 0pt 4pt 0pt 0pt;
     }
     .rq-item {
       display: flex;
@@ -684,15 +690,41 @@ class HighSchoolExportService {
   <div class="section-title">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)</div>
   <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সংক্ষেপে উত্তর দাও]</div>
 ''');
-      for (int i = 0; i < shorts.length; i++) {
-        final data = shorts[i].shortData;
-        if (data == null || data.text.trim().isEmpty) continue;
+
+      // Short questions in two columns, laid out as a table so Word keeps the
+      // fixed 50/50 split that its CQ and MCQ sections use.
+      String rqCell(int index) {
+        final data = shorts[index].shortData;
+        if (data == null || data.text.trim().isEmpty) return '';
+        return '''
+    <div class="rq-item">
+      <span>${index + 1}. ${_escapeXml(data.text)}</span>
+      <span class="rq-mark">[${data.mark}]</span>
+    </div>''';
+      }
+
+      final rqCols = rqLayout.mcqColumns;
+      if (rqCols > 1) {
         buffer.write('''
-  <div class="rq-item">
-    <span>${i + 1}. ${_escapeXml(data.text)}</span>
-    <span class="rq-mark">[${data.mark}]</span>
-  </div>
+  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
 ''');
+        for (int i = 0; i < shorts.length; i += rqCols) {
+          buffer.write('  <tr>');
+          for (int c = 0; c < rqCols; c++) {
+            if (c > 0) buffer.write('<td class="mcq-col-gap" width="16"></td>');
+            final idx = i + c;
+            buffer.write(idx < shorts.length
+                ? '    <td class="rq-col-cell">${rqCell(idx)}</td>'
+                : '    <td class="rq-col-cell"></td>');
+          }
+          buffer.write('  </tr>\n');
+        }
+        buffer.write('  </table>\n');
+      } else {
+        for (int i = 0; i < shorts.length; i++) {
+          final cell = rqCell(i);
+          if (cell.isNotEmpty) buffer.write('$cell\n');
+        }
       }
     }
 
@@ -720,6 +752,7 @@ class HighSchoolExportService {
     StemImageSize imageSize = StemImageSize.medium,
     QuestionLayout cqLayout = QuestionLayout.single,
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
+    QuestionLayout rqLayout = QuestionLayout.single,
   }) {
     final cqs = questions.where((q) => q.isCq).toList();
     final mcqs = questions.where((q) => q.isMcq).toList();
@@ -856,6 +889,11 @@ class HighSchoolExportService {
       font-size: 14px;
     }
     .rq-list { margin-top: 4px; }
+    .rq-grid {
+      display: grid;
+      grid-template-columns: ${rqLayout.isDouble ? '1fr 1fr' : '1fr'};
+      gap: 4px 22px;
+    }
     .rq-item {
       display: flex;
       justify-content: space-between;
@@ -977,18 +1015,20 @@ class HighSchoolExportService {
       buffer.write('''
     <div class="section-banner">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)</div>
     <div class="rq-list">
+      <div class="rq-grid">
 ''');
       for (int i = 0; i < shorts.length; i++) {
         final data = shorts[i].shortData;
         if (data == null || data.text.trim().isEmpty) continue;
         buffer.write('''
-      <div class="rq-item">
-        <div><b>${i + 1}.</b> ${_escapeXml(data.text)}</div>
-        <div class="rq-mark">[${data.mark}]</div>
-      </div>
+        <div class="rq-item">
+          <div><b>${i + 1}.</b> ${_escapeXml(data.text)}</div>
+          <div class="rq-mark">[${data.mark}]</div>
+        </div>
 ''');
       }
       buffer.write('''
+      </div>
     </div>
 ''');
     }

@@ -27,6 +27,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.imageSize = StemImageSize.medium,
     this.cqLayout = QuestionLayout.single,
     this.mcqLayout = QuestionLayout.doubleColumn,
+    this.rqLayout = QuestionLayout.single,
   });
 
   final String schoolName;
@@ -39,6 +40,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   final StemImageSize imageSize;
   final QuestionLayout cqLayout;
   final QuestionLayout mcqLayout;
+  final QuestionLayout rqLayout;
 
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
@@ -66,6 +68,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         imageSize: widget.imageSize,
         cqLayout: widget.cqLayout,
         mcqLayout: widget.mcqLayout,
+        rqLayout: widget.rqLayout,
       );
 
   @override

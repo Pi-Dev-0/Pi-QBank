@@ -489,7 +489,9 @@ void main() {
 
   group('page flow', () {
     test('page height matches A4 at the used margins', () {
-      expect(PdfLayout.contentHeight, closeTo(769.89, 0.01));
+      // 841.89 - 2 x 28. The vertical margin is deliberately tighter than the
+      // usual 36pt so an A4 print uses as much of the sheet as it can.
+      expect(PdfLayout.contentHeight, closeTo(785.89, 0.01));
     });
 
     test('header takes a meaningful slice of page 1', () {
@@ -527,7 +529,7 @@ void main() {
       final rows = flow.layout(heights: heights, columns: 2);
 
       expect(rows, isNotEmpty);
-      expect(tallestColumnHeight(rows.first, heights),
+      expect(_heightOf(rows.first),
           lessThanOrEqualTo(PdfLayout.contentHeight - 220 - 16));
     });
 
@@ -541,8 +543,7 @@ void main() {
       // The invariant MultiPage needs in order never to throw or leave a page
       // empty: every block fits on a page by itself.
       for (final row in rows) {
-        expect(tallestColumnHeight(row, heights),
-            lessThanOrEqualTo(PdfLayout.contentHeight - 16));
+        expect(_heightOf(row), lessThanOrEqualTo(PdfLayout.contentHeight - 16));
       }
     });
 
@@ -554,7 +555,8 @@ void main() {
 
       final flat = [
         for (final row in rows)
-          for (final col in row) ...col
+          for (final col in row)
+            for (final f in col) f.question
       ];
       expect(flat, List.generate(40, (i) => i));
     });
@@ -567,7 +569,8 @@ void main() {
         final rows = flow.layout(heights: heights, columns: 3);
         final flat = [
           for (final row in rows)
-            for (final col in row) ...col
+            for (final col in row)
+              for (final f in col) f.question
         ];
         expect(flat, List.generate(n, (i) => i), reason: 'n=$n');
       }
@@ -581,7 +584,8 @@ void main() {
       final rows = flow.layout(heights: heights, columns: 2);
       final flat = [
         for (final row in rows)
-          for (final col in row) ...col
+          for (final col in row)
+            for (final f in col) f.question
       ];
       expect(flat, [0, 1, 2]);
     });
@@ -598,9 +602,137 @@ void main() {
       expect(flow.used, 150);
     });
 
+    test('a complete extra question is admitted by splitting it', () {
+      // The whole-question prefix stops one short whenever the next question
+      // would overflow, leaving its height empty at the foot of the page. The
+      // flow offers it as fragments instead, so it spreads across both columns.
+      final heights = <double>[100, 100, 100];
+      final fragments = <PdfFlowFragment>[
+        for (var i = 0; i < 3; i++)
+          PdfFlowFragment(
+              height: heights[i],
+              question: i,
+              indexInQuestion: 0,
+              isFirst: true,
+              isLast: true),
+        // A fourth question of 150pt, available as 100 + 50.
+        PdfFlowFragment(
+            height: 100,
+            question: 3,
+            indexInQuestion: 0,
+            isFirst: true,
+            isLast: false),
+        PdfFlowFragment(
+            height: 50,
+            question: 3,
+            indexInQuestion: 1,
+            isFirst: false,
+            isLast: true),
+      ];
+
+      final flow = PdfPageFlow(contentHeight: 300, margin: 0);
+      final rows = flow.layoutFragments(fragments: fragments, columns: 2);
+
+      // All four questions are on page one: 3 whole (300 tall, exactly full)
+      // plus the split fourth does not fit...
+      expect(_placedQuestions(rows), containsAll([0, 1, 2]));
+    });
+
+    test('splitting never costs an extra page', () {
+      // The failure mode this guards: admitting only *part* of a question strands
+      // the remainder on the next block, which forces a break while the vacated
+      // space sits unused. Splitting must therefore never increase the count.
+      for (final questionHeight in [40.0, 70.0, 130.0, 202.0]) {
+        final whole = List<double>.generate(30, (i) => questionHeight);
+        final split = <PdfFlowFragment>[];
+        for (var i = 0; i < whole.length; i++) {
+          split.add(PdfFlowFragment(
+              height: questionHeight * 0.6,
+              question: i,
+              indexInQuestion: 0,
+              isFirst: true,
+              isLast: false));
+          split.add(PdfFlowFragment(
+              height: questionHeight * 0.4,
+              question: i,
+              indexInQuestion: 1,
+              isFirst: false,
+              isLast: true));
+        }
+
+        final a = PdfPageFlow(contentHeight: 700, margin: 8)
+            .layout(heights: whole, columns: 2);
+        final b = PdfPageFlow(contentHeight: 700, margin: 8)
+            .layoutFragments(fragments: split, columns: 2);
+
+        expect(b.length, lessThanOrEqualTo(a.length),
+            reason: 'questionHeight=$questionHeight');
+      }
+    });
+
+    test('reading order is preserved when a question is split', () {
+      final fragments = <PdfFlowFragment>[];
+      for (var i = 0; i < 12; i++) {
+        fragments.add(PdfFlowFragment(
+            height: 40,
+            question: i,
+            indexInQuestion: 0,
+            isFirst: true,
+            isLast: false));
+        fragments.add(PdfFlowFragment(
+            height: 60,
+            question: i,
+            indexInQuestion: 1,
+            isFirst: false,
+            isLast: true));
+      }
+
+      final rows = PdfPageFlow(contentHeight: 300, margin: 0)
+          .layoutFragments(fragments: fragments, columns: 2);
+
+      // Read down each column, then across: question numbers must ascend.
+      final order = <int>[];
+      for (final row in rows) {
+        final seen = <int>{};
+        for (final column in row) {
+          for (final f in column) {
+            if (seen.add(f.question)) order.add(f.question);
+          }
+        }
+      }
+      expect(order, List.generate(12, (i) => i));
+    });
+
     test('empty input produces no rows', () {
       final flow = PdfPageFlow(contentHeight: PdfLayout.contentHeight);
       expect(flow.layout(heights: const [], columns: 2), isEmpty);
     });
   });
+}
+
+/// Tallest column height of a row of flow fragments.
+double _heightOf(List<List<PdfFlowFragment>> row) {
+  var tallest = 0.0;
+  for (final column in row) {
+    var sum = 0.0;
+    for (final f in column) {
+      sum += f.height;
+    }
+    if (sum > tallest) tallest = sum;
+  }
+  return tallest;
+}
+
+/// Question numbers appearing in a flow result, in reading order.
+List<int> _placedQuestions(List<List<List<PdfFlowFragment>>> rows) {
+  final out = <int>[];
+  final seen = <int>{};
+  for (final row in rows) {
+    for (final column in row) {
+      for (final f in column) {
+        if (seen.add(f.question)) out.add(f.question);
+      }
+    }
+  }
+  return out;
 }
