@@ -1149,7 +1149,7 @@ class _HighSchoolQPaperGeneratorPageState
             isFirst: first,
             isLast: last));
 
-    add(bannerHeight, cqBannerId, 0, true, true);
+    add(bannerHeight + PdfLayout.mergedHeadingGap, cqBannerId, 0, true, true);
     for (int i = 0; i < cqs.length; i++) {
       final parts = PdfLayout.cqFragments(
         index: i + 1,
@@ -1165,7 +1165,7 @@ class _HighSchoolQPaperGeneratorPageState
       }
     }
 
-    add(bannerHeight, rqBannerId, 0, true, true);
+    add(bannerHeight + PdfLayout.mergedHeadingGap, rqBannerId, 0, true, true);
     for (int i = 0; i < shorts.length; i++) {
       final parts = PdfLayout.rqFragments(
         index: i + 1,
@@ -1193,13 +1193,21 @@ class _HighSchoolQPaperGeneratorPageState
           column,
           itemBuilder: (qIndex, from, to) {
             lastQuestion = qIndex;
-            if (qIndex == cqBannerId) {
-              return _pdfSectionBanner('ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-                  boldStyle.copyWith(fontSize: 11));
-            }
-            if (qIndex == rqBannerId) {
-              return _pdfSectionBanner('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
-                  boldStyle.copyWith(fontSize: 11));
+            // The gap has to be a real widget, not just extra height booked
+            // on the fragment: children of a pw.Column are placed at their own
+            // heights, so reserving space in the flow alone draws nothing.
+            if (qIndex == cqBannerId || qIndex == rqBannerId) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  _pdfSectionBanner(
+                      qIndex == cqBannerId
+                          ? 'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)'
+                          : 'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
+                      boldStyle.copyWith(fontSize: 11)),
+                  pw.SizedBox(height: PdfLayout.mergedHeadingGap),
+                ],
+              );
             }
             if (qIndex >= cqs.length) {
               final i = qIndex - cqs.length;

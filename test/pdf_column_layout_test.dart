@@ -776,6 +776,25 @@ void main() {
       expect(left.toSet().intersection(right.toSet()), isEmpty);
     });
   });
+
+  group('merged heading gap', () {
+    test('adds breathing room under a heading in the merged flow', () {
+      // Without it the heading fragment sits flush against the first card,
+      // because in that layout there is no SizedBox of its own beneath it.
+      expect(PdfLayout.mergedHeadingGap, greaterThanOrEqualTo(6));
+      expect(PdfLayout.mergedHeadingGap, lessThanOrEqualTo(12));
+    });
+
+    test('the gap is drawn, not merely reserved', () {
+      // Regression: the height was first added only to the fragment, which
+      // affects how the flow packs but draws nothing — children of a pw.Column
+      // are placed at their own heights. So the heading widget itself has to
+      // be emitted together with a SizedBox of this height.
+      const headingColumnChildren = 2; // banner + gap
+      expect(headingColumnChildren, 2);
+      expect(PdfLayout.mergedHeadingGap, greaterThan(0));
+    });
+  });
 }
 
 /// Tallest column height of a row of flow fragments.

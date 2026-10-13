@@ -144,6 +144,15 @@ class PdfLayout {
   static const double setDividerGapAbove = 16;
   static const double setDividerGapBelow = 12;
 
+  /// Breathing room under a section heading in the merged two-set, two-column
+  /// flow.
+  ///
+  /// Only that layout uses it. Elsewhere the heading is a full-width box with a
+  /// `SizedBox` of its own beneath it; in the merged flow the heading rides in
+  /// the column as a fragment, so without this it would sit flush against the
+  /// first card.
+  static const double mergedHeadingGap = 8;
+
   /// Height of the school/exam header, mirroring the header widget.
   ///
   /// This matters more than it looks: the header is the first thing on page 1,
