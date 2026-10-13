@@ -14,11 +14,13 @@
  * sub_questions_json shape depends on the type:
  *   CQ  -> [ { label, mark, text }, ... ]
  *   MCQ -> { text, options: [...], correct_ans }
- *   RQ  -> { text, mark }                (short answer question)
+ *   RQ  -> []                            (short answer question; the text
+ *                                           lives in stem_text, 1 mark each)
  *  G  = stem_text
  *  H  = stem_image_url
  *  I  = sub_questions_json
  *  J  = board_year_tag
+ *  K  = short_mark     (RQ only; empty for CQ/MCQ)
  *
  * Deploy → Web App → Execute as: Me | Who has access: Anyone
  */
@@ -35,6 +37,9 @@ const HEADERS = [
   "stem_image_url",
   "sub_questions_json",
   "board_year_tag",
+  // Marks for a short question. Short questions have no sub-questions, so this
+  // is the only place their mark can live.
+  "short_mark",
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,7 +54,28 @@ function getSheet() {
     sheet.appendRow(HEADERS);
     sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold");
     sheet.setFrozenRows(1);
+    return sheet;
   }
+
+  // A sheet created before a column was added is migrated in place, so an
+  // existing deployment picks up new columns without a manual fix.
+  const existing = sheet
+    .getRange(1, 1, 1, Math.max(sheet.getLastColumn(), HEADERS.length))
+    .getValues()[0];
+  const missing = [];
+  for (let i = 0; i < HEADERS.length; i++) {
+    const cell = String(existing[i] == null ? "" : existing[i]).trim();
+    if (cell.toLowerCase() !== HEADERS[i].toLowerCase()) missing.push(i);
+  }
+  if (missing.length > 0) {
+    // `missing` holds 0-based header indices, but getRange columns are 1-based.
+    const first = Math.min.apply(null, missing) + 1;
+    const last = Math.max.apply(null, missing) + 1;
+    const values = missing.map((i) => [HEADERS[i]]);
+    sheet.getRange(1, first, 1, last - first + 1).setValues(values);
+    sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold");
+  }
+  if (sheet.getFrozenRows() === 0) sheet.setFrozenRows(1);
   return sheet;
 }
 
@@ -321,7 +347,8 @@ function doGet(e) {
 // A short-answer question instead uses:
 //   "question_type": "RQ",
 //   "stem_text": "সমান্তর সরলরেখার ঢাল কত?",
-//   "sub_questions_json": { "text": "সমান্তর সরলরেখার ঢাল কত?", "mark": 2 }
+//   "sub_questions_json": [],     // not used for RQ
+//   "short_mark": 2                // marks for this short question
 // ─────────────────────────────────────────────────────────────────────────────
 
 function doPost(e) {
@@ -389,6 +416,23 @@ function doPost(e) {
     //
     // Policy: reject the WHOLE batch if any supplied id is already used, either
     // elsewhere in this batch or by an existing row. Nothing is written.
+    // RQ carries its whole question in stem_text, so an empty one is useless.
+    const emptyShort = [];
+    questions.forEach((q, i) => {
+      if (canonicalQuestionTypes[i] !== "RQ") return;
+      const text = String((q && q.stem_text) || "").trim();
+      if (!text) emptyShort.push("#" + (i + 1));
+    });
+    if (emptyShort.length > 0) {
+      return jsonResponse({
+        status: "ERROR",
+        message:
+          "Short questions (RQ) must have text in stem_text. Empty on question(s) " +
+          emptyShort.join(", ") +
+          ".",
+      });
+    }
+
     const sheet = getSheet();
     const existingIds = readExistingIds(sheet);
     const seenInBatch = Object.create(null);
@@ -421,10 +465,23 @@ function doPost(e) {
     }
 
     const rows = questions.map((q, i) => {
+      const type = canonicalQuestionTypes[i];
+      // RQ has no sub-questions: the text lives in stem_text and the column
+      // is always stored empty, whatever the client sent. Its mark lives in
+      // its own column, because short questions are worth 1 or 2 marks.
       const subJson =
-        typeof q.sub_questions_json === "string"
+        type === "RQ"
+          ? "[]"
+          : typeof q.sub_questions_json === "string"
           ? q.sub_questions_json
           : JSON.stringify(q.sub_questions_json || []);
+
+      let shortMark = "";
+      if (type === "RQ") {
+        const raw = q.short_mark;
+        const n = Math.round(Number(raw));
+        shortMark = String(raw == null || raw === "" || !isFinite(n) || n < 1 ? 1 : n);
+      }
 
       return [
         q.id              || generateId(),
@@ -432,11 +489,12 @@ function doPost(e) {
         q.subject         || "",
         String(q.chapter_number || ""),
         q.chapter_name    || "",
-        canonicalQuestionTypes[i],
-        q.stem_text       || "",
+        type,
+        q.stem_text || "",
         q.stem_image_url  || "",
         subJson,
         q.board_year_tag  || "",
+        shortMark,
       ];
     });
 

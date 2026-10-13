@@ -62,6 +62,18 @@
         "correct_ans": "20 m/s"
       },
       "board_year_tag": "Cumilla Board 2023"
+    },
+    {
+      "class": "Class (9-10) SSC",
+      "subject": "পদার্থবিজ্ঞান",
+      "chapter_number": "2",
+      "chapter_name": "গতি",
+      "question_type": "RQ",
+      "stem_text": "একটি বস্তুর বেগ সময়ের সাথে কীভাবে পরিবর্তিত হয়? ব্যাখ্যা করো।",
+      "stem_image_url": "",
+      "sub_questions_json": [],
+      "board_year_tag": "Cumilla Board 2023",
+      "short_mark": 2
     }
   ]
 }

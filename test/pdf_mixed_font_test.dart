@@ -44,7 +44,8 @@ void main() {
       final kids = (span.children as List).cast<pw.TextSpan>();
       // Punctuation such as ": " is its own Latin segment by design, so assert
       // that the Bengali runs kept the Bangla font.
-      expect(kids.where((k) => identical(effectiveFont(k), sutonny)), isNotEmpty);
+      expect(
+          kids.where((k) => identical(effectiveFont(k), sutonny)), isNotEmpty);
     });
 
     test('mixed line splits Bangla and Latin across fonts', () {
@@ -69,7 +70,8 @@ void main() {
       expect(latinText, contains(sentence));
     });
 
-    test('regression: copyWith(font:) alone leaves the Bangla font in place', () {
+    test('regression: copyWith(font:) alone leaves the Bangla font in place',
+        () {
       // This is why buildPdfTextSpan overrides all four font slots.
       final base = banglaStyle();
       expect(identical(base.fontNormal, sutonny), isTrue);
@@ -109,92 +111,148 @@ void main() {
     });
 
     group('short questions (RQ)', () {
-    HighSchoolQuestion rq({
-      String type = 'RQ',
-      String text = 'সমান্তর সরলরেখার ঢাল কত?',
-      int mark = 2,
-      Object? sub, // defaults to a decoded Map; pass a String to simulate the Sheet
-    }) {
-      return HighSchoolQuestion.fromJson({
-        'id': 'r1',
-        'class': 'Class (9-10) SSC',
-        'subject': 'উচ্চতর গণিত',
-        'chapter_number': '2',
-        'chapter_name': 'সমীকরণ',
-        'question_type': type,
-        'stem_text': text,
-        'stem_image_url': '',
-        'sub_questions_json': sub ?? {'text': text, 'mark': mark},
-        'board_year_tag': '',
+      HighSchoolQuestion rq({
+        String type = 'RQ',
+        String text = 'সমান্তর সরলরেখার ঢাল কত?',
+        Object? sub,
+        Object? shortMark,
+      }) {
+        return HighSchoolQuestion.fromJson({
+          'id': 'r1',
+          'class': 'Class (9-10) SSC',
+          'subject': 'উচ্চতর গণিত',
+          'chapter_number': '2',
+          'chapter_name': 'সমীকরণ',
+          'question_type': type,
+          'stem_text': text,
+          'stem_image_url': '',
+          'sub_questions_json': sub ?? <Object>[],
+          'board_year_tag': '',
+          'short_mark': shortMark,
+        });
+      }
+
+      test('is recognised as its own type, not CQ or MCQ', () {
+        final q = rq();
+        expect(q.isShort, isTrue);
+        expect(q.isCq, isFalse);
+        expect(q.isMcq, isFalse);
       });
-    }
 
-    test('is recognised as its own type, not CQ or MCQ', () {
-      final q = rq();
-      expect(q.isShort, isTrue);
-      expect(q.isCq, isFalse);
-      expect(q.isMcq, isFalse);
-    });
-
-    test('accepts the SHORT alias', () {
-      expect(rq(type: 'SHORT').isShort, isTrue);
-    });
-
-    test('reads text and mark', () {
-      final q = rq();
-      expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
-      expect(q.shortData?.mark, 2);
-      expect(q.totalMarks, 2);
-    });
-
-    test('survives a JSON-encoded payload (what the Sheet actually returns)',
-        () {
-      final q = rq(sub: '{"text":"সমান্তর সরলরেখার ঢাল কত?","mark":2}');
-      expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
-      expect(q.shortData?.mark, 2);
-    });
-
-    test('survives a bare string payload', () {
-      final q = rq(sub: 'সমান্তর সরলরেখার ঢাল কত?');
-      expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
-      expect(q.shortData?.mark, 1);
-    });
-
-    test('falls back to stem_text when the payload is empty', () {
-      final q = rq(sub: <Object>[]);
-      expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
-    });
-
-    test('round-trips through toJson', () {
-      final q = rq();
-      final back = HighSchoolQuestion.fromJson(q.toJson());
-      expect(back.isShort, isTrue);
-      expect(back.shortData?.text, q.shortData?.text);
-      expect(back.shortData?.mark, q.shortData?.mark);
-    });
-
-    test('CQ and MCQ are unaffected', () {
-      final cq = HighSchoolQuestion.fromJson({
-        'id': 'c1',
-        'class': 'Class (9-10) SSC',
-        'subject': 's',
-        'chapter_number': '1',
-        'chapter_name': 'c',
-        'question_type': 'CQ',
-        'stem_text': 'stem',
-        'stem_image_url': '',
-        'sub_questions_json': [
-          {'label': 'ক', 'mark': 2, 'text': 'a'},
-        ],
-        'board_year_tag': '',
+      test('accepts the SHORT alias', () {
+        expect(rq(type: 'SHORT').isShort, isTrue);
       });
-      expect(cq.isShort, isFalse);
-      expect(cq.shortData, isNull);
-      expect(cq.totalMarks, 2);
-    });
-  });
 
-  test('the Bijoy soft-hyphen reorder marker is stripped', () {
+      test('reads the text from stem_text', () {
+        final q = rq();
+        expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
+      });
+
+      test('is worth one mark by default', () {
+        expect(rq().shortData?.mark, 1);
+        expect(rq().totalMarks, 1);
+      });
+
+      test('the mark varies per question', () {
+        expect(rq(shortMark: 2).shortData?.mark, 2);
+        expect(rq(shortMark: 2).totalMarks, 2);
+        expect(rq(shortMark: 3).totalMarks, 3);
+      });
+
+      test('reads a mark sent as a string (how the Sheet stores it)', () {
+        expect(rq(shortMark: '2').shortData?.mark, 2);
+      });
+
+      test('falls back to 1 for a missing or nonsense mark', () {
+        expect(rq(shortMark: '').shortData?.mark, 1);
+        expect(rq(shortMark: 'abc').shortData?.mark, 1);
+        expect(rq(shortMark: 0).shortData?.mark, 1);
+        expect(rq(shortMark: -3).shortData?.mark, 1);
+      });
+
+      test('different short questions can carry different marks', () {
+        final a = rq(text: 'প্রথম', shortMark: 1);
+        final b = rq(text: 'দ্বিতীয়', shortMark: 2);
+        expect(a.totalMarks + b.totalMarks, 3);
+      });
+
+      test('sub_questions_json is not used', () {
+        // Even if something odd is stored there, stem_text and short_mark win.
+        final q = rq(sub: {'text': 'ভুল লেখা', 'mark': 5}, shortMark: 2);
+        expect(q.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
+        expect(q.totalMarks, 2);
+      });
+
+      test('honours a legacy payload when stem_text is empty', () {
+        // Rows written by an older uploader kept the text in sub_questions_json.
+        final q = rq(text: '', sub: {'text': 'পুরোনো লেখা'});
+        expect(q.shortData?.text, 'পুরোনো লেখা');
+      });
+
+      test('survives a JSON-encoded legacy payload', () {
+        final q = rq(text: '', sub: '{"text":"পুরোনো লেখা"}');
+        expect(q.shortData?.text, 'পুরোনো লেখা');
+      });
+
+      test('toJson keeps the text in stem_text and empties the payload', () {
+        final json = rq(shortMark: 2).toJson();
+        expect(json['stem_text'], 'সমান্তর সরলরেখার ঢাল কত?');
+        expect(json['sub_questions_json'], isEmpty);
+        expect(json['short_mark'], 2);
+      });
+
+      test('short_mark is not emitted for CQ or MCQ', () {
+        final mcq = HighSchoolQuestion.fromJson({
+          'id': 'm1',
+          'class': 'Class (9-10) SSC',
+          'subject': 's',
+          'chapter_number': '1',
+          'chapter_name': 'c',
+          'question_type': 'MCQ',
+          'stem_text': '',
+          'stem_image_url': '',
+          'sub_questions_json': {
+            'text': 'q',
+            'options': ['a', 'b'],
+            'correct_ans': 'a',
+          },
+          'board_year_tag': '',
+        });
+        expect(mcq.toJson()['short_mark'], isEmpty);
+      });
+
+      test('round-trips through toJson', () {
+        final back = HighSchoolQuestion.fromJson(rq().toJson());
+        expect(back.isShort, isTrue);
+        expect(back.shortData?.text, 'সমান্তর সরলরেখার ঢাল কত?');
+      });
+
+      test('an empty RQ has no shortData', () {
+        expect(rq(text: '').shortData, isNull);
+      });
+
+      test('CQ and MCQ are unaffected', () {
+        final cq = HighSchoolQuestion.fromJson({
+          'id': 'c1',
+          'class': 'Class (9-10) SSC',
+          'subject': 's',
+          'chapter_number': '1',
+          'chapter_name': 'c',
+          'question_type': 'CQ',
+          'stem_text': 'stem',
+          'stem_image_url': '',
+          'sub_questions_json': [
+            {'label': 'ক', 'mark': 2, 'text': 'a'},
+          ],
+          'board_year_tag': '',
+        });
+        expect(cq.isShort, isFalse);
+        expect(cq.shortData, isNull);
+        expect(cq.totalMarks, 2);
+      });
+    });
+
+    test('the Bijoy soft-hyphen reorder marker is stripped', () {
       // U+00AD is inserted by the converter and has no glyph in any bundled
       // font, which would draw a black box inside the word. (The Bangla run is
       // Bijoy-encoded here, so compare against the raw converter output.)
@@ -268,8 +326,8 @@ void main() {
         pw.RichText(text: buildPdfTextSpan('Greenfield Public School', style)),
         pw.RichText(text: buildPdfTextSpan('বিষয়: উচ্চতর গণিত', style)),
         pw.RichText(
-            text: buildPdfTextSpan('১. যদি A = {1, 2, 3} হয়, তাহলে n(A) = কত?',
-                style)),
+            text: buildPdfTextSpan(
+                '১. যদি A = {1, 2, 3} হয়, তাহলে n(A) = কত?', style)),
         // The math line that used to log "Unable to find a font to draw".
         pw.RichText(
             text: buildPdfTextSpan(
@@ -288,9 +346,20 @@ void main() {
         '√∛∑∏∫∮∞∂∇∴∵°′″½¼¾'
         '→←↑↓↔⇒⇔⟹'
         '²³¹αβγδθλμπρστφχψωΓΔΘΛΠΣΦΩ'
-        '✓✔✗✘☑☐★☆●○■□▲△▼▽◆※†§¶';
+        '✓✔✗✘☑☐★☆●○■□▲△▼▽◆※†§¶'
+        // Modifier / phonetic letters used as superscripts: cosecᶜ, sin⁻¹, xⁿ
+        'ᶜᵐⁿˡᵇᵈᵉᶠᵍʰⁱʲᵏᵒᵖʳˢᵗᵘᵛʷˣʸᶻ'
+        'ᵀᴬᴮᴰᴱᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵀᵁᵂ'
+        '⁰⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ'
+        'ˢ°′″ʹʺ'
+        // Combining marks for symbols available in the subset (vector notation
+        // in physics): v⃗, a⃑, e⃖. U+20D5 is absent from DejaVu, so it is
+        // deliberately not claimed here.
+        '⃗⃑⃖';
 
-    /// Render [text] and capture the pdf package's "Unable to find a font" log.
+    /// Render [text] and capture the pdf package's *actionable* font warnings:
+    /// "Unable to find a font to draw ..." — i.e. a glyph that no configured
+    /// font could supply.
     Future<List<String>> missingFontLogs(
       String text, {
       pw.Font? fallbackFont,
@@ -324,6 +393,25 @@ void main() {
           reason: 'expected the pdf package to warn about missing glyphs');
     });
 
+    test('the "Helvetica has no Unicode support" line is constructor noise',
+        () async {
+      // PdfType1Font.create() prints this from an assert in its constructor,
+      // once per font instance, whether or not a glyph actually fails. It is
+      // informational: Helvetica is correct for plain ASCII, and any character
+      // outside WinAnsi is resolved via fontFallback before the primary font
+      // is asked to encode it. So we do NOT assert on it — but we assert the
+      // fallback genuinely prevents the actionable warning.
+      final mathFont = pw.Font.ttf(
+        ByteData.sublistView(
+            File('assets/fonts/MathSymbols.ttf').readAsBytesSync()),
+      );
+      // cosecᶜ : U+1D9C is not in WinAnsi, so without the fallback this is a
+      // real "Unable to find a font" failure.
+      expect(await missingFontLogs('cosecᶜ'), isNotEmpty);
+      // With the fallback, zero actionable warnings.
+      expect(await missingFontLogs('cosecᶜ', fallbackFont: mathFont), isEmpty);
+    });
+
     test('the bundled MathSymbols font removes every warning', () async {
       final mathFont = pw.Font.ttf(
         ByteData.sublistView(
@@ -354,6 +442,33 @@ void main() {
       );
       final logs = await missingFontLogs(
         'প্রশ্ন — A ⊆ B, তাই A ∩ B ≠ ∅',
+        fallbackFont: mathFont,
+      );
+      expect(logs, isEmpty, reason: logs.join(' | '));
+    });
+
+    test('modifier-letter superscripts (cosecᶜ) are covered', () async {
+      // U+1D9C is what "Unable to find a font to draw ᶜ" was about: Bangla
+      // maths writes cosecant as "cosecᶜ".
+      final mathFont = pw.Font.ttf(
+        ByteData.sublistView(
+            File('assets/fonts/MathSymbols.ttf').readAsBytesSync()),
+      );
+      final logs = await missingFontLogs(
+        'cosecᶜx = 1, sin⁻¹(y), xⁿ + log₂N = M³',
+        fallbackFont: mathFont,
+      );
+      expect(logs, isEmpty, reason: logs.join(' | '));
+    });
+
+    test('Latin runs resolve non-WinAnsi characters via the fallback',
+        () async {
+      final mathFont = pw.Font.ttf(
+        ByteData.sublistView(
+            File('assets/fonts/MathSymbols.ttf').readAsBytesSync()),
+      );
+      final logs = await missingFontLogs(
+        'cosecᶜ and sin⁻¹ are English fragments',
         fallbackFont: mathFont,
       );
       expect(logs, isEmpty, reason: logs.join(' | '));

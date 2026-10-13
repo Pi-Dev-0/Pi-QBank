@@ -18,16 +18,16 @@ class CqSubQuestion {
   factory CqSubQuestion.fromJson(Map<String, dynamic> json) {
     return CqSubQuestion(
       label: json['label'] as String? ?? '',
-      mark:  (json['mark'] as num?)?.toInt() ?? 0,
-      text:  json['text']  as String? ?? '',
+      mark: (json['mark'] as num?)?.toInt() ?? 0,
+      text: json['text'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'label': label,
-    'mark':  mark,
-    'text':  text,
-  };
+        'label': label,
+        'mark': mark,
+        'text': text,
+      };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,32 +54,35 @@ class McqQuestion {
   }
 
   Map<String, dynamic> toJson() => {
-    'text':        text,
-    'options':     options,
-    'correct_ans': correctAns,
-  };
+        'text': text,
+        'options': options,
+        'correct_ans': correctAns,
+      };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Short question (RQ) model
 //
-// A short answer question is a single prompt with a mark value: no stem, no
-// sub-questions and no options.
+// A short answer question is a single prompt. Its text lives in `stem_text`
+// like any other question — there is no stem, no sub-questions and no options,
+// so `sub_questions_json` is unused and stays empty.
+//
+// The mark is per question and stored in its own `short_mark` column, because
+// short questions are worth 1 mark in some papers and 2 in others.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ShortQuestion {
   final String text;
   final int mark;
 
-  const ShortQuestion({
-    required this.text,
-    this.mark = 1,
-  });
+  static const int defaultMark = 1;
+
+  const ShortQuestion({required this.text, this.mark = defaultMark});
 
   factory ShortQuestion.fromJson(Map<String, dynamic> json) {
     return ShortQuestion(
       text: json['text'] as String? ?? '',
-      mark: (json['mark'] as num?)?.toInt() ?? 1,
+      mark: (json['mark'] as num?)?.toInt() ?? defaultMark,
     );
   }
 
@@ -97,13 +100,13 @@ class ChapterInfo {
   const ChapterInfo({required this.chapterNumber, required this.chapterName});
 
   factory ChapterInfo.fromJson(Map<String, dynamic> json) => ChapterInfo(
-    chapterNumber: json['chapter_number'] as String? ?? '',
-    chapterName:   json['chapter_name']   as String? ?? '',
-  );
+        chapterNumber: json['chapter_number'] as String? ?? '',
+        chapterName: json['chapter_name'] as String? ?? '',
+      );
 
   @override
   bool operator ==(Object other) =>
-    other is ChapterInfo && other.chapterNumber == chapterNumber;
+      other is ChapterInfo && other.chapterNumber == chapterNumber;
 
   @override
   int get hashCode => chapterNumber.hashCode;
@@ -128,10 +131,14 @@ class HighSchoolQuestion {
 
   /// For CQ:  List<CqSubQuestion>
   /// For MCQ: McqQuestion
-  /// For RQ:  ShortQuestion
+  /// RQ does not use this — its payload stays empty.
   final dynamic subQuestionsData;
 
   final String boardYearTag;
+
+  /// Marks for a short question (RQ), from the `short_mark` column.
+  /// Ignored for CQ/MCQ. Defaults to 1 when the column is empty.
+  final int shortMark;
 
   // Runtime state (not from API)
   bool isSelected;
@@ -147,6 +154,7 @@ class HighSchoolQuestion {
     required this.stemImageUrl,
     required this.subQuestionsData,
     required this.boardYearTag,
+    this.shortMark = ShortQuestion.defaultMark,
     this.isSelected = false,
   });
 
@@ -176,23 +184,29 @@ class HighSchoolQuestion {
     return null;
   }
 
-  /// Parsed short-question data (returns null for CQ/MCQ).
+  /// The short question, read from [stemText] and [shortMark].
   ///
-  /// Falls back to [stemText] when the stored payload is missing, so a row
-  /// typed straight into the Sheet as `{"text": "...", "mark": 2}` — or even
-  /// just a plain string — still renders.
+  /// RQ rows carry their text in `stem_text`; `sub_questions_json` is unused.
+  /// A legacy payload there is still honoured so rows written by an older
+  /// uploader keep rendering.
   ShortQuestion? get shortData {
     if (!isShort) return null;
-    final data = subQuestionsData;
-    if (data is ShortQuestion) return data;
-    if (data is Map) {
-      return ShortQuestion.fromJson(Map<String, dynamic>.from(data));
-    }
-    if (data is String && data.trim().isNotEmpty) {
-      return ShortQuestion(text: data);
-    }
-    if (stemText.trim().isNotEmpty) {
-      return ShortQuestion(text: stemText);
+
+    final candidates = <String>[
+      stemText,
+      if (subQuestionsData is ShortQuestion)
+        (subQuestionsData as ShortQuestion).text,
+      if (subQuestionsData is Map)
+        ShortQuestion.fromJson(
+                Map<String, dynamic>.from(subQuestionsData as Map))
+            .text,
+      if (subQuestionsData is String) subQuestionsData as String,
+    ];
+
+    for (final c in candidates) {
+      if (c.trim().isNotEmpty) {
+        return ShortQuestion(text: c, mark: shortMark);
+      }
     }
     return null;
   }
@@ -209,7 +223,7 @@ class HighSchoolQuestion {
   }
 
   ChapterInfo get chapterInfo =>
-    ChapterInfo(chapterNumber: chapterNumber, chapterName: chapterName);
+      ChapterInfo(chapterNumber: chapterNumber, chapterName: chapterName);
 
   factory HighSchoolQuestion.fromJson(Map<String, dynamic> json) {
     final qType = (json['question_type'] as String? ?? 'CQ').toUpperCase();
@@ -220,14 +234,14 @@ class HighSchoolQuestion {
     if (qType == 'CQ') {
       if (rawSub is List) {
         parsed = rawSub
-          .map((e) => CqSubQuestion.fromJson(e as Map<String, dynamic>))
-          .toList();
+            .map((e) => CqSubQuestion.fromJson(e as Map<String, dynamic>))
+            .toList();
       } else if (rawSub is String) {
         try {
           final decoded = jsonDecode(rawSub) as List;
           parsed = decoded
-            .map((e) => CqSubQuestion.fromJson(e as Map<String, dynamic>))
-            .toList();
+              .map((e) => CqSubQuestion.fromJson(e as Map<String, dynamic>))
+              .toList();
         } catch (_) {
           parsed = <CqSubQuestion>[];
         }
@@ -235,30 +249,33 @@ class HighSchoolQuestion {
         parsed = <CqSubQuestion>[];
       }
     } else if (qType == 'RQ' || qType == 'SHORT') {
-      // Short answer question: { "text": "...", "mark": 2 }
+      // Short answer question: the text is in stem_text. sub_questions_json
+      // is not used; a legacy payload there is still parsed as a fallback.
       final stem = json['stem_text'] as String? ?? '';
+      ShortQuestion? legacy;
       if (rawSub is Map) {
-        parsed = ShortQuestion.fromJson(Map<String, dynamic>.from(rawSub));
-      } else if (rawSub is String) {
+        legacy = ShortQuestion.fromJson(Map<String, dynamic>.from(rawSub));
+      } else if (rawSub is String && rawSub.trim().isNotEmpty) {
         try {
           final decoded = jsonDecode(rawSub);
-          parsed = decoded is Map
+          legacy = decoded is Map
               ? ShortQuestion.fromJson(Map<String, dynamic>.from(decoded))
               : ShortQuestion(text: rawSub);
         } catch (_) {
-          parsed = ShortQuestion(text: stem.isNotEmpty ? stem : rawSub);
+          legacy = ShortQuestion(text: rawSub);
         }
-      } else {
-        parsed = ShortQuestion(text: stem);
       }
+      parsed = ShortQuestion(
+          text: stem.trim().isNotEmpty ? stem : (legacy?.text ?? ''),
+          mark: _readShortMark(json));
     } else {
       // MCQ
       if (rawSub is Map<String, dynamic>) {
         parsed = McqQuestion.fromJson(rawSub);
       } else if (rawSub is String) {
         try {
-          parsed = McqQuestion.fromJson(
-            jsonDecode(rawSub) as Map<String, dynamic>);
+          parsed =
+              McqQuestion.fromJson(jsonDecode(rawSub) as Map<String, dynamic>);
         } catch (_) {
           parsed = null;
         }
@@ -268,17 +285,30 @@ class HighSchoolQuestion {
     }
 
     return HighSchoolQuestion(
-      id:            json['id']             as String? ?? '',
-      className:     json['class']          as String? ?? '',
-      subject:       json['subject']        as String? ?? '',
+      id: json['id'] as String? ?? '',
+      className: json['class'] as String? ?? '',
+      subject: json['subject'] as String? ?? '',
       chapterNumber: json['chapter_number'] as String? ?? '',
-      chapterName:   json['chapter_name']   as String? ?? '',
-      questionType:  qType,
-      stemText:      json['stem_text']      as String? ?? '',
-      stemImageUrl:  json['stem_image_url'] as String? ?? '',
+      chapterName: json['chapter_name'] as String? ?? '',
+      questionType: qType,
+      stemText: json['stem_text'] as String? ?? '',
+      stemImageUrl: json['stem_image_url'] as String? ?? '',
       subQuestionsData: parsed,
-      boardYearTag:  json['board_year_tag'] as String? ?? '',
+      boardYearTag: json['board_year_tag'] as String? ?? '',
+      shortMark: _readShortMark(json),
     );
+  }
+
+  /// `short_mark` arrives as a number, a numeric string (the Sheet stores
+  /// everything as text) or nothing at all. Anything below 1 is treated as
+  /// unset so a blank column falls back to the default.
+  static int _readShortMark(Map<String, dynamic> json) {
+    final raw = json['short_mark'];
+    if (raw == null) return ShortQuestion.defaultMark;
+
+    final n = raw is num ? raw.toInt() : int.tryParse(raw.toString().trim());
+    if (n == null || n < 1) return ShortQuestion.defaultMark;
+    return n;
   }
 
   Map<String, dynamic> toJson() {
@@ -286,22 +316,24 @@ class HighSchoolQuestion {
     if (isCq) {
       subJson = cqSubQuestions.map((e) => e.toJson()).toList();
     } else if (isShort) {
-      subJson = shortData?.toJson();
+      // No sub-questions: the text already lives in stem_text.
+      subJson = <dynamic>[];
     } else {
       subJson = mcqData?.toJson();
     }
 
     return {
-      'id':               id,
-      'class':            className,
-      'subject':          subject,
-      'chapter_number':   chapterNumber,
-      'chapter_name':     chapterName,
-      'question_type':    questionType,
-      'stem_text':        stemText,
-      'stem_image_url':   stemImageUrl,
+      'id': id,
+      'class': className,
+      'subject': subject,
+      'chapter_number': chapterNumber,
+      'chapter_name': chapterName,
+      'question_type': questionType,
+      'stem_text': stemText,
+      'stem_image_url': stemImageUrl,
       'sub_questions_json': subJson,
-      'board_year_tag':   boardYearTag,
+      'board_year_tag': boardYearTag,
+      'short_mark': isShort ? shortMark : '',
     };
   }
 }
