@@ -225,7 +225,7 @@ Future<List<int>> render(
     time: time,
     totalMarks: totalMarks,
   );
-  flow.consume(headerHeight + 16);
+  flow.consume(headerHeight + PdfLayout.headerAfterGap);
 
   final rows = flow.layout(
     heights: heights,
@@ -315,11 +315,12 @@ Future<List<int>> render(
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           pw.RichText(text: mixed(school, base.copyWith(fontSize: 15))),
-          pw.SizedBox(height: 2),
+          pw.SizedBox(height: PdfLayout.headerTitleGap),
           pw.RichText(text: mixed(exam, base.copyWith(fontSize: 12))),
-          pw.SizedBox(height: 8),
-          pw.Divider(thickness: 1.2, color: PdfColors.black),
-          pw.SizedBox(height: 6),
+          pw.SizedBox(height: PdfLayout.headerExamGap),
+          pw.Divider(
+              thickness: PdfLayout.headerDivider, color: PdfColors.black),
+          pw.SizedBox(height: PdfLayout.headerMetaGap),
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
@@ -329,11 +330,12 @@ Future<List<int>> render(
               pw.RichText(text: mixed('পূর্ণমান: $totalMarks')),
             ],
           ),
-          pw.SizedBox(height: 6),
-          pw.Divider(thickness: 1.2, color: PdfColors.black),
+          pw.SizedBox(height: PdfLayout.headerMetaGap),
+          pw.Divider(
+              thickness: PdfLayout.headerDivider, color: PdfColors.black),
         ],
       ),
-      pw.SizedBox(height: 16),
+      pw.SizedBox(height: PdfLayout.headerAfterGap),
       pw.Container(
         width: double.infinity,
         padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -475,8 +477,7 @@ void main() {
     // silently dropped — visible as a card missing its "(খ)" row.
     final questions = [
       for (var i = 0; i < 10; i++)
-        cq(
-            'প্রশ্ন ${i + 1}: নিচের চিত্রটি দেখে বিস্তারিত বর্ণনা করো এবং প্রমাণ করো।'),
+        cq('প্রশ্ন ${i + 1}: নিচের চিত্রটি দেখে বিস্তারিত বর্ণনা করো এবং প্রমাণ করো।'),
     ];
 
     for (final columns in [1, 2]) {

@@ -116,6 +116,18 @@ class PdfLayout {
   /// Printable height at the page margins.
   static double get contentHeight => a4Height - pageMarginV * 2;
 
+  /// Vertical spacing of the masthead.
+  ///
+  /// Shared by the header widget and [headerHeight] on purpose. The two must
+  /// agree exactly: the flow reserves [headerHeight] to decide where the first
+  /// row of questions starts, so if the widget drew a different amount the
+  /// block would either overflow or leave a hole at the foot of page 1.
+  static const double headerTitleGap = 2; // below the school name
+  static const double headerExamGap = 5; // exam name -> first rule
+  static const double headerMetaGap = 2; // rules <-> the meta row
+  static const double headerDivider = 1.2; // rule thickness
+  static const double headerAfterGap = 5; // header -> first section banner
+
   /// Height of the school/exam header, mirroring the header widget.
   ///
   /// This matters more than it looks: the header is the first thing on page 1,
@@ -136,14 +148,14 @@ class PdfLayout {
       height +=
           metrics.blockHeight(schoolName, width: contentWidth, fontSize: 15);
     }
-    height += 2; // SizedBox(height: 2)
+    height += headerTitleGap;
     height += metrics.blockHeight(examName, width: contentWidth, fontSize: 12);
-    height += 8 + 1.2; // SizedBox(height: 8) + Divider
-    height += 6; // SizedBox(height: 6)
+    height += headerExamGap + headerDivider;
+    height += headerMetaGap;
     // A Row of four meta fields, spaceBetween: it never wraps, so the row is
     // one line tall no matter how the fields are distributed.
     height += metrics.lineHeight('বিষয়: $subject', fontSize: bodyFontSize);
-    height += 6 + 1.2;
+    height += headerMetaGap + headerDivider;
     return height;
   }
 

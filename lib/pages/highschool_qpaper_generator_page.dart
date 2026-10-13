@@ -787,7 +787,7 @@ class _HighSchoolQPaperGeneratorPageState
           smallStyle: smallStyle,
         ));
 
-        widgets.add(pw.SizedBox(height: 16));
+        widgets.add(pw.SizedBox(height: PdfLayout.headerAfterGap));
         flow.consume(PdfLayout.headerHeight(
               metrics: metrics,
               schoolName: _schoolCtrl.text,
@@ -797,7 +797,7 @@ class _HighSchoolQPaperGeneratorPageState
               time: _timeCtrl.text,
               totalMarks: _marksCtrl.text,
             ) +
-            16);
+            PdfLayout.headerAfterGap);
 
         // ── CQ Section ─────────────────────────────────────────────────────
         if (cqs.isNotEmpty) {
@@ -1071,12 +1071,12 @@ class _HighSchoolQPaperGeneratorPageState
         if (schoolName.trim().isNotEmpty)
           pw.RichText(
               text: _mixedText(schoolName, headerStyle.copyWith(fontSize: 15))),
-        pw.SizedBox(height: 2),
+        pw.SizedBox(height: PdfLayout.headerTitleGap),
         pw.RichText(
             text: _mixedText(examName, boldStyle.copyWith(fontSize: 12))),
-        pw.SizedBox(height: 8),
-        pw.Divider(thickness: 1.2, color: PdfColors.black),
-        pw.SizedBox(height: 6),
+        pw.SizedBox(height: PdfLayout.headerExamGap),
+        pw.Divider(thickness: PdfLayout.headerDivider, color: PdfColors.black),
+        pw.SizedBox(height: PdfLayout.headerMetaGap),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
@@ -1086,8 +1086,8 @@ class _HighSchoolQPaperGeneratorPageState
             pw.RichText(text: _mixedText('পূর্ণমান: $totalMarks', boldStyle)),
           ],
         ),
-        pw.SizedBox(height: 6),
-        pw.Divider(thickness: 1.2, color: PdfColors.black),
+        pw.SizedBox(height: PdfLayout.headerMetaGap),
+        pw.Divider(thickness: PdfLayout.headerDivider, color: PdfColors.black),
       ],
     );
   }
