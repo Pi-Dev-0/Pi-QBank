@@ -735,6 +735,47 @@ void main() {
       expect(h, lessThan(60));
     });
   });
+
+  group('fragment part indices', () {
+    test('every part of a question carries its own index', () {
+      // Regression: the merged CQ + short-question flow once stamped every
+      // fragment with indexInQuestion 0, so a card rendered only its stem, and
+      // a card straddling a column boundary had its stem drawn twice.
+      final fragments = <PdfFlowFragment>[];
+      for (var q = 0; q < 3; q++) {
+        for (var p = 0; p < 4; p++) {
+          fragments.add(PdfFlowFragment(
+            height: 20,
+            question: q,
+            indexInQuestion: p,
+            isFirst: p == 0,
+            isLast: p == 3,
+          ));
+        }
+      }
+
+      final byQuestion = <int, List<int>>{};
+      for (final f in fragments) {
+        (byQuestion[f.question] ??= []).add(f.indexInQuestion);
+      }
+      expect(byQuestion[0], [0, 1, 2, 3]);
+      expect(byQuestion[2], [0, 1, 2, 3]);
+    });
+
+    test('a card split across columns renders each part once', () {
+      final parts = [0, 1, 2, 3];
+      // Card drawn in the left column, continuing into the right one.
+      final left = parts.take(2).toList();
+      final right = parts.skip(2).toList();
+
+      // The renderer slices [first, last]; both halves must cover disjoint
+      // parts, and only the half starting at 0 may draw the stem.
+      expect(left.first, 0);
+      expect(right.first, isNot(0));
+      expect([...left, ...right], parts);
+      expect(left.toSet().intersection(right.toSet()), isEmpty);
+    });
+  });
 }
 
 /// Tallest column height of a row of flow fragments.

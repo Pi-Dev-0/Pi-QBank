@@ -138,6 +138,12 @@ class PdfLayout {
   /// The masthead's own name for [sectionGap], for readability at the call site.
   static const double headerAfterGap = sectionGap;
 
+  /// Space above and below the rule that separates one printed set from the
+  /// next. Generous on purpose: both sets share one sheet, so without a clear
+  /// break the second masthead reads as a stray header rather than a new paper.
+  static const double setDividerGapAbove = 16;
+  static const double setDividerGapBelow = 12;
+
   /// Height of the school/exam header, mirroring the header widget.
   ///
   /// This matters more than it looks: the header is the first thing on page 1,

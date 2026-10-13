@@ -173,6 +173,35 @@ class _HighSchoolQPaperGeneratorPageState
   List<HighSchoolQuestion> get _selectedQuestions =>
       _fetchedQuestions.where((q) => q.isSelected).toList();
 
+  // ── Question sets ────────────────────────────────────────────────────────
+  //
+  // A paper can be printed as two variants ("ক-সেট" / "খ-সেট") so that two
+  // students sitting next to each other are not handed the same paper. Both
+  // sets go into one document: generating two PDFs separately wastes a page
+  // each, because a set with only a few questions never fills its sheet.
+
+  /// When false the paper is a single set, exactly as before.
+  bool _twoSets = false;
+
+  /// Names shown on each set's banner.
+  final List<TextEditingController> _setLabelControllers = [
+    TextEditingController(text: 'ক-সেট'),
+    TextEditingController(text: 'খ-সেট'),
+  ];
+
+  /// The labels in play, in order. One entry when [twoSets] is off.
+  List<String> get _setLabels => _twoSets
+      ? [0, 1].map((i) => _setLabelControllers[i].text.trim()).toList()
+      : [''];
+
+  /// Selected questions belonging to the set at [index].
+  List<HighSchoolQuestion> _questionsForSet(int index) {
+    final label = _setLabels[index];
+    return _selectedQuestions
+        .where((q) => label.isEmpty || q.setLabel == label)
+        .toList();
+  }
+
   List<HighSchoolQuestion> get _selectedCqs =>
       _selectedQuestions.where((q) => q.isCq).toList();
 
@@ -185,6 +214,46 @@ class _HighSchoolQPaperGeneratorPageState
   int get _totalCqs => _fetchedQuestions.where((q) => q.isCq).length;
   int get _totalMcqs => _fetchedQuestions.where((q) => q.isMcq).length;
   int get _totalShorts => _fetchedQuestions.where((q) => q.isShort).length;
+
+  /// Move [question] into [setIndex], or out of every set when it is already
+  /// there and only one set is active.
+  void _toggleQuestionSet(HighSchoolQuestion question, int setIndex) {
+    final label = _setLabels[setIndex];
+    if (label.isEmpty) return;
+
+    if (question.setLabel == label) {
+      // Tapping the active set again returns the question to "no set", which
+      // is where every question starts.
+      question.setLabel = _twoSets ? '' : label;
+    } else {
+      question.setLabel = label;
+    }
+    setState(() {});
+  }
+
+  /// Deal the selected questions alternately between the sets.
+  ///
+  /// Alternating rather than dealing in blocks keeps each set's *shape* close
+  /// to the other, so the two papers look alike and neither runs long. With
+  /// two sets this also means both always receive a question of each type in
+  /// roughly the same order.
+  void _splitSelectedEvenly() {
+    final selected = _selectedQuestions;
+    if (!_twoSets || selected.length < 2) return;
+    for (var i = 0; i < selected.length; i++) {
+      selected[i].setLabel = _setLabels[i % 2];
+    }
+    setState(() {});
+  }
+
+  /// Put every selected question into the first set.
+  void _assignAllToFirstSet() {
+    if (!_twoSets) return;
+    for (final q in _selectedQuestions) {
+      q.setLabel = _setLabels.first;
+    }
+    setState(() {});
+  }
 
   /// Ids that appear more than once in the loaded questions.
   ///
@@ -667,11 +736,517 @@ class _HighSchoolQPaperGeneratorPageState
     return widgets;
   }
 
+  /// Append one set's masthead, set label and question sections to [widgets].
+  ///
+  /// [flow] is shared across sets on purpose: set খ has to know how much of the
+  /// page set ক left, otherwise it would budget a full page, fail to fit under
+  /// what is actually there, and jump to the next one — the blank-page problem
+  /// the flow exists to prevent.
+  /// Whether a section heading should sit inside the left column instead of
+  /// spanning the page.
+  ///
+  /// Only for two sets in a two-column section: a full-width box thrown across
+  /// a narrow half-sheet of a shared page wastes a line per section, so it is
+  /// drawn at the top of the left column and the right column starts straight
+  /// into its first question.
+  bool _inlineSectionBanner(QuestionLayout layout) =>
+      _twoSets && layout.mcqColumns > 1;
+
+  void _appendPdfSet(
+    List<pw.Widget> widgets,
+    PdfPageFlow flow, {
+    required List<HighSchoolQuestion> cqs,
+    required List<HighSchoolQuestion> mcqs,
+    required List<HighSchoolQuestion> shorts,
+    required String setLabel,
+    required bool isFirstSet,
+    required pw.TextStyle baseStyle,
+    required pw.TextStyle boldStyle,
+    required pw.TextStyle smallStyle,
+    required pw.TextStyle headerStyle,
+    required pw.TextStyle cqMarkStyle,
+    required pw.TextStyle rqMarkStyle,
+    required PdfTextMetrics metrics,
+    required double bannerHeight,
+    required Map<String, Uint8List> stemImages,
+  }) {
+    // ── Header ─────────────────────────────────────────────────────────
+    // A set after the first starts with a visible break, so the boundary is
+    // obvious when both halves are printed on one sheet.
+    if (setLabel.isNotEmpty && !isFirstSet) {
+      widgets.add(pw.SizedBox(height: PdfLayout.setDividerGapAbove));
+      widgets.add(_pdfDashedLine(color: PdfColors.grey500));
+      widgets.add(pw.SizedBox(height: PdfLayout.setDividerGapBelow));
+      flow.consume(
+          PdfLayout.setDividerGapAbove + PdfLayout.setDividerGapBelow + 1);
+    }
+
+    widgets.add(_buildPdfHeader(
+      schoolName: _schoolCtrl.text,
+      examName: _examCtrl.text,
+      subject: _subjectCtrl.text,
+      setLabel: setLabel,
+      className: _classCtrl.text,
+      time: _timeCtrl.text,
+      totalMarks: _marksCtrl.text,
+      baseStyle: baseStyle,
+      boldStyle: boldStyle,
+      headerStyle: headerStyle,
+      smallStyle: smallStyle,
+    ));
+
+    widgets.add(pw.SizedBox(height: PdfLayout.headerAfterGap));
+    flow.consume(PdfLayout.headerHeight(
+          metrics: metrics,
+          schoolName: _schoolCtrl.text,
+          examName: _examCtrl.text,
+          subject: _subjectCtrl.text,
+          className: _classCtrl.text,
+          time: _timeCtrl.text,
+          totalMarks: _marksCtrl.text,
+        ) +
+        PdfLayout.headerAfterGap);
+
+    // CQ and the short questions become one flow when the paper is a two-set,
+    // two-column sheet; the heading for each is then emitted wherever the flow
+    // reaches that type instead of each section starting a fresh row. MCQ moves
+    // after them and stays its own block.
+    final mergeCqAndShorts = _twoSets &&
+        _cqLayout.mcqColumns > 1 &&
+        _rqLayout.mcqColumns > 1 &&
+        cqs.isNotEmpty &&
+        shorts.isNotEmpty;
+
+    if (mergeCqAndShorts) {
+      _appendPdfCqAndShortSection(
+        widgets,
+        flow,
+        cqs: cqs,
+        shorts: shorts,
+        baseStyle: baseStyle,
+        boldStyle: boldStyle,
+        smallStyle: smallStyle,
+        cqMarkStyle: cqMarkStyle,
+        rqMarkStyle: rqMarkStyle,
+        metrics: metrics,
+        bannerHeight: bannerHeight,
+        stemImages: stemImages,
+      );
+      _appendPdfMcqSection(
+        widgets,
+        flow,
+        mcqs: mcqs,
+        baseStyle: baseStyle,
+        boldStyle: boldStyle,
+        smallStyle: smallStyle,
+        bannerHeight: bannerHeight,
+        metrics: metrics,
+      );
+      return;
+    }
+
+    // ── CQ Section ─────────────────────────────────────────────────────
+    if (cqs.isNotEmpty) {
+      final cqBanner = _pdfSectionBanner(
+          'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', boldStyle.copyWith(fontSize: 11));
+      if (_inlineSectionBanner(_cqLayout)) {
+        // Drawn inside the first block's left column instead of spanning the
+        // page; its height is charged to the flow so the block still fits.
+        flow.consume(bannerHeight);
+      } else {
+        widgets.add(cqBanner);
+        flow.consume(bannerHeight);
+      }
+      // Optional "answer any N questions" note.
+      final answerAny = _cqAnswerCount;
+      if (answerAny > 0) {
+        widgets.add(pw.SizedBox(height: 4));
+        widgets.add(pw.RichText(
+          text: _mixedText('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
+              smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
+          textAlign: pw.TextAlign.center,
+        ));
+        flow.consume(4 +
+            metrics.lineHeight('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
+                fontSize: PdfLayout.smallFontSize));
+      }
+      widgets.add(pw.SizedBox(height: 10));
+      flow.consume(bannerHeight + 10);
+
+      // Balanced newspaper columns rather than rows of two, so a short
+      // question no longer inherits the full height of the tallest
+      // question beside it. Questions are packed as fragments, which lets
+      // the foot of a page be filled instead of left blank. See
+      // [balanceColumns] and [PdfPageFlow].
+      final cqCols = _cqLayout.mcqColumns;
+      final cqWidth = PdfLayout.columnWidth(cqCols);
+      final cqFragments = <PdfFlowFragment>[];
+      for (int i = 0; i < cqs.length; i++) {
+        final parts = PdfLayout.cqFragments(
+          index: i + 1,
+          question: cqs[i],
+          columnWidth: cqWidth,
+          metrics: metrics,
+          hasImage: stemImages.containsKey(
+              HighSchoolExportService.resolveImageUrl(cqs[i].stemImageUrl)),
+          imageSize: _imageSize,
+        );
+        for (var p = 0; p < parts.length; p++) {
+          cqFragments.add(PdfFlowFragment(
+            height: parts[p],
+            question: i,
+            indexInQuestion: p,
+            isFirst: p == 0,
+            isLast: p == parts.length - 1,
+          ));
+        }
+      }
+
+      final cqRows = flow.layoutFragments(
+          fragments: cqFragments, columns: cqCols, trailingGap: 16);
+
+      // One unbreakable row of columns per page's worth of questions, so a
+      // long section still flows instead of overflowing a single block.
+      for (var bi = 0; bi < cqRows.length; bi++) {
+        final row = cqRows[bi];
+        final columns = <List<pw.Widget>>[];
+        for (final column in row) {
+          columns.add(_buildPdfFragmentColumn(
+            column,
+            itemBuilder: (qIndex, from, to) => _buildPdfCqCard(
+              index: qIndex + 1,
+              question: cqs[qIndex],
+              baseStyle: baseStyle,
+              boldStyle: boldStyle,
+              smallStyle: smallStyle,
+              markStyle: cqMarkStyle,
+              stemImages: stemImages,
+              imageSize: _imageSize,
+              partFrom: from,
+              partTo: to,
+            ),
+            afterQuestion: () => pw.SizedBox(height: PdfLayout.cqCardGap),
+          ));
+        }
+        if (bi == 0 && _inlineSectionBanner(_cqLayout) && columns.isNotEmpty) {
+          columns.first.insert(0, cqBanner);
+        }
+        widgets.add(_pdfColumnRow(columns));
+        widgets.add(pw.SizedBox(height: 16));
+      }
+    }
+
+    // ── MCQ Section ────────────────────────────────────────────────────
+    _appendPdfMcqSection(
+      widgets,
+      flow,
+      mcqs: mcqs,
+      baseStyle: baseStyle,
+      boldStyle: boldStyle,
+      smallStyle: smallStyle,
+      bannerHeight: bannerHeight,
+      metrics: metrics,
+    );
+
+    // ── Short question section (গ-বিভাগ) ───────────────────────────────
+    if (shorts.isNotEmpty) {
+      final rqBanner = _pdfSectionBanner(
+          'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)', boldStyle.copyWith(fontSize: 11));
+      final rqInline = _inlineSectionBanner(_rqLayout);
+      if (!rqInline) {
+        widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
+        widgets.add(rqBanner);
+      }
+      widgets.add(pw.SizedBox(height: 10));
+      flow.consume(PdfLayout.sectionGap + bannerHeight + 10);
+
+      final rqCols = _rqLayout.mcqColumns;
+      final rqWidth = PdfLayout.columnWidth(rqCols);
+      final rqRows = flow.layout(
+        heights: [
+          for (int i = 0; i < shorts.length; i++)
+            PdfLayout.rqHeight(
+              index: i + 1,
+              question: shorts[i],
+              columnWidth: rqWidth,
+              metrics: metrics,
+            ),
+        ],
+        columns: rqCols,
+        trailingGap: 0,
+      );
+
+      for (var bi = 0; bi < rqRows.length; bi++) {
+        final row = rqRows[bi];
+        final columns = <List<pw.Widget>>[];
+        for (final column in row) {
+          columns.add(_buildPdfFragmentColumn(
+            column,
+            // A short question is a single line, so it is never split.
+            itemBuilder: (i, from, to) {
+              final data = shorts[i].shortData;
+              return pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      child: pw.RichText(
+                          text:
+                              _mixedText('${i + 1}. ${data!.text}', baseStyle)),
+                    ),
+                    pw.SizedBox(width: 12),
+                    pw.RichText(
+                        text: _mixedText('[${data.mark}]', rqMarkStyle)),
+                  ],
+                ),
+              );
+            },
+            afterQuestion: () => pw.SizedBox.shrink(),
+          ));
+        }
+        if (bi == 0 && rqInline && columns.isNotEmpty) {
+          columns.first.insert(0, rqBanner);
+        }
+        widgets.add(_pdfColumnRow(columns));
+      }
+    }
+  }
+
+  /// The MCQ section as its own block.
+  ///
+  /// Extracted so it can be emitted either between CQ and the short questions,
+  /// or — when those two are merged into a single flow — after them.
+  void _appendPdfMcqSection(
+    List<pw.Widget> widgets,
+    PdfPageFlow flow, {
+    required List<HighSchoolQuestion> mcqs,
+    required pw.TextStyle baseStyle,
+    required pw.TextStyle boldStyle,
+    required pw.TextStyle smallStyle,
+    required PdfTextMetrics metrics,
+    required double bannerHeight,
+  }) {
+    // ── MCQ Section ────────────────────────────────────────────────────
+    if (mcqs.isNotEmpty) {
+      final mcqBanner = _pdfSectionBanner('খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
+          boldStyle.copyWith(fontSize: 11));
+      final mcqInline = _inlineSectionBanner(_mcqLayout);
+      if (!mcqInline) {
+        widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
+        widgets.add(mcqBanner);
+      }
+      widgets.add(pw.SizedBox(height: 4));
+      widgets.add(pw.RichText(
+          text: _mixedText('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
+              smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
+          textAlign: pw.TextAlign.center));
+      widgets.add(pw.SizedBox(height: 10));
+      flow.consume(PdfLayout.sectionGap +
+          bannerHeight +
+          4 +
+          metrics.lineHeight('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
+              fontSize: PdfLayout.smallFontSize) +
+          10);
+
+      // MCQ arranged in balanced columns per the layout setting.
+      final cols = _mcqLayout.mcqColumns;
+      final stackOptions = cols > 1;
+      final mcqWidth = PdfLayout.columnWidth(cols);
+      final mcqFragments = <PdfFlowFragment>[];
+      for (int i = 0; i < mcqs.length; i++) {
+        final parts = PdfLayout.mcqFragments(
+          index: i + 1,
+          question: mcqs[i],
+          columnWidth: mcqWidth,
+          metrics: metrics,
+          stackOptions: stackOptions,
+        );
+        for (var p = 0; p < parts.length; p++) {
+          mcqFragments.add(PdfFlowFragment(
+            height: parts[p],
+            question: i,
+            indexInQuestion: p,
+            isFirst: p == 0,
+            isLast: p == parts.length - 1,
+          ));
+        }
+      }
+
+      final mcqRows = flow.layoutFragments(
+          fragments: mcqFragments, columns: cols, trailingGap: 12);
+
+      for (var bi = 0; bi < mcqRows.length; bi++) {
+        final row = mcqRows[bi];
+        final columns = <List<pw.Widget>>[];
+        for (final column in row) {
+          columns.add(_buildPdfFragmentColumn(
+            column,
+            itemBuilder: (qIndex, from, to) => _buildPdfMcqItem(
+                qIndex + 1, mcqs[qIndex], baseStyle,
+                stackOptions: stackOptions, partFrom: from, partTo: to),
+            // The rule belongs *between* questions, so a column that ends
+            // on a question is not left with a trailing divider.
+            afterQuestion: () => pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 6, bottom: 6),
+              child: _pdfDashedLine(),
+            ),
+          ));
+        }
+        if (bi == 0 && mcqInline && columns.isNotEmpty) {
+          columns.first.insert(0, mcqBanner);
+        }
+        widgets.add(_pdfColumnRow(columns));
+        widgets.add(pw.SizedBox(height: 12));
+      }
+    }
+  }
+
+  /// CQ and short questions as one continuous flow.
+  ///
+  /// The two sections are packed together, so the short-question heading is
+  /// emitted exactly where the creative questions run out — mid-column or at
+  /// the head of the next one — instead of the short questions always starting
+  /// a fresh full-width row below whatever the CQ block left over.
+  ///
+  /// Only used for a two-set, two-column paper; anything else keeps the
+  /// familiar ক-বিভাগ → খ-বিভাগ → গ-বিভাগ order.
+  void _appendPdfCqAndShortSection(
+    List<pw.Widget> widgets,
+    PdfPageFlow flow, {
+    required List<HighSchoolQuestion> cqs,
+    required List<HighSchoolQuestion> shorts,
+    required pw.TextStyle baseStyle,
+    required pw.TextStyle boldStyle,
+    required pw.TextStyle smallStyle,
+    required pw.TextStyle cqMarkStyle,
+    required pw.TextStyle rqMarkStyle,
+    required PdfTextMetrics metrics,
+    required double bannerHeight,
+    required Map<String, Uint8List> stemImages,
+  }) {
+    final cqCols = _cqLayout.mcqColumns;
+    final cqWidth = PdfLayout.columnWidth(cqCols);
+    final rqWidth = PdfLayout.columnWidth(_rqLayout.mcqColumns);
+
+    // A pseudo question id for each heading. Fragments are grouped by question
+    // when they are turned back into widgets, so giving the headings an id of
+    // their own lets them ride in the flow and land wherever the packer puts
+    // them, still in reading order.
+    final cqBannerId = cqs.length + shorts.length;
+    final rqBannerId = cqBannerId + 1;
+
+    final fragments = <PdfFlowFragment>[];
+    void add(double height, int question, int part, bool first, bool last) =>
+        fragments.add(PdfFlowFragment(
+            height: height,
+            question: question,
+            // Which part of the question this is. The renderer slices a card
+            // from [partFrom, partTo], so a wrong index here draws the stem
+            // where a sub-question belongs — and, when the card straddles a
+            // column boundary, draws the stem twice.
+            indexInQuestion: part,
+            isFirst: first,
+            isLast: last));
+
+    add(bannerHeight, cqBannerId, 0, true, true);
+    for (int i = 0; i < cqs.length; i++) {
+      final parts = PdfLayout.cqFragments(
+        index: i + 1,
+        question: cqs[i],
+        columnWidth: cqWidth,
+        metrics: metrics,
+        hasImage: stemImages.containsKey(
+            HighSchoolExportService.resolveImageUrl(cqs[i].stemImageUrl)),
+        imageSize: _imageSize,
+      );
+      for (var p = 0; p < parts.length; p++) {
+        add(parts[p], i, p, p == 0, p == parts.length - 1);
+      }
+    }
+
+    add(bannerHeight, rqBannerId, 0, true, true);
+    for (int i = 0; i < shorts.length; i++) {
+      final parts = PdfLayout.rqFragments(
+        index: i + 1,
+        question: shorts[i],
+        columnWidth: rqWidth,
+        metrics: metrics,
+      );
+      for (var p = 0; p < parts.length; p++) {
+        add(parts[p], cqs.length + i, p, p == 0, p == parts.length - 1);
+      }
+    }
+
+    final rows = flow.layoutFragments(
+      fragments: fragments,
+      columns: cqCols,
+      trailingGap: 16,
+    );
+
+    // Set by the item builder so the trailing gap knows what just ended.
+    var lastQuestion = -1;
+    for (var bi = 0; bi < rows.length; bi++) {
+      final columns = <List<pw.Widget>>[];
+      for (final column in rows[bi]) {
+        columns.add(_buildPdfFragmentColumn(
+          column,
+          itemBuilder: (qIndex, from, to) {
+            lastQuestion = qIndex;
+            if (qIndex == cqBannerId) {
+              return _pdfSectionBanner('ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
+                  boldStyle.copyWith(fontSize: 11));
+            }
+            if (qIndex == rqBannerId) {
+              return _pdfSectionBanner('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
+                  boldStyle.copyWith(fontSize: 11));
+            }
+            if (qIndex >= cqs.length) {
+              final i = qIndex - cqs.length;
+              final data = shorts[i].shortData;
+              return pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      child: pw.RichText(
+                          text:
+                              _mixedText('${i + 1}. ${data!.text}', baseStyle)),
+                    ),
+                    pw.SizedBox(width: 12),
+                    pw.RichText(
+                        text: _mixedText('[${data.mark}]', rqMarkStyle)),
+                  ],
+                ),
+              );
+            }
+            return _buildPdfCqCard(
+              index: qIndex + 1,
+              question: cqs[qIndex],
+              baseStyle: baseStyle,
+              boldStyle: boldStyle,
+              smallStyle: smallStyle,
+              markStyle: cqMarkStyle,
+              stemImages: stemImages,
+              imageSize: _imageSize,
+              partFrom: from,
+              partTo: to,
+            );
+          },
+          // Short questions carry their own bottom padding; only the CQ cards
+          // need a gap after them.
+          afterQuestion: () => pw.SizedBox(
+              height: lastQuestion < cqs.length ? PdfLayout.cqCardGap : 0),
+        ));
+      }
+      widgets.add(_pdfColumnRow(columns));
+      widgets.add(pw.SizedBox(height: 16));
+    }
+  }
+
   Future<Uint8List> _buildPdf() async {
     final doc = pw.Document();
-    final cqs = _selectedCqs;
-    final mcqs = _selectedMcqs;
-    final shorts = _selectedShorts;
 
     // Stem images must be downloaded up front: the pdf package renders from
     // bytes, and MultiPage.build() is synchronous so it cannot fetch there.
@@ -759,8 +1334,8 @@ class _HighSchoolQPaperGeneratorPageState
 
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
-      // Bound to PdfLayout so the page and the flow simulation can never disagree
-      // about how much room a page actually has.
+      // Bound to PdfLayout so the page and the flow simulation can never
+      // disagree about how much room a page actually has.
       margin: pw.EdgeInsets.symmetric(
           horizontal: PdfLayout.pageMarginH, vertical: PdfLayout.pageMarginV),
       build: (ctx) {
@@ -772,232 +1347,31 @@ class _HighSchoolQPaperGeneratorPageState
         // almost blank. See PdfPageFlow.
         final flow = PdfPageFlow(contentHeight: PdfLayout.contentHeight);
         final bannerHeight = PdfLayout.sectionBannerHeight(metrics);
+        final labels = _setLabels;
 
-        // ── Header ─────────────────────────────────────────────────────────
-        widgets.add(_buildPdfHeader(
-          schoolName: _schoolCtrl.text,
-          examName: _examCtrl.text,
-          subject: _subjectCtrl.text,
-          className: _classCtrl.text,
-          time: _timeCtrl.text,
-          totalMarks: _marksCtrl.text,
-          baseStyle: baseStyle,
-          boldStyle: boldStyle,
-          headerStyle: headerStyle,
-          smallStyle: smallStyle,
-        ));
-
-        widgets.add(pw.SizedBox(height: PdfLayout.headerAfterGap));
-        flow.consume(PdfLayout.headerHeight(
-              metrics: metrics,
-              schoolName: _schoolCtrl.text,
-              examName: _examCtrl.text,
-              subject: _subjectCtrl.text,
-              className: _classCtrl.text,
-              time: _timeCtrl.text,
-              totalMarks: _marksCtrl.text,
-            ) +
-            PdfLayout.headerAfterGap);
-
-        // ── CQ Section ─────────────────────────────────────────────────────
-        if (cqs.isNotEmpty) {
-          widgets.add(_pdfSectionBanner('ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-              boldStyle.copyWith(fontSize: 11)));
-          // Optional "answer any N questions" note.
-          final answerAny = _cqAnswerCount;
-          if (answerAny > 0) {
-            widgets.add(pw.SizedBox(height: 4));
-            widgets.add(pw.RichText(
-              text: _mixedText('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
-                  smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
-              textAlign: pw.TextAlign.center,
-            ));
-            flow.consume(4 +
-                metrics.lineHeight('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
-                    fontSize: PdfLayout.smallFontSize));
-          }
-          widgets.add(pw.SizedBox(height: 10));
-          flow.consume(bannerHeight + 10);
-
-          // Balanced newspaper columns rather than rows of two, so a short
-          // question no longer inherits the full height of the tallest
-          // question beside it. Questions are packed as fragments, which lets
-          // the foot of a page be filled instead of left blank. See
-          // [balanceColumns] and [PdfPageFlow].
-          final cqCols = _cqLayout.mcqColumns;
-          final cqWidth = PdfLayout.columnWidth(cqCols);
-          final cqFragments = <PdfFlowFragment>[];
-          for (int i = 0; i < cqs.length; i++) {
-            final parts = PdfLayout.cqFragments(
-              index: i + 1,
-              question: cqs[i],
-              columnWidth: cqWidth,
-              metrics: metrics,
-              hasImage: stemImages.containsKey(
-                  HighSchoolExportService.resolveImageUrl(cqs[i].stemImageUrl)),
-              imageSize: _imageSize,
-            );
-            for (var p = 0; p < parts.length; p++) {
-              cqFragments.add(PdfFlowFragment(
-                height: parts[p],
-                question: i,
-                indexInQuestion: p,
-                isFirst: p == 0,
-                isLast: p == parts.length - 1,
-              ));
-            }
-          }
-
-          final cqRows = flow.layoutFragments(
-              fragments: cqFragments, columns: cqCols, trailingGap: 16);
-
-          // One unbreakable row of columns per page's worth of questions, so a
-          // long section still flows instead of overflowing a single block.
-          for (final row in cqRows) {
-            final columns = <List<pw.Widget>>[];
-            for (final column in row) {
-              columns.add(_buildPdfFragmentColumn(
-                column,
-                itemBuilder: (qIndex, from, to) => _buildPdfCqCard(
-                  index: qIndex + 1,
-                  question: cqs[qIndex],
-                  baseStyle: baseStyle,
-                  boldStyle: boldStyle,
-                  smallStyle: smallStyle,
-                  markStyle: cqMarkStyle,
-                  stemImages: stemImages,
-                  imageSize: _imageSize,
-                  partFrom: from,
-                  partTo: to,
-                ),
-                afterQuestion: () => pw.SizedBox(height: PdfLayout.cqCardGap),
-              ));
-            }
-            widgets.add(_pdfColumnRow(columns));
-            widgets.add(pw.SizedBox(height: 16));
-          }
-        }
-
-        // ── MCQ Section ────────────────────────────────────────────────────
-        if (mcqs.isNotEmpty) {
-          widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
-          widgets.add(_pdfSectionBanner('খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
-              boldStyle.copyWith(fontSize: 11)));
-          widgets.add(pw.SizedBox(height: 4));
-          widgets.add(pw.RichText(
-              text: _mixedText('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
-                  smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
-              textAlign: pw.TextAlign.center));
-          widgets.add(pw.SizedBox(height: 10));
-          flow.consume(PdfLayout.sectionGap +
-              bannerHeight +
-              4 +
-              metrics.lineHeight('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
-                  fontSize: PdfLayout.smallFontSize) +
-              10);
-
-          // MCQ arranged in balanced columns per the layout setting.
-          final cols = _mcqLayout.mcqColumns;
-          final stackOptions = cols > 1;
-          final mcqWidth = PdfLayout.columnWidth(cols);
-          final mcqFragments = <PdfFlowFragment>[];
-          for (int i = 0; i < mcqs.length; i++) {
-            final parts = PdfLayout.mcqFragments(
-              index: i + 1,
-              question: mcqs[i],
-              columnWidth: mcqWidth,
-              metrics: metrics,
-              stackOptions: stackOptions,
-            );
-            for (var p = 0; p < parts.length; p++) {
-              mcqFragments.add(PdfFlowFragment(
-                height: parts[p],
-                question: i,
-                indexInQuestion: p,
-                isFirst: p == 0,
-                isLast: p == parts.length - 1,
-              ));
-            }
-          }
-
-          final mcqRows = flow.layoutFragments(
-              fragments: mcqFragments, columns: cols, trailingGap: 12);
-
-          for (final row in mcqRows) {
-            final columns = <List<pw.Widget>>[];
-            for (final column in row) {
-              columns.add(_buildPdfFragmentColumn(
-                column,
-                itemBuilder: (qIndex, from, to) => _buildPdfMcqItem(
-                    qIndex + 1, mcqs[qIndex], baseStyle,
-                    stackOptions: stackOptions, partFrom: from, partTo: to),
-                // The rule belongs *between* questions, so a column that ends
-                // on a question is not left with a trailing divider.
-                afterQuestion: () => pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 6, bottom: 6),
-                  child: _pdfDashedLine(),
-                ),
-              ));
-            }
-            widgets.add(_pdfColumnRow(columns));
-            widgets.add(pw.SizedBox(height: 12));
-          }
-        }
-
-        // ── Short question section (গ-বিভাগ) ───────────────────────────────
-        if (shorts.isNotEmpty) {
-          widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
-          widgets.add(_pdfSectionBanner('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
-              boldStyle.copyWith(fontSize: 11)));
-          widgets.add(pw.SizedBox(height: 10));
-          flow.consume(PdfLayout.sectionGap + bannerHeight + 10);
-
-          final rqCols = _rqLayout.mcqColumns;
-          final rqWidth = PdfLayout.columnWidth(rqCols);
-          final rqRows = flow.layout(
-            heights: [
-              for (int i = 0; i < shorts.length; i++)
-                PdfLayout.rqHeight(
-                  index: i + 1,
-                  question: shorts[i],
-                  columnWidth: rqWidth,
-                  metrics: metrics,
-                ),
-            ],
-            columns: rqCols,
-            trailingGap: 0,
+        // One set, or two variants of the same paper on the same document.
+        // Two separate PDFs would each waste a page, because a set with only a
+        // handful of questions never fills a sheet on its own.
+        for (var s = 0; s < labels.length; s++) {
+          final setQuestions = _questionsForSet(s);
+          _appendPdfSet(
+            widgets,
+            flow,
+            cqs: setQuestions.where((q) => q.isCq).toList(),
+            mcqs: setQuestions.where((q) => q.isMcq).toList(),
+            shorts: setQuestions.where((q) => q.isShort).toList(),
+            setLabel: labels.length > 1 ? labels[s] : '',
+            isFirstSet: s == 0,
+            baseStyle: baseStyle,
+            boldStyle: boldStyle,
+            smallStyle: smallStyle,
+            headerStyle: headerStyle,
+            cqMarkStyle: cqMarkStyle,
+            rqMarkStyle: rqMarkStyle,
+            metrics: metrics,
+            bannerHeight: bannerHeight,
+            stemImages: stemImages,
           );
-
-          for (final row in rqRows) {
-            final columns = <List<pw.Widget>>[];
-            for (final column in row) {
-              columns.add(_buildPdfFragmentColumn(
-                column,
-                // A short question is a single line, so it is never split.
-                itemBuilder: (i, from, to) {
-                  final data = shorts[i].shortData;
-                  return pw.Padding(
-                    padding: const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Expanded(
-                          child: pw.RichText(
-                              text: _mixedText(
-                                  '${i + 1}. ${data!.text}', baseStyle)),
-                        ),
-                        pw.SizedBox(width: 12),
-                        pw.RichText(
-                            text: _mixedText('[${data.mark}]', rqMarkStyle)),
-                      ],
-                    ),
-                  );
-                },
-                afterQuestion: () => pw.SizedBox.shrink(),
-              ));
-            }
-            widgets.add(_pdfColumnRow(columns));
-          }
         }
 
         widgets.add(pw.SizedBox(height: 12));
@@ -1058,6 +1432,7 @@ class _HighSchoolQPaperGeneratorPageState
     required String examName,
     required String subject,
     required String className,
+    String setLabel = '',
     required String time,
     required String totalMarks,
     required pw.TextStyle baseStyle,
@@ -1080,6 +1455,13 @@ class _HighSchoolQPaperGeneratorPageState
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
+            // The set name rides in the meta bar rather than taking a banner of
+            // its own: a fifth field costs nothing vertically, and every point
+            // of masthead is a point the questions cannot use.
+            if (setLabel.isNotEmpty)
+              pw.RichText(
+                  text: _mixedText('সেট: $setLabel',
+                      boldStyle.copyWith(color: PdfColors.grey700))),
             pw.RichText(text: _mixedText('বিষয়: $subject', boldStyle)),
             pw.RichText(text: _mixedText('শ্রেণি: $className', boldStyle)),
             pw.RichText(text: _mixedText('সময়: $time', boldStyle)),
@@ -1702,18 +2084,34 @@ class _HighSchoolQPaperGeneratorPageState
           // Tags row
           Padding(
             padding: const EdgeInsets.only(left: 56, right: 12, bottom: 8),
-            child: Row(
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (q.boardYearTag.isNotEmpty)
                   _TagChip(
                       label: q.boardYearTag,
                       color: Colors.purple.shade100,
                       textColor: Colors.purple.shade800),
-                const SizedBox(width: 6),
                 _TagChip(
                     label: 'অধ্যায় ${q.chapterNumber}: ${q.chapterName}',
                     color: Colors.teal.shade50,
                     textColor: Colors.teal.shade700),
+                // Only meaningful once the paper is being printed as two sets.
+                if (_twoSets)
+                  for (var i = 0; i < 2; i++)
+                    _SetChip(
+                      label: _setLabels[i].isEmpty
+                          ? (i == 0 ? 'ক' : 'খ')
+                          : _setLabels[i],
+                      active: q.setLabel == _setLabels[i],
+                      selected: q.isSelected,
+                      onTap: () {
+                        _toggleQuestion(q);
+                        _toggleQuestionSet(q, i);
+                      },
+                    ),
               ],
             ),
           ),
@@ -2396,8 +2794,131 @@ class _HighSchoolQPaperGeneratorPageState
             'CQ, MCQ ও RQ আলাদাভাবে সাজানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
             style: TextStyle(fontSize: 11, color: _kSubText),
           ),
+          const SizedBox(height: 18),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          _buildSetControls(),
         ],
       ),
+    );
+  }
+
+  /// Controls for printing the paper as two variants in one document.
+  Widget _buildSetControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('দুইটি সেটে প্রশ্নপত্র',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: _kDarkText)),
+                  const SizedBox(height: 3),
+                  Text(
+                    'ক-সেট ও খ-সেট একই পেজে তৈরি হবে — আলাদা করে তৈরি করলে '
+                    'প্রতিটির একটা পেজ নষ্ট হয়।',
+                    style: TextStyle(fontSize: 11, color: _kSubText),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: _twoSets,
+              activeColor: _kPrimary,
+              onChanged: (v) => setState(() {
+                _twoSets = v;
+                if (!v) _assignAllToFirstSet();
+              }),
+            ),
+          ],
+        ),
+        if (_twoSets) ...[
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              for (var i = 0; i < 2; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                Expanded(
+                  child: _buildTextField(
+                    ctrl: _setLabelControllers[i],
+                    label: i == 0 ? 'প্রথম সেটের নাম' : 'দ্বিতীয় সেটের নাম',
+                    icon: i == 0 ? Icons.looks_one : Icons.looks_two,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectedQuestions.length < 2
+                      ? null
+                      : _splitSelectedEvenly,
+                  icon: const Icon(Icons.balance, size: 17),
+                  label: Text(
+                      'অর্ধেক করে ভাগ করো (${_selectedQuestions.length} টি)'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _assignAllToFirstSet,
+                  icon: const Icon(Icons.merge_type, size: 17),
+                  label: const Text('সব প্রশ্ন প্রথম সেটে'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (var i = 0; i < 2; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: i == 0
+                          ? _kPrimary.withOpacity(0.10)
+                          : Colors.teal.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _setLabels[i].isEmpty
+                          ? (i == 0 ? 'ক' : 'খ')
+                          : _setLabels[i],
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: i == 0 ? _kPrimary : Colors.teal.shade700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_questionsForSet(i).length} টি প্রশ্ন'
+                    '  ·  ${_questionsForSet(i).fold(0, (s, q) => s + q.totalMarks)} নম্বর',
+                    style: const TextStyle(fontSize: 11, color: _kSubText),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 6),
+          const Text(
+            'প্রতিটি প্রশ্নের কার্ডে সেট বদলাতে পারবেন।',
+            style: TextStyle(fontSize: 11, color: _kSubText),
+          ),
+        ],
+      ],
     );
   }
 
@@ -2603,6 +3124,64 @@ class _TypeBadge extends StatelessWidget {
             style: TextStyle(
                 color: color, fontSize: 11, fontWeight: FontWeight.bold)),
       );
+}
+
+/// A tappable chip that assigns a question to one of the two printed sets.
+///
+/// Deliberately not a plain [Checkbox]: tapping it both selects the question
+/// and assigns it, because a set can only contain questions that are part of
+/// the paper.
+class _SetChip extends StatelessWidget {
+  const _SetChip({
+    required this.label,
+    required this.active,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: active
+              ? _kPrimary
+              : (selected ? _kPrimary.withOpacity(0.08) : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+            color: active ? _kPrimary : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              active ? Icons.check_circle : Icons.circle_outlined,
+              size: 13,
+              color: active ? Colors.white : _kSubText,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                color: active ? Colors.white : _kSubText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _TagChip extends StatelessWidget {

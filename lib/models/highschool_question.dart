@@ -143,6 +143,13 @@ class HighSchoolQuestion {
   // Runtime state (not from API)
   bool isSelected;
 
+  /// Which set this question belongs to when a paper is printed as two
+  /// variants ("ক-সেট" / "খ-সেট").
+  ///
+  /// Runtime state, not stored in the sheet: sets describe one generated paper,
+  /// not the question itself. Empty means "the only set".
+  String setLabel;
+
   HighSchoolQuestion({
     required this.id,
     required this.className,
@@ -156,6 +163,7 @@ class HighSchoolQuestion {
     required this.boardYearTag,
     this.shortMark = ShortQuestion.defaultMark,
     this.isSelected = false,
+    this.setLabel = '',
   });
 
   bool get isCq => questionType.toUpperCase() == 'CQ';
