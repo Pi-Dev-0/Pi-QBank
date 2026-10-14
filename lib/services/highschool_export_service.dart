@@ -7,6 +7,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/highschool_question.dart';
+import '../utils/math_text.dart';
 
 /// Service responsible for exporting High School question papers in multiple formats:
 /// - Microsoft Word (.doc with Word XML/HTML formatting)
@@ -308,7 +309,7 @@ class HighSchoolExportService {
       for (int i = 0; i < cqs.length; i++) {
         final q = cqs[i];
         final index = i + 1;
-        buffer.writeln('$index. ${q.stemText.trim()}');
+        buffer.writeln('$index. ${latexToPlainText(q.stemText.trim())}');
         if (q.boardYearTag.isNotEmpty) {
           buffer.writeln('   [উৎস: ${q.boardYearTag}]');
         }
@@ -547,6 +548,10 @@ class HighSchoolExportService {
       text-align: center;
       padding-top: 6pt;
     }
+    .frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }
+    .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
+    .frac-den { display:block; padding:0 .25em; }
+    .mathv { font-style:italic; }
   </style>
 </head>
 <body>
@@ -591,7 +596,7 @@ class HighSchoolExportService {
     <td class="cq-col-cell">
       <div class="cq-box">
         <div class="cq-stem">
-          <b>$index.</b> ${_escapeXml(q.stemText)}
+          <b>$index.</b> ${latexToHtml(_escapeXml(q.stemText))}
           ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
         </div>
         ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
@@ -600,7 +605,7 @@ class HighSchoolExportService {
             cells.write('''
           <tr>
             <td class="cq-sub-label">(${_escapeXml(sq.label)})</td>
-            <td class="cq-sub-text">${_escapeXml(sq.text)}</td>
+            <td class="cq-sub-text">${latexToHtml(_escapeXml(sq.text))}</td>
             <td class="cq-sub-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</td>
           </tr>''');
           }
@@ -920,6 +925,10 @@ class HighSchoolExportService {
       .paper-sheet { box-shadow: none; border-radius: 0; padding: 20px 24px; max-width: 100%; }
       .cq-card { border: 1px solid #999; }
     }
+    .frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }
+    .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
+    .frac-den { display:block; padding:0 .25em; }
+    .mathv { font-style:italic; }
   </style>
 </head>
 <body>
@@ -953,7 +962,7 @@ class HighSchoolExportService {
         buffer.write('''
     <div class="cq-card">
       <div class="cq-stem">
-        <b>$index.</b> ${_escapeXml(q.stemText)}
+        <b>$index.</b> ${latexToHtml(_escapeXml(q.stemText))}
         ${q.boardYearTag.isNotEmpty ? '<small style="color:#64748b;"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
       </div>
       ${_stemImageMarkup(q, size: imageSize, usePoints: false)}
@@ -961,7 +970,7 @@ class HighSchoolExportService {
         for (final sq in q.cqSubQuestions) {
           buffer.write('''
       <div class="cq-sub-item">
-        <div><b>(${_escapeXml(sq.label)})</b> ${_escapeXml(sq.text)}</div>
+        <div><b>(${_escapeXml(sq.label)})</b> ${latexToHtml(_escapeXml(sq.text))}</div>
         <div class="cq-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</div>
       </div>
 ''');
@@ -1077,7 +1086,7 @@ class HighSchoolExportService {
       for (int i = 0; i < cqs.length; i++) {
         final q = cqs[i];
         final index = i + 1;
-        buffer.writeln('**$index.** ${q.stemText.trim()}');
+        buffer.writeln('**$index.** ${latexToPlainText(q.stemText.trim())}');
         if (q.boardYearTag.isNotEmpty) {
           buffer.writeln('> *উৎস: ${q.boardYearTag}*');
         }

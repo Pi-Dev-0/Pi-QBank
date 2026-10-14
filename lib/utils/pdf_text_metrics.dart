@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart' as pdf;
 
+import 'math_text.dart';
 import 'pdf_mixed_text.dart';
 
 /// Exact text measurement for the fonts the PDF question paper actually uses.
@@ -114,40 +115,81 @@ class PdfTextMetrics {
       if (run.isEmpty) continue;
       final chain = _fontChain(run.isBangla, bold);
 
-      final buffer = StringBuffer();
-      pdf.PdfFont? bufferFont;
-
-      void flush() {
-        final font = bufferFont;
-        if (buffer.isEmpty || font == null) {
-          buffer.clear();
-          return;
+      for (final piece in parseMath(run.text)) {
+        switch (piece) {
+          case MathFraction():
+            // One item for the whole stack: it cannot be broken across a line,
+            // and its box is the sum of its two halves plus the rule.
+            out.add(_Segment('', chain.first, math: piece));
+          case MathScript():
+            out.add(_Segment('', chain.first, math: piece));
+          case MathText():
+            _splitByCoverage(piece.text, run.isBangla, chain, out);
         }
-        out.add(_Segment(buffer.toString(), font));
-        buffer.clear();
       }
-
-      for (final rune in run.text.runes) {
-        // First font in the chain with a glyph, as the renderer does. Null
-        // means the page will draw a placeholder box instead.
-        pdf.PdfFont? match;
-        for (final font in chain) {
-          if (font.isRuneSupported(rune)) {
-            match = font;
-            break;
-          }
-        }
-        // Undrawable runes are kept as their own segment so [textWidth] and
-        // [_tokenize] can charge them the placeholder box they really get.
-        final font = match ?? _undrawable;
-
-        if (bufferFont != null && !identical(bufferFont, font)) flush();
-        bufferFont = font;
-        buffer.writeCharCode(rune);
-      }
-      flush();
     }
     return out;
+  }
+
+  /// Split plain text into runs of runes the font chain can actually draw.
+  void _splitByCoverage(
+      String text, bool isBangla, List<pdf.PdfFont> chain, List<_Segment> out) {
+    final buffer = StringBuffer();
+    pdf.PdfFont? bufferFont;
+
+    void flush() {
+      final font = bufferFont;
+      if (buffer.isEmpty || font == null) {
+        buffer.clear();
+        return;
+      }
+      out.add(_Segment(buffer.toString(), font));
+      buffer.clear();
+    }
+
+    for (final rune in text.runes) {
+      pdf.PdfFont? match;
+      for (final font in chain) {
+        if (font.isRuneSupported(rune)) {
+          match = font;
+          break;
+        }
+      }
+      match ??= _undrawable;
+
+      if (bufferFont != null && !identical(bufferFont, match)) flush();
+      bufferFont = match;
+      buffer.writeCharCode(rune);
+    }
+    flush();
+  }
+
+  /// Width of a typeset piece, in em.
+  double _mathWidthEm(MathSegment piece, bool bold) {
+    switch (piece) {
+      case MathFraction(:final numerator, :final denominator):
+        final n = textWidth(numerator, fontSize: fracFontScale, bold: bold);
+        final d = textWidth(denominator, fontSize: fracFontScale, bold: bold);
+        return (n > d ? n : d) + fracPaddingX * 2;
+      case MathScript(:final text):
+        return textWidth(text, fontSize: scriptFontScale, bold: bold);
+      case MathText(:final text):
+        return textWidth(text, fontSize: 1, bold: bold);
+    }
+  }
+
+  /// Height of a typeset piece, in em.
+  double _mathHeightEm(MathSegment piece, bool bold) {
+    switch (piece) {
+      case MathFraction(:final numerator, :final denominator):
+        return lineHeight(numerator, fontSize: fracFontScale, bold: bold) +
+            fracRuleHeight +
+            lineHeight(denominator, fontSize: fracFontScale, bold: bold);
+      case MathScript(:final text):
+        return lineHeight(text, fontSize: scriptFontScale, bold: bold);
+      case MathText(:final text):
+        return lineHeight(text, fontSize: 1, bold: bold);
+    }
   }
 
   /// Measure [text] with a font, never throwing.
@@ -168,9 +210,14 @@ class PdfTextMetrics {
     if (text.isEmpty) return 0;
     var em = 0.0;
     for (final segment in _segments(text, bold)) {
-      em += segment.isUndrawable
-          ? _placeholderWidthEm * segment.text.runes.length
-          : _metricsOf(segment.font, segment.text).advanceWidth;
+      final piece = segment.math;
+      if (piece != null) {
+        em += _mathWidthEm(piece, bold);
+      } else {
+        em += segment.isUndrawable
+            ? _placeholderWidthEm * segment.text.runes.length
+            : _metricsOf(segment.font, segment.text).advanceWidth;
+      }
     }
     return em * fontSize;
   }
@@ -184,6 +231,12 @@ class PdfTextMetrics {
     var maxHeight = 0.0;
     final seen = <pdf.PdfFont>{};
     for (final segment in _segments(text, bold)) {
+      final piece = segment.math;
+      if (piece != null) {
+        final h = _mathHeightEm(piece, bold);
+        if (h > maxHeight) maxHeight = h;
+        continue;
+      }
       if (segment.isUndrawable) {
         // SizedBox(height: fontSize) — taller than any glyph line.
         maxHeight = _placeholderHeightEm;
@@ -255,6 +308,13 @@ class PdfTextMetrics {
   List<_Token> _tokenize(String text, bool bold) {
     final tokens = <_Token>[];
     for (final segment in _segments(text, bold)) {
+      final piece = segment.math;
+      if (piece != null) {
+        // A typeset stack or script is drawn as one box and must not be broken
+        // across a line, so it becomes a single unbreakable token.
+        tokens.add(_Token(width: _mathWidthEm(piece, bold), isSpace: false));
+        continue;
+      }
       final font = segment.font;
       final buffer = StringBuffer();
       if (segment.isUndrawable) {
@@ -306,7 +366,7 @@ class _UndrawableFont implements pdf.PdfFont {
 }
 
 class _Segment {
-  const _Segment(this.text, this.font);
+  _Segment(this.text, this.font, {this.math});
 
   final String text;
 
@@ -314,8 +374,13 @@ class _Segment {
   /// no font does.
   final pdf.PdfFont font;
 
+  /// Set when this piece is a typeset fraction or script rather than text.
+  /// Measured from the piece itself, because its box is drawn as a widget and
+  /// has no single font.
+  final MathSegment? math;
+
   /// True when no font can draw this piece and the page draws a placeholder.
-  bool get isUndrawable => font is _UndrawableFont;
+  bool get isUndrawable => identical(font, _undrawable);
 }
 
 class _Token {

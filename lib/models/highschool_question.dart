@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../utils/math_text.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CQ Sub-question model
@@ -233,6 +234,31 @@ class HighSchoolQuestion {
   ChapterInfo get chapterInfo =>
       ChapterInfo(chapterNumber: chapterNumber, chapterName: chapterName);
 
+  /// Apply [normaliseTypedFractions] to the text inside a parsed sub-question blob.
+  ///
+  /// The blob is a `List<CqSubQuestion>`, a `McqQuestion`, a `ShortQuestion`,
+  /// or null, depending on the question type.
+  static dynamic _normaliseSubQuestionText(dynamic parsed) {
+    if (parsed is List<CqSubQuestion>) {
+      return [
+        for (final sq in parsed)
+          CqSubQuestion(
+            label: sq.label,
+            mark: sq.mark,
+            text: normaliseTypedFractions(sq.text),
+          ),
+      ];
+    }
+    if (parsed is McqQuestion) {
+      return McqQuestion(
+        text: normaliseTypedFractions(parsed.text),
+        options: [for (final o in parsed.options) normaliseTypedFractions(o)],
+        correctAns: parsed.correctAns,
+      );
+    }
+    return parsed;
+  }
+
   factory HighSchoolQuestion.fromJson(Map<String, dynamic> json) {
     final qType = (json['question_type'] as String? ?? 'CQ').toUpperCase();
     dynamic parsed;
@@ -292,6 +318,11 @@ class HighSchoolQuestion {
       }
     }
 
+    // Bare `1/2` becomes `½` here, once, so the preview and every export format
+    // show the same thing. See [normaliseTypedFractions].
+    final stemText = normaliseTypedFractions(json['stem_text'] as String? ?? '');
+    parsed = _normaliseSubQuestionText(parsed);
+
     return HighSchoolQuestion(
       id: json['id'] as String? ?? '',
       className: json['class'] as String? ?? '',
@@ -299,7 +330,7 @@ class HighSchoolQuestion {
       chapterNumber: json['chapter_number'] as String? ?? '',
       chapterName: json['chapter_name'] as String? ?? '',
       questionType: qType,
-      stemText: json['stem_text'] as String? ?? '',
+      stemText: stemText,
       stemImageUrl: json['stem_image_url'] as String? ?? '',
       subQuestionsData: parsed,
       boardYearTag: json['board_year_tag'] as String? ?? '',

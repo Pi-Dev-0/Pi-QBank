@@ -135,6 +135,7 @@ class PdfLayout {
   /// the others.
   static const double sectionGap = 5;
 
+
   /// The masthead's own name for [sectionGap], for readability at the call site.
   static const double headerAfterGap = sectionGap;
 

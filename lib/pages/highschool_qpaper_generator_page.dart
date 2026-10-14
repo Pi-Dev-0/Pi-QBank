@@ -189,6 +189,12 @@ class _HighSchoolQPaperGeneratorPageState
   /// When false the paper is a single set, exactly as before.
   bool _twoSets = false;
 
+  /// Font metrics for the export currently being built, or null outside one.
+  ///
+  /// Set by [_buildPdf] so [_mixedText] can measure a typeset fraction without
+  /// every call site having to thread the measurer through.
+  PdfTextMetrics? _activeMetrics;
+
   /// Order the sections are printed in. Defaults to the paper's original
   /// arrangement: CQ, then the short questions, then MCQ.
   final List<_SectionKind> _sectionOrder = [
@@ -770,7 +776,20 @@ class _HighSchoolQPaperGeneratorPageState
   /// trap it works around.
   pw.TextSpan _mixedText(String text, pw.TextStyle style) {
     final bold = style.fontWeight == pw.FontWeight.bold;
-    return buildPdfTextSpan(text, style, bold: bold);
+    return buildPdfTextSpan(text, style,
+        bold: bold, measure: _measureForRender);
+  }
+
+  /// Measures text with the same engine the layout uses, so a typeset
+  /// fraction's rule is exactly as wide as the estimator believes it is.
+  ///
+  /// Valid only while [_buildPdf] is running, which is when every widget is
+  /// built; [PdfTextMetrics] needs font tables parsed once per export rather
+  /// than once per string.
+  double _measureForRender(String text, double fontSize, bool bold) {
+    final metrics = _activeMetrics;
+    if (metrics == null) return 0;
+    return metrics.textWidth(text, fontSize: fontSize, bold: bold);
   }
 
   // ── Multi-column geometry ────────────────────────────────────────────────
@@ -1408,6 +1427,9 @@ class _HighSchoolQPaperGeneratorPageState
       banglaFontData: banglaFontData,
       symbolFontData: mathFontData,
     );
+    // Available to _mixedText for the whole build, so a typeset fraction can be
+    // measured with the same engine the layout used.
+    _activeMetrics = metrics;
 
     final baseStyle = pw.TextStyle(
       font: banglaFont,
