@@ -110,6 +110,15 @@ class _HighSchoolQPaperGeneratorPageState
   bool _loadingQuestions = false;
   final Map<String, bool> _expandedCards = {};
 
+  /// Chapters the picker is showing. Empty means all of them, so the default is
+  /// never a surprising filter.
+  final Set<String> _pickerChapterFilter = {};
+
+  /// One-line summary of the paper so far, shown above the section editor.
+  /// Search box for the chapter chips in step 1.
+  final _chapterSearchCtrl = TextEditingController();
+  String _chapterQuery = '';
+
   /// Which question type the picker is showing.
   _PickFilter _pickFilter = _PickFilter.all;
   final _pickSearchCtrl = TextEditingController();
@@ -170,6 +179,7 @@ class _HighSchoolQPaperGeneratorPageState
     _timeCtrl.dispose();
     _marksCtrl.dispose();
     _cqAnswerAnyCtrl.dispose();
+    _chapterSearchCtrl.dispose();
     _pickSearchCtrl.dispose();
     super.dispose();
   }
@@ -454,6 +464,12 @@ class _HighSchoolQPaperGeneratorPageState
     final query = _pickSearchQuery.trim().toLowerCase();
     return _fetchedQuestions.where((q) {
       if (!_pickFilter.matches(q)) return false;
+      // An empty filter means every chapter, which keeps the default from
+      // silently hiding anything.
+      if (_pickerChapterFilter.isNotEmpty &&
+          !_pickerChapterFilter.contains(q.chapterNumber)) {
+        return false;
+      }
       if (query.isEmpty) return true;
       return q.stemText.toLowerCase().contains(query) ||
           q.chapterName.toLowerCase().contains(query) ||
@@ -1521,7 +1537,8 @@ class _HighSchoolQPaperGeneratorPageState
         widgets.add(pw.SizedBox(height: 6));
         widgets.add(pw.RichText(
           text: _mixedText(
-              'Generated from the Pi-QBank platform — https://pi-qbank.blogspot.com', smallStyle),
+              'Generated from the Pi-QBank platform — https://pi-qbank.blogspot.com',
+              smallStyle),
           textAlign: pw.TextAlign.center,
         ));
 
@@ -1966,10 +1983,35 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
+  /// Chapter chips for step 1.
+  ///
+  /// Several things were missing and all of them bit in practice: chapters came
+  /// back in sheet order so `10` sorted before `2`, there was no way to select
+  /// everything without tapping every chip, nothing said what an empty selection
+  /// meant, and a subject with many chapters became an unreadable wall of chips.
   Widget _buildChapterSection() {
     if (_selectedClass == null || _selectedSubject == null) {
       return const SizedBox.shrink();
     }
+
+    // Sorted numerically, so the list reads in the order a textbook does.
+    final chapters = [..._availableChapters]..sort((a, b) =>
+        (int.tryParse(a.chapterNumber) ?? 0)
+            .compareTo(int.tryParse(b.chapterNumber) ?? 0));
+
+    final query = _chapterQuery.trim().toLowerCase();
+    final shown = query.isEmpty
+        ? chapters
+        : chapters
+            .where((c) =>
+                c.chapterNumber.toLowerCase().contains(query) ||
+                c.chapterName.toLowerCase().contains(query))
+            .toList();
+
+    final allSelected = chapters.isNotEmpty &&
+        chapters
+            .every((c) => _selectedChapterNumbers.contains(c.chapterNumber));
+    final picked = _selectedChapterNumbers.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1984,14 +2026,50 @@ class _HighSchoolQPaperGeneratorPageState
                     fontSize: 15,
                     color: _kDarkText)),
             const Spacer(),
-            TextButton(
-              onPressed: _selectedChapterNumbers.isEmpty
-                  ? null
-                  : () => setState(() => _selectedChapterNumbers.clear()),
-              child: const Text('সব বাদ দিন'),
-            ),
+            if (chapters.isNotEmpty) ...[
+              TextButton(
+                onPressed: () => setState(() {
+                  if (allSelected) {
+                    _selectedChapterNumbers.clear();
+                  } else {
+                    _selectedChapterNumbers
+                      ..clear()
+                      ..addAll(chapters.map((c) => c.chapterNumber));
+                  }
+                }),
+                child: Text(allSelected ? 'সব বাদ দিন' : 'সব নির্বাচন'),
+              ),
+              if (picked > 0)
+                TextButton(
+                  onPressed: () =>
+                      setState(() => _selectedChapterNumbers.clear()),
+                  child: const Text('বাদ দিন'),
+                ),
+            ],
           ],
         ),
+
+        // Says plainly what an empty selection means, which used to be guesswork.
+        if (chapters.isNotEmpty && picked == 0) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.check_circle_outline, size: 15, color: _kAccent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'কোনো অধ্যায় বাছাই না করলে সব ${chapters.length}টি অধ্যায় থেকেই প্রশ্ন আসবে।',
+                  style: const TextStyle(fontSize: 11.5, color: _kSubText),
+                ),
+              ),
+            ],
+          ),
+        ] else if (picked > 0) ...[
+          const SizedBox(height: 6),
+          Text('$picked টি অধ্যায় নির্বাচিত (${chapters.length}টির মধ্যে)',
+              style: const TextStyle(fontSize: 11.5, color: _kPrimary)),
+        ],
+
         const SizedBox(height: 10),
         if (_loadingChapters)
           const Center(
@@ -1999,7 +2077,7 @@ class _HighSchoolQPaperGeneratorPageState
             padding: EdgeInsets.all(16.0),
             child: CircularProgressIndicator(color: _kAccent),
           ))
-        else if (_availableChapters.isEmpty)
+        else if (chapters.isEmpty)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -2013,35 +2091,99 @@ class _HighSchoolQPaperGeneratorPageState
                 SizedBox(width: 8),
                 Expanded(
                     child: Text(
-                        'কোনো অধ্যায় পাওয়া যায়নি — সব অধ্যায় থেকে প্রশ্ন লোড হবে।')),
+                        'কোনো অধ্যায় পাওয়া যায়নি — সব প্রশ্ন থেকেই লোড হবে।')),
               ],
             ),
           )
-        else
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _availableChapters.map((ch) {
-              final selected =
-                  _selectedChapterNumbers.contains(ch.chapterNumber);
-              return FilterChip(
-                selected: selected,
-                label: Text('অধ্যায় ${ch.chapterNumber}: ${ch.chapterName}'),
-                selectedColor: _kPrimary.withOpacity(0.15),
-                checkmarkColor: _kPrimary,
-                side: BorderSide(
-                    color: selected ? _kPrimary : Colors.grey.shade300),
-                onSelected: (v) => setState(() {
-                  if (v) {
-                    _selectedChapterNumbers.add(ch.chapterNumber);
-                  } else {
-                    _selectedChapterNumbers.remove(ch.chapterNumber);
-                  }
-                }),
-              );
-            }).toList(),
-          ),
+        else ...[
+          // A wall of chips is unusable once a subject has more than a handful
+          // of chapters, so search appears only when it is needed.
+          if (chapters.length > 7) ...[
+            SizedBox(
+              height: 38,
+              child: TextField(
+                controller: _chapterSearchCtrl,
+                onChanged: (v) => setState(() => _chapterQuery = v),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: 'অধ্যায় খুঁজুন…',
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIcon: _chapterQuery.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () {
+                            _chapterSearchCtrl.clear();
+                            setState(() => _chapterQuery = '');
+                          },
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          if (shown.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('কোনো অধ্যায় মেলেনি।',
+                  style: TextStyle(color: _kSubText, fontSize: 12)),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final ch in shown) _chapterChip(ch, chapters.length),
+              ],
+            ),
+        ],
       ],
+    );
+  }
+
+  /// One chapter chip: number as a badge, name as the label.
+  ///
+  /// The number is pulled out of the label and shown as a badge so a long
+  /// chapter name cannot push the number out of sight.
+  Widget _chapterChip(dynamic ch, int total) {
+    final selected =
+        _selectedChapterNumbers.contains(ch.chapterNumber as String);
+    return FilterChip(
+      selected: selected,
+      showCheckmark: false,
+      avatar: CircleAvatar(
+        radius: 10,
+        backgroundColor: selected ? _kPrimary : _kSubText.withOpacity(0.18),
+        child: Text(
+          '${ch.chapterNumber}',
+          style: TextStyle(
+            fontSize: 9.5,
+            fontWeight: FontWeight.bold,
+            color: selected ? Colors.white : _kSubText,
+          ),
+        ),
+      ),
+      label: Text('${ch.chapterName}',
+          maxLines: 1, overflow: TextOverflow.ellipsis),
+      selectedColor: _kPrimary.withOpacity(0.13),
+      side: BorderSide(color: selected ? _kPrimary : Colors.grey.shade300),
+      onSelected: (v) => setState(() {
+        if (v) {
+          _selectedChapterNumbers.add(ch.chapterNumber as String);
+        } else {
+          _selectedChapterNumbers.remove(ch.chapterNumber as String);
+        }
+      }),
     );
   }
 
@@ -2062,6 +2204,12 @@ class _HighSchoolQPaperGeneratorPageState
       children: [
         // Sticky counter bar
         _buildStickyBar(),
+        // Chapter filter, when the paper draws on more than one
+        _buildPickerChapterBar([
+          for (final c in _fetchedQuestions.map((q) => q.chapterNumber).toSet())
+            c
+        ]..sort(
+            (a, b) => (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0))),
         // Type filter + search
         _buildPickFilterBar(visible.length),
         // Question list
@@ -2131,6 +2279,87 @@ class _HighSchoolQPaperGeneratorPageState
   /// Chips to narrow the picker to one question type, plus a search box.
   ///
   /// Sits outside the list so it stays put while the questions scroll.
+  /// Chapter chips for the picker, shown only when there is more than one.
+  ///
+  /// Selecting several chapters in step 1 used to dump every one of them into
+  /// one long list, with no way to narrow it afterwards.
+  Widget _buildPickerChapterBar(List<String> chapterNumbers) {
+    if (chapterNumbers.length < 2) return const SizedBox.shrink();
+
+    final withCounts = <String, int>{
+      for (final c in chapterNumbers)
+        c: _fetchedQuestions.where((q) => q.chapterNumber == c).length,
+    };
+    final all = _pickerChapterFilter.isEmpty ||
+        _pickerChapterFilter.containsAll(chapterNumbers);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.filter_alt_outlined, size: 15, color: _kSubText),
+              const SizedBox(width: 6),
+              const Text('অধ্যায়',
+                  style: TextStyle(fontSize: 11, color: _kSubText)),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => setState(() {
+                  if (all) {
+                    _pickerChapterFilter.clear();
+                  } else {
+                    _pickerChapterFilter
+                      ..clear()
+                      ..addAll(chapterNumbers);
+                  }
+                }),
+                child: Text(
+                  all ? 'সব দেখান' : 'শুধু এগুলো',
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: _kPrimary,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 30,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final c in chapterNumbers) ...[
+                  _PickerChapterChip(
+                    chapterNumber: c,
+                    count: withCounts[c] ?? 0,
+                    selected: _pickerChapterFilter.isEmpty ||
+                        _pickerChapterFilter.contains(c),
+                    onTap: () => setState(() {
+                      if (_pickerChapterFilter.isEmpty) {
+                        // First tap after "all" narrows to just this one.
+                        _pickerChapterFilter
+                          ..clear()
+                          ..add(c);
+                      } else if (_pickerChapterFilter.contains(c)) {
+                        _pickerChapterFilter.remove(c);
+                      } else {
+                        _pickerChapterFilter.add(c);
+                      }
+                    }),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPickFilterBar(int visibleCount) {
     int countOf(_PickFilter f) => _fetchedQuestions.where(f.matches).length;
 
@@ -3773,6 +4002,64 @@ class _SectionOrderTile extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One chapter chip in the picker bar: number, name and how many questions it
+/// holds, so narrowing to a chapter also says what narrowing costs.
+class _PickerChapterChip extends StatelessWidget {
+  const _PickerChapterChip({
+    required this.chapterNumber,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String chapterNumber;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? _kPrimary.withOpacity(0.12) : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? _kPrimary : Colors.grey.shade300,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('অধ্যায় $chapterNumber',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? _kPrimary : _kSubText,
+                  )),
+              const SizedBox(width: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: _kSubText.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text('$count',
+                    style: const TextStyle(fontSize: 10, color: _kSubText)),
+              ),
+            ],
           ),
         ),
       ),
