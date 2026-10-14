@@ -278,16 +278,34 @@ List<MathSegment> parseMath(String text) {
     }
 
     // ── super/subscript ────────────────────────────────────────────────
+    //
+    // Only inside `$...$`. Outside it these are ordinary characters: `^` turns
+    // up in prose and in identifiers, and quietly typesetting the next word as
+    // a raised script loses it. `\frac` is deliberately *not* restricted this
+    // way, because question banks write it without delimiters.
     if ((c == '^' || c == '_') && i + 1 < text.length) {
       final arg = _readGroup(text, i + 1);
       final body = arg?.body ?? (i + 2 <= text.length ? text[i + 1] : '');
       if (arg != null) {
-        flush();
-        out.add(MathScript(body, superscript: c == '^', math: math));
+        if (math) {
+          flush();
+          out.add(MathScript(body, superscript: c == '^', math: true));
+        } else {
+          // Kept exactly as written, braces and all, so nothing disappears.
+          buffer
+            ..write(c)
+            ..write('{$body}');
+        }
         i = arg.end;
       } else if (i + 2 <= text.length) {
-        flush();
-        out.add(MathScript(body, superscript: c == '^', math: math));
+        if (math) {
+          flush();
+          out.add(MathScript(body, superscript: c == '^', math: true));
+        } else {
+          buffer
+            ..write(c)
+            ..write(body);
+        }
         i += 2;
       } else {
         buffer.write(c);

@@ -62,7 +62,7 @@ class McqQuestion {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Short question (RQ) model
+// Short question (SQ) model
 //
 // A short answer question is a single prompt. Its text lives in `stem_text`
 // like any other question — there is no stem, no sub-questions and no options,
@@ -137,7 +137,7 @@ class HighSchoolQuestion {
 
   final String boardYearTag;
 
-  /// Marks for a short question (RQ), from the `short_mark` column.
+  /// Marks for a short question (SQ), from the `short_mark` column.
   /// Ignored for CQ/MCQ. Defaults to 1 when the column is empty.
   final int shortMark;
 

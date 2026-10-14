@@ -489,9 +489,13 @@ void main() {
 
   group('page flow', () {
     test('page height matches A4 at the used margins', () {
-      // 841.89 - 2 x 28. The vertical margin is deliberately tighter than the
-      // usual 36pt so an A4 print uses as much of the sheet as it can.
-      expect(PdfLayout.contentHeight, closeTo(785.89, 0.01));
+      // Asymmetric: the head needs a margin, the foot does not. The sheet is
+      // trimmed at print, so a deep bottom margin is blank paper.
+      expect(
+          PdfLayout.contentHeight,
+          closeTo(841.89 - PdfLayout.pageMarginTop - PdfLayout.pageMarginBottom,
+              0.01));
+      expect(PdfLayout.pageMarginBottom, lessThan(PdfLayout.pageMarginTop));
     });
 
     test('header takes a meaningful slice of page 1', () {
@@ -543,7 +547,10 @@ void main() {
       // The invariant MultiPage needs in order never to throw or leave a page
       // empty: every block fits on a page by itself.
       for (final row in rows) {
-        expect(_heightOf(row), lessThanOrEqualTo(PdfLayout.contentHeight - 16));
+        expect(
+            _heightOf(row),
+            lessThanOrEqualTo(
+                PdfLayout.contentHeight - PdfPageFlow.defaultMargin));
       }
     });
 

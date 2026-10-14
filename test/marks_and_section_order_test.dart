@@ -315,7 +315,7 @@ void main() {
 
       expect(_sectionOrder(tester), [
         'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
+        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
         'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
       ]);
     });
@@ -336,14 +336,14 @@ void main() {
 
       // The grab handle on the last tile, dragged past the first two.
       final delta = _dragDelta(tester, 2, 0);
-      await tester.drag(find.byIcon(Icons.drag_indicator_rounded).last,
-          Offset(0, delta));
+      await tester.drag(
+          find.byIcon(Icons.drag_indicator_rounded).last, Offset(0, delta));
       await tester.pumpAndSettle();
 
       expect(_sectionOrder(tester), [
         'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
         'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
+        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
       ]);
     });
 
@@ -356,14 +356,14 @@ void main() {
 
       // MCQ (last) up one slot: between CQ and RQ.
       final delta = _dragDelta(tester, 2, 1);
-      await tester.drag(find.byIcon(Icons.drag_indicator_rounded).last,
-          Offset(0, delta));
+      await tester.drag(
+          find.byIcon(Icons.drag_indicator_rounded).last, Offset(0, delta));
       await tester.pumpAndSettle();
 
       expect(_sectionOrder(tester), [
         'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
         'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
-        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)',
+        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
       ]);
       expect(find.textContaining('আলাদা বিভাগ হিসেবে'), findsOneWidget);
     });

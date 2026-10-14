@@ -98,7 +98,7 @@ extension StemImageSizeMetrics on StemImageSize {
 
 /// How MCQ questions are arranged on the page.
 ///
-/// Applied to the CQ and MCQ sections. Short questions (RQ) are one line each
+/// Applied to the CQ and MCQ sections. Short questions (SQ) are one line each
 /// and are never split across columns.
 enum QuestionLayout {
   /// One question per row, running the full width of the page.
@@ -355,7 +355,7 @@ class HighSchoolExportService {
     // Short question section (গ-বিভাগ)
     if (shorts.isNotEmpty) {
       buffer.writeln(thinDivider);
-      buffer.writeln('【 গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ) 】');
+      buffer.writeln('【 গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ) 】');
       buffer.writeln();
       for (int i = 0; i < shorts.length; i++) {
         final data = shorts[i].shortData;
@@ -682,7 +682,7 @@ class HighSchoolExportService {
     // Short question section (গ-বিভাগ)
     if (shorts.isNotEmpty) {
       buffer.write('''
-  <div class="section-title">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)</div>
+  <div class="section-title">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)</div>
   <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সংক্ষেপে উত্তর দাও]</div>
 ''');
 
@@ -1003,7 +1003,7 @@ class HighSchoolExportService {
     // Short question section (গ-বিভাগ)
     if (shorts.isNotEmpty) {
       buffer.write('''
-    <div class="section-banner">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)</div>
+    <div class="section-banner">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)</div>
     <div class="rq-list">
       <div class="rq-grid">
 ''');
@@ -1103,7 +1103,7 @@ class HighSchoolExportService {
 
     if (shorts.isNotEmpty) {
       buffer.writeln('---\n');
-      buffer.writeln('### গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)\n');
+      buffer.writeln('### গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)\n');
       for (int i = 0; i < shorts.length; i++) {
         final data = shorts[i].shortData;
         if (data == null || data.text.trim().isEmpty) continue;

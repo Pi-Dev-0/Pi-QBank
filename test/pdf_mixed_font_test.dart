@@ -60,7 +60,9 @@ void main() {
     });
 
     test('Latin run keeps its exact original text', () {
-      const sentence = 'If x belongs to A, find x^2 and show the value.';
+      // No bare `^`: a caret outside $...$ is prose, so it stays literal and
+      // produces no widget span to cast around.
+      const sentence = 'If x belongs to A, find the value.';
       final span = buildPdfTextSpan('খ. $sentence', banglaStyle());
       final latinText = (span.children as List)
           .cast<pw.TextSpan>()

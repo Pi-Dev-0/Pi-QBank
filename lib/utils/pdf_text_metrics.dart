@@ -109,23 +109,29 @@ class PdfTextMetrics {
   /// inside a Bangla run was measured with the Bangla font, which has no such
   /// glyph, and a rune no font covers came out zero-width while the page still
   /// drew a box for it.
+  /// Split [text] into the pieces the layout measures.
+  ///
+  /// LaTeX is parsed first and the Bangla conversion second, matching
+  /// [buildPdfTextSpan] exactly. Doing it the other way round parses Bijoy's
+  /// legacy encoding, where `থ` is `_` and `স্ব` is `^` — so every `থ` became a
+  /// subscript and every `স্ব` a superscript, in the drawing *and* here.
   List<_Segment> _segments(String text, bool bold) {
     final out = <_Segment>[];
-    for (final run in splitPdfTextRuns(text)) {
-      if (run.isEmpty) continue;
-      final chain = _fontChain(run.isBangla, bold);
 
-      for (final piece in parseMath(run.text)) {
-        switch (piece) {
-          case MathFraction():
-            // One item for the whole stack: it cannot be broken across a line,
-            // and its box is the sum of its two halves plus the rule.
-            out.add(_Segment('', chain.first, math: piece));
-          case MathScript():
-            out.add(_Segment('', chain.first, math: piece));
-          case MathText():
-            _splitByCoverage(piece.text, run.isBangla, chain, out);
-        }
+    for (final piece in parseMath(text)) {
+      switch (piece) {
+        case MathFraction():
+          // One item for the whole stack: it cannot be broken across a line,
+          // and its box is the sum of its two halves plus the rule.
+          out.add(_Segment('', _fontChain(true, bold).first, math: piece));
+        case MathScript():
+          out.add(_Segment('', _fontChain(true, bold).first, math: piece));
+        case MathText(:final text):
+          for (final run in splitPdfTextRuns(text)) {
+            if (run.isEmpty) continue;
+            _splitByCoverage(
+                run.text, run.isBangla, _fontChain(run.isBangla, bold), out);
+          }
       }
     }
     return out;

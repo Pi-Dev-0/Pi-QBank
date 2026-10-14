@@ -71,7 +71,7 @@ class PdfLayout {
   /// Vertical gap the page leaves after each CQ card.
   static const double cqCardGap = 12;
 
-  /// Vertical gap the page leaves after each short question (RQ).
+  /// Vertical gap the page leaves after each short question (SQ).
   static const double rqGap = 6;
 
   /// Rendered height of a short question row.
@@ -108,13 +108,19 @@ class PdfLayout {
   /// Tightened from the usual 36pt: on A4 every point here is a point of usable
   /// page across the whole paper, and 28pt (~10mm) is still clear of the dead
   /// band most printers cannot reach.
-  static const double pageMarginV = 28;
+  /// Vertical page margin. Asymmetric: the head needs somewhere to start, the
+  /// foot does not — the sheet is trimmed at print, so anything below the last
+  /// question is blank paper.
+  static const double pageMarginTop = 28;
+  static const double pageMarginBottom = 10;
+  static const double pageMarginV = 28; // kept for call sites that want both
 
   /// Printable width at the page margins.
   static double get contentWidth => a4Width - pageMarginH * 2;
 
   /// Printable height at the page margins.
-  static double get contentHeight => a4Height - pageMarginV * 2;
+  static double get contentHeight =>
+      a4Height - pageMarginTop - pageMarginBottom;
 
   /// Vertical spacing of the masthead.
   ///
@@ -477,6 +483,54 @@ List<List<int>> balanceColumns({
   return groups;
 }
 
+/// Lay a block's fragments into balanced columns without ever splitting a
+/// question across a column boundary.
+///
+/// [balanceColumns] balances individual fragments, which is optimal for height
+/// but will happily put the last sub-part of a question at the top of the next
+/// column. The reader then sees `1. (ক) ... (খ) ...` at the foot of one column
+/// and a bare `(গ)` heading the next, which reads as a question of its own.
+///
+/// A question is therefore one indivisible unit here: it runs to the foot of
+/// whichever column holds it, and the next question starts below it. Balancing
+/// then chooses *which questions share a column*, still minimising the tallest
+/// column.
+///
+/// Splitting across a **page** is a different matter and is unaffected — that
+/// is what lets a long question continue overleaf.
+List<List<int>> balanceQuestions({
+  required List<PdfFlowFragment> fragments,
+  required int columns,
+}) {
+  if (fragments.isEmpty) return const [];
+
+  // One unit per question: where it starts, where it ends, how tall it is.
+  final starts = <int>[];
+  final ends = <int>[];
+  final totals = <double>[];
+  for (var i = 0; i < fragments.length; i++) {
+    if (i == 0 || fragments[i].question != fragments[i - 1].question) {
+      starts.add(i);
+      ends.add(i + 1);
+      totals.add(fragments[i].height);
+    } else {
+      ends[ends.length - 1] = i + 1;
+      totals[totals.length - 1] += fragments[i].height;
+    }
+  }
+
+  // The same optimal splitter, run over questions rather than fragments.
+  final questionGroups = balanceColumns(heights: totals, columns: columns);
+
+  return [
+    for (final group in questionGroups)
+      [
+        for (final q in group)
+          for (var i = starts[q]; i < ends[q]; i++) i
+      ],
+  ];
+}
+
 /// Largest column height [balanceColumns] produces, for tests and diagnostics.
 double tallestColumnHeight(List<List<int>> groups, List<double> heights) {
   var tallest = 0.0;
@@ -525,18 +579,34 @@ double rowBasedHeight(List<List<int>> groups, List<double> heights) {
 /// is left after its predecessors. Pages fill up, and only break when they
 /// genuinely must.
 class PdfPageFlow {
-  PdfPageFlow({required this.contentHeight, this.margin = 8});
+  PdfPageFlow({required this.contentHeight, this.margin = defaultMargin});
 
   /// Printable height of a page.
   final double contentHeight;
 
   /// Slack subtracted from every budget.
   ///
-  /// Heights are measured rather than exact, so this absorbs rounding and
-  /// estimate error. Without it a block a few points too tall would silently
-  /// jump pages and reintroduce the blank-page bug. Kept small — the measured
-  /// estimates land within a point or two — so it costs almost no page.
+  /// This is not cosmetic. A block is laid out from *measured* heights and then
+  /// drawn from real widgets, and the two never agree exactly. dart_pdf does not
+  /// clip a block that overruns — it moves the **whole thing** to the next sheet.
+  /// So a block measured to fit by a couple of points can cost an entire page
+  /// of blank space when it lands on the wrong side of that difference.
+  ///
+  /// It therefore has to exceed the drift, not merely exist. The drift grows
+  /// with the number of cards in a block, and a full page holds a dozen or so,
+  /// so this is sized for that rather than for a single measurement.
+  ///
+  /// Cost when nothing drifts: this much blank at the foot of each page. That
+  /// is a far better trade than losing a whole block to a wholesale move.
   final double margin;
+
+  /// Slack subtracted from every budget.
+  ///
+  /// Sized so a block still has room to be drawn a little taller than it was
+  /// measured — dart_pdf moves an overrunning block to the next sheet whole,
+  /// which costs far more blank space than this ever does. Kept small because
+  /// every point here is a point of blank at the foot of every page.
+  static const double defaultMargin = 14;
 
   double _used = 0;
   int _pageBreaks = 0;
@@ -613,6 +683,7 @@ class PdfPageFlow {
     required List<PdfFlowFragment> fragments,
     required int columns,
     double trailingGap = 0,
+    void Function(String line)? trace,
   }) {
     final rows = <List<List<PdfFlowFragment>>>[];
     if (fragments.isEmpty) return rows;
@@ -638,48 +709,80 @@ class PdfPageFlow {
     var start = 0;
 
     while (question < runStart.length) {
-      final budget = contentHeight - _used - margin;
+      var budget = contentHeight - _used - margin;
+
+      // Prefer whole questions, so a page normally breaks at a natural edge.
       var count = _largestPrefix(questionHeight, question, columns, budget);
 
       if (count == 0) {
-        // Nothing fits on the rest of this page — most likely because it is
-        // nearly full. Move to a fresh page and try again.
+        // Not even one question fits in what is left. Start a fresh page and
+        // ask again there, where the budget is a whole sheet.
         _breakPage();
-        count = _largestPrefix(
-            questionHeight, question, columns, contentHeight - margin);
-        if (count == 0) count = 1; // taller than a page; emit rather than drop
+        budget = contentHeight - margin;
+        count = _largestPrefix(questionHeight, question, columns, budget);
       }
 
-      var end = runEnd[question + count - 1];
-      var slice = heights.sublist(start, end);
-      var groups = balanceColumns(heights: slice, columns: columns);
+      var end = count > 0 ? runEnd[question + count - 1] : start;
+
+      // How tall the block [start, end) actually is: the taller of the columns
+      // `balanceColumns` puts them in, plus the gap that follows the block.
+      double blockHeight(int at) {
+        final h = heights.sublist(start, at);
+        final block = fragments.sublist(start, at);
+        return _tallestOf(
+                balanceQuestions(fragments: block, columns: columns), h) +
+            trailingGap;
+      }
+
+      bool fits(int at) => blockHeight(at) <= budget;
+
+      // The whole questions `_largestPrefix` chose are measured one way and
+      // drawn another, and the two disagree by a point or two. Drawing the
+      // block at exactly its estimate is how a page overflows by a hair and
+      // the export dies with "Widget won't fit into the page" — so the choice
+      // is checked against the same measure the block will be drawn with, and
+      // walked back until it genuinely fits.
+      while (end > start && !fits(end)) {
+        end--;
+      }
 
       // Fill the foot of the block.
       //
       // Whole-question packing stops one question short whenever the next one
-      // would overflow, leaving up to its full height empty at the foot of the
-      // page. Each following question is therefore offered to the block as
-      // fragments: `balanceColumns` redistributes *everything* it already
-      // holds, so the spare room in both columns is shared out and the page
-      // fills properly. A question may end up with its stem at the foot of one
-      // column and its options at the head of the next — still on this page,
-      // still in order.
+      // would overflow, leaving up to a full question's height empty at the
+      // foot of the page. A question is made of several independently
+      // measurable pieces — its stem, then each sub-part — so the block is
+      // extended one piece at a time for as long as it still fits.
       //
-      // Only *complete* questions are admitted. Admitting a part would push the
-      // remainder onto the next block, and measurement showed that reliably
-      // costs an extra page: the stranded fragment forces a break while the
-      // space it vacated sits unused. Splitting within a page is free;
-      // splitting across one is not.
-      while (question + count < runStart.length) {
-        final extendedEnd = runEnd[question + count];
-        final extended = heights.sublist(start, extendedEnd);
-        final groups2 = balanceColumns(heights: extended, columns: columns);
-        if (_tallestOf(groups2, extended) > budget) break;
-        count++;
-        end = extendedEnd;
-        slice = extended;
-        groups = groups2;
+      // This is what lets a question continue overleaf: `end` may land between
+      // two of its pieces, and the next block resumes at exactly that index, so
+      // every piece is emitted once and in order.
+      while (end < fragments.length && fits(end + 1)) {
+        end++;
       }
+
+      if (end == start) {
+        // One piece is taller than a whole sheet. Emit it rather than stall:
+        // the pdf package is the only thing here that can carry the overflow
+        // onto the next page, and dropping the question is not an option.
+        end = start + 1;
+      }
+
+      final slice = heights.sublist(start, end);
+      final groups = balanceQuestions(
+          fragments: fragments.sublist(start, end), columns: columns);
+
+      // The block is sized from measured heights and then drawn from the same
+      // widgets. When the two disagree, dart_pdf moves the whole row to the
+      // next sheet rather than clipping it, which shows up as a band of blank
+      // space at the foot of a page. `_used` is the predictor, `blockHeight`
+      // is what will be drawn: trace both and compare.
+      trace?.call('page=${_pageBreaks + 1} '
+          'used=${_used.toStringAsFixed(1)} '
+          'budget=${budget.toStringAsFixed(1)} '
+          'drawn=${blockHeight(end).toStringAsFixed(1)} '
+          'fragments=$start..$end/${fragments.length} '
+          'cols=${groups.map((g) => g.length).join("/")}');
 
       rows.add([
         for (final column in groups)

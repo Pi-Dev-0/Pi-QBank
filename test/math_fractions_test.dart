@@ -94,16 +94,31 @@ void main() {
   });
 
   group('super and subscripts', () {
-    test('braced and single-character forms', () {
-      final segs = parseMath('x^{2} + a_n');
+    test('braced and single-character forms inside maths', () {
+      final segs = parseMath(r'$x^{2} + a_n$');
       final scripts = segs.whereType<MathScript>().toList();
       expect(scripts.map((s) => s.text), ['2', 'n']);
       expect(scripts.map((s) => s.superscript), [true, false]);
     });
 
     test('flattens to a caret form for text outputs', () {
-      expect(latexToPlainText('x^{2}'), 'x^2');
-      expect(latexToPlainText('a_{n}'), 'a_n');
+      expect(latexToPlainText(r'$x^{2}$'), 'x^2');
+      expect(latexToPlainText(r'$a_{n}$'), 'a_n');
+    });
+
+    test(r'a ^ or _ outside $...$ is prose, not a script', () {
+      // A stray caret must not swallow the word after it. Bengali is the
+      // sharper case: Bijoy encodes থ as `_`, so treating it as a subscript
+      // there lost the letter and dropped its vowel sign.
+      expect(parseMath('find x^2 now').whereType<MathScript>(), isEmpty);
+      expect(latexToPlainText('find x^2 now'), 'find x^2 now');
+      expect(latexToPlainText('a_n here'), 'a_n here');
+    });
+
+    test(r'but rac still works without delimiters', () {
+      // Question banks write fractions bare, so this one is not restricted.
+      expect(
+          parseMath(r'\frac{2+x}{3}').whereType<MathFraction>(), hasLength(1));
     });
   });
 

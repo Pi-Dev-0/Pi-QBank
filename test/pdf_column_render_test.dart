@@ -68,7 +68,7 @@ final PdfTextMetrics metrics = PdfTextMetrics(
       File('assets/fonts/MathSymbols.ttf').readAsBytesSync()),
 );
 
-/// Render a short-question (RQ) section in the given column mode, mirroring the
+/// Render a short-question (SQ) section in the given column mode, mirroring the
 /// generator page: header, banner, then packed columns driven by [PdfPageFlow].
 Future<List<int>> renderShorts(
     List<HighSchoolQuestion> shorts, int columns) async {
@@ -438,7 +438,7 @@ void main() {
     expect(singleHtml, contains('grid-template-columns: 1fr;'));
     expect(doubleHtml, contains('grid-template-columns: 1fr 1fr;'));
     for (final html in [singleHtml, doubleHtml]) {
-      expect(html, contains('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (RQ)'));
+      expect(html, contains('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)'));
       expect(html, contains('প্রশ্ন 1'));
       expect(html, contains('[1]'));
     }

@@ -84,66 +84,137 @@ pw.TextSpan buildPdfTextSpan(
 }) {
   final latin = bold ? pw.Font.helveticaBold() : pw.Font.helvetica();
 
-  final runs = splitPdfTextRuns(text);
-  if (runs.isEmpty || (runs.length == 1 && runs.first.isEmpty)) {
+  final children = _spansForRaw(text,
+      banglaStyle: banglaStyle, latin: latin, bold: bold, measure: measure);
+  if (children.isEmpty) {
     return pw.TextSpan(text: '', style: banglaStyle);
   }
-
-  return pw.TextSpan(
-    children: [
-      for (final run in runs)
-        ..._buildRunChildren(run, banglaStyle, latin, bold, measure),
-    ],
-  );
+  return pw.TextSpan(children: children);
 }
 
-/// The spans for one Bangla/Latin run, including any LaTeX it contains.
-List<pw.InlineSpan> _buildRunChildren(
-  PdfTextRun run,
-  pw.TextStyle banglaStyle,
-  pw.Font latin,
-  bool bold,
+/// Spans for [raw], which is still ordinary Unicode text.
+///
+/// LaTeX is parsed here, **before** the Bangla conversion — see
+/// [_spansForParsed] for why the order is not free.
+List<pw.InlineSpan> _spansForRaw(
+  String raw, {
+  required pw.TextStyle banglaStyle,
+  required pw.Font latin,
+  required bool bold,
   MathTextMeasurer? measure,
-) {
-  final base = run.isBangla
-      ? banglaStyle
-      : banglaStyle.copyWith(
-          // `font:` alone would be discarded — see the note above.
-          fontNormal: latin,
-          fontBold: latin,
-          fontItalic: latin,
-          fontBoldItalic: latin,
-        );
+}) =>
+    _spansForParsed(parseMath(raw),
+        banglaStyle: banglaStyle, latin: latin, bold: bold, measure: measure);
 
-  final children = <pw.InlineSpan>[];
+/// Spans for text already split into segments, still unconverted.
+///
+/// This is the only place the Bangla conversion happens, and it happens after
+/// parsing. Doing it first corrupts the text: Bijoy encodes `থ` as `_` and the
+/// `্ব` conjuncts (`ণ্ব`, `ন্ব`, `ম্ব`, `স্ব`) as `^`, which are precisely the
+/// characters a script parser reads as a subscript and a superscript. Every
+/// `থ` in every question was being swallowed and its following vowel sign drawn
+/// as a lowered script.
+List<pw.InlineSpan> _spansForParsed(
+  List<MathSegment> segments, {
+  required pw.TextStyle banglaStyle,
+  required pw.Font latin,
+  required bool bold,
+  MathTextMeasurer? measure,
+}) {
+  final out = <pw.InlineSpan>[];
 
-  for (final segment in parseMath(run.text)) {
+  for (final segment in segments) {
     switch (segment) {
       case MathFraction(:final numerator, :final denominator, :final math):
-        children.add(_fractionSpan(numerator, denominator,
-            style: base,
-            latin: latin,
+        if (measure == null) {
+          // Without a measurement the rule has no width to draw at, and a rule
+          // given the whole line draws a bar across the page. Fall back to the
+          // inline form, which is always correct, rather than a stack that
+          // looks broken.
+          out.addAll(_textSpans('($numerator)/($denominator)',
+              banglaStyle: banglaStyle, latin: latin, bold: bold, math: math));
+          continue;
+        }
+        out.add(_fractionSpan(numerator, denominator,
+            style: _anchorStyle(banglaStyle, math),
             bold: bold,
-            math: math,
-            measure: measure));
+            measure: measure,
+            render: (t, at) => pw.RichText(
+                text: pw.TextSpan(
+                    style: at,
+                    children: _spansForRaw(t,
+                        banglaStyle: at,
+                        latin: latin,
+                        bold: bold,
+                        measure: measure)))));
 
       case MathScript(:final text, :final superscript, :final math):
-        children.add(_scriptSpan(text,
+        out.add(_scriptSpan(text,
             superscript: superscript,
-            style: base,
-            latin: latin,
+            style: _anchorStyle(banglaStyle, math),
             bold: bold,
-            math: math));
+            render: (t, at) => pw.RichText(
+                text: pw.TextSpan(
+                    style: at,
+                    children: _spansForRaw(t,
+                        banglaStyle: at,
+                        latin: latin,
+                        bold: bold,
+                        measure: measure)))));
 
       case MathText(:final text, :final math):
-        final style =
-            math ? base.copyWith(fontStyle: pw.FontStyle.italic) : base;
-        children.add(pw.TextSpan(text: text, style: style));
+        out.addAll(_textSpans(text,
+            banglaStyle: banglaStyle, latin: latin, bold: bold, math: math));
     }
   }
-
-  return children;
+  return out;
 }
+
+/// Draws a string that is still ordinary Unicode text, splitting it into
+/// Bangla and Latin runs and setting each in its own font.
+List<pw.InlineSpan> _textSpans(
+  String text, {
+  required pw.TextStyle banglaStyle,
+  required pw.Font latin,
+  required bool bold,
+  required bool math,
+}) {
+  final out = <pw.InlineSpan>[];
+
+  for (final run in splitPdfTextRuns(text)) {
+    if (run.isEmpty) continue;
+
+    // Bangla keeps SutonnyMJ; Latin is set in a standard font. The two have to
+    // be chosen per run — handing the Latin font to a Bangla run draws the
+    // Bijoy bytes as readable ASCII gibberish.
+    final base = run.isBangla
+        ? banglaStyle
+        : banglaStyle.copyWith(
+            // `font:` alone would be discarded — see the note above.
+            fontNormal: latin,
+            fontBold: latin,
+            fontItalic: latin,
+            fontBoldItalic: latin,
+          );
+
+    // Italics mark a maths variable, so they apply to the Latin runs only. The
+    // Bangla font has no italic cut to select.
+    out.add(pw.TextSpan(
+      text: run.text,
+      style: (math && !run.isBangla)
+          ? base.copyWith(fontStyle: pw.FontStyle.italic)
+          : base,
+    ));
+  }
+  return out;
+}
+
+/// The style a typeset piece is anchored by.
+///
+/// Carries the size and colour of the surrounding text; which font actually
+/// draws the glyphs is decided per run, inside [render].
+pw.TextStyle _anchorStyle(pw.TextStyle banglaStyle, bool math) =>
+    math ? banglaStyle.copyWith(fontStyle: pw.FontStyle.italic) : banglaStyle;
 
 /// A stacked fraction, drawn inline as a widget so the rule lines up.
 ///
@@ -155,24 +226,18 @@ pw.WidgetSpan _fractionSpan(
   String numerator,
   String denominator, {
   required pw.TextStyle style,
-  required pw.Font latin,
   required bool bold,
-  required bool math,
-  MathTextMeasurer? measure,
+  required pw.Widget Function(String, pw.TextStyle) render,
+  required MathTextMeasurer measure,
 }) {
   final size = style.fontSize ?? 11;
+  // Numerator and denominator are set smaller than the surrounding text, which
+  // is what keeps a stacked fraction from dominating its line.
   final small = style.copyWith(fontSize: size * fracFontScale);
 
-  pw.Text line(String t) => pw.Text(t, style: small);
-  pw.Row centred(String t) => pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.center, children: [line(t)]);
-
-  double? ruleWidth;
-  if (measure != null) {
-    final n = measure(numerator, size * fracFontScale, bold);
-    final d = measure(denominator, size * fracFontScale, bold);
-    ruleWidth = (n > d ? n : d) + fracPaddingX * 2;
-  }
+  final n = measure(numerator, size * fracFontScale, bold);
+  final d = measure(denominator, size * fracFontScale, bold);
+  final ruleWidth = (n > d ? n : d) + fracPaddingX * 2;
 
   // A null colour would leave the rule invisible, which looks like a missing
   // fraction rather than a missing line.
@@ -191,15 +256,9 @@ pw.WidgetSpan _fractionSpan(
       child: pw.Column(
         mainAxisSize: pw.MainAxisSize.min,
         children: [
-          if (ruleWidth == null)
-            centred(numerator)
-          else
-            pw.SizedBox(width: ruleWidth, child: centred(numerator)),
+          pw.SizedBox(width: ruleWidth, child: render(numerator, small)),
           rule,
-          if (ruleWidth == null)
-            centred(denominator)
-          else
-            pw.SizedBox(width: ruleWidth, child: centred(denominator)),
+          pw.SizedBox(width: ruleWidth, child: render(denominator, small)),
         ],
       ),
     ),
@@ -212,9 +271,8 @@ pw.WidgetSpan _scriptSpan(
   String text, {
   required bool superscript,
   required pw.TextStyle style,
-  required pw.Font latin,
   required bool bold,
-  required bool math,
+  required pw.Widget Function(String, pw.TextStyle) render,
 }) {
   final size = style.fontSize ?? 11;
   final small = style.copyWith(fontSize: size * scriptFontScale);
@@ -226,7 +284,7 @@ pw.WidgetSpan _scriptSpan(
       // PDF y grows upward, so a positive offset is a rise.
       offset: PdfPoint(
           0, superscript ? size * superscriptRise : -size * subscriptDrop),
-      child: pw.Text(text, style: small),
+      child: render(text, small),
     ),
   );
 }

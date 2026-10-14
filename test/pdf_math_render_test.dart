@@ -49,9 +49,9 @@ void main() {
 
     test('a superscript is smaller than the text it rides on', () {
       final m = metrics();
-      expect(m.textWidth('x^{2}', fontSize: 11),
+      expect(m.textWidth(r'$x^{2}$', fontSize: 11),
           greaterThan(m.textWidth('x', fontSize: 11)));
-      expect(m.textWidth('x^{2}', fontSize: 11),
+      expect(m.textWidth(r'$x^{2}$', fontSize: 11),
           lessThan(m.textWidth('xyz', fontSize: 11)));
     });
 
