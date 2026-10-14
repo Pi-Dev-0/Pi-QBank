@@ -145,7 +145,7 @@ class HighSchoolQuestion {
   bool isSelected;
 
   /// Which set this question belongs to when a paper is printed as two
-  /// variants ("ক-সেট" / "খ-সেট").
+  /// variants ("ক" / "খ").
   ///
   /// Runtime state, not stored in the sheet: sets describe one generated paper,
   /// not the question itself. Empty means "the only set".
@@ -320,7 +320,8 @@ class HighSchoolQuestion {
 
     // Bare `1/2` becomes `½` here, once, so the preview and every export format
     // show the same thing. See [normaliseTypedFractions].
-    final stemText = normaliseTypedFractions(json['stem_text'] as String? ?? '');
+    final stemText =
+        normaliseTypedFractions(json['stem_text'] as String? ?? '');
     parsed = _normaliseSubQuestionText(parsed);
 
     return HighSchoolQuestion(

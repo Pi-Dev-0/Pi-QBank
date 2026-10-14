@@ -155,6 +155,13 @@ class PdfLayout {
   /// Space above and below the rule that separates one printed set from the
   /// next. Generous on purpose: both sets share one sheet, so without a clear
   /// break the second masthead reads as a stray header rather than a new paper.
+  /// Space around the dashed rule separating two sets that share a sheet.
+  ///
+  /// Fixed, not computed from the leftover height. A computed gap has to be
+  /// sized from measured heights before the page is laid out, and when that
+  /// estimate runs out, the gap itself is what pushes content onto the next
+  /// page — which is how a two-set paper ended up with a blank half-sheet and a
+  /// masthead stranded at the foot of it.
   static const double setDividerGapAbove = 16;
   static const double setDividerGapBelow = 12;
 
@@ -532,15 +539,41 @@ class PdfPageFlow {
   final double margin;
 
   double _used = 0;
+  int _pageBreaks = 0;
 
   /// Height of the current page already accounted for.
   double get used => _used;
+
+  /// How many times content has overflowed onto a fresh page.
+  ///
+  /// `used` then describes only the *last* page, so anything reasoning about
+  /// leftover space has to check this first rather than trusting `used`.
+  int get pageBreaks => _pageBreaks;
+
+  /// Start a fresh page.
+  ///
+  /// Every reset goes through here. `used` alone cannot be trusted to reveal a
+  /// break — it reads the same either way — so [pageBreaks] is what a caller
+  /// checks before reasoning about the page as a whole. A reset that skipped
+  /// the counter would leave it reporting a single page for a document that had
+  /// already spilled onto a second one.
+  void _breakPage() {
+    _used = 0;
+    _pageBreaks++;
+  }
+
+  /// Start a new page deliberately.
+  ///
+  /// Must be paired with a `pw.NewPage` in the widget list, so the flow's
+  /// arithmetic and the pdf package's own pagination agree. Telling only one of
+  /// them leaves the flow packing against a page that no longer exists.
+  void breakPage() => _breakPage();
 
   /// Reserve [height] of vertical space, starting a new page first if it will
   /// not fit on the current one.
   void consume(double height) {
     if (height <= 0) return;
-    if (_used + height > contentHeight - margin) _used = 0;
+    if (_used + height > contentHeight - margin) _breakPage();
     _used += height;
   }
 
@@ -611,7 +644,7 @@ class PdfPageFlow {
       if (count == 0) {
         // Nothing fits on the rest of this page — most likely because it is
         // nearly full. Move to a fresh page and try again.
-        _used = 0;
+        _breakPage();
         count = _largestPrefix(
             questionHeight, question, columns, contentHeight - margin);
         if (count == 0) count = 1; // taller than a page; emit rather than drop
@@ -654,7 +687,8 @@ class PdfPageFlow {
       ]);
 
       _used += _tallestOf(groups, slice) + trailingGap;
-      if (_used >= contentHeight - margin) _used = 0;
+      // The page is full, so whatever comes next starts another one.
+      if (_used >= contentHeight - margin) _breakPage();
 
       start = end;
       if (start >= fragments.length) break;

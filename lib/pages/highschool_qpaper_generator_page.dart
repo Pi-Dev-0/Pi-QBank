@@ -193,7 +193,7 @@ class _HighSchoolQPaperGeneratorPageState
 
   // ── Question sets ────────────────────────────────────────────────────────
   //
-  // A paper can be printed as two variants ("ক-সেট" / "খ-সেট") so that two
+  // A paper can be printed as two variants ("ক" / "খ") so that two
   // students sitting next to each other are not handed the same paper. Both
   // sets go into one document: generating two PDFs separately wastes a page
   // each, because a set with only a few questions never fills its sheet.
@@ -249,8 +249,8 @@ class _HighSchoolQPaperGeneratorPageState
 
   /// Names shown on each set's banner.
   final List<TextEditingController> _setLabelControllers = [
-    TextEditingController(text: 'ক-সেট'),
-    TextEditingController(text: 'খ-সেট'),
+    TextEditingController(text: 'ক'),
+    TextEditingController(text: 'খ'),
   ];
 
   /// The labels in play, in order. One entry when [twoSets] is off.
@@ -884,6 +884,7 @@ class _HighSchoolQPaperGeneratorPageState
   bool _inlineSectionBanner(QuestionLayout layout) =>
       _twoSets && layout.mcqColumns > 1;
 
+  /// Appends one set's masthead and sections.
   void _appendPdfSet(
     List<pw.Widget> widgets,
     PdfPageFlow flow, {
@@ -903,16 +904,6 @@ class _HighSchoolQPaperGeneratorPageState
     required Map<String, Uint8List> stemImages,
   }) {
     // ── Header ─────────────────────────────────────────────────────────
-    // A set after the first starts with a visible break, so the boundary is
-    // obvious when both halves are printed on one sheet.
-    if (setLabel.isNotEmpty && !isFirstSet) {
-      widgets.add(pw.SizedBox(height: PdfLayout.setDividerGapAbove));
-      widgets.add(_pdfDashedLine(color: PdfColors.grey500));
-      widgets.add(pw.SizedBox(height: PdfLayout.setDividerGapBelow));
-      flow.consume(
-          PdfLayout.setDividerGapAbove + PdfLayout.setDividerGapBelow + 1);
-    }
-
     widgets.add(_buildPdfHeader(
       schoolName: _schoolCtrl.text,
       examName: _examCtrl.text,
@@ -1540,13 +1531,11 @@ class _HighSchoolQPaperGeneratorPageState
         final labels = _setLabels;
 
         // One set, or two variants of the same paper on the same document.
-        // Two separate PDFs would each waste a page, because a set with only a
-        // handful of questions never fills a sheet on its own.
-        for (var s = 0; s < labels.length; s++) {
+        void addSet(List<pw.Widget> into, PdfPageFlow intoFlow, int s) {
           final setQuestions = _questionsForSet(s);
           _appendPdfSet(
-            widgets,
-            flow,
+            into,
+            intoFlow,
             cqs: setQuestions.where((q) => q.isCq).toList(),
             mcqs: setQuestions.where((q) => q.isMcq).toList(),
             shorts: setQuestions.where((q) => q.isShort).toList(),
@@ -1564,15 +1553,50 @@ class _HighSchoolQPaperGeneratorPageState
           );
         }
 
-        widgets.add(pw.SizedBox(height: 12));
-        widgets.add(pw.Divider(thickness: 0.8, color: PdfColors.grey300));
-        widgets.add(pw.SizedBox(height: 6));
-        widgets.add(pw.RichText(
-          text: _mixedText(
-              'Generated from the Pi-QBank platform — https://pi-qbank.blogspot.com',
-              smallStyle),
-          textAlign: pw.TextAlign.center,
-        ));
+        for (var s = 0; s < labels.length; s++) {
+          if (s > 0) {
+            // Share the sheet if this set fits in what is left of it, otherwise
+            // start a fresh one.
+            //
+            // It has to be measured first. Whole-question packing refuses to
+            // split a question across a boundary, so when the first question of
+            // the second set would not fit, it used to jump to a new page and
+            // leave a large blank behind — often stranding the masthead alone at
+            // the foot of the first page with its questions overleaf.
+            //
+            // Laid out against a page of its own to find out what it needs.
+            // Building widgets costs nothing; only drawing them does.
+            final probe = <pw.Widget>[];
+            final probeFlow =
+                PdfPageFlow(contentHeight: PdfLayout.contentHeight);
+            addSet(probe, probeFlow, s);
+
+            final remaining = PdfLayout.contentHeight - flow.used - flow.margin;
+            final divider = labels.length > 1
+                ? PdfLayout.setDividerGapAbove +
+                    PdfLayout.setDividerGapBelow +
+                    1
+                : 0.0;
+
+            if (probeFlow.used + divider > remaining) {
+              // Both halves must agree on the break: `pw.NewPage` makes the pdf
+              // package start a sheet, and `flow.breakPage` stops the estimator
+              // packing against the page it has just left. Telling only one
+              // leaves the two disagreeing about where the page ended.
+              widgets.add(pw.NewPage());
+              flow.breakPage();
+            } else if (divider > 0) {
+              // A fixed rule, not one sized from the leftover height: a computed
+              // gap is what pushes content onto the next page when the estimate
+              // runs out.
+              widgets.add(pw.SizedBox(height: PdfLayout.setDividerGapAbove));
+              widgets.add(_pdfDashedLine(color: PdfColors.grey500));
+              widgets.add(pw.SizedBox(height: PdfLayout.setDividerGapBelow));
+              flow.consume(divider);
+            }
+          }
+          addSet(widgets, flow, s);
+        }
 
         return widgets;
       },
@@ -3382,7 +3406,7 @@ class _HighSchoolQPaperGeneratorPageState
                           color: _kDarkText)),
                   const SizedBox(height: 3),
                   Text(
-                    'ক-সেট ও খ-সেট একই পেজে তৈরি হবে — আলাদা করে তৈরি করলে '
+                    'ক ও খ একই পেজে তৈরি হবে — আলাদা করে তৈরি করলে '
                     'প্রতিটির একটা পেজ নষ্ট হয়।',
                     style: TextStyle(fontSize: 11, color: _kSubText),
                   ),

@@ -366,8 +366,6 @@ class HighSchoolExportService {
       buffer.writeln();
     }
 
-    buffer.writeln(divider);
-    buffer.writeln('জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে');
     return buffer.toString();
   }
 
@@ -539,14 +537,6 @@ class HighSchoolExportService {
     .rq-mark {
       font-weight: bold;
       white-space: nowrap;
-    }
-    .footer-note {
-      margin-top: 20pt;
-      border-top: 1pt dashed #888888;
-      font-size: 9pt;
-      color: #666666;
-      text-align: center;
-      padding-top: 6pt;
     }
     .frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }
     .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
@@ -734,7 +724,6 @@ class HighSchoolExportService {
     }
 
     buffer.write('''
-  <div class="footer-note">জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে</div>
 </div>
 </body>
 </html>
@@ -910,14 +899,6 @@ class HighSchoolExportService {
       page-break-inside: avoid;
     }
     .rq-mark { font-weight: 700; white-space: nowrap; }
-    .footer-watermark {
-      margin-top: 32px;
-      text-align: center;
-      font-size: 12px;
-      color: #94a3b8;
-      border-top: 1px solid #e2e8f0;
-      padding-top: 12px;
-    }
 
     @media print {
       body { background: white; padding: 0; }
@@ -1043,7 +1024,6 @@ class HighSchoolExportService {
     }
 
     buffer.write('''
-    <div class="footer-watermark">জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে</div>
   </div>
 </body>
 </html>
@@ -1131,8 +1111,6 @@ class HighSchoolExportService {
       }
       buffer.writeln();
     }
-
-    buffer.writeln('\n*জেনারেট করা হয়েছে Pi-QBank প্ল্যাটফর্ম থেকে*');
     return buffer.toString();
   }
 
