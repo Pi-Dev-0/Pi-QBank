@@ -782,7 +782,14 @@ void main() {
       // Without it the heading fragment sits flush against the first card,
       // because in that layout there is no SizedBox of its own beneath it.
       expect(PdfLayout.mergedHeadingGap, greaterThanOrEqualTo(6));
-      expect(PdfLayout.mergedHeadingGap, lessThanOrEqualTo(12));
+      expect(PdfLayout.mergedHeadingGap, lessThanOrEqualTo(20));
+    });
+
+    test('matches the gap under a standalone section banner', () {
+      // A heading is a full-width bar. If the two layouts gave it different
+      // amounts of air, the same paper would look different depending only on
+      // whether CQ and the short questions had been merged.
+      expect(PdfLayout.mergedHeadingGap, PdfLayout.sectionBannerGap);
     });
 
     test('the gap is drawn, not merely reserved', () {

@@ -135,6 +135,19 @@ class PdfLayout {
   /// the others.
   static const double sectionGap = 5;
 
+  /// Space between a section's heading and its first question.
+  ///
+  /// Was a bare 10pt sitting next to the heading in three places. Named because
+  /// the heading is a full-width bar: without any break under it the first
+  /// question reads as part of the bar rather than as the first item of the
+  /// section.
+  ///
+  /// Raised to 16 for that reason, then dialled back twice (13, then 10) as too
+  /// open once it was visible in the two-set layout.
+  ///
+  /// The renderer draws a SizedBox of exactly this and the flow charges exactly
+  /// this, so the two cannot drift apart.
+  static const double sectionBannerGap = 10;
 
   /// The masthead's own name for [sectionGap], for readability at the call site.
   static const double headerAfterGap = sectionGap;
@@ -152,7 +165,10 @@ class PdfLayout {
   /// `SizedBox` of its own beneath it; in the merged flow the heading rides in
   /// the column as a fragment, so without this it would sit flush against the
   /// first card.
-  static const double mergedHeadingGap = 8;
+  ///
+  /// The same value as [sectionBannerGap] so a heading looks identical whether
+  /// CQ and the short questions were merged or not.
+  static const double mergedHeadingGap = sectionBannerGap;
 
   /// Height of the school/exam header, mirroring the header widget.
   ///

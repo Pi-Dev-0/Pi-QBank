@@ -68,6 +68,7 @@ const _kSubjectsByClass = {
     'বাংলা',
     'English',
     'হিসাববিজ্ঞান',
+    'তথ্য ও যোগাযোগ প্রযুক্তি',
   ],
   'Class (11-12) HSC': [
     'উচ্চতর গণিত',
@@ -78,6 +79,7 @@ const _kSubjectsByClass = {
     'English',
     'হিসাববিজ্ঞান',
     'অর্থনীতি',
+    'তথ্য ও যোগাযোগ প্রযুক্তি',
   ],
 };
 
@@ -947,13 +949,12 @@ class _HighSchoolQPaperGeneratorPageState
       if (cqs.isNotEmpty) {
         final cqBanner = _pdfSectionBanner(
             'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', boldStyle.copyWith(fontSize: 11));
-        if (_inlineSectionBanner(_cqLayout)) {
-          // Drawn inside the first block's left column instead of spanning the
-          // page; its height is charged to the flow so the block still fits.
-          flow.consume(bannerHeight);
-        } else {
+        // Inline means the heading rides at the top of the first block's left
+        // column instead of spanning the page — see the insert below. A
+        // full-width box thrown across a narrow half-sheet wastes a line.
+        final cqInline = _inlineSectionBanner(_cqLayout);
+        if (!cqInline) {
           widgets.add(cqBanner);
-          flow.consume(bannerHeight);
         }
         // Optional "answer any N questions" note.
         final answerAny = _cqAnswerCount;
@@ -968,8 +969,17 @@ class _HighSchoolQPaperGeneratorPageState
               metrics.lineHeight('[যেকোনো $answerAny টি প্রশ্নের উত্তর দাও]',
                   fontSize: PdfLayout.smallFontSize));
         }
-        widgets.add(pw.SizedBox(height: 10));
-        flow.consume(bannerHeight + 10);
+        // The heading needs air *under* it. When it is inline it is drawn
+        // inside the first column, so a SizedBox added here would sit above the
+        // heading and leave it flush against the first question — which is
+        // exactly what it looked like.
+        if (!cqInline) {
+          widgets.add(pw.SizedBox(height: PdfLayout.sectionBannerGap));
+        }
+        // bannerHeight is charged here and nowhere else. The inline/full-width
+        // branch used to charge it as well, so the flow reserved the heading's
+        // height twice in the two-set layout and every column came up short.
+        flow.consume(bannerHeight + PdfLayout.sectionBannerGap);
 
         // Balanced newspaper columns rather than rows of two, so a short
         // question no longer inherits the full height of the tallest
@@ -1026,10 +1036,13 @@ class _HighSchoolQPaperGeneratorPageState
               afterQuestion: () => pw.SizedBox(height: PdfLayout.cqCardGap),
             ));
           }
-          if (bi == 0 &&
-              _inlineSectionBanner(_cqLayout) &&
-              columns.isNotEmpty) {
-            columns.first.insert(0, cqBanner);
+          if (bi == 0 && cqInline && columns.isNotEmpty) {
+            // The heading carries its own gap into the column, so it reads the
+            // same as a full-width one.
+            columns.first.insertAll(0, [
+              cqBanner,
+              pw.SizedBox(height: PdfLayout.sectionBannerGap),
+            ]);
           }
           widgets.add(_pdfColumnRow(columns));
           widgets.add(pw.SizedBox(height: 16));
@@ -1061,8 +1074,14 @@ class _HighSchoolQPaperGeneratorPageState
           widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
           widgets.add(rqBanner);
         }
-        widgets.add(pw.SizedBox(height: 10));
-        flow.consume(PdfLayout.sectionGap + bannerHeight + 10);
+        // Under the heading, which is inside the column when rqInline — see
+        // the insert below.
+        if (!rqInline) {
+          widgets.add(pw.SizedBox(height: PdfLayout.sectionBannerGap));
+        }
+        flow.consume((rqInline ? 0 : PdfLayout.sectionGap) +
+            bannerHeight +
+            PdfLayout.sectionBannerGap);
 
         final rqCols = _rqLayout.mcqColumns;
         final rqWidth = PdfLayout.columnWidth(rqCols);
@@ -1110,7 +1129,10 @@ class _HighSchoolQPaperGeneratorPageState
             ));
           }
           if (bi == 0 && rqInline && columns.isNotEmpty) {
-            columns.first.insert(0, rqBanner);
+            columns.first.insertAll(0, [
+              rqBanner,
+              pw.SizedBox(height: PdfLayout.sectionBannerGap),
+            ]);
           }
           widgets.add(_pdfColumnRow(columns));
         }
@@ -1188,13 +1210,20 @@ class _HighSchoolQPaperGeneratorPageState
           text: _mixedText('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
               smallStyle.copyWith(fontStyle: pw.FontStyle.italic)),
           textAlign: pw.TextAlign.center));
-      widgets.add(pw.SizedBox(height: 10));
-      flow.consume(PdfLayout.sectionGap +
+      // Under the heading, which is inside the column when mcqInline — see the
+      // insert below.
+      if (!mcqInline) {
+        widgets.add(pw.SizedBox(height: PdfLayout.sectionBannerGap));
+      }
+      // Charge exactly what is drawn: the leading gap only exists when the
+      // banner spans the page, because an inline banner sits inside the first
+      // column instead.
+      flow.consume((mcqInline ? 0 : PdfLayout.sectionGap) +
           bannerHeight +
           4 +
           metrics.lineHeight('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]',
               fontSize: PdfLayout.smallFontSize) +
-          10);
+          PdfLayout.sectionBannerGap);
 
       // MCQ arranged in balanced columns per the layout setting.
       final cols = _mcqLayout.mcqColumns;
@@ -1241,7 +1270,10 @@ class _HighSchoolQPaperGeneratorPageState
           ));
         }
         if (bi == 0 && mcqInline && columns.isNotEmpty) {
-          columns.first.insert(0, mcqBanner);
+          columns.first.insertAll(0, [
+            mcqBanner,
+            pw.SizedBox(height: PdfLayout.sectionBannerGap),
+          ]);
         }
         widgets.add(_pdfColumnRow(columns));
         widgets.add(pw.SizedBox(height: 12));
