@@ -1465,6 +1465,65 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // DIAGNOSIS
+    // ═══════════════════════════════════════════════════════════════
+
+    // Apps Script never answers a POST with an HTML page on its own. When one
+    // comes back, Google did not run the script at all: the request was
+    // redirected to a sign-in or consent screen, or to the "deployment missing"
+    // page. The two need completely different fixes, so they are told apart
+    // here rather than sending everyone to run the function in the editor.
+    function describeFailure(xhr, body) {
+      const head = [
+        `HTTP ${xhr.status}`,
+        xhr.getResponseHeader('content-type') || 'no content type',
+      ].join(', ');
+      const snippet = body.replace(/\s+/g, ' ').slice(0, 200);
+
+      // Google's account shell: any of these markers mean we were bounced to a
+      // sign-in page rather than being answered by the script.
+      const isSignIn =
+        body.indexOf('ppConfig') !== -1 ||
+        body.indexOf('ServiceLogin') !== -1 ||
+        body.indexOf('accounts.google.com') !== -1 ||
+        body.indexOf('needsAuthorisation') !== -1;
+
+      if (isSignIn) {
+        return (
+          `The script did not run — Google returned its sign-in page (${head}). ` +
+          'Nothing was uploaded by this attempt. Fix: in Apps Script open ' +
+          'Deploy ▸ Manage deployment, set "Who has access" to Anyone, then ' +
+          'copy the /exec URL again and paste it into APPS_SCRIPT_URL. ' +
+          `Server said: ${snippet}`
+        );
+      }
+
+      if (xhr.status === 404) {
+        return (
+          `HTTP 404 — the deployment in APPS_SCRIPT_URL no longer exists. ` +
+          'This happens when the script is redeployed as a new version without ' +
+          'the old deployment kept, or when the URL is a /dev URL rather than ' +
+          '/exec. Check Deploy ▸ Manage deployment and copy the current /exec URL. ' +
+          `Server said: ${snippet}`
+        );
+      }
+
+      if (xhr.status === 405) {
+        return (
+          `HTTP 405 — the endpoint refused the POST. Apps Script only answers ` +
+          'POSTs from doPost; if APPS_SCRIPT_URL points at a /dev or a plain ' +
+          'google.com script URL rather than script.google.com/.../exec, use the ' +
+          '/exec URL.'
+        );
+      }
+
+      return (
+        `Upload failed: the server did not return JSON (${head}). ` +
+        `Server said: ${snippet}`
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // UPLOAD
     // ═══════════════════════════════════════════════════════════════
     function showStatus(type, message) {
@@ -1507,14 +1566,7 @@
           // HTML page when the POST is redirected to a sign-in/consent screen
           // or the script fails to load, and reporting those as "uploaded"
           // hides the problem until someone checks the sheet by hand.
-          showStatus(
-            'error',
-            'Upload failed: the server did not return JSON ' +
-              `(HTTP ${xhr.status}, ${(xhr.getResponseHeader('content-type') || 'no content type')}). ` +
-              'If this is a Google sign-in or "needs authorisation" page, open the Apps Script ' +
-              'editor, run the function once to grant access, then redeploy. ' +
-              'Server said: ' + body.replace(/\s+/g, ' ').slice(0, 300)
-          );
+          showStatus('error', describeFailure(xhr, body));
           return;
         }
 
