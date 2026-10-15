@@ -43,11 +43,11 @@ String sampleHtml({
 /// The stylesheet of a generated paper.
 String cssOf(String html) => html.split('<style>')[1].split('</style>')[0];
 
-/// The declarations inside one CSS rule, by selector.
+/// The declarations inside one CSS rule, by selector, exactly as written.
 String rule(String css, String selector) {
   final match =
       RegExp('${RegExp.escape(selector)}\\s*\\{([^}]*)\\}').firstMatch(css);
-  return match == null ? '' : match.group(1)!.replaceAll('\n', ' ');
+  return match == null ? '' : match.group(1)!;
 }
 
 /// One declaration's value inside a rule body, or null when it is not set.
@@ -221,17 +221,6 @@ void main() {
   test('the page is black on white, with the marks a touch grey', () {
     // The PDF writes its text in pure black and its marks in grey; the page
     // follows, so the two exports read the same.
-    // ignore: avoid_print
-    print('DEBUG root=${rule(css, ':root').length} '
-        'text=${decl(rule(css, ':root'), '--text')} '
-        'primary=${decl(rule(css, ':root'), '--primary')} '
-        'muted=${decl(rule(css, ':root'), '--muted')}');
-    final dbgBody = rule(css, ':root');
-    final dbgAt = dbgBody.indexOf('--text');
-    // ignore: avoid_print
-    print('DEBUG at=$dbgAt near=${(dbgAt < 0 ? '' : dbgBody.substring(dbgAt - 30, dbgAt + 12)).replaceAll('\n', '|')} '
-        'ml=${RegExp('(?:^|;)\\s*--text\\s*:([^;]*)', multiLine: true).hasMatch(dbgBody)} '
-        'simple=${RegExp('--text\\s*:([^;]*)').hasMatch(dbgBody)}');
     expect(decl(rule(css, ':root'), '--text'), '#000000');
     expect(rule(css, '.cq-mark'), contains('var(--muted)'));
     expect(rule(css, '.rq-mark'), contains('var(--muted)'));
