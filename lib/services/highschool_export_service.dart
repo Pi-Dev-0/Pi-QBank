@@ -865,17 +865,17 @@ class HighSchoolExportService {
     .btn-outline { background: white; border: 1px solid #cbd5e1; color: var(--text); }
     .btn-outline:hover { background: #f1f5f9; }
 
-    /* The sheet *is* an A4 page: the same 210×297mm canvas and the same margins
-       the PDF export uses — 40pt down each side, 18pt at the head, 6pt at the
-       foot. Same paper, same text width, so a line that wraps here wraps the
-       same way in the PDF: the canvas on screen is what the printer produces. */
+    /* The sheet *is* an A4 page: the same 210×297mm canvas the PDF export uses,
+       the same 18pt at the head and 40pt down each side, and a foot of 18px.
+       Same paper, same text width, so a line that wraps here wraps the same way
+       in the PDF: the canvas on screen is what the printer produces. */
     .paper-sheet {
       width: 210mm;
       max-width: 100%;
       min-height: 297mm;
       margin: 0 auto;
       background: white;
-      padding: 18pt 40pt 6pt;
+      padding: 18pt 40pt 18px;
       border-radius: 8px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
     }
@@ -896,7 +896,7 @@ class HighSchoolExportService {
       break-after: avoid;
     }
     .school-title { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 4px; }
-    .exam-title { font-size: 18px; font-weight: 600; text-align: center; margin-bottom: 12px; }
+    .exam-title { font-size: 18px; font-weight: 600; text-align: center; }
     .meta-bar {
       display: flex;
       justify-content: space-between;
@@ -914,10 +914,10 @@ class HighSchoolExportService {
        three sections sit the same distance apart in both exports. */
     .section-banner {
       text-align: center;
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 700;
       background: #f1f5f9;
-      padding: 6px 12px;
+      padding: 3px 6px;
       border-radius: 6px;
       margin: 5pt 0 10pt 0;
       border: 1px solid #e2e8f0;
@@ -932,7 +932,7 @@ class HighSchoolExportService {
        the bar from being stranded at the foot of a column with its questions
        overleaf. */
     .section-banner.in-flow {
-      margin: 0 0 10pt 0;
+      margin: 0 0 6px 0;
       break-after: avoid;
     }
     /* No frame around a question. The two sides are divided by one vertical
@@ -946,11 +946,11 @@ class HighSchoolExportService {
        number on the continuation — is what lets the two sides finish level.
        `widows`/`orphans` keep a split from leaving one line behind. */
     .cq-card {
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       orphans: 2;
       widows: 2;
     }
-    .cq-stem { font-size: 15px; margin-bottom: 12px; }
+    .cq-stem { font-size: 15px; margin-bottom: 5px; }
     .cq-stem-img {
       display: block;
       max-width: 100%;
@@ -958,12 +958,14 @@ class HighSchoolExportService {
       margin: 0 auto 12px auto;
       object-fit: contain;
     }
+    /* A sub-question row under its stem: just a small indent and the mark on
+       the right. No margin of its own — the line boxes are the whole of the
+       spacing, so the run sits tight. */
     .cq-sub-item {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 6px;
       font-size: 14px;
-      padding-left: 12px;
+      padding-left: 6px;
     }
     .cq-mark {
       font-weight: 700;
@@ -1022,15 +1024,15 @@ class HighSchoolExportService {
     @media print {
       body { background: white; padding: 0; }
       .no-print-toolbar { display: none !important; }
-      /* No margin on the page box: the sheet carries the PDF's margins, so a
-         printed page breaks where the exported PDF page breaks. */
+      /* No margin on the page box: the sheet carries the page's own margins, so
+         a printed page breaks where the exported PDF page breaks. */
       .paper-sheet {
         width: auto;
         max-width: none;
         min-height: 0;
         box-shadow: none;
         border-radius: 0;
-        padding: 18pt 40pt 6pt;
+        padding: 18pt 40pt 18px;
       }
       .paper-sheet + .paper-sheet { break-before: page; margin-top: 0; }
     }
@@ -1086,7 +1088,9 @@ class HighSchoolExportService {
        does not, the second set moves into a sheet of its own and the printer —
        which breaks between sheets — puts it on a page of its own. Measured
        rather than guessed: the sheet is A4 wide either way, so what fits here is
-       what fits on paper. */
+       what fits on paper. A pair that fits gets the page's leftover space put
+       between the sets, so the second one reaches the foot of the page instead
+       of leaving a band of white under it. */
     (function () {
       function decide() {
         var sheet = document.querySelector('.paper-sheet');
@@ -1095,23 +1099,42 @@ class HighSchoolExportService {
             sheet.querySelectorAll(':scope > .paper-set'));
         if (sets.length < 2) return;
 
+        var style = getComputedStyle(sheet);
+        var padTop = parseFloat(style.paddingTop);
+        var padBottom = parseFloat(style.paddingBottom);
+
         // A page's worth of room, from the page box itself rather than a
         // hard-coded number of pixels.
-        var style = getComputedStyle(sheet);
         var probe = document.createElement('div');
         probe.style.cssText =
             'position:absolute;visibility:hidden;width:0;height:297mm;';
         document.body.appendChild(probe);
-        var room = probe.getBoundingClientRect().height -
-            parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        var room = probe.getBoundingClientRect().height - padTop - padBottom;
         probe.remove();
 
-        var divider = sheet.querySelector(':scope > .set-divider');
-        var used = sets.reduce(function (sum, set) {
-          return sum + set.getBoundingClientRect().height;
-        }, divider ? divider.getBoundingClientRect().height : 0);
+        // What the sets take right now — the rule between them and every margin
+        // included. Measured with the page's own minimum height out of the way,
+        // so a short pair reports its real height and not a full page.
+        var minHeight = sheet.style.minHeight;
+        sheet.style.minHeight = '0';
+        var used = sheet.getBoundingClientRect().height - padTop - padBottom;
+        sheet.style.minHeight = minHeight;
 
-        if (used <= room) return;
+        var divider = sheet.querySelector(':scope > .set-divider');
+        if (used <= room) {
+          if (divider) {
+            // The leftover belongs between the sets: half above the rule and
+            // half below, so it marks the middle of the separation and the
+            // second set finishes level with the foot of the page.
+            var slack = (room - used) / 2;
+            var rule = getComputedStyle(divider);
+            divider.style.marginTop =
+                (parseFloat(rule.marginTop) + slack) + 'px';
+            divider.style.marginBottom =
+                (parseFloat(rule.marginBottom) + slack) + 'px';
+          }
+          return;
+        }
 
         var anchor = sheet;
         for (var i = 1; i < sets.length; i++) {

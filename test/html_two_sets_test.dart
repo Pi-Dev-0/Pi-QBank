@@ -195,6 +195,11 @@ void main() {
       expect(html, contains('297mm'));
       expect(html, contains("querySelectorAll(':scope > .paper-set')"));
       expect(html, contains('break-before: page'));
+
+      // A pair that does fit keeps the page's leftover space between the sets,
+      // so the second one ends at the foot of the page.
+      expect(html, contains('divider.style.marginTop'));
+      expect(html, contains('divider.style.marginBottom'));
     });
   });
 

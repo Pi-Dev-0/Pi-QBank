@@ -99,7 +99,9 @@ void main() {
     // padding: top right bottom — left follows the right.
     expect(sides[0], PdfLayout.pageMarginTop);
     expect(sides[1], PdfLayout.pageMarginH);
-    expect(sides[2], PdfLayout.pageMarginBottom);
+    // The foot is a shade deeper than the PDF's own: the last line of a full
+    // page ends clear of the paper's edge instead of on it.
+    expect(sides[2], closeTo(points('18px'), 0.01));
   });
 
   test('the text column is exactly as wide as the PDF page', () {
@@ -119,7 +121,7 @@ void main() {
     expect(paddingSides(decl(rule(printed, '.paper-sheet'), 'padding')!), [
       PdfLayout.pageMarginTop,
       PdfLayout.pageMarginH,
-      PdfLayout.pageMarginBottom,
+      points('18px'),
     ]);
     // min-height is a screen-only conceit: on paper it would add a blank page.
     expect(points(decl(rule(printed, '.paper-sheet'), 'min-height')!), 0);
@@ -142,6 +144,10 @@ void main() {
     // The masthead adds no band of its own: the first banner's sectionGap *is*
     // the gap under the meta row.
     expect(points(decl(rule(css, '.meta-bar'), 'margin-bottom') ?? '0'), 0);
+
+    // The bar is a caption, not a heading: 14px on 3px 6px of padding.
+    expect(decl(rule(css, '.section-banner'), 'font-size'), '14px');
+    expect(decl(rule(css, '.section-banner'), 'padding'), '3px 6px');
   });
 
   test('a two-column block starts both columns level', () {
@@ -153,13 +159,14 @@ void main() {
     // The declaration inside the block gives up the gap above itself: a margin
     // on the first child of the flow would push the left column down and leave
     // the right column's first question above the heading beside it. The gap
-    // moves out to the container, which both columns share.
+    // moves out to the container, which both columns share. Below itself the
+    // bar sits a shade closer to its questions than the full-width one does.
     final inFlow = decl(rule(twoColumn, '.section-banner.in-flow'), 'margin')!
         .split(RegExp(r'\s+'))
         .map(points)
         .toList();
     expect(inFlow[0], 0);
-    expect(inFlow[2], PdfLayout.sectionBannerGap);
+    expect(inFlow[2], closeTo(points('6px'), 0.01));
     expect(points(decl(rule(twoColumn, '.cq-grid'), 'margin-top')!),
         PdfLayout.sectionGap);
 
