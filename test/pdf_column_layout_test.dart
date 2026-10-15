@@ -107,6 +107,26 @@ void main() {
     test('never zero, even for blank text', () {
       expect(m.lineHeight('', fontSize: 11), greaterThan(0));
     });
+
+    test('a Bangla-only line is taller than its glyph box', () {
+      // The Bijoy font's glyphs sit above the baseline and report a *positive*
+      // descent, and the page clamps a line's top at the baseline — so a Bangla
+      // line is as tall as the font's ascent (0.800em), not the 0.600em its
+      // glyph boxes span. Read as 0.6em, every Bangla-only line measured 2.2pt
+      // short; ten of those on a page overflowed it and displaced a whole row.
+      final bangla = m.lineHeight('সংখ্যা এবং', fontSize: 11);
+      expect(bangla, greaterThan(7.5));
+      expect(bangla, lessThan(11));
+    });
+
+    test('Latin in a Bangla line raises it to the Latin box', () {
+      // Latin drops the descent below the baseline, so the line spans the full
+      // Helvetica box even though the Bangla words alone are shorter.
+      expect(m.lineHeight('সংখ্যা এবং x', fontSize: 11),
+          closeTo(12.716, 0.01));
+      expect(m.lineHeight('সংখ্যা এবং x', fontSize: 11),
+          greaterThan(m.lineHeight('সংখ্যা এবং', fontSize: 11)));
+    });
   });
 
   group('line counting', () {
@@ -118,6 +138,37 @@ void main() {
       // An empty span emits no line box, so a stemless CQ must not be charged.
       expect(m.countLines('', width: 200, fontSize: 11), 0);
       expect(m.countLines('   ', width: 200, fontSize: 11), 0);
+    });
+
+    test('a hard line break ends the line', () {
+      // The page splits every span on '\n', so a stem that carries one is two
+      // lines however wide the column is. Read as an ordinary character it
+      // glued both halves together and measured every such stem a line short —
+      // enough to push a whole block onto the next page and leave the page it
+      // belonged on blank.
+      const above = 'কোনো একটি বিদ্যালয়ের শিক্ষার্থী';
+      const below = 'ক্রিকেট খেলতে পছন্দ করে।';
+      const stem = '$above\n$below';
+      expect(m.countLines(stem, width: 500, fontSize: 11), 2);
+      expect(m.countLines(stem.replaceAll('\n', ' '), width: 500, fontSize: 11),
+          1);
+      // Both halves are charged their own line box.
+      expect(
+          m.blockHeight(stem, width: 500, fontSize: 11),
+          closeTo(
+              m.lineHeight(above, fontSize: 11) +
+                  m.lineHeight(below, fontSize: 11),
+              0.01));
+    });
+
+    test('a blank line between two lines still takes a line', () {
+      const text = 'সংখ্যা\n\nএবং';
+      expect(m.countLines(text, width: 500, fontSize: 11), 3);
+      // The page charges a wordless line `font.emptyLineHeight`, which for the
+      // Bijoy font is ascent minus descent: 0.800 - 0.200 = 0.6em.
+      final withBlank = m.blockHeight(text, width: 500, fontSize: 11);
+      final without = m.blockHeight('সংখ্যা\nএবং', width: 500, fontSize: 11);
+      expect(withBlank - without, closeTo(6.6, 0.05));
     });
 
     test('long text wraps', () {
@@ -391,9 +442,12 @@ void main() {
           metrics: m,
           stackOptions: true);
       // The four stacked options dominate both totals, so the stem's extra
-      // wrapping shows up as a clear but not dramatic increase.
+      // wrapping shows up as a clear but not dramatic increase. The extra lines
+      // here are Bangla-only, and a Bangla-only line advances by the Bangla
+      // font's own line box (~0.6em) rather than the Latin one (~1.16em), so the
+      // long stem adds less than a line per wrapped line.
       expect(long, greaterThan(short));
-      expect(long - short, greaterThan(30));
+      expect(long - short, greaterThan(15));
     });
 
     test('a stemless CQ is only charged for its sub-questions', () {
@@ -708,6 +762,66 @@ void main() {
         }
       }
       expect(order, List.generate(12, (i) => i));
+    });
+
+    test('a run whose ids are not run indices still packs in order', () {
+      // The merged CQ + SQ run numbers its two headings *after* every question
+      // (`_appendPdfCqAndShortSection`), so reading order is
+      // `[heading, 0, 1, …, heading, cqCount, …]` and a fragment's id is no
+      // longer its run index. Resuming a block from the id rather than the run
+      // put the packer's cursor behind the block it had just measured, and the
+      // next slice threw:
+      //   RangeError (end): Invalid value: Not in inclusive range 46..130: 8
+      // The heights below are a 7 CQ + 7 SQ paper (ids 0-6 and 7-13, the two
+      // headings 14 and 15) that packed that way.
+      const paper = <List<double>>[
+        [14, 25.2],
+        [0, 111.0], [0, 74.0],
+        [1, 148.3], [1, 98.9],
+        [2, 116.9], [2, 77.9],
+        [3, 44.2],
+        [4, 120.4],
+        [5, 201.9],
+        [6, 148.0], [6, 98.7],
+        [15, 20.1],
+        [7, 166.7],
+        [8, 238.2],
+        [9, 40.4],
+        [10, 99.6],
+        [11, 295.3],
+        [12, 68.4],
+        [13, 144.8],
+      ];
+
+      final seenInQuestion = <int, int>{};
+      final fragments = <PdfFlowFragment>[
+        for (final piece in paper)
+          () {
+            final id = piece[0].toInt();
+            final index = seenInQuestion.update(id, (n) => n + 1,
+                ifAbsent: () => 0);
+            // How many pieces the question has, so `isLast` is right.
+            final total =
+                paper.where((p) => p[0].toInt() == id).length;
+            return PdfFlowFragment(
+                height: piece[1],
+                question: id,
+                indexInQuestion: index,
+                isFirst: index == 0,
+                isLast: index == total - 1);
+          }()
+      ];
+
+      final rows = PdfPageFlow(contentHeight: PdfLayout.contentHeight)
+          .layoutFragments(fragments: fragments, columns: 2, trailingGap: 16);
+
+      // Every fragment is laid out exactly once, in reading order.
+      final flat = <int>[
+        for (final row in rows)
+          for (final column in row)
+            for (final f in column) fragments.indexOf(f)
+      ];
+      expect(flat, List.generate(fragments.length, (i) => i));
     });
 
     test('empty input produces no rows', () {

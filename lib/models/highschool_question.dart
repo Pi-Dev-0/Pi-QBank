@@ -175,6 +175,75 @@ class HighSchoolQuestion {
       questionType.toUpperCase() == 'RQ' ||
       questionType.toUpperCase() == 'SHORT';
 
+  /// [stemText] as it should be printed.
+  ///
+  /// The sheet stores a question's source twice: in [boardYearTag], and again
+  /// pasted onto the end of the stem in brackets. A question paper prints
+  /// neither, and the second copy is what left "মাদ্রাসা বোর্ড ২০১৮" sitting at
+  /// the end of a CQ stem.
+  ///
+  /// Two shapes turn up in the data:
+  ///
+  ///   * spelled out — `… পরামর্শ নিলেন। [মাদ্রাসা বোর্ড ২০১৮]`, where the
+  ///     bracket repeats [boardYearTag] exactly;
+  ///   * abbreviated — `[দি.বো.'১৭]`, which never matches the tag column
+  ///     character for character, so an equality test alone misses it.
+  ///
+  /// A *trailing* bracket is therefore dropped when it is the tag itself, or
+  /// when it reads as a source marker: short, free of sentence punctuation, and
+  /// naming a board, school or college. Anything else is left exactly as
+  /// written, so a stem is never clipped for any other reason.
+  String get paperStemText => _withoutSourceMarker(stemText);
+
+  /// The MCQ question line as it should be printed.
+  ///
+  /// An MCQ keeps its question in the sub-question payload rather than in
+  /// [stemText], so a source marker can ride there instead. Trimmed the same
+  /// way, and for the same reason.
+  String get paperQuestionText {
+    final mcq = mcqData;
+    if (mcq == null) return '';
+    return _withoutSourceMarker(mcq.text);
+  }
+
+  /// Words that appear in this sheet only as the source of a question.
+  static const _sourceWords = <String>[
+    'বোর্ড',
+    'বো.',
+    'কলেজ',
+    'মাদ্রাসা',
+    'বিদ্যালয়',
+    'স্কুল',
+  ];
+
+  /// [text] with a trailing `[source]` marker removed, if it ends in one.
+  String _withoutSourceMarker(String text) {
+    final trimmed = text.trimRight();
+    if (!trimmed.endsWith(']')) return text;
+
+    final open = trimmed.lastIndexOf('[');
+    if (open < 0) return text;
+
+    final marker = trimmed.substring(open + 1, trimmed.length - 1).trim();
+    if (!_readsAsSource(marker)) return text;
+
+    return trimmed.substring(0, open).trimRight();
+  }
+
+  bool _readsAsSource(String marker) {
+    // A source marker is a label, not a sentence: anything long, or holding
+    // sentence punctuation, is part of the question and stays.
+    if (marker.isEmpty || marker.length > 48) return false;
+    if (marker.contains('।') || marker.contains('?')) return false;
+
+    // No source on the row means nothing to trim, whatever the brackets say.
+    final tag = boardYearTag.trim();
+    if (tag.isEmpty) return false;
+
+    if (marker == tag) return true;
+    return _sourceWords.any(marker.contains);
+  }
+
   /// Parsed CQ sub-questions (returns empty list for MCQ)
   List<CqSubQuestion> get cqSubQuestions {
     if (!isCq) return [];

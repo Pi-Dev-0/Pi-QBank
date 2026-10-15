@@ -121,6 +121,28 @@ extension QuestionLayoutMetrics on QuestionLayout {
       : 'প্রতি সারিতে একটি MCQ — প্রশ্ন ও অপশন সরল দেখা যায়';
 }
 
+/// One of the blocks a question paper is divided into.
+///
+/// The reader can drag the blocks into any order, and that order reaches the
+/// exports as a list of these — so the printed paper, the HTML preview and the
+/// reorder list in the app all agree. The বাংলা letter a block is headed with
+/// comes from its *position* in that list, not from its type: whichever block
+/// the reader put first is ক-বিভাগ.
+enum PaperSection {
+  /// সৃজনশীল প্রশ্ন.
+  cq,
+
+  /// সংক্ষিপ্ত প্রশ্ন (the sheet calls these RQ).
+  rq,
+
+  /// বহুনির্বাচনী প্রশ্ন.
+  mcq;
+
+  /// CQ, then the short questions, then MCQ — the order a paper is printed in
+  /// until the reader drags the blocks around.
+  static const List<PaperSection> defaultOrder = [cq, rq, mcq];
+}
+
 class HighSchoolExportService {
   HighSchoolExportService._();
 
@@ -309,7 +331,7 @@ class HighSchoolExportService {
       for (int i = 0; i < cqs.length; i++) {
         final q = cqs[i];
         final index = i + 1;
-        buffer.writeln('$index. ${latexToPlainText(q.stemText.trim())}');
+        buffer.writeln('$index. ${latexToPlainText(q.paperStemText.trim())}');
         if (q.boardYearTag.isNotEmpty) {
           buffer.writeln('   [উৎস: ${q.boardYearTag}]');
         }
@@ -340,7 +362,7 @@ class HighSchoolExportService {
         final index = i + 1;
         if (mcq == null) continue;
 
-        buffer.writeln('$index. ${mcq.text.trim()}');
+        buffer.writeln('$index. ${q.paperQuestionText}');
         final options = mcq.options;
         for (int optIdx = 0; optIdx < options.length; optIdx++) {
           final letter = optIdx < bengaliLetters.length
@@ -586,7 +608,7 @@ class HighSchoolExportService {
     <td class="cq-col-cell">
       <div class="cq-box">
         <div class="cq-stem">
-          <b>$index.</b> ${latexToHtml(_escapeXml(q.stemText))}
+          <b>$index.</b> ${latexToHtml(_escapeXml(q.paperStemText))}
           ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
         </div>
         ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
@@ -649,7 +671,7 @@ class HighSchoolExportService {
         if (mcq == null) return '<td class="mcq-col-cell"></td>';
         return '''
     <td class="mcq-col-cell">
-      <div class="mcq-question"><b>$index.</b> ${_escapeXml(mcq.text)}</div>
+      <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
       <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
     </td>''';
       }
@@ -743,14 +765,49 @@ class HighSchoolExportService {
     required String time,
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
+    List<String> setLabels = const [],
+    List<PaperSection> sectionOrder = PaperSection.defaultOrder,
     StemImageSize imageSize = StemImageSize.medium,
     QuestionLayout cqLayout = QuestionLayout.single,
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
   }) {
-    final cqs = questions.where((q) => q.isCq).toList();
-    final mcqs = questions.where((q) => q.isMcq).toList();
-    final shorts = questions.where((q) => q.isShort).toList();
+    // A two-set paper prints as two papers in one file. A question belongs to a
+    // set through [HighSchoolQuestion.setLabel], and a question the reader never
+    // filed into a set belongs to both — dropping it would silently lose a
+    // question from the paper.
+    final labels = [
+      for (final label in setLabels)
+        if (label.trim().isNotEmpty) label.trim(),
+    ];
+    final sets = <List<HighSchoolQuestion>>[
+      for (var i = 0; i < (labels.isEmpty ? 1 : labels.length); i++)
+        _questionsForSet(questions, labels, i),
+    ];
+
+    // The blocks the paper actually has, in the order the reader arranged them.
+    // Read off every question rather than one set, so a block that happens to be
+    // empty in one set keeps its letter in the other — the PDF does the same.
+    final ordered = <PaperSection>[
+      ...sectionOrder,
+      ...PaperSection.defaultOrder.where((s) => !sectionOrder.contains(s)),
+    ];
+    final sections = [
+      for (final s in ordered)
+        if (questions.any((q) => _sectionOf(q) == s)) s,
+    ];
+
+    // Which blocks are laid out in two columns, and whether CQ and the short
+    // questions share one continuous flow. The PDF merges the two the same way:
+    // they are packed together only while they sit next to each other and both
+    // are two-column. MCQ never joins the flow — its options lay out
+    // differently, and it wants a fresh pair of columns.
+    final twoColumnBlocks = <PaperSection>{
+      if (cqLayout.isDouble) PaperSection.cq,
+      if (rqLayout.isDouble) PaperSection.rq,
+      if (mcqLayout.isDouble) PaperSection.mcq,
+    };
+    final mergeCqAndShort = cqLayout.isDouble && rqLayout.isDouble;
 
     final buffer = StringBuffer();
     buffer.write('''
@@ -764,7 +821,10 @@ class HighSchoolExportService {
   <style>
     :root {
       --primary: #4f46e5;
-      --text: #1e293b;
+      /* The PDF writes its text in pure black; the page should look the same. */
+      --text: #000000;
+      /* Marks and source tags: secondary text, a touch grey. */
+      --muted: #64748b;
       --border: #cbd5e1;
       --bg: #f8fafc;
     }
@@ -777,7 +837,7 @@ class HighSchoolExportService {
       padding: 24px;
     }
     .no-print-toolbar {
-      max-width: 820px;
+      max-width: 210mm;
       margin: 0 auto 20px auto;
       display: flex;
       justify-content: space-between;
@@ -805,13 +865,35 @@ class HighSchoolExportService {
     .btn-outline { background: white; border: 1px solid #cbd5e1; color: var(--text); }
     .btn-outline:hover { background: #f1f5f9; }
 
+    /* The sheet *is* an A4 page: the same 210×297mm canvas and the same margins
+       the PDF export uses — 40pt down each side, 18pt at the head, 6pt at the
+       foot. Same paper, same text width, so a line that wraps here wraps the
+       same way in the PDF: the canvas on screen is what the printer produces. */
     .paper-sheet {
-      max-width: 820px;
+      width: 210mm;
+      max-width: 100%;
+      min-height: 297mm;
       margin: 0 auto;
       background: white;
-      padding: 48px;
+      padding: 18pt 40pt 6pt;
       border-radius: 8px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    /* A second sheet exists only when the two sets do not fit on one page: the
+       script at the foot of the file splits them when that is the case, and on
+       paper the split becomes a page break. */
+    .paper-sheet + .paper-sheet { margin-top: 24px; }
+    /* One set. Sets share the sheet while the pair fits on a page. */
+    .set-head {
+      break-inside: avoid;
+      break-after: avoid;
+    }
+    /* The dashed rule the PDF draws between two sets that share a sheet, with
+       the same gaps above and below it. */
+    .set-divider {
+      border-top: 1px dashed var(--border);
+      margin: 16pt 0 12pt 0;
+      break-after: avoid;
     }
     .school-title { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 4px; }
     .exam-title { font-size: 18px; font-weight: 600; text-align: center; margin-bottom: 12px; }
@@ -819,13 +901,17 @@ class HighSchoolExportService {
       display: flex;
       justify-content: space-between;
       flex-wrap: wrap;
-      padding: 10px 0;
+      padding: 2px 0;
       border-top: 1.5px solid var(--text);
       border-bottom: 1.5px solid var(--text);
-      margin-bottom: 24px;
       font-weight: 600;
       font-size: 15px;
     }
+    /* The PDF's own spacing, in the PDF's own units: `PdfLayout.sectionGap`
+       above every banner and `PdfLayout.sectionBannerGap` below it. The same
+       two numbers the page charges its widget tree, so the band under the
+       masthead is no wider here than the gap before any other section, and the
+       three sections sit the same distance apart in both exports. */
     .section-banner {
       text-align: center;
       font-size: 16px;
@@ -833,15 +919,36 @@ class HighSchoolExportService {
       background: #f1f5f9;
       padding: 6px 12px;
       border-radius: 6px;
-      margin: 24px 0 16px 0;
+      margin: 5pt 0 10pt 0;
       border: 1px solid #e2e8f0;
     }
+    /* The same bar inside a two-column block: it opens the first column instead
+       of spanning the page, so the declaration is one column wide like the
+       questions under it. Its top margin goes: a margin on the first child of
+       the flow would push the declaration's column down and leave the right
+       column's first question sitting higher than the heading beside it. The
+       gap above the block moves out to the column container instead, which both
+       columns share and which therefore starts them level. `break-after` keeps
+       the bar from being stranded at the foot of a column with its questions
+       overleaf. */
+    .section-banner.in-flow {
+      margin: 0 0 10pt 0;
+      break-after: avoid;
+    }
+    /* No frame around a question. The two sides are divided by one vertical
+       line down the gutter — set on the flow containers with `column-rule` —
+       instead of every question carrying a box of its own, which is what made
+       the two columns read as two stacks of cards.
+       And no `break-inside: avoid` either: keeping every question whole is what
+       left the columns lopsided, since a card too tall for the space it had
+       left jumped to the next column and stranded the rest of the one before
+       it. Letting a question break — as the PDF does, where it repeats the
+       number on the continuation — is what lets the two sides finish level.
+       `widows`/`orphans` keep a split from leaving one line behind. */
     .cq-card {
       margin-bottom: 20px;
-      padding: 16px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      page-break-inside: avoid;
+      orphans: 2;
+      widows: 2;
     }
     .cq-stem { font-size: 15px; margin-bottom: 12px; }
     .cq-stem-img {
@@ -858,21 +965,32 @@ class HighSchoolExportService {
       font-size: 14px;
       padding-left: 12px;
     }
-    .cq-mark { font-weight: 700; min-width: 30px; text-align: right; }
-    .cq-grid {
-      display: grid;
-      grid-template-columns: ${cqLayout.isDouble ? '1fr 1fr' : '1fr'};
-      gap: ${cqLayout.isDouble ? '4px 22px' : '14px'};
+    .cq-mark {
+      font-weight: 700;
+      min-width: 30px;
+      text-align: right;
+      color: var(--muted);
     }
-    .mcq-grid {
-      display: grid;
-      grid-template-columns: ${mcqLayout.isDouble ? '1fr 1fr' : '1fr'};
-      gap: ${mcqLayout.isDouble ? '4px 22px' : '14px'};
+    /* Two-column sections flow like a newspaper: a question keeps the height it
+       needs and the next one continues below it in the same column. A grid
+       would instead stretch every pair in a row to the taller of the two, so a
+       one-line question beside a diagram sat in a card half full of white. */
+    .cq-grid {${cqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    }
+    /* A merged CQ + short-question run: one continuous pair of columns, so the
+       short questions begin exactly where the creative questions run out —
+       mid-column or at the head of the next one. The gap above the run sits on
+       the container, not on the heading inside it, so both columns start level. */
+    .flow-grid {${mergeCqAndShort ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    }
+    .mcq-grid {${mcqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
     .mcq-card {
       padding: 12px;
+      margin-bottom: 12px;
       border-bottom: 1px dashed var(--border);
-      page-break-inside: avoid;
+      orphans: 2;
+      widows: 2;
     }
     .mcq-options {
       display: grid;
@@ -882,29 +1000,39 @@ class HighSchoolExportService {
       padding-left: 16px;
       font-size: 14px;
     }
-    .rq-list { margin-top: 4px; }
-    .rq-grid {
-      display: grid;
-      grid-template-columns: ${rqLayout.isDouble ? '1fr 1fr' : '1fr'};
-      gap: 4px 22px;
+    .rq-grid {${rqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
+    /* Short questions are a single line each, as in the PDF: no padding and no
+       gap of their own — the line box is the whole of the row, and the mark is
+       held at the right edge by the flex row. A one-line row stays whole:
+       breaking inside it would gain nothing for the column balance and could cut
+       a question in half. */
     .rq-item {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      gap: 16px;
       font-size: 15px;
-      padding: 10px 0;
-      border-bottom: 1px dashed var(--border);
       page-break-inside: avoid;
+      break-inside: avoid;
     }
-    .rq-mark { font-weight: 700; white-space: nowrap; }
+    .rq-mark { font-weight: 700; white-space: nowrap; color: var(--muted); }
+
+    @page { size: A4; margin: 0; }
 
     @media print {
       body { background: white; padding: 0; }
       .no-print-toolbar { display: none !important; }
-      .paper-sheet { box-shadow: none; border-radius: 0; padding: 20px 24px; max-width: 100%; }
-      .cq-card { border: 1px solid #999; }
+      /* No margin on the page box: the sheet carries the PDF's margins, so a
+         printed page breaks where the exported PDF page breaks. */
+      .paper-sheet {
+        width: auto;
+        max-width: none;
+        min-height: 0;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 18pt 40pt 6pt;
+      }
+      .paper-sheet + .paper-sheet { break-before: page; margin-top: 0; }
     }
     .frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }
     .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
@@ -921,114 +1049,461 @@ class HighSchoolExportService {
   </div>
 
   <div class="paper-sheet">
-    ${schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
-    ${examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
-    
-    <div class="meta-bar">
-      <div>বিষয়: ${_escapeXml(subject)}</div>
-      <div>শ্রেণি: ${_escapeXml(className)}</div>
-      <div>সময়: ${_escapeXml(time)}</div>
-      <div>পূর্ণমান: ${_escapeXml(totalMarks)}</div>
-    </div>
 ''');
 
-    if (cqs.isNotEmpty) {
-      buffer.write('''
-    <div class="section-banner">ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)</div>
+    // Every set goes on one sheet. Whether the sets stay together or get a sheet
+    // each is decided by what actually fits, in the script at the foot of the
+    // file — the page is A4 either way, so what fits on screen is what fits on
+    // paper.
+    for (var i = 0; i < sets.length; i++) {
+      if (i > 0) {
+        buffer.write('''
+    <div class="set-divider"></div>
+''');
+      }
+      _writeHtmlSet(
+        buffer,
+        schoolName: schoolName,
+        examName: examName,
+        subject: subject,
+        className: className,
+        time: time,
+        totalMarks: totalMarks,
+        setLabel: labels.isEmpty ? '' : labels[i],
+        questions: sets[i],
+        sections: sections,
+        twoColumnBlocks: twoColumnBlocks,
+        mergeCqAndShort: mergeCqAndShort,
+        imageSize: imageSize,
+      );
+    }
+
+    buffer.write('''
+  </div>
+
+  <script>
+    /* Two sets share the sheet while the pair fits on a single A4 page; when it
+       does not, the second set moves into a sheet of its own and the printer —
+       which breaks between sheets — puts it on a page of its own. Measured
+       rather than guessed: the sheet is A4 wide either way, so what fits here is
+       what fits on paper. */
+    (function () {
+      function decide() {
+        var sheet = document.querySelector('.paper-sheet');
+        if (!sheet) return;
+        var sets = Array.prototype.slice.call(
+            sheet.querySelectorAll(':scope > .paper-set'));
+        if (sets.length < 2) return;
+
+        // A page's worth of room, from the page box itself rather than a
+        // hard-coded number of pixels.
+        var style = getComputedStyle(sheet);
+        var probe = document.createElement('div');
+        probe.style.cssText =
+            'position:absolute;visibility:hidden;width:0;height:297mm;';
+        document.body.appendChild(probe);
+        var room = probe.getBoundingClientRect().height -
+            parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        probe.remove();
+
+        var divider = sheet.querySelector(':scope > .set-divider');
+        var used = sets.reduce(function (sum, set) {
+          return sum + set.getBoundingClientRect().height;
+        }, divider ? divider.getBoundingClientRect().height : 0);
+
+        if (used <= room) return;
+
+        var anchor = sheet;
+        for (var i = 1; i < sets.length; i++) {
+          var next = document.createElement('div');
+          next.className = 'paper-sheet';
+          anchor.parentNode.insertBefore(next, anchor.nextSibling);
+          next.appendChild(sets[i]);
+          anchor = next;
+        }
+        if (divider) divider.remove();
+      }
+
+      function run() {
+        // Fonts and images decide how tall a set is, so wait for both.
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(decide);
+        } else {
+          decide();
+        }
+      }
+
+      if (document.readyState === 'complete') run();
+      else window.addEventListener('load', run);
+    })();
+  </script>
+</body>
+</html>
+''');
+    return buffer.toString();
+  }
+
+  /// The block a question is printed in, or null when its type is none of the
+  /// three the paper is divided into — a row every export leaves out.
+  static PaperSection? _sectionOf(HighSchoolQuestion q) {
+    if (q.isCq) return PaperSection.cq;
+    if (q.isMcq) return PaperSection.mcq;
+    if (q.isShort) return PaperSection.rq;
+    return null;
+  }
+
+  /// The questions of set [index], out of a paper printed with [labels].
+  ///
+  /// Without labels there is one set and every question belongs to it.
+  ///
+  /// An unlabelled question belongs to *every* set: it is a question the reader
+  /// selected but never filed away, and both papers should still carry it —
+  /// dropping it would lose it from the paper altogether.
+  static List<HighSchoolQuestion> _questionsForSet(
+    List<HighSchoolQuestion> questions,
+    List<String> labels,
+    int index,
+  ) {
+    if (labels.isEmpty) return questions;
+    return questions
+        .where((q) => q.setLabel.trim().isEmpty || q.setLabel == labels[index])
+        .toList();
+  }
+
+  /// The heading a block is printed under.
+  ///
+  /// The বাংলা letter comes from the block's *position*, not its type: the
+  /// blocks can be dragged into any order, so whichever one the reader put
+  /// first is ক-বিভাগ. Tying the letter to the type would print two "ক-বিভাগ"s
+  /// the moment a block moved.
+  static String _sectionHeading(PaperSection kind, int position) {
+    const letters = ['ক', 'খ', 'গ'];
+    final letter =
+        position < letters.length ? letters[position] : '${position + 1}';
+    switch (kind) {
+      case PaperSection.cq:
+        return '$letter-বিভাগ: সৃজনশীল প্রশ্ন (CQ)';
+      case PaperSection.rq:
+        return '$letter-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)';
+      case PaperSection.mcq:
+        return '$letter-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)';
+    }
+  }
+
+  /// One set of the paper: its masthead, then every block in the reader's order.
+  ///
+  /// The sheet holds each set in a `.paper-set` of its own so the script at the
+  /// foot of the file can move one into a separate sheet when the pair does not
+  /// fit on a single page. The set's name rides in the masthead's meta bar
+  /// rather than in a banner of its own — the PDF does the same, and it costs no
+  /// vertical space.
+  static void _writeHtmlSet(
+    StringBuffer buffer, {
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required String setLabel,
+    required List<HighSchoolQuestion> questions,
+    required List<PaperSection> sections,
+    required Set<PaperSection> twoColumnBlocks,
+    required bool mergeCqAndShort,
+    required StemImageSize imageSize,
+  }) {
+    buffer.write('''
+    <div class="paper-set">
+      <div class="set-head">
+        ${schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
+        ${examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
+
+        <div class="meta-bar">
+          ${setLabel.isNotEmpty ? '<div>সেট: ${_escapeXml(setLabel)}</div>' : ''}
+          <div>বিষয়: ${_escapeXml(subject)}</div>
+          <div>শ্রেণি: ${_escapeXml(className)}</div>
+          <div>সময়: ${_escapeXml(time)}</div>
+          <div>পূর্ণমান: ${_escapeXml(totalMarks)}</div>
+        </div>
+      </div>
+''');
+
+    for (var i = 0; i < sections.length; i++) {
+      final kind = sections[i];
+      final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
+      // A block that came up empty in this set is skipped. Its letter comes from
+      // [i], its position in the paper, so the blocks that do print keep the
+      // letters they have in the other set.
+      if (inSection.isEmpty) continue;
+
+      final heading = _sectionHeading(kind, i);
+
+      // CQ and the short questions are neighbours on a two-column sheet: one
+      // flow for both, so the second type begins exactly where the first one
+      // runs out. The partner's own turn in this loop is consumed here.
+      final partner = _mergePartnerOf(sections, i, mergeCqAndShort);
+      if (partner != null) {
+        _writeHtmlMergedFlow(
+          buffer,
+          questions: questions,
+          first: kind,
+          second: partner,
+          firstHeading: heading,
+          secondHeading: _sectionHeading(partner, i + 1),
+          imageSize: imageSize,
+        );
+        i++;
+        continue;
+      }
+
+      // A block laid out in two columns declares itself *inside* the first
+      // column. See [_writeHtmlDeclaration].
+      final declarationInFlow = twoColumnBlocks.contains(kind);
+      switch (kind) {
+        case PaperSection.cq:
+          _writeHtmlCqSection(buffer, inSection, heading, imageSize,
+              declarationInFlow: declarationInFlow);
+          break;
+        case PaperSection.mcq:
+          _writeHtmlMcqSection(buffer, inSection, heading,
+              declarationInFlow: declarationInFlow);
+          break;
+        case PaperSection.rq:
+          _writeHtmlRqSection(buffer, inSection, heading,
+              declarationInFlow: declarationInFlow);
+          break;
+      }
+    }
+
+    buffer.write('''
+    </div>
+''');
+  }
+
+  /// A block's declaration — the bar naming the question type.
+  ///
+  /// [inFlow] writes it to be placed *inside* the block's columns instead of
+  /// across the page. A full-width bar over a two-column block reads as a page
+  /// header and costs a line of the sheet; inside the flow it opens the first
+  /// column, one column wide like the questions under it.
+  static void _writeHtmlDeclaration(
+    StringBuffer buffer,
+    String heading, {
+    required bool inFlow,
+  }) {
+    buffer.write(inFlow
+        ? '      <div class="section-banner in-flow">${_escapeXml(heading)}</div>\n'
+        : '    <div class="section-banner">${_escapeXml(heading)}</div>\n');
+  }
+
+  /// The block that shares a flow with the one at [index], or null.
+  ///
+  /// CQ and the short questions merge while they are neighbours on a two-column
+  /// sheet, so the second type begins where the first one runs out. MCQ never
+  /// merges — its options lay out differently, and it wants a fresh pair of
+  /// columns. The PDF merges on exactly the same terms.
+  static PaperSection? _mergePartnerOf(
+    List<PaperSection> sections,
+    int index,
+    bool mergeCqAndShort,
+  ) {
+    if (!mergeCqAndShort || index + 1 >= sections.length) return null;
+    final a = sections[index], b = sections[index + 1];
+    final pair = (a == PaperSection.cq && b == PaperSection.rq) ||
+        (a == PaperSection.rq && b == PaperSection.cq);
+    return pair ? b : null;
+  }
+
+  /// CQ and the short questions as one continuous two-column flow.
+  ///
+  /// Both types share one pair of columns, so the second declaration and its
+  /// questions land exactly where the first type's questions run out — mid
+  /// column, or at the head of the next one — instead of the second block
+  /// starting a fresh full-width row below whatever the first one left over.
+  static void _writeHtmlMergedFlow(
+    StringBuffer buffer, {
+    required List<HighSchoolQuestion> questions,
+    required PaperSection first,
+    required PaperSection second,
+    required String firstHeading,
+    required String secondHeading,
+    required StemImageSize imageSize,
+  }) {
+    buffer.write('''
+    <div class="flow-grid">
+''');
+    _writeHtmlFlowPart(buffer, questions, first, firstHeading, imageSize);
+    _writeHtmlFlowPart(buffer, questions, second, secondHeading, imageSize);
+    buffer.write('''
+    </div>
+''');
+  }
+
+  /// One type's share of a merged flow: its declaration, then its questions.
+  ///
+  /// With no container of its own — the flow the two types share *is* the
+  /// column container, and that is what makes the second type continue where
+  /// the first one ended.
+  static void _writeHtmlFlowPart(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> questions,
+    PaperSection kind,
+    String heading,
+    StemImageSize imageSize,
+  ) {
+    final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
+    if (inSection.isEmpty) return;
+
+    _writeHtmlDeclaration(buffer, heading, inFlow: true);
+    if (kind == PaperSection.cq) {
+      _writeHtmlCqCards(buffer, inSection, imageSize);
+    } else {
+      _writeHtmlRqItems(buffer, inSection);
+    }
+  }
+
+  /// The সৃজনশীল প্রশ্ন block: its declaration, then one bordered card per
+  /// question.
+  static void _writeHtmlCqSection(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> cqs,
+    String heading,
+    StemImageSize imageSize, {
+    required bool declarationInFlow,
+  }) {
+    if (!declarationInFlow) {
+      _writeHtmlDeclaration(buffer, heading, inFlow: false);
+    }
+    buffer.write('''
     <div class="cq-grid">
 ''');
-      for (int i = 0; i < cqs.length; i++) {
-        final q = cqs[i];
-        final index = i + 1;
-        buffer.write('''
+    if (declarationInFlow) {
+      _writeHtmlDeclaration(buffer, heading, inFlow: true);
+    }
+    _writeHtmlCqCards(buffer, cqs, imageSize);
+    buffer.write('''
+    </div>
+''');
+  }
+
+  /// The CQ cards, with no container: the block or the merged flow supplies the
+  /// columns.
+  static void _writeHtmlCqCards(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> cqs,
+    StemImageSize imageSize,
+  ) {
+    for (int i = 0; i < cqs.length; i++) {
+      final q = cqs[i];
+      final index = i + 1;
+      buffer.write('''
     <div class="cq-card">
       <div class="cq-stem">
-        <b>$index.</b> ${latexToHtml(_escapeXml(q.stemText))}
-        ${q.boardYearTag.isNotEmpty ? '<small style="color:#64748b;"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
+        <b>$index.</b> ${latexToHtml(_escapeXml(q.paperStemText))}
+        ${q.boardYearTag.isNotEmpty ? '<small style="color:var(--muted);"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
       </div>
       ${_stemImageMarkup(q, size: imageSize, usePoints: false)}
 ''');
-        for (final sq in q.cqSubQuestions) {
-          buffer.write('''
+      for (final sq in q.cqSubQuestions) {
+        buffer.write('''
       <div class="cq-sub-item">
         <div><b>(${_escapeXml(sq.label)})</b> ${latexToHtml(_escapeXml(sq.text))}</div>
         <div class="cq-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</div>
       </div>
 ''');
-        }
-        buffer.write('''
-    </div>
-''');
       }
       buffer.write('''
     </div>
 ''');
     }
+  }
 
-    if (mcqs.isNotEmpty) {
-      buffer.write('''
-    <div class="section-banner">খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)</div>
+  /// The বহুনির্বাচনী প্রশ্ন block.
+  static void _writeHtmlMcqSection(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> mcqs,
+    String heading, {
+    required bool declarationInFlow,
+  }) {
+    if (!declarationInFlow) {
+      _writeHtmlDeclaration(buffer, heading, inFlow: false);
+    }
+    buffer.write('''
     <div class="mcq-grid">
 ''');
-      const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
-      for (int i = 0; i < mcqs.length; i++) {
-        final q = mcqs[i];
-        final mcq = q.mcqData;
-        final index = i + 1;
-        if (mcq == null) continue;
+    if (declarationInFlow) {
+      _writeHtmlDeclaration(buffer, heading, inFlow: true);
+    }
+    const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+    for (int i = 0; i < mcqs.length; i++) {
+      final q = mcqs[i];
+      final mcq = q.mcqData;
+      final index = i + 1;
+      if (mcq == null) continue;
 
-        buffer.write('''
+      buffer.write('''
       <div class="mcq-card">
-        <div><b>$index.</b> ${_escapeXml(mcq.text)}</div>
+        <div><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
         <div class="mcq-options">
 ''');
-        final options = mcq.options;
-        for (int opt = 0; opt < options.length; opt++) {
-          final l =
-              opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
-          buffer.write('''
+      final options = mcq.options;
+      for (int opt = 0; opt < options.length; opt++) {
+        final l =
+            opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
+        buffer.write('''
           <div>($l) ${_escapeXml(options[opt])}</div>
 ''');
-        }
-        buffer.write('''
+      }
+      buffer.write('''
         </div>
       </div>
 ''');
-      }
-      buffer.write('''
+    }
+    buffer.write('''
     </div>
 ''');
-    }
+  }
 
-    // Short question section (গ-বিভাগ)
-    if (shorts.isNotEmpty) {
-      buffer.write('''
-    <div class="section-banner">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)</div>
+  /// The সংক্ষিপ্ত প্রশ্ন block.
+  static void _writeHtmlRqSection(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> shorts,
+    String heading, {
+    required bool declarationInFlow,
+  }) {
+    if (!declarationInFlow) {
+      _writeHtmlDeclaration(buffer, heading, inFlow: false);
+    }
+    buffer.write('''
     <div class="rq-list">
       <div class="rq-grid">
 ''');
-      for (int i = 0; i < shorts.length; i++) {
-        final data = shorts[i].shortData;
-        if (data == null || data.text.trim().isEmpty) continue;
-        buffer.write('''
+    if (declarationInFlow) {
+      _writeHtmlDeclaration(buffer, heading, inFlow: true);
+    }
+    _writeHtmlRqItems(buffer, shorts);
+    buffer.write('''
+      </div>
+    </div>
+''');
+  }
+
+  /// The short-question lines, with no container: the block or the merged flow
+  /// supplies the columns.
+  static void _writeHtmlRqItems(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> shorts,
+  ) {
+    for (int i = 0; i < shorts.length; i++) {
+      final data = shorts[i].shortData;
+      if (data == null || data.text.trim().isEmpty) continue;
+      buffer.write('''
         <div class="rq-item">
           <div><b>${i + 1}.</b> ${_escapeXml(data.text)}</div>
           <div class="rq-mark">[${data.mark}]</div>
         </div>
 ''');
-      }
-      buffer.write('''
-      </div>
-    </div>
-''');
     }
-
-    buffer.write('''
-  </div>
-</body>
-</html>
-''');
-    return buffer.toString();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1066,7 +1541,8 @@ class HighSchoolExportService {
       for (int i = 0; i < cqs.length; i++) {
         final q = cqs[i];
         final index = i + 1;
-        buffer.writeln('**$index.** ${latexToPlainText(q.stemText.trim())}');
+        buffer
+            .writeln('**$index.** ${latexToPlainText(q.paperStemText.trim())}');
         if (q.boardYearTag.isNotEmpty) {
           buffer.writeln('> *উৎস: ${q.boardYearTag}*');
         }
@@ -1091,7 +1567,7 @@ class HighSchoolExportService {
         final index = i + 1;
         if (mcq == null) continue;
 
-        buffer.writeln('**$index.** ${mcq.text.trim()}');
+        buffer.writeln('**$index.** ${q.paperQuestionText}');
         for (int opt = 0; opt < mcq.options.length; opt++) {
           final l =
               opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';

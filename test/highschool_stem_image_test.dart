@@ -33,6 +33,14 @@ final Uint8List _tinyPng = base64Decode(
   'P8Fu7N9hAAAAAElFTkSuQmCC',
 );
 
+/// True when the HTML stylesheet lays the questions of [name] out as two
+/// newspaper columns (`column-count: 2`) rather than a single stack.
+bool _isTwoColumn(String html, String name) =>
+    RegExp('\\.$name \\{([^}]*)\\}')
+        .firstMatch(html)!
+        .group(1)!
+        .contains('column-count: 2');
+
 void main() {
   group('resolveImageUrl', () {
     test('converts Drive share links to direct download', () {
@@ -192,15 +200,19 @@ void main() {
           questions: qs, cqLayout: layout, mcqLayout: layout,
         );
 
-    test('single column uses a one-track grid', () {
+    test('single column lays the questions out one below the other', () {
       final h = htmlFor(ex.QuestionLayout.single);
-      expect(h, contains('grid-template-columns: 1fr;'));
+      expect(_isTwoColumn(h, 'cq-grid'), isFalse);
+      expect(_isTwoColumn(h, 'mcq-grid'), isFalse);
       expect(ex.QuestionLayout.single.mcqColumns, 1);
     });
 
-    test('double column uses a two-track grid', () {
+    test('double column flows two newspaper columns', () {
+      // Each question keeps the height it needs and the next one continues
+      // below it. A grid would stretch both cards of a row to the taller one.
       final h = htmlFor(ex.QuestionLayout.doubleColumn);
-      expect(h, contains('grid-template-columns: 1fr 1fr;'));
+      expect(_isTwoColumn(h, 'cq-grid'), isTrue);
+      expect(_isTwoColumn(h, 'mcq-grid'), isTrue);
       expect(ex.QuestionLayout.doubleColumn.mcqColumns, 2);
     });
 
@@ -251,10 +263,6 @@ void main() {
 
       final qs = [cq(), mcq(1)];
 
-      String gridOf(String html, String name) => RegExp(
-            '\\.$name \\{\\s*display: grid;\\s*grid-template-columns: ([^;]+);',
-          ).firstMatch(html)!.group(1)!.trim();
-
       String htmlFor(ex.QuestionLayout cq, ex.QuestionLayout m) =>
           ex.HighSchoolExportService.generateHtml(
             schoolName: 'S', examName: 'E', subject: 'M',
@@ -264,14 +272,14 @@ void main() {
 
       // The reported need: CQ full width, MCQ side by side.
       final h = htmlFor(ex.QuestionLayout.single, ex.QuestionLayout.doubleColumn);
-      expect(gridOf(h, 'cq-grid'), '1fr');
-      expect(gridOf(h, 'mcq-grid'), '1fr 1fr');
+      expect(_isTwoColumn(h, 'cq-grid'), isFalse);
+      expect(_isTwoColumn(h, 'mcq-grid'), isTrue);
 
       // ...and the reverse.
       final h2 =
           htmlFor(ex.QuestionLayout.doubleColumn, ex.QuestionLayout.single);
-      expect(gridOf(h2, 'cq-grid'), '1fr 1fr');
-      expect(gridOf(h2, 'mcq-grid'), '1fr');
+      expect(_isTwoColumn(h2, 'cq-grid'), isTrue);
+      expect(_isTwoColumn(h2, 'mcq-grid'), isFalse);
     });
 
     test('word emits a real layout table for both options', () {
@@ -304,14 +312,8 @@ void main() {
       final single = htmlFor(ex.QuestionLayout.single);
       final dbl = htmlFor(ex.QuestionLayout.doubleColumn);
 
-      String gridCols(String html) => RegExp(
-            r'\.cq-grid \{\s*display: grid;\s*grid-template-columns: ([^;]+);')
-          .firstMatch(html)!
-          .group(1)!
-          .trim();
-
-      expect(gridCols(single), '1fr');
-      expect(gridCols(dbl), '1fr 1fr');
+      expect(_isTwoColumn(single, 'cq-grid'), isFalse);
+      expect(_isTwoColumn(dbl, 'cq-grid'), isTrue);
 
       // Every CQ card must sit inside the cq-grid container.
       // Match the class attribute, not the CSS selector of the same name.

@@ -52,6 +52,14 @@ class PdfLayout {
   static const double smallFontSize = 9;
 
   // CQ card chrome.
+  /// Width of the card's border, both sides — **not** part of the inset.
+  ///
+  /// The pdf package paints a `Container`'s border *inside* the box without
+  /// deflating the child (its `DecoratedBox` ignores `dimensions`), so only
+  /// [cqPadding] insets the text. Charging the border as well measured every
+  /// line 2pt narrower than the drawn one, which is enough to wrap a borderline
+  /// line a word early, add a line to the estimate, and leave the foot of the
+  /// page empty.
   static const double cqBorder = 2; // 1pt border, both sides
   static const double cqPadding = 16; // EdgeInsets.all(8)
   static const double cqStemGap = 4;
@@ -111,8 +119,8 @@ class PdfLayout {
   /// Vertical page margin. Asymmetric: the head needs somewhere to start, the
   /// foot does not — the sheet is trimmed at print, so anything below the last
   /// question is blank paper.
-  static const double pageMarginTop = 28;
-  static const double pageMarginBottom = 10;
+  static const double pageMarginTop = 18;
+  static const double pageMarginBottom = 6;
   static const double pageMarginV = 28; // kept for call sites that want both
 
   /// Printable width at the page margins.
@@ -266,10 +274,12 @@ class PdfLayout {
     required bool hasImage,
     required StemImageSize imageSize,
   }) {
-    final inner = columnWidth - cqBorder - cqPadding;
+    final inner = columnWidth - cqPadding;
 
-    var head = cqBorder + cqPadding;
-    head += metrics.blockHeight('$index. ${question.stemText}',
+    var head = cqPadding;
+    // Measured from the same text the card draws, source tag and all trimmed —
+    // see [HighSchoolQuestion.paperStemText].
+    head += metrics.blockHeight('$index. ${question.paperStemText}',
         width: inner, fontSize: bodyFontSize);
     if (imageSize.isVisible && hasImage) {
       head += cqImageGap + imageSize.maxHeightPt;
@@ -330,8 +340,10 @@ class PdfLayout {
     final mcq = question.mcqData;
     if (mcq == null) return const [];
 
+    // Measured from the same line the item draws — see
+    // [HighSchoolQuestion.paperQuestionText].
     final parts = <double>[
-      metrics.blockHeight('$index. ${mcq.text}',
+      metrics.blockHeight('$index. ${question.paperQuestionText}',
           width: columnWidth, fontSize: bodyFontSize)
     ];
 
@@ -694,8 +706,18 @@ class PdfPageFlow {
     final runStart = <int>[];
     final runEnd = <int>[];
     final questionHeight = <double>[];
+
+    // Which run each question id belongs to, so a run index can always be
+    // recovered from a fragment. A fragment's id is *not* its run index: the
+    // merged CQ + SQ run numbers its two headings after every question (see
+    // `_appendPdfCqAndShortSection`), so the ids read
+    // `[heading, 0, 1, …, heading, cqCount, …]` and subtracting one from the
+    // other is what sent the packer's cursor behind the block it had just
+    // measured — a `sublist(46, 8)`, which is a range error, not a bad page.
+    final runOfQuestion = <int, int>{};
     for (var i = 0; i < fragments.length; i++) {
       if (i == 0 || fragments[i].question != fragments[i - 1].question) {
+        runOfQuestion[fragments[i].question] = runStart.length;
         runStart.add(i);
         runEnd.add(i + 1);
         questionHeight.add(heights[i]);
@@ -724,9 +746,10 @@ class PdfPageFlow {
 
       var end = count > 0 ? runEnd[question + count - 1] : start;
 
-      // How tall the block [start, end) actually is: the taller of the columns
-      // `balanceColumns` puts them in, plus the gap that follows the block.
-      double blockHeight(int at) {
+      // How tall the block [start, at) is estimated to be drawn: the taller of
+      // the columns `balanceColumns` puts the whole questions in, plus the gap
+      // that follows the block.
+      double estimate(int at) {
         final h = heights.sublist(start, at);
         final block = fragments.sublist(start, at);
         return _tallestOf(
@@ -734,31 +757,14 @@ class PdfPageFlow {
             trailingGap;
       }
 
-      bool fits(int at) => blockHeight(at) <= budget;
-
       // The whole questions `_largestPrefix` chose are measured one way and
       // drawn another, and the two disagree by a point or two. Drawing the
       // block at exactly its estimate is how a page overflows by a hair and
       // the export dies with "Widget won't fit into the page" — so the choice
       // is checked against the same measure the block will be drawn with, and
       // walked back until it genuinely fits.
-      while (end > start && !fits(end)) {
+      while (end > start && estimate(end) > budget) {
         end--;
-      }
-
-      // Fill the foot of the block.
-      //
-      // Whole-question packing stops one question short whenever the next one
-      // would overflow, leaving up to a full question's height empty at the
-      // foot of the page. A question is made of several independently
-      // measurable pieces — its stem, then each sub-part — so the block is
-      // extended one piece at a time for as long as it still fits.
-      //
-      // This is what lets a question continue overleaf: `end` may land between
-      // two of its pieces, and the next block resumes at exactly that index, so
-      // every piece is emitted once and in order.
-      while (end < fragments.length && fits(end + 1)) {
-        end++;
       }
 
       if (end == start) {
@@ -771,31 +777,60 @@ class PdfPageFlow {
       final slice = heights.sublist(start, end);
       final groups = balanceQuestions(
           fragments: fragments.sublist(start, end), columns: columns);
+      final columnHeights = <double>[
+        for (final column in groups) _sumOf(column, slice),
+      ];
+
+      // Fill the foot of the block.
+      //
+      // Whole-question packing stops one question short whenever the next one
+      // would not fit, and an order-preserving split cannot even out an uneven
+      // run of questions — both leave white space at the foot of the page. Only
+      // the last column can be continued (anything appended to an earlier
+      // column would read out of order), so the pieces of the question that
+      // follows are appended there for as long as they fit, and that question
+      // continues overleaf if they run out.
+      //
+      // Re-balancing the block for each extra piece would be the wrong move:
+      // the pieces are not whole questions, so the optimum shifts under the
+      // extra weight, the tallest column can jump by more than the piece is
+      // tall, and the search gives up with most of a card still to spare.
+      while (end < fragments.length) {
+        final last = columnHeights.length - 1;
+        final h = heights[end];
+        if (columnHeights[last] + h + trailingGap > budget) break;
+        groups[last].add(end - start);
+        columnHeights[last] += h;
+        end++;
+      }
 
       // The block is sized from measured heights and then drawn from the same
       // widgets. When the two disagree, dart_pdf moves the whole row to the
       // next sheet rather than clipping it, which shows up as a band of blank
-      // space at the foot of a page. `_used` is the predictor, `blockHeight`
-      // is what will be drawn: trace both and compare.
+      // space at the foot of a page. `_used` is the predictor, `drawn` is what
+      // will be drawn: trace both and compare.
       trace?.call('page=${_pageBreaks + 1} '
           'used=${_used.toStringAsFixed(1)} '
           'budget=${budget.toStringAsFixed(1)} '
-          'drawn=${blockHeight(end).toStringAsFixed(1)} '
+          'drawn=${(_tallestOf(groups, heights.sublist(start, end)) + trailingGap).toStringAsFixed(1)} '
           'fragments=$start..$end/${fragments.length} '
-          'cols=${groups.map((g) => g.length).join("/")}');
+          'cols=${columnHeights.map((h) => h.toStringAsFixed(0)).join("/")}');
 
       rows.add([
         for (final column in groups)
           [for (final i in column) fragments[start + i]]
       ]);
 
-      _used += _tallestOf(groups, slice) + trailingGap;
+      _used += _tallestOf(groups, heights.sublist(start, end)) + trailingGap;
       // The page is full, so whatever comes next starts another one.
       if (_used >= contentHeight - margin) _breakPage();
 
       start = end;
       if (start >= fragments.length) break;
-      question = fragments[start].question;
+      // Back to a run index. `end` can sit part-way through a question — that
+      // is the point of filling the foot — so the run to resume at is the one
+      // that question belongs to, not its id.
+      question = runOfQuestion[fragments[start].question]!;
     }
 
     return rows;

@@ -224,6 +224,20 @@ class _HighSchoolQPaperGeneratorPageState
     _SectionKind.mcq,
   ];
 
+  /// The same order in the export service's vocabulary.
+  ///
+  /// [_SectionKind] is the app's own enum; the service takes [PaperSection] so
+  /// every format can be handed the order the reader dragged the blocks into.
+  List<PaperSection> get _paperSectionOrder => [
+        for (final kind in _sectionOrder)
+          if (kind.isCq)
+            PaperSection.cq
+          else if (kind.isMcq)
+            PaperSection.mcq
+          else
+            PaperSection.rq,
+      ];
+
   /// Sections that actually hold questions, in the user's order.
   ///
   /// An empty section is left out of the list rather than shown greyed out, so
@@ -631,6 +645,8 @@ class _HighSchoolQPaperGeneratorPageState
         time: _timeCtrl.text,
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
+        setLabels: _twoSets ? _setLabels : const [],
+        sectionOrder: _paperSectionOrder,
         imageSize: _imageSize,
         cqLayout: _cqLayout,
         mcqLayout: _mcqLayout,
@@ -767,6 +783,8 @@ class _HighSchoolQPaperGeneratorPageState
           time: _timeCtrl.text,
           totalMarks: _marksCtrl.text,
           questions: _selectedQuestions,
+          setLabels: _twoSets ? _setLabels : const [],
+          sectionOrder: _paperSectionOrder,
           imageSize: _imageSize,
           cqLayout: _cqLayout,
           mcqLayout: _mcqLayout,
@@ -787,6 +805,8 @@ class _HighSchoolQPaperGeneratorPageState
       time: _timeCtrl.text,
       totalMarks: _marksCtrl.text,
       questions: _selectedQuestions,
+      setLabels: _twoSets ? _setLabels : const [],
+      sectionOrder: _paperSectionOrder,
       imageSize: _imageSize,
       cqLayout: _cqLayout,
       mcqLayout: _mcqLayout,
@@ -1249,6 +1269,13 @@ class _HighSchoolQPaperGeneratorPageState
         _rqLayout.mcqColumns > 1;
 
     if (mergeCqAndShorts) {
+      // A merged run is one continuous flow, so MCQ cannot be spliced into the
+      // middle of it. Whatever the reader put *before* the run is emitted
+      // first; anything after it lands after, as before.
+      final mcqOpens =
+          _activeSections.isNotEmpty && _activeSections.first.isMcq;
+      if (mcqOpens) emitMcq();
+
       _appendPdfCqAndShortSection(
         widgets,
         flow,
@@ -1263,8 +1290,11 @@ class _HighSchoolQPaperGeneratorPageState
         bannerHeight: bannerHeight,
         stemImages: stemImages,
       );
-      for (final kind in _activeSections) {
-        if (kind.isMcq) emitMcq();
+
+      if (!mcqOpens) {
+        for (final kind in _activeSections) {
+          if (kind.isMcq) emitMcq();
+        }
       }
       return;
     }
@@ -1307,6 +1337,23 @@ class _HighSchoolQPaperGeneratorPageState
       final stackOptions = cols > 1;
       final mcqWidth = PdfLayout.columnWidth(cols);
 
+      // The packer fills the foot of a page one *fragment* at a time — a stem
+      // can sit at the bottom with its options continuing overleaf — so the
+      // heading is judged against the same unit. Asking for the whole first
+      // question here was stricter than the packer it guards: with room for the
+      // heading and the stem but not all four options, the heading was pushed to
+      // the next sheet and left a band of blank paper at the foot of this one.
+      // The CQ guard has always measured its first fragment this way.
+      final firstMcqParts = mcqs.isEmpty
+          ? const <double>[]
+          : PdfLayout.mcqFragments(
+              index: 1,
+              question: mcqs.first,
+              columnWidth: mcqWidth,
+              metrics: metrics,
+              stackOptions: stackOptions,
+            );
+
       _keepHeadingWithContent(
         widgets: widgets,
         flow: flow,
@@ -1315,14 +1362,7 @@ class _HighSchoolQPaperGeneratorPageState
             4 +
             metrics.lineHeight(tickNote, fontSize: PdfLayout.smallFontSize) +
             PdfLayout.sectionBannerGap,
-        firstUnitHeight: mcqs.isEmpty
-            ? 0
-            : PdfLayout.mcqHeight(
-                index: 1,
-                question: mcqs.first,
-                columnWidth: mcqWidth,
-                metrics: metrics,
-                stackOptions: stackOptions),
+        firstUnitHeight: firstMcqParts.isEmpty ? 0 : firstMcqParts.first,
       );
 
       if (!mcqInline) {
@@ -1467,7 +1507,11 @@ class _HighSchoolQPaperGeneratorPageState
             add(parts[p], i, p, p == 0, p == parts.length - 1);
           }
         }
-      } else {
+      } else if (kind.isRq) {
+        // MCQ must not fall into this branch. It is not part of the merged run
+        // — the dispatcher emits it on its own — and letting it through here
+        // printed the whole short-question section a second time, once for the
+        // MCQ entry and once for the SQ entry.
         add(bannerHeight + PdfLayout.mergedHeadingGap, rqBannerId, 0, true,
             true);
         for (int i = 0; i < shorts.length; i++) {
@@ -1488,6 +1532,7 @@ class _HighSchoolQPaperGeneratorPageState
       fragments: fragments,
       columns: cqCols,
       trailingGap: 16,
+      trace: kTracePdfLayout ? debugPrintTrace : null,
     );
 
     // Set by the item builder so the trailing gap knows what just ended.
@@ -1742,7 +1787,7 @@ class _HighSchoolQPaperGeneratorPageState
       },
     ));
 
-    return doc.save();
+    return await doc.save();
   }
 
   /// A dashed horizontal rule, matching the HTML export's dashed separators.
@@ -1805,7 +1850,15 @@ class _HighSchoolQPaperGeneratorPageState
         pw.RichText(
             text: _mixedText(examName, boldStyle.copyWith(fontSize: 12))),
         pw.SizedBox(height: PdfLayout.headerExamGap),
-        pw.Divider(thickness: PdfLayout.headerDivider, color: PdfColors.black),
+        // `height` must be given: dart_pdf's Divider defaults to *16pt* tall and
+        // centres the rule inside that, so each of the masthead's two rules
+        // carried ~7.4pt of padding above and below it that [headerHeight] never
+        // charged — about 30pt of unaccounted masthead on page 1, which is the
+        // kind of drift that costs a whole block at the foot of the sheet.
+        pw.Divider(
+            height: PdfLayout.headerDivider,
+            thickness: PdfLayout.headerDivider,
+            color: PdfColors.black),
         pw.SizedBox(height: PdfLayout.headerMetaGap),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -1826,7 +1879,11 @@ class _HighSchoolQPaperGeneratorPageState
           ],
         ),
         pw.SizedBox(height: PdfLayout.headerMetaGap),
-        pw.Divider(thickness: PdfLayout.headerDivider, color: PdfColors.black),
+        // Sized, like the rule above it — see the note there.
+        pw.Divider(
+            height: PdfLayout.headerDivider,
+            thickness: PdfLayout.headerDivider,
+            color: PdfColors.black),
       ],
     );
   }
@@ -1849,8 +1906,10 @@ class _HighSchoolQPaperGeneratorPageState
         : null;
 
     // The board/year tag is deliberately not printed — it is editorial metadata,
-    // not part of the question paper.
-    final stemLabel = '$index. ${question.stemText}';
+    // not part of the question paper. The sheet also has a copy pasted onto the
+    // end of the stem, so the stem is taken from [paperStemText], which trims
+    // that copy off.
+    final stemLabel = '$index. ${question.paperStemText}';
 
     // Part 0 is the stem (with its figure); part `p` (p >= 1) is sub-question
     // `p - 1`. So the parts in [partFrom, partTo] cover sub-questions
@@ -1963,7 +2022,8 @@ class _HighSchoolQPaperGeneratorPageState
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         if (partFrom == 0)
-          pw.RichText(text: _mixedText('$index. ${mcq.text}', baseStyle)),
+          pw.RichText(
+              text: _mixedText('$index. ${q.paperQuestionText}', baseStyle)),
         ...rows,
       ],
     );
@@ -2712,7 +2772,9 @@ class _HighSchoolQPaperGeneratorPageState
   /// One-line summary shown in the collapsed question card.
   static String _previewText(HighSchoolQuestion q) {
     if (q.isShort) return q.shortData?.text ?? '';
-    if (q.isCq) return q.stemText.isEmpty ? '(কোনো উদ্দীপক নেই)' : q.stemText;
+    if (q.isCq) {
+      return q.paperStemText.isEmpty ? '(কোনো উদ্দীপক নেই)' : q.paperStemText;
+    }
     return q.mcqData?.text ?? '';
   }
 

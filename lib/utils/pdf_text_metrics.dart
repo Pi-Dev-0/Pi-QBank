@@ -23,10 +23,12 @@ import 'pdf_mixed_text.dart';
 ///   Latin, which is what `buildPdfTextSpan` pairs with them.
 /// * `advanceWidth` comes back in **em units** (1/1000 em, normalised), so a
 ///   width in points is `advanceWidth * fontSize`.
-/// * Line height is `ascent - descent` of the tallest font present on the
-///   line, matching `_Word.height` -> `PdfFontMetrics.maxHeight` in the pdf
-///   package. Mixing in Helvetica raises the line box, which the estimator has
-///   to reproduce or every column drifts.
+/// * Line height is the span from the line's *highest ascent* to its *lowest
+///   descent*, matching how the pdf package keeps the two ends separately while
+///   laying a line out. Mixing in Helvetica raises the line box, and a
+///   Bangla-only line is only as tall as the Bangla font's ascent, because its
+///   glyphs sit above the baseline — the estimator has to reproduce both or
+///   every column drifts.
 ///
 /// ## Cost
 ///
@@ -81,6 +83,10 @@ class PdfTextMetrics {
   ///
   /// Taller than any text line, so its presence raises the line box.
   static const double _placeholderHeightEm = 1.0;
+
+  /// Slack the wrapper allows before it breaks, matching the pdf package's own
+  /// `constraintWidth + 0.00001` comparison.
+  static const double _epsilon = 0.00001;
 
   /// The fonts the renderer would try, in order, for a run.
   ///
@@ -154,6 +160,15 @@ class PdfTextMetrics {
     }
 
     for (final rune in text.runes) {
+      // The page never puts whitespace through its font-coverage split (see the
+      // `spaces` set in its `_preProcessSpans`), so a space or a line break
+      // stays in the run around it instead of turning into an undrawable box.
+      if (_isPdfWhitespace(rune)) {
+        bufferFont ??= chain.isEmpty ? _undrawable : chain.first;
+        buffer.writeCharCode(rune);
+        continue;
+      }
+
       pdf.PdfFont? match;
       for (final font in chain) {
         if (font.isRuneSupported(rune)) {
@@ -171,12 +186,19 @@ class PdfTextMetrics {
   }
 
   /// Width of a typeset piece, in em.
-  double _mathWidthEm(MathSegment piece, bool bold) {
+  ///
+  /// [baseFontSize] is the size the caller will multiply the result by, and is
+  /// needed because the padding around a fraction is a fixed number of points
+  /// rather than a fraction of an em: adding it raw would charge the padding
+  /// `baseFontSize` times over, which widens every fraction by ~30pt and wraps
+  /// its line one word early. The estimate then runs ahead of the page it is
+  /// predicting, and the page breaks with its foot empty.
+  double _mathWidthEm(MathSegment piece, bool bold, double baseFontSize) {
     switch (piece) {
       case MathFraction(:final numerator, :final denominator):
         final n = textWidth(numerator, fontSize: fracFontScale, bold: bold);
         final d = textWidth(denominator, fontSize: fracFontScale, bold: bold);
-        return (n > d ? n : d) + fracPaddingX * 2;
+        return (n > d ? n : d) + fracPaddingX * 2 / baseFontSize;
       case MathScript(:final text):
         return textWidth(text, fontSize: scriptFontScale, bold: bold);
       case MathText(:final text):
@@ -185,11 +207,15 @@ class PdfTextMetrics {
   }
 
   /// Height of a typeset piece, in em.
-  double _mathHeightEm(MathSegment piece, bool bold) {
+  ///
+  /// Same point-versus-em trap as [_mathWidthEm]: the fraction rule is 0.5pt
+  /// however large the text is, so it is converted rather than added raw —
+  /// otherwise every line holding a fraction measures 5pt taller than it draws.
+  double _mathHeightEm(MathSegment piece, bool bold, double baseFontSize) {
     switch (piece) {
       case MathFraction(:final numerator, :final denominator):
         return lineHeight(numerator, fontSize: fracFontScale, bold: bold) +
-            fracRuleHeight +
+            fracRuleHeight / baseFontSize +
             lineHeight(denominator, fontSize: fracFontScale, bold: bold);
       case MathScript(:final text):
         return lineHeight(text, fontSize: scriptFontScale, bold: bold);
@@ -218,7 +244,7 @@ class PdfTextMetrics {
     for (final segment in _segments(text, bold)) {
       final piece = segment.math;
       if (piece != null) {
-        em += _mathWidthEm(piece, bold);
+        em += _mathWidthEm(piece, bold, fontSize);
       } else {
         em += segment.isUndrawable
             ? _placeholderWidthEm * segment.text.runes.length
@@ -234,29 +260,34 @@ class PdfTextMetrics {
   /// holds Latin text is correctly taller than one holding only Bangla.
   double lineHeight(String text,
       {required double fontSize, bool bold = false}) {
-    var maxHeight = 0.0;
-    final seen = <pdf.PdfFont>{};
-    for (final segment in _segments(text, bold)) {
-      final piece = segment.math;
-      if (piece != null) {
-        final h = _mathHeightEm(piece, bold);
-        if (h > maxHeight) maxHeight = h;
-        continue;
-      }
-      if (segment.isUndrawable) {
-        // SizedBox(height: fontSize) — taller than any glyph line.
-        maxHeight = _placeholderHeightEm;
-        continue;
-      }
-      if (!seen.add(segment.font)) continue;
-      final h = _metricsOf(segment.font, segment.text).maxHeight;
-      if (h > maxHeight) maxHeight = h;
-    }
+    final em = _lineHeightEm(_tokenize(text, bold, fontSize));
     // Nothing measurable in the string: fall back to Helvetica's box so a
     // blank span is never treated as zero-height when the pdf package would
     // still reserve a line.
-    if (maxHeight == 0) maxHeight = _latin.stringMetrics('Hxg').maxHeight;
-    return maxHeight * fontSize;
+    return (em == 0 ? _latin.stringMetrics('Hxg').maxHeight : em) * fontSize;
+  }
+
+  /// Height in em of a single line built from [line].
+  ///
+  /// The page keeps the two ends of the line separately — `top` is the lowest
+  /// descent, `bottom` the highest ascent, both starting at the baseline — so
+  /// the line is as tall as the whole span those words cover, not as tall as
+  /// its tallest single word. A line with no word on it is charged the font's
+  /// empty-line height instead.
+  static double _lineHeightEm(List<_Token> line) {
+    var top = 0.0;
+    var bottom = 0.0;
+    var empty = 0.0;
+    for (final token in line) {
+      if (token.isBreak) {
+        if (token.emptyLineHeight > empty) empty = token.emptyLineHeight;
+        continue;
+      }
+      if (token.ascent > bottom) bottom = token.ascent;
+      if (token.descent < top) top = token.descent;
+    }
+    final box = bottom - top;
+    return box > empty ? box : empty;
   }
 
   /// How many lines [text] occupies when wrapped to [width] points.
@@ -264,61 +295,114 @@ class PdfTextMetrics {
   /// Blank input is 0 lines, because the pdf package emits no line box for an
   /// empty span — a CQ with no stem must not be charged a line.
   int countLines(String text,
-      {required double width, required double fontSize, bool bold = false}) {
-    if (text.trim().isEmpty) return 0;
-    if (width <= 0) return 1;
+          {required double width,
+          required double fontSize,
+          bool bold = false}) =>
+      _wrap(text, width: width, fontSize: fontSize, bold: bold).length;
 
-    final tokens = _tokenize(text, bold);
-    if (tokens.isEmpty) return 1;
+  /// Rendered height of [text] wrapped to [width], in points.
+  ///
+  /// Each line is charged its own height — the highest ascent minus the lowest
+  /// descent over the words on it — because that is what the pdf package does.
+  /// Charging every line the tallest piece in the whole block measures it a few
+  /// points per line too tall, and a page that is told it is full when it is
+  /// not breaks with its foot empty — a whole question's worth of white space
+  /// in the worst case.
+  double blockHeight(String text,
+      {required double width,
+      required double fontSize,
+      bool bold = false}) {
+    var total = 0.0;
+    for (final line
+        in _wrap(text, width: width, fontSize: fontSize, bold: bold)) {
+      total += _lineHeightEm(line) * fontSize;
+    }
+    return total;
+  }
 
-    var lines = 1;
+  /// Greedy wrap, mirroring the pdf package's own line breaking.
+  ///
+  /// Returns one list of tokens per line; each token carries the width and the
+  /// line height it contributes, both in em.
+  List<List<_Token>> _wrap(String text,
+      {required double width,
+      required double fontSize,
+      bool bold = false}) {
+    if (text.isEmpty) return const [];
+
+    final tokens = _tokenize(text, bold, fontSize);
+    if (tokens.isEmpty) return [<_Token>[]];
+
+    final lines = <List<_Token>>[<_Token>[]];
     var cursor = 0.0;
     var hasInk = false;
 
     for (final token in tokens) {
+      if (token.isBreak) {
+        // Close the line here. A line the page finds no word on gets no line
+        // box of its own, but a break that ends it still charges the font's own
+        // height — so the break token replaces whatever spaces were on it.
+        if (!hasInk) lines.last = <_Token>[token];
+        lines.add(<_Token>[]);
+        cursor = 0;
+        hasInk = false;
+        continue;
+      }
       if (token.isSpace) {
-        // A space at the start of a line is swallowed by the wrapper.
-        if (hasInk) cursor += token.width * fontSize;
+        // Every whitespace rune moves the pen, even at the start of a line —
+        // the page turns the gap into a space word and the text after it is
+        // shifted. A space never gives a line its height, though.
+        cursor += token.width * fontSize;
+        lines.last.add(token);
         continue;
       }
 
-      final w = token.width * fontSize;
-      if (hasInk && cursor + w > width) {
-        lines++;
-        cursor = w;
-      } else if (!hasInk && w > width) {
+      final w = token.inkWidth * fontSize;
+      final advance = token.width * fontSize;
+      if (hasInk && cursor + w > width + _epsilon) {
+        lines.add(<_Token>[token]);
+        cursor = advance;
+      } else if (!hasInk && w > width + _epsilon) {
         // A single unbreakable run longer than the line: the wrapper breaks it
-        // mid-word rather than overflowing.
-        lines += (w / width).ceil() - 1;
+        // mid-word rather than overflowing, so it covers several line boxes.
+        final spanned = (w / width).ceil();
+        for (var i = 1; i < spanned; i++) {
+          lines.add(<_Token>[token]);
+        }
+        lines.last.add(token);
         cursor = w % width;
         if (cursor == 0) cursor = width;
       } else {
-        cursor += w;
+        lines.last.add(token);
+        cursor += advance;
       }
       hasInk = true;
     }
 
+    // The last line is only a line box if a word or a break ended up on it: a
+    // stemless or spaces-only run occupies no height at all.
+    if (!hasInk) lines.removeLast();
+
     return lines;
   }
 
-  /// Rendered height of [text] wrapped to [width], in points.
-  double blockHeight(String text,
-          {required double width,
-          required double fontSize,
-          bool bold = false}) =>
-      countLines(text, width: width, fontSize: fontSize, bold: bold) *
-      lineHeight(text, fontSize: fontSize, bold: bold);
-
   /// Split into space-separated tokens, keeping each token's own width in em so
   /// no font mixing is lost at the wrap points.
-  List<_Token> _tokenize(String text, bool bold) {
+  List<_Token> _tokenize(String text, bool bold, double baseFontSize) {
     final tokens = <_Token>[];
     for (final segment in _segments(text, bold)) {
       final piece = segment.math;
       if (piece != null) {
         // A typeset stack or script is drawn as one box and must not be broken
         // across a line, so it becomes a single unbreakable token.
-        tokens.add(_Token(width: _mathWidthEm(piece, bold), isSpace: false));
+        final w = _mathWidthEm(piece, bold, baseFontSize);
+        tokens.add(_Token(
+            width: w,
+            inkWidth: w,
+            // A typeset stack is drawn as a widget that hangs from the line's
+            // top, so it adds height below the baseline and nothing above it.
+            ascent: _mathHeightEm(piece, bold, baseFontSize),
+            isSpace: false));
         continue;
       }
       final font = segment.font;
@@ -327,31 +411,60 @@ class PdfTextMetrics {
         // Each rune became its own SizedBox on the page, and a box does not
         // break at spaces, so they stay separate unbreakable tokens.
         for (var i = 0; i < segment.text.runes.length; i++) {
-          tokens.add(_Token(width: _placeholderWidthEm, isSpace: false));
+          tokens.add(_Token(
+              width: _placeholderWidthEm,
+              inkWidth: _placeholderWidthEm,
+              ascent: _placeholderHeightEm,
+              isSpace: false));
         }
         continue;
       }
+      final space = _metricsOf(font, ' ');
+      // A line the page finds no word on is charged the font's own empty-line
+      // height — ascent plus the descent, with the descent's sign dropped.
+      final emptyLineHeight = font.ascent + -font.descent;
+
+      void flush() {
+        if (buffer.isEmpty) return;
+        final m = _metricsOf(font, buffer.toString());
+        tokens.add(_Token(
+            width: m.advanceWidth,
+            inkWidth: m.width,
+            ascent: m.ascent,
+            descent: m.descent,
+            isSpace: false));
+        buffer.clear();
+      }
+
       for (final rune in segment.text.runes) {
-        if (rune == 0x20) {
-          if (buffer.isNotEmpty) {
-            final chunk = buffer.toString();
-            tokens.add(_Token(
-                width: _metricsOf(font, chunk).advanceWidth, isSpace: false));
-            buffer.clear();
-          }
-          // Collapse repeated spaces and drop a leading one.
-          if (tokens.isEmpty || tokens.last.isSpace) continue;
-          tokens.add(
-              _Token(width: _metricsOf(font, ' ').advanceWidth, isSpace: true));
+        if (rune == _lineFeed) {
+          // A hard line break. The page splits every span on '\n' and closes
+          // the line there, so the wrapper has to as well: read as an ordinary
+          // character it glued both halves of the stem together and measured
+          // every stem carrying a break a line or two short — enough to push a
+          // whole block onto the next page and leave the one it belonged on
+          // blank.
+          flush();
+          tokens.add(_Token(
+              width: 0,
+              inkWidth: 0,
+              emptyLineHeight: emptyLineHeight,
+              isSpace: false,
+              isBreak: true));
+        } else if (_isPdfWhitespace(rune)) {
+          // The page splits each line on `\s` and turns every gap into a
+          // space, so repeated spaces are not collapsed and a leading one
+          // still shifts the text after it.
+          flush();
+          tokens.add(_Token(
+              width: space.advanceWidth,
+              inkWidth: space.width,
+              isSpace: true));
         } else {
           buffer.writeCharCode(rune);
         }
       }
-      if (buffer.isNotEmpty) {
-        final chunk = buffer.toString();
-        tokens.add(_Token(
-            width: _metricsOf(font, chunk).advanceWidth, isSpace: false));
-      }
+      flush();
     }
     return tokens;
   }
@@ -390,9 +503,65 @@ class _Segment {
 }
 
 class _Token {
-  const _Token({required this.width, required this.isSpace});
+  const _Token(
+      {required this.width,
+      required this.inkWidth,
+      this.ascent = 0,
+      this.descent = 0,
+      this.emptyLineHeight = 0,
+      this.isSpace = false,
+      this.isBreak = false});
 
-  /// Width in em units (multiply by font size for points).
+  /// Advance in em units (multiply by font size for points): how far the pen
+  /// moves after this token.
   final double width;
+
+  /// Ink extent in em units. pdf tests *this* against the remaining space when
+  /// deciding whether a word still fits ([PdfFontMetrics.width] is
+  /// `right - left`, while the pen advances by `advanceWidth`), so a line may
+  /// end a point or two past the box without wrapping. Charging the advance
+  /// here wraps a borderline line one word early, which adds a whole line.
+  final double inkWidth;
+
+  /// How far this token's ink rises above the baseline, in em.
+  ///
+  /// A line is as tall as the *highest ascent minus the lowest descent* over the
+  /// words on it — the pdf package keeps the two ends separately, so a word
+  /// with tall ascenders and one with deep descenders together make a line
+  /// taller than either alone. Folded into one "height" per word the model read
+  /// every such line short, and Bangla-only lines (whose glyphs all sit above
+  /// the baseline) a whole 2.2pt short each.
+  final double ascent;
+
+  /// How far this token's ink drops below the baseline, in em. Usually negative
+  /// for Latin, but the Bijoy font's glyphs sit above the baseline and report a
+  /// *positive* descent — which the page clamps at zero, making a Bangla-only
+  /// line only as tall as its ascent.
+  final double descent;
+
+  /// Height charged for a line that has no word on it, in em. Only a line break
+  /// uses this; the page charges `font.emptyLineHeight` there.
+  final double emptyLineHeight;
+
   final bool isSpace;
+
+  /// True for a hard line break (`\n`). It draws nothing and has no width, but
+  /// it ends the line it appears on — and it carries the font's own box height
+  /// so that an otherwise empty line still occupies a line box.
+  final bool isBreak;
 }
+
+/// Line feed: the one character the page treats as a hard line break.
+const int _lineFeed = 0x0a;
+
+/// True for the characters the text layout treats as whitespace.
+///
+/// Copied from the pdf package's own `_preProcessSpans` (which skips these in
+/// its font-coverage split), plus the plain space and carriage return. Every
+/// one of them advances the pen by a single space; only [_lineFeed] also breaks
+/// the line.
+bool _isPdfWhitespace(int rune) => const {
+      0x09, 0x0a, 0x0d, 0x20, 0x00a0, 0x1680, 0x2000, 0x2001, 0x2002, //
+      0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a,
+      0x202f, 0x205f, 0x3000,
+    }.contains(rune);

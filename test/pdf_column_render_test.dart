@@ -435,10 +435,18 @@ void main() {
         questions: shorts,
         rqLayout: QuestionLayout.doubleColumn);
 
-    expect(singleHtml, contains('grid-template-columns: 1fr;'));
-    expect(doubleHtml, contains('grid-template-columns: 1fr 1fr;'));
+    // The CSS is emitted for every section, so check the RQ rule itself: the
+    // other two keep their own (default) layout in this call.
+    bool twoColumn(String html, String name) => RegExp('\\.$name \\{([^}]*)\\}')
+        .firstMatch(html)!
+        .group(1)!
+        .contains('column-count: 2');
+    expect(twoColumn(singleHtml, 'rq-grid'), isFalse);
+    expect(twoColumn(doubleHtml, 'rq-grid'), isTrue);
     for (final html in [singleHtml, doubleHtml]) {
-      expect(html, contains('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)'));
+      // The only block in this paper is the short questions, so - letters being
+      // assigned by position, not by type - it is the *first* block, ক-বিভাগ.
+      expect(html, contains('ক-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)'));
       expect(html, contains('প্রশ্ন 1'));
       expect(html, contains('[1]'));
     }
