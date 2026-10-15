@@ -55,9 +55,9 @@ String rule(String css, String selector) {
 /// Line-aware: a rule may carry a comment, and a comment may carry a semicolon,
 /// which a flat `;`-or-start scan would mistake for the end of a declaration.
 String? decl(String body, String property) {
-  final match =
-      RegExp('(?:^|;)\\s*${RegExp.escape(property)}\\s*:([^;]*)', multiLine: true)
-          .firstMatch(body);
+  final match = RegExp('(?:^|;)\\s*${RegExp.escape(property)}\\s*:([^;]*)',
+          multiLine: true)
+      .firstMatch(body);
   return match?.group(1)?.trim();
 }
 
@@ -107,8 +107,8 @@ void main() {
   test('the text column is exactly as wide as the PDF page', () {
     final sides = paddingSides(decl(rule(css, '.paper-sheet'), 'padding')!);
 
-    expect(points('210mm') - sides[1] * 2,
-        closeTo(PdfLayout.contentWidth, 0.01));
+    expect(
+        points('210mm') - sides[1] * 2, closeTo(PdfLayout.contentWidth, 0.01));
   });
 
   test('print lays out A4 and lets the sheet carry the margins', () {
@@ -231,5 +231,10 @@ void main() {
     expect(decl(rule(css, ':root'), '--text'), '#000000');
     expect(rule(css, '.cq-mark'), contains('var(--muted)'));
     expect(rule(css, '.rq-mark'), contains('var(--muted)'));
+
+    // Marks are annotations, not content: the PDF draws them at normal weight,
+    // so a bold `[2]` here would make one export shout where the other does not.
+    expect(decl(rule(css, '.cq-mark'), 'font-weight'), '400');
+    expect(decl(rule(css, '.rq-mark'), 'font-weight'), '400');
   });
 }

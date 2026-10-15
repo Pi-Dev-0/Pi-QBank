@@ -48,6 +48,13 @@ class PdfLayout {
   static const double a4Width = 595.276;
 
   /// Font sizes that affect wrapping, matching the page's text styles.
+  ///
+  /// These are the paper's *base* sizes. The caller's `fontStep` moves every
+  /// size in the paper — these two, the masthead's two, and the styles the page
+  /// builds — together, which is what the font-size control on the generator
+  /// page does. The step has to reach the height estimators below as well as the
+  /// `pw.TextStyle`s they mirror: estimating 11pt text and drawing 13pt text is
+  /// what makes a column overflow its allowance.
   static const double bodyFontSize = 11;
   static const double smallFontSize = 9;
 
@@ -92,18 +99,20 @@ class PdfLayout {
     required HighSchoolQuestion question,
     required double columnWidth,
     required PdfTextMetrics metrics,
+    double fontStep = 0,
   }) {
     final data = question.shortData;
     if (data == null || data.text.trim().isEmpty) return 0;
 
+    final size = bodyFontSize + fontStep;
     final mark = '[${data.mark}]';
-    final markWidth = metrics.textWidth(mark, fontSize: bodyFontSize);
+    final markWidth = metrics.textWidth(mark, fontSize: size);
     final textHeight = metrics.blockHeight(
       '$index. ${data.text}',
       width: columnWidth - 12 - markWidth,
-      fontSize: bodyFontSize,
+      fontSize: size,
     );
-    final markHeight = metrics.lineHeight(mark, fontSize: bodyFontSize);
+    final markHeight = metrics.lineHeight(mark, fontSize: size);
 
     return rqGap + (textHeight > markHeight ? textHeight : markHeight);
   }
@@ -205,28 +214,34 @@ class PdfLayout {
     required String className,
     required String time,
     required String totalMarks,
+    double fontStep = 0,
   }) {
+    final school = 15 + fontStep;
+    final exam = 12 + fontStep;
+    final body = bodyFontSize + fontStep;
     var height = 0.0;
     if (schoolName.trim().isNotEmpty) {
-      height +=
-          metrics.blockHeight(schoolName, width: contentWidth, fontSize: 15);
+      height += metrics.blockHeight(schoolName,
+          width: contentWidth, fontSize: school);
     }
     height += headerTitleGap;
-    height += metrics.blockHeight(examName, width: contentWidth, fontSize: 12);
+    height +=
+        metrics.blockHeight(examName, width: contentWidth, fontSize: exam);
     height += headerExamGap + headerDivider;
     height += headerMetaGap;
     // A Row of four meta fields, spaceBetween: it never wraps, so the row is
     // one line tall no matter how the fields are distributed.
-    height += metrics.lineHeight('বিষয়: $subject', fontSize: bodyFontSize);
+    height += metrics.lineHeight('বিষয়: $subject', fontSize: body);
     height += headerMetaGap + headerDivider;
     return height;
   }
 
   /// Height of a grey section banner, mirroring the banner widget.
-  static double sectionBannerHeight(PdfTextMetrics metrics) =>
+  static double sectionBannerHeight(PdfTextMetrics metrics,
+          {double fontStep = 0}) =>
       8 /* padding */ +
       2 /* border */ +
-      metrics.lineHeight('ক', fontSize: bodyFontSize);
+      metrics.lineHeight('ক', fontSize: bodyFontSize + fontStep);
 
   /// Width of one column when the section is split into [columns].
   static double columnWidth(int columns) => columns <= 1
@@ -248,6 +263,7 @@ class PdfLayout {
     required PdfTextMetrics metrics,
     required bool hasImage,
     required StemImageSize imageSize,
+    double fontStep = 0,
   }) =>
       cqFragments(
         index: index,
@@ -256,6 +272,7 @@ class PdfLayout {
         metrics: metrics,
         hasImage: hasImage,
         imageSize: imageSize,
+        fontStep: fontStep,
       ).fold<double>(0, (sum, h) => sum + h);
 
   /// The CQ card broken into the chunks it can be split at.
@@ -273,14 +290,17 @@ class PdfLayout {
     required PdfTextMetrics metrics,
     required bool hasImage,
     required StemImageSize imageSize,
+    double fontStep = 0,
   }) {
+    final body = bodyFontSize + fontStep;
+    final small = smallFontSize + fontStep;
     final inner = columnWidth - cqPadding;
 
     var head = cqPadding;
     // Measured from the same text the card draws, source tag and all trimmed —
     // see [HighSchoolQuestion.paperStemText].
     head += metrics.blockHeight('$index. ${question.paperStemText}',
-        width: inner, fontSize: bodyFontSize);
+        width: inner, fontSize: body);
     if (imageSize.isVisible && hasImage) {
       head += cqImageGap + imageSize.maxHeightPt;
     }
@@ -288,13 +308,13 @@ class PdfLayout {
     final parts = <double>[head];
     for (final sq in question.cqSubQuestions) {
       final mark = '[${sq.mark}]';
-      final markWidth = metrics.textWidth(mark, fontSize: smallFontSize);
+      final markWidth = metrics.textWidth(mark, fontSize: small);
       final textHeight = metrics.blockHeight(
         '(${sq.label}) ${sq.text}',
         width: inner - cqSubIndent - cqMarkGap - markWidth,
-        fontSize: bodyFontSize,
+        fontSize: body,
       );
-      final markHeight = metrics.lineHeight(mark, fontSize: smallFontSize);
+      final markHeight = metrics.lineHeight(mark, fontSize: small);
       // The SizedBox(height: 4) before the sub-questions rides on the first
       // sub-question, matching where the builder draws it.
       parts.add(cqSubTop +
@@ -315,6 +335,7 @@ class PdfLayout {
     required double columnWidth,
     required PdfTextMetrics metrics,
     required bool stackOptions,
+    double fontStep = 0,
   }) =>
       mcqFragments(
         index: index,
@@ -322,6 +343,7 @@ class PdfLayout {
         columnWidth: columnWidth,
         metrics: metrics,
         stackOptions: stackOptions,
+        fontStep: fontStep,
       ).fold<double>(0, (sum, h) => sum + h);
 
   /// The MCQ question broken into the chunks it can be split at: the stem, then
@@ -336,15 +358,17 @@ class PdfLayout {
     required double columnWidth,
     required PdfTextMetrics metrics,
     required bool stackOptions,
+    double fontStep = 0,
   }) {
     final mcq = question.mcqData;
     if (mcq == null) return const [];
 
+    final body = bodyFontSize + fontStep;
     // Measured from the same line the item draws — see
     // [HighSchoolQuestion.paperQuestionText].
     final parts = <double>[
       metrics.blockHeight('$index. ${question.paperQuestionText}',
-          width: columnWidth, fontSize: bodyFontSize)
+          width: columnWidth, fontSize: body)
     ];
 
     // A half-width cell cannot fit two options side by side, so double-column
@@ -362,7 +386,7 @@ class PdfLayout {
         final h = metrics.blockHeight(
           '${_mcqLetter(idx)} ${mcq.options[idx]}',
           width: (available - gutters) / perRow,
-          fontSize: bodyFontSize,
+          fontSize: body,
         );
         if (h > rowHeight) rowHeight = h;
       }
@@ -380,12 +404,14 @@ class PdfLayout {
     required HighSchoolQuestion question,
     required double columnWidth,
     required PdfTextMetrics metrics,
+    double fontStep = 0,
   }) {
     final height = rqHeight(
         index: index,
         question: question,
         columnWidth: columnWidth,
-        metrics: metrics);
+        metrics: metrics,
+        fontStep: fontStep);
     return height <= 0 ? const [] : [height];
   }
 

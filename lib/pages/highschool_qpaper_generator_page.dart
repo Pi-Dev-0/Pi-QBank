@@ -162,6 +162,24 @@ class _HighSchoolQPaperGeneratorPageState
   /// two columns only helps when there are many of them.
   QuestionLayout _rqLayout = QuestionLayout.single;
 
+  /// How far every text size in the paper is moved from the size it was tuned
+  /// at — one point per step.
+  ///
+  /// The step moves every size together: masthead, section banners, question
+  /// text and the marks, in the PDF and the HTML alike (the sheet carries it as
+  /// `calc(… + Npt)`), so the two exports stay the same size. It also reaches
+  /// [PdfLayout]'s height estimators — budgeting room for 11pt text and drawing
+  /// 13pt text is what makes a column overflow its allowance.
+  double _fontStep = 0;
+
+  /// The range the control allows. Below −3 the text stops being comfortable on
+  /// paper; +6 is already half again the height of a paper at 0.
+  static const double _fontStepMin = -3;
+  static const double _fontStepMax = 6;
+
+  /// The size a paper text style prints at: its tuned base plus [_fontStep].
+  double _typeSize(double base) => base + _fontStep;
+
   // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _stepAnim = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 400));
@@ -651,6 +669,7 @@ class _HighSchoolQPaperGeneratorPageState
         cqLayout: _cqLayout,
         mcqLayout: _mcqLayout,
         rqLayout: _rqLayout,
+        fontStep: _fontStep,
       );
       final file = await HighSchoolExportService.saveFile(
         content: html,
@@ -789,6 +808,7 @@ class _HighSchoolQPaperGeneratorPageState
           cqLayout: _cqLayout,
           mcqLayout: _mcqLayout,
           rqLayout: _rqLayout,
+          fontStep: _fontStep,
         ),
       ),
     );
@@ -811,6 +831,7 @@ class _HighSchoolQPaperGeneratorPageState
       cqLayout: _cqLayout,
       mcqLayout: _mcqLayout,
       rqLayout: _rqLayout,
+      fontStep: _fontStep,
     );
     final file = await HighSchoolExportService.saveFile(
       content: html,
@@ -1013,6 +1034,7 @@ class _HighSchoolQPaperGeneratorPageState
     widgets.add(pw.SizedBox(height: PdfLayout.headerAfterGap));
     flow.consume(PdfLayout.headerHeight(
           metrics: metrics,
+          fontStep: _fontStep,
           schoolName: _schoolCtrl.text,
           examName: _examCtrl.text,
           subject: _subjectCtrl.text,
@@ -1032,7 +1054,7 @@ class _HighSchoolQPaperGeneratorPageState
       if (cqs.isNotEmpty) {
         final cqBanner = _pdfSectionBanner(
             '${_sectionLetter(_SectionKind.cq)}-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-            boldStyle.copyWith(fontSize: 11));
+            boldStyle.copyWith(fontSize: _typeSize(PdfLayout.bodyFontSize)));
         // Inline means the heading rides at the top of the first block's left
         // column instead of spanning the page — see the insert below. A
         // full-width box thrown across a narrow half-sheet wastes a line.
@@ -1045,7 +1067,7 @@ class _HighSchoolQPaperGeneratorPageState
         final noteHeight = answerAny > 0
             ? 4 +
                 metrics.lineHeight(answerAnyText,
-                    fontSize: PdfLayout.smallFontSize)
+                    fontSize: _typeSize(PdfLayout.smallFontSize))
             : 0.0;
 
         // Balanced newspaper columns rather than rows of two, so a short
@@ -1067,6 +1089,7 @@ class _HighSchoolQPaperGeneratorPageState
             hasImage: stemImages.containsKey(
                 HighSchoolExportService.resolveImageUrl(cqs[i].stemImageUrl)),
             imageSize: _imageSize,
+            fontStep: _fontStep,
           );
           for (var p = 0; p < parts.length; p++) {
             cqFragments.add(PdfFlowFragment(
@@ -1172,7 +1195,7 @@ class _HighSchoolQPaperGeneratorPageState
       if (shorts.isNotEmpty) {
         final rqBanner = _pdfSectionBanner(
             '${_sectionLetter(_SectionKind.rq)}-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
-            boldStyle.copyWith(fontSize: 11));
+            boldStyle.copyWith(fontSize: _typeSize(PdfLayout.bodyFontSize)));
         final rqCols = _rqLayout.mcqColumns;
         final rqInline = _inlineSectionBanner(rqCols, _SectionKind.rq);
 
@@ -1186,6 +1209,7 @@ class _HighSchoolQPaperGeneratorPageState
               question: shorts[i],
               columnWidth: rqWidth,
               metrics: metrics,
+              fontStep: _fontStep,
             ),
         ];
 
@@ -1328,7 +1352,7 @@ class _HighSchoolQPaperGeneratorPageState
     if (mcqs.isNotEmpty) {
       final mcqBanner = _pdfSectionBanner(
           '${_sectionLetter(_SectionKind.mcq)}-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
-          boldStyle.copyWith(fontSize: 11));
+          boldStyle.copyWith(fontSize: _typeSize(PdfLayout.bodyFontSize)));
       // MCQ arranged in balanced columns per the layout setting.
       final cols = _mcqLayout.mcqColumns;
       final mcqInline = _inlineSectionBanner(cols, _SectionKind.mcq);
@@ -1352,6 +1376,7 @@ class _HighSchoolQPaperGeneratorPageState
               columnWidth: mcqWidth,
               metrics: metrics,
               stackOptions: stackOptions,
+              fontStep: _fontStep,
             );
 
       _keepHeadingWithContent(
@@ -1360,7 +1385,8 @@ class _HighSchoolQPaperGeneratorPageState
         headingHeight: (mcqInline ? 0 : PdfLayout.sectionGap) +
             bannerHeight +
             4 +
-            metrics.lineHeight(tickNote, fontSize: PdfLayout.smallFontSize) +
+            metrics.lineHeight(tickNote,
+                fontSize: _typeSize(PdfLayout.smallFontSize)) +
             PdfLayout.sectionBannerGap,
         firstUnitHeight: firstMcqParts.isEmpty ? 0 : firstMcqParts.first,
       );
@@ -1385,7 +1411,8 @@ class _HighSchoolQPaperGeneratorPageState
       flow.consume((mcqInline ? 0 : PdfLayout.sectionGap) +
           bannerHeight +
           4 +
-          metrics.lineHeight(tickNote, fontSize: PdfLayout.smallFontSize) +
+          metrics.lineHeight(tickNote,
+              fontSize: _typeSize(PdfLayout.smallFontSize)) +
           PdfLayout.sectionBannerGap);
 
       final mcqFragments = <PdfFlowFragment>[];
@@ -1396,6 +1423,7 @@ class _HighSchoolQPaperGeneratorPageState
           columnWidth: mcqWidth,
           metrics: metrics,
           stackOptions: stackOptions,
+          fontStep: _fontStep,
         );
         for (var p = 0; p < parts.length; p++) {
           mcqFragments.add(PdfFlowFragment(
@@ -1502,6 +1530,7 @@ class _HighSchoolQPaperGeneratorPageState
             hasImage: stemImages.containsKey(
                 HighSchoolExportService.resolveImageUrl(cqs[i].stemImageUrl)),
             imageSize: _imageSize,
+            fontStep: _fontStep,
           );
           for (var p = 0; p < parts.length; p++) {
             add(parts[p], i, p, p == 0, p == parts.length - 1);
@@ -1520,6 +1549,7 @@ class _HighSchoolQPaperGeneratorPageState
             question: shorts[i],
             columnWidth: rqWidth,
             metrics: metrics,
+            fontStep: _fontStep,
           );
           for (var p = 0; p < parts.length; p++) {
             add(parts[p], cqs.length + i, p, p == 0, p == parts.length - 1);
@@ -1555,7 +1585,8 @@ class _HighSchoolQPaperGeneratorPageState
                       qIndex == cqBannerId
                           ? '${_sectionLetter(_SectionKind.cq)}-বিভাগ: সৃজনশীল প্রশ্ন (CQ)'
                           : '${_sectionLetter(_SectionKind.rq)}-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
-                      boldStyle.copyWith(fontSize: 11)),
+                      boldStyle.copyWith(
+                          fontSize: _typeSize(PdfLayout.bodyFontSize))),
                   pw.SizedBox(height: PdfLayout.mergedHeadingGap),
                 ],
               );
@@ -1651,29 +1682,32 @@ class _HighSchoolQPaperGeneratorPageState
     // measured with the same engine the layout used.
     _activeMetrics = metrics;
 
+    // Every size here is the paper's *base* size; _typeSize shifts them all by
+    // the same step. The step reaches PdfLayout's height estimators too, so what
+    // is drawn and what the flow budgeted for stay the same number.
     final baseStyle = pw.TextStyle(
       font: banglaFont,
       fontFallback: fallback,
-      fontSize: 11,
+      fontSize: _typeSize(PdfLayout.bodyFontSize),
       color: PdfColors.black,
     );
     final boldStyle = pw.TextStyle(
       font: banglaFont,
       fontFallback: fallback,
-      fontSize: 11,
+      fontSize: _typeSize(PdfLayout.bodyFontSize),
       fontWeight: pw.FontWeight.bold,
     );
     final headerStyle = pw.TextStyle(
       font: banglaFont,
       fontFallback: fallback,
-      fontSize: 14,
+      fontSize: _typeSize(14),
       fontWeight: pw.FontWeight.bold,
       color: PdfColors.black,
     );
     final smallStyle = pw.TextStyle(
       font: banglaFont,
       fontFallback: fallback,
-      fontSize: 9,
+      fontSize: _typeSize(PdfLayout.smallFontSize),
       color: PdfColors.grey700,
     );
     // Marks are annotations, not content: normal weight and a soft grey, so a
@@ -1684,13 +1718,13 @@ class _HighSchoolQPaperGeneratorPageState
     final cqMarkStyle = pw.TextStyle(
       font: banglaFont,
       fontFallback: fallback,
-      fontSize: PdfLayout.smallFontSize,
+      fontSize: _typeSize(PdfLayout.smallFontSize),
       color: markColor,
     );
     final rqMarkStyle = pw.TextStyle(
       font: banglaFont,
       fontFallback: fallback,
-      fontSize: PdfLayout.bodyFontSize,
+      fontSize: _typeSize(PdfLayout.bodyFontSize),
       color: markColor,
     );
 
@@ -1712,7 +1746,8 @@ class _HighSchoolQPaperGeneratorPageState
         // never fits under the masthead, and jumps to page 2 — leaving page 1
         // almost blank. See PdfPageFlow.
         final flow = PdfPageFlow(contentHeight: PdfLayout.contentHeight);
-        final bannerHeight = PdfLayout.sectionBannerHeight(metrics);
+        final bannerHeight =
+            PdfLayout.sectionBannerHeight(metrics, fontStep: _fontStep);
         final labels = _setLabels;
 
         // One set, or two variants of the same paper on the same document.
@@ -1845,10 +1880,12 @@ class _HighSchoolQPaperGeneratorPageState
       children: [
         if (schoolName.trim().isNotEmpty)
           pw.RichText(
-              text: _mixedText(schoolName, headerStyle.copyWith(fontSize: 15))),
+              text: _mixedText(
+                  schoolName, headerStyle.copyWith(fontSize: _typeSize(15)))),
         pw.SizedBox(height: PdfLayout.headerTitleGap),
         pw.RichText(
-            text: _mixedText(examName, boldStyle.copyWith(fontSize: 12))),
+            text: _mixedText(
+                examName, boldStyle.copyWith(fontSize: _typeSize(12)))),
         pw.SizedBox(height: PdfLayout.headerExamGap),
         // `height` must be given: dart_pdf's Divider defaults to *16pt* tall and
         // centres the rule inside that, so each of the masthead's two rules
@@ -3077,7 +3114,7 @@ class _HighSchoolQPaperGeneratorPageState
           ),
           const SizedBox(height: 18),
 
-          _buildSectionOrderEditor(),
+          _buildSectionCard(),
           const SizedBox(height: 20),
 
           _buildTextField(
@@ -3122,8 +3159,8 @@ class _HighSchoolQPaperGeneratorPageState
           _buildImageSizeSelector(),
           const SizedBox(height: 14),
 
-          // ── Column layout ───────────────────────────────────────────────
-          _buildLayoutSelector(),
+          // ── Paper font size ──────────────────────────────────────────────
+          _buildFontSizeSelector(),
           const SizedBox(height: 28),
 
           // Primary Action: PDF View & Download
@@ -3432,100 +3469,127 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
-  /// One two-way column toggle for either section.
-  Widget _buildLayoutRow({
-    required String label,
-    required int count,
-    required String unit,
-    required QuestionLayout value,
-    required ValueChanged<QuestionLayout> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text('$label কলাম',
-                style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: _kDarkText)),
-            const SizedBox(width: 8),
-            Text(
-              count > 0 ? '$count টি $unit' : 'কোনো $unit নেই',
-              style: const TextStyle(fontSize: 11, color: _kSubText),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: QuestionLayout.values.map((option) {
-            final selected = value == option;
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () => onChanged(option),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? _kPrimary.withOpacity(0.10)
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: selected ? _kPrimary : Colors.transparent,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Column glyph so the choice reads at a glance.
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: List.generate(
-                            option.mcqColumns,
-                            (_) => Container(
-                              width: 9,
-                              height: 20,
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 1.5),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? _kPrimary.withOpacity(0.55)
-                                    : Colors.grey.shade400,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          option.label,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight:
-                                selected ? FontWeight.bold : FontWeight.w500,
-                            color: selected ? _kPrimary : _kDarkText,
-                          ),
-                        ),
-                      ],
-                    ),
+  /// The paper's font-size control: one step moves every text size in the paper
+  /// — masthead, section banners, question text and marks — by a single point,
+  /// in the PDF and the HTML alike.
+  ///
+  /// The paper is tuned at step 0, which is why the control ships at 0 rather
+  /// than at a "small / medium / large" default nobody can compare against.
+  Widget _buildFontSizeSelector() {
+    final label = _fontStep == 0
+        ? 'স্বাভাবিক'
+        : '${_fontStep > 0 ? '+' : '−'}${_fontStep.abs().toStringAsFixed(0)} pt';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.format_size_rounded, size: 18, color: _kPrimary),
+              const SizedBox(width: 8),
+              const Text('লেখার আকার',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: _kDarkText)),
+              const Spacer(),
+              Text(label, style: TextStyle(fontSize: 11, color: _kSubText)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _buildFontStepButton(
+                  icon: Icons.remove_rounded,
+                  delta: -1,
+                  enabled: _fontStep > _fontStepMin),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  alignment: Alignment.center,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  // Drawn at the paper's own size: the HTML sheet prints
+                  // question text at 15px and a step is one point (96/72 px), so
+                  // the sample grows by exactly what the paper will.
+                  child: Text(
+                    '১. সংক্ষিপ্ত প্রশ্নের নমুনা লেখা',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 15 + _fontStep * 96 / 72, color: _kDarkText),
                   ),
                 ),
               ),
-            );
-          }).toList(),
-        ),
-      ],
+              const SizedBox(width: 10),
+              _buildFontStepButton(
+                  icon: Icons.add_rounded,
+                  delta: 1,
+                  enabled: _fontStep < _fontStepMax),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'প্রতিটি ধাপে প্রশ্নপত্রের সব লেখা একসাথে এক পয়েন্ট বড় বা ছোট হয়। '
+            'PDF আর HTML — দুই এক্সপোর্টেই একই আকারে ছাপা হবে।',
+            style: TextStyle(fontSize: 11, color: _kSubText),
+          ),
+        ],
+      ),
     );
   }
 
-  /// Independent column controls for the CQ and MCQ sections.
-  Widget _buildLayoutSelector() {
+  /// One end of the font-size stepper, greyed out at its limit.
+  Widget _buildFontStepButton({
+    required IconData icon,
+    required double delta,
+    required bool enabled,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: enabled
+          ? () => setState(() => _fontStep =
+              (_fontStep + delta).clamp(_fontStepMin, _fontStepMax).toDouble())
+          : null,
+      child: Container(
+        width: 46,
+        height: 42,
+        decoration: BoxDecoration(
+          color: enabled ? _kPrimary.withOpacity(0.10) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: enabled ? _kPrimary : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Icon(icon,
+            size: 20, color: enabled ? _kPrimary : Colors.grey.shade400),
+      ),
+    );
+  }
+
+  /// The paper's structure in one card: the order its blocks print in, and how
+  /// wide each of them runs.
+  ///
+  /// The two belong together — they answer the same question, what the paper is
+  /// made of — and apart they meant two lists of the same three sections, one
+  /// showing the order the reader chose and the other a fixed order that could
+  /// contradict it. Here, top to bottom *is* the order on the page, so the letter
+  /// a block is headed with reads straight off its row.
+  Widget _buildSectionCard() {
+    final merged = _mergesCqAndShorts;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -3541,45 +3605,73 @@ class _HighSchoolQPaperGeneratorPageState
               const Icon(Icons.view_column_outlined,
                   size: 18, color: _kPrimary),
               const SizedBox(width: 8),
-              const Text('প্রশ্নের কলাম',
+              const Text('বিভাগ ও কলাম',
                   style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                       color: _kDarkText)),
+              const Spacer(),
+              Text('ধরে টেনে ক্রম বদলাও',
+                  style: TextStyle(fontSize: 11, color: _kSubText)),
             ],
           ),
-          const SizedBox(height: 14),
-          _buildLayoutRow(
-            label: 'সৃজনশীল (CQ)',
-            unit: 'CQ',
-            count: _selectedCqs.length,
-            value: _cqLayout,
-            onChanged: (v) => setState(() => _cqLayout = v),
+          const SizedBox(height: 10),
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            buildDefaultDragHandles: false,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _sectionOrder.length,
+            // Every block is listed, empty ones included, so the rows map onto
+            // [_sectionOrder] one for one and a drop is a plain move. The old
+            // list hid empty blocks, which is what forced every drop to translate
+            // a visible index back onto the stored order.
+            onReorder: (oldIndex, newIndex) {
+              setState(() {
+                if (newIndex > oldIndex) newIndex -= 1;
+                _sectionOrder.insert(
+                    newIndex, _sectionOrder.removeAt(oldIndex));
+              });
+            },
+            itemBuilder: (context, index) {
+              final kind = _sectionOrder[index];
+              final count = _questionsOf(kind).length;
+              return _SectionCardRow(
+                key: ValueKey(kind),
+                kind: kind,
+                index: index,
+                questionCount: count,
+                marks: _marksOf(kind),
+                // Only a block that prints has a letter. An empty block is
+                // skipped on the page, so numbering it would promise a division
+                // the reader will not find there.
+                letter: count == 0 ? '' : _sectionLetter(kind),
+                layout: _layoutOf(kind),
+                onLayout: (v) => setState(() => _setLayoutOf(kind, v)),
+              );
+            },
           ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-          _buildLayoutRow(
-            label: 'বহুনির্বাচনি (MCQ)',
-            unit: 'MCQ',
-            count: _selectedMcqs.length,
-            value: _mcqLayout,
-            onChanged: (v) => setState(() => _mcqLayout = v),
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-          _buildLayoutRow(
-            label: 'সংক্ষিপ্ত (SQ)',
-            unit: 'RQ',
-            count: _selectedShorts.length,
-            value: _rqLayout,
-            onChanged: (v) => setState(() => _rqLayout = v),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           const Text(
-            'CQ, MCQ ও RQ আলাদাভাবে সাজানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
+            'প্রতিটি বিভাগ আলাদাভাবে এক বা দুই কলামে বসানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
             style: TextStyle(fontSize: 11, color: _kSubText),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: _kPrimary.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              merged
+                  ? 'সৃজনশীল ও সংক্ষিপ্ত প্রশ্ন পরপর আছে, তাই দুটি একটিই '
+                      'প্রবাহে একসাথে বসবে। মাঝে কোনো বিভাগ না সরালে এই যুক্ত '
+                      'বিন্যাস থাকবে।'
+                  : 'সৃজনশীল ও সংক্ষিপ্ত প্রশ্ন পরপর নেই, তাই এরা আলাদা বিভাগ হিসেবে '
+                      'বসবে। দুটি পরপর করলে আবার একটিই প্রবাহে জুটে যাবে।',
+              style: const TextStyle(fontSize: 11, color: _kSubText),
+            ),
           ),
           const SizedBox(height: 18),
           const Divider(height: 1),
@@ -3588,6 +3680,23 @@ class _HighSchoolQPaperGeneratorPageState
         ],
       ),
     );
+  }
+
+  /// The column setting that governs [kind]: the three are independent.
+  QuestionLayout _layoutOf(_SectionKind kind) => kind.isCq
+      ? _cqLayout
+      : kind.isMcq
+          ? _mcqLayout
+          : _rqLayout;
+
+  void _setLayoutOf(_SectionKind kind, QuestionLayout value) {
+    if (kind.isCq) {
+      _cqLayout = value;
+    } else if (kind.isMcq) {
+      _mcqLayout = value;
+    } else {
+      _rqLayout = value;
+    }
   }
 
   /// Controls for printing the paper as two variants in one document.
@@ -3705,85 +3814,6 @@ class _HighSchoolQPaperGeneratorPageState
             style: TextStyle(fontSize: 11, color: _kSubText),
           ),
         ],
-      ],
-    );
-  }
-
-  /// Drag list for choosing the order the sections print in.
-  ///
-  /// Built from [_activeSections] rather than [_sectionOrder] so an empty
-  /// section is never shown: a drag should always move something visible.
-  Widget _buildSectionOrderEditor() {
-    final sections = _activeSections;
-    if (sections.length < 2) return const SizedBox.shrink();
-
-    final merged = _mergesCqAndShorts;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.reorder_rounded, size: 18, color: _kPrimary),
-            const SizedBox(width: 8),
-            const Text('বিভাগের ক্রম',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: _kDarkText)),
-            const Spacer(),
-            Text('ধরে টেনে বদলান',
-                style: TextStyle(fontSize: 11, color: _kSubText)),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ReorderableListView.builder(
-          shrinkWrap: true,
-          buildDefaultDragHandles: false,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: sections.length,
-          onReorder: (oldIndex, newIndex) {
-            setState(() {
-              if (newIndex > oldIndex) newIndex -= 1;
-              // The visible list skips empty sections, so translate its
-              // indices back onto the full order before moving anything.
-              final kind = sections[oldIndex];
-              _sectionOrder.remove(kind);
-              final anchor = newIndex >= sections.length
-                  ? _sectionOrder.length
-                  : _sectionOrder.indexOf(sections[newIndex]);
-              _sectionOrder.insert(anchor, kind);
-            });
-          },
-          itemBuilder: (context, index) {
-            final kind = sections[index];
-            return _SectionOrderTile(
-              key: ValueKey(kind),
-              kind: kind,
-              questionCount: _questionsOf(kind).length,
-              marks: _marksOf(kind),
-              index: index,
-              dragIndex: sections.length,
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: _kPrimary.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            merged
-                ? 'সৃজনশীল ও সংক্ষিপ্ত প্রশ্ন পরপর আছে, তাই দুটি একটিই '
-                    'প্রবাহে একসাথে বসবে। মাঝে কোনো বিভাগ না সরালে এই যুক্ত '
-                    'বিন্যাস থাকবে।'
-                : 'সৃজনশীল ও সংক্ষিপ্ত প্রশ্ন পরপর নেই, তাই এরা আলাদা বিভাগ হিসেবে '
-                    'বসবে। দুটি পরপর করলে আবার একটিই প্রবাহে জুটে যাবে।',
-            style: const TextStyle(fontSize: 11, color: _kSubText),
-          ),
-        ),
       ],
     );
   }
@@ -4161,17 +4191,18 @@ class _PickFilterChip extends StatelessWidget {
 /// short questions were merged, so there was no way to print the sections in
 /// the order a particular exam wanted.
 enum _SectionKind {
-  cq('ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)', 'সৃজনশীল প্রশ্ন', _kCqColor),
-  rq('গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)', 'সংক্ষিপ্ত প্রশ্ন', _kRqColor),
-  mcq('খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)', 'বহুনির্বাচনী প্রশ্ন', _kMcqColor);
+  cq('সৃজনশীল প্রশ্ন (CQ)', 'সৃজনশীল প্রশ্ন', _kCqColor),
+  rq('সংক্ষিপ্ত প্রশ্ন (SQ)', 'সংক্ষিপ্ত প্রশ্ন', _kRqColor),
+  mcq('বহুনির্বাচনী প্রশ্ন (MCQ)', 'বহুনির্বাচনী প্রশ্ন', _kMcqColor);
 
-  const _SectionKind(this.banner, this.shortName, this.color);
+  const _SectionKind(this.title, this.shortName, this.color);
 
-  /// Exactly the text the PDF section banner draws, so the reorder list and the
-  /// printed paper cannot drift apart.
-  final String banner;
+  /// The block's name as the printed banner spells it, minus the `ক-বিভাগ:`
+  /// prefix. The letter comes from the block's *place* in the printed order, so
+  /// it can only be added once the row knows where it sits.
+  final String title;
 
-  /// Compact name for the drag list.
+  /// Compact name, for a row that has no questions to count.
   final String shortName;
 
   final Color color;
@@ -4181,88 +4212,168 @@ enum _SectionKind {
   bool get isRq => this == _SectionKind.rq;
 }
 
-/// One draggable row in the section-order list.
-class _SectionOrderTile extends StatelessWidget {
-  const _SectionOrderTile({
+/// One block of the paper: where it prints, what it holds and how wide it runs.
+///
+/// The row itself is the drag handle; the column toggle inside it still takes a
+/// tap, because a drag only begins once the pointer moves.
+class _SectionCardRow extends StatelessWidget {
+  const _SectionCardRow({
     super.key,
     required this.kind,
     required this.questionCount,
     required this.marks,
+    required this.letter,
     required this.index,
-    required this.dragIndex,
+    required this.layout,
+    required this.onLayout,
   });
 
   final _SectionKind kind;
   final int questionCount;
   final int marks;
+
+  /// The বাংলা letter this block prints under, or empty when it holds nothing
+  /// and is skipped on the page.
+  final String letter;
   final int index;
-  final int dragIndex;
+  final QuestionLayout layout;
+  final ValueChanged<QuestionLayout> onLayout;
 
   @override
   Widget build(BuildContext context) {
+    final empty = questionCount == 0;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: empty ? Colors.grey.shade50 : Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: kind.color.withOpacity(0.35)),
+          border: Border.all(
+            color: empty ? Colors.grey.shade300 : kind.color.withOpacity(0.35),
+          ),
         ),
-        child: ReorderableDragStartListener(
-          index: index,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                ReorderableDragStartListener(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+          child: Row(
+            children: [
+              // The drag area stops short of the column toggle: a pill inside
+              // the drag listener would start a reorder the moment a click
+              // moved a pixel, and the setting would not change.
+              Expanded(
+                child: ReorderableDragStartListener(
                   index: index,
                   child: MouseRegion(
                     cursor: SystemMouseCursors.grab,
-                    child: Icon(Icons.drag_indicator_rounded,
-                        size: 20, color: kind.color),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        kind.banner,
-                        style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.bold,
-                            color: _kDarkText),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$questionCount টি প্রশ্ন  ·  $marks নম্বর',
-                        style: const TextStyle(fontSize: 11, color: _kSubText),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: kind.color.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${index + 1}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: kind.color,
+                    child: Row(
+                      children: [
+                        Icon(Icons.drag_indicator_rounded,
+                            size: 20,
+                            color: empty ? Colors.grey.shade400 : kind.color),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                letter.isEmpty
+                                    ? kind.title
+                                    : '$letter-বিভাগ: ${kind.title}',
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: empty ? _kSubText : _kDarkText),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                empty
+                                    ? 'কোনো ${kind.shortName} নেই'
+                                    : '$questionCount টি প্রশ্ন  ·  $marks নম্বর',
+                                style: const TextStyle(
+                                    fontSize: 11, color: _kSubText),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              _ColumnToggle(value: layout, onChanged: onLayout),
+            ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The one-or-two column choice for a section, as two glyphs.
+///
+/// Glyphs rather than words: the row already carries the block's name, its
+/// letter and its counts, and the choice has to fit beside them. These are the
+/// same bars the paper itself is drawn with, so two bars read as "two columns"
+/// without a label.
+class _ColumnToggle extends StatelessWidget {
+  const _ColumnToggle({required this.value, required this.onChanged});
+
+  final QuestionLayout value;
+  final ValueChanged<QuestionLayout> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < QuestionLayout.values.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          // Labelled for the pointer and the screen reader: the pill itself is
+          // two bars and no words, which is all that fits beside a section name.
+          Tooltip(
+            message: QuestionLayout.values[i].label,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => onChanged(QuestionLayout.values[i]),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: BoxDecoration(
+                  color: value == QuestionLayout.values[i]
+                      ? _kPrimary.withOpacity(0.10)
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: value == QuestionLayout.values[i]
+                        ? _kPrimary
+                        : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: List.generate(
+                    QuestionLayout.values[i].mcqColumns,
+                    (_) => Container(
+                      width: 7,
+                      height: 15,
+                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                      decoration: BoxDecoration(
+                        color: value == QuestionLayout.values[i]
+                            ? _kPrimary.withOpacity(0.55)
+                            : Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

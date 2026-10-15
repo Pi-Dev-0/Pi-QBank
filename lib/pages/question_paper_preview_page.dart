@@ -30,6 +30,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.cqLayout = QuestionLayout.single,
     this.mcqLayout = QuestionLayout.doubleColumn,
     this.rqLayout = QuestionLayout.single,
+    this.fontStep = 0,
   });
 
   final String schoolName;
@@ -51,6 +52,11 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   final QuestionLayout cqLayout;
   final QuestionLayout mcqLayout;
   final QuestionLayout rqLayout;
+
+  /// How far every text size in the paper is moved from its tuned size, in
+  /// points. The PDF is built at the same step; see the font-size control on
+  /// the generator page.
+  final double fontStep;
 
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
@@ -81,6 +87,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         cqLayout: widget.cqLayout,
         mcqLayout: widget.mcqLayout,
         rqLayout: widget.rqLayout,
+        fontStep: widget.fontStep,
       );
 
   @override

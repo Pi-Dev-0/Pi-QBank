@@ -757,6 +757,26 @@ class HighSchoolExportService {
   // 3. Web / HTML Format (Print-optimized, responsive)
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// A font size for the sheet's CSS: the tuned pixel size plus the paper's
+  /// font step, in points.
+  ///
+  /// Points rather than pixels because the step has to match the PDF, which
+  /// moves its own sizes by one point per step; `calc()` mixes the two units so
+  /// the sheet and the PDF grow by the same amount. At step 0 the plain pixel
+  /// value comes out, so an untouched paper's CSS is exactly what it was.
+  static String _cssFontSize(double basePx, double fontStep) {
+    if (fontStep == 0) return '${_cssNumber(basePx)}px';
+    // Written as a subtraction rather than an added negative: `calc(15px + -2pt)`
+    // is well-formed but reads like a mistake.
+    final sign = fontStep > 0 ? '+' : '-';
+    return 'calc(${_cssNumber(basePx)}px $sign ${_cssNumber(fontStep.abs())}pt)';
+  }
+
+  /// A number for the CSS, with no trailing `.0`.
+  static String _cssNumber(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
+
   static String generateHtml({
     required String schoolName,
     required String examName,
@@ -771,6 +791,7 @@ class HighSchoolExportService {
     QuestionLayout cqLayout = QuestionLayout.single,
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
+    double fontStep = 0,
   }) {
     // A two-set paper prints as two papers in one file. A question belongs to a
     // set through [HighSchoolQuestion.setLabel], and a question the reader never
@@ -878,6 +899,10 @@ class HighSchoolExportService {
       padding: 18pt 40pt 18px;
       border-radius: 8px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      /* The paper's base size, set where the PDF sets its body style. Text with
+         no size of its own — an MCQ stem, for one — has to move with the
+         font-size control too, and 16px is what it inherited before. */
+      font-size: ${_cssFontSize(16, fontStep)};
     }
     /* A second sheet exists only when the two sets do not fit on one page: the
        script at the foot of the file splits them when that is the case, and on
@@ -895,8 +920,8 @@ class HighSchoolExportService {
       margin: 16pt 0 12pt 0;
       break-after: avoid;
     }
-    .school-title { font-size: 24px; font-weight: 700; text-align: center; margin-bottom: 4px; }
-    .exam-title { font-size: 18px; font-weight: 600; text-align: center; }
+    .school-title { font-size: ${_cssFontSize(24, fontStep)}; font-weight: 700; text-align: center; margin-bottom: 4px; }
+    .exam-title { font-size: ${_cssFontSize(18, fontStep)}; font-weight: 600; text-align: center; }
     .meta-bar {
       display: flex;
       justify-content: space-between;
@@ -905,7 +930,7 @@ class HighSchoolExportService {
       border-top: 1.5px solid var(--text);
       border-bottom: 1.5px solid var(--text);
       font-weight: 600;
-      font-size: 15px;
+      font-size: ${_cssFontSize(15, fontStep)};
     }
     /* The PDF's own spacing, in the PDF's own units: `PdfLayout.sectionGap`
        above every banner and `PdfLayout.sectionBannerGap` below it. The same
@@ -914,7 +939,7 @@ class HighSchoolExportService {
        three sections sit the same distance apart in both exports. */
     .section-banner {
       text-align: center;
-      font-size: 14px;
+      font-size: ${_cssFontSize(14, fontStep)};
       font-weight: 700;
       background: #f1f5f9;
       padding: 3px 6px;
@@ -950,7 +975,7 @@ class HighSchoolExportService {
       orphans: 2;
       widows: 2;
     }
-    .cq-stem { font-size: 15px; margin-bottom: 5px; }
+    .cq-stem { font-size: ${_cssFontSize(15, fontStep)}; margin-bottom: 5px; }
     .cq-stem-img {
       display: block;
       max-width: 100%;
@@ -964,11 +989,11 @@ class HighSchoolExportService {
     .cq-sub-item {
       display: flex;
       justify-content: space-between;
-      font-size: 14px;
+      font-size: ${_cssFontSize(14, fontStep)};
       padding-left: 6px;
     }
     .cq-mark {
-      font-weight: 700;
+      font-weight: 400;
       min-width: 30px;
       text-align: right;
       color: var(--muted);
@@ -1000,7 +1025,7 @@ class HighSchoolExportService {
       gap: 6px 16px;
       margin-top: 6px;
       padding-left: 16px;
-      font-size: 14px;
+      font-size: ${_cssFontSize(14, fontStep)};
     }
     .rq-grid {${rqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
@@ -1013,11 +1038,11 @@ class HighSchoolExportService {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
-      font-size: 15px;
+      font-size: ${_cssFontSize(15, fontStep)};
       page-break-inside: avoid;
       break-inside: avoid;
     }
-    .rq-mark { font-weight: 700; white-space: nowrap; color: var(--muted); }
+    .rq-mark { font-weight: 400; white-space: nowrap; color: var(--muted); }
 
     @page { size: A4; margin: 0; }
 
