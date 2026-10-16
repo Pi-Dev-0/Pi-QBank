@@ -80,6 +80,12 @@ class PdfLayout {
   static const double mcqOptionTop = 2;
   static const double mcqOptionGap = 12;
 
+  /// Gap between an MCQ's উদ্দীপক — its intro and figure — and the numbered
+  /// question line under it. Measured here because the card is: the estimator
+  /// and the item have to agree or the column the packer filled is not the
+  /// column that gets drawn.
+  static const double mcqStemGap = 4;
+
   /// The dashed rule drawn between consecutive MCQs.
   static const double mcqSeparatorHeight = 6 + 1 + 6;
 
@@ -380,6 +386,9 @@ class PdfLayout {
     required double columnWidth,
     required PdfTextMetrics metrics,
     double fontStep = 0,
+    bool withStem = false,
+    bool hasImage = false,
+    StemImageSize imageSize = StemImageSize.medium,
   }) =>
       mcqFragments(
         index: index,
@@ -387,31 +396,55 @@ class PdfLayout {
         columnWidth: columnWidth,
         metrics: metrics,
         fontStep: fontStep,
+        withStem: withStem,
+        hasImage: hasImage,
+        imageSize: imageSize,
       ).fold<double>(0, (sum, h) => sum + h);
 
-  /// The MCQ question broken into the chunks it can be split at: the stem, then
-  /// one chunk per row of options.
+  /// The MCQ question broken into the chunks it can be split at: the head (the
+  /// উদ্দীপক, when this question opens one, then the numbered question line),
+  /// then one chunk per row of options.
   ///
   /// Chunking by *row* rather than by option matters — how many options share a
   /// row is measured from the room they have (see [mcqOptionsPerRow]), so a
   /// chunk is only ever cut the way the card is actually drawn.
+  ///
+  /// [withStem] is true for the question that *opens* a group of MCQs under one
+  /// উদ্দীপক (see [HighSchoolQuestion.opensMcqStemGroup]). The intro is welded to
+  /// the head rather than being a chunk of its own: an intro stranded at the
+  /// foot of a column, with the questions it introduces overleaf, reads as
+  /// belonging to whatever happens to be beneath it.
   static List<double> mcqFragments({
     required int index,
     required HighSchoolQuestion question,
     required double columnWidth,
     required PdfTextMetrics metrics,
     double fontStep = 0,
+    bool withStem = false,
+    bool hasImage = false,
+    StemImageSize imageSize = StemImageSize.medium,
   }) {
     final mcq = question.mcqData;
     if (mcq == null) return const [];
 
     final body = bodyFontSize + fontStep;
+
+    var head = 0.0;
+    final stem = withStem ? question.mcqStemText : '';
+    if (stem.isNotEmpty) {
+      head += metrics.blockHeight(stem, width: columnWidth, fontSize: body);
+      if (imageSize.isVisible && hasImage) {
+        head += cqImageGap + imageSize.maxHeightPt;
+      }
+      head += mcqStemGap;
+    }
+
     // Measured from the same line the item draws — see
     // [HighSchoolQuestion.paperQuestionText].
-    final parts = <double>[
-      metrics.blockHeight('$index. ${question.paperQuestionText}',
-          width: columnWidth, fontSize: body)
-    ];
+    head += metrics.blockHeight('$index. ${question.paperQuestionText}',
+        width: columnWidth, fontSize: body);
+
+    final parts = <double>[head];
 
     // Four options to a row where they fit, two where they do not, one where
     // even two will not sit side by side.

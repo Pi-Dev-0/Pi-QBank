@@ -136,10 +136,18 @@ class HighSchoolQBankService {
 
   /// Posts [questions] to the Apps Script for storage in the Google Sheet.
   /// Returns a status message from the server.
+  ///
+  /// The id is sent only for a row that came *from* the bank: a hand-typed
+  /// question goes up without one and the script mints a UUID (see
+  /// `addQuestions` in HighSchool_QBank_Script.js). That keeps the sheet the
+  /// authority for identity — a local `manual-…` id could otherwise be reused
+  /// by a second paper and rejected as a duplicate.
   Future<String> uploadQuestions(List<HighSchoolQuestion> questions) async {
     final body = json.encode({
       'action': 'addQuestions',
-      'questions': questions.map((q) => q.toJson()).toList(),
+      'questions': [
+        for (final q in questions) {...q.toJson(), if (q.isManual) 'id': ''},
+      ],
     });
 
     final response = await http

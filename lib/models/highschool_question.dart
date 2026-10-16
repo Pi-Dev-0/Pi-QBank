@@ -151,6 +151,22 @@ class HighSchoolQuestion {
   /// not the question itself. Empty means "the only set".
   String setLabel;
 
+  /// True for a question typed into the picker by hand.
+  ///
+  /// Runtime state like [isSelected] and [setLabel]: it records where the row
+  /// came from, not what the question is, so it never reaches the sheet. The
+  /// picker badges such a row so it is clear which questions came from the bank
+  /// and which were written on the spot.
+  bool isManual;
+
+  /// True for a row that came from the bank and was corrected in the picker.
+  ///
+  /// Runtime state as well: an edit changes what *this* paper prints and nothing
+  /// else, so the sheet keeps the row it came from and no write permission is
+  /// needed. [id] is inherited, so the card still points at the row it was
+  /// fixed from.
+  bool isEdited;
+
   HighSchoolQuestion({
     required this.id,
     required this.className,
@@ -165,7 +181,189 @@ class HighSchoolQuestion {
     this.shortMark = ShortQuestion.defaultMark,
     this.isSelected = false,
     this.setLabel = '',
+    this.isManual = false,
+    this.isEdited = false,
   });
+
+  /// A question typed into the picker instead of read from the sheet.
+  ///
+  /// Everything the sheet would have supplied has to be given here: the class
+  /// and subject the paper is being built for, the chapter the question is filed
+  /// under, and the payload its type expects — [subQuestions] for a CQ,
+  /// [options] with [correctAnswer] for an MCQ, [shortMark] for a short
+  /// question.
+  ///
+  /// [text] is the উদ্দীপক for a CQ, the question itself for an MCQ or a short
+  /// question. [stem] is the MCQ's own উদ্দীপক — the intro and figure shared
+  /// with the question printed under it, kept separately because an MCQ's
+  /// payload is its question, not its intro. Both are optional: most questions
+  /// have no intro of their own.
+  ///
+  /// Typed text is run through [normaliseTypedFractions] exactly as a fetched
+  /// row is, so a hand-typed `1/2` prints as `½` like everything else.
+  ///
+  /// The id is generated and prefixed `manual`, so a hand-typed row can never
+  /// collide with a sheet row.
+  factory HighSchoolQuestion.manual({
+    required String className,
+    required String subject,
+    required String chapterNumber,
+    required String chapterName,
+    required String questionType,
+    String text = '',
+    String stem = '',
+    String stemImageUrl = '',
+    List<CqSubQuestion> subQuestions = const [],
+    List<String> options = const [],
+    String correctAnswer = '',
+    int shortMark = ShortQuestion.defaultMark,
+  }) {
+    final assembled = _assemble(
+      questionType: questionType,
+      text: text,
+      stem: stem,
+      subQuestions: subQuestions,
+      options: options,
+      correctAnswer: correctAnswer,
+      shortMark: shortMark,
+    );
+    final type = questionType.toUpperCase();
+
+    return HighSchoolQuestion(
+      id: _nextManualId(),
+      className: className,
+      subject: subject,
+      chapterNumber: chapterNumber.trim(),
+      chapterName: chapterName.trim(),
+      // `SHORT` and `RQ` both mean a short question; the sheet spells it `RQ`.
+      questionType: type == 'SHORT' ? 'RQ' : type,
+      stemText: assembled.stemText,
+      stemImageUrl: stemImageUrl,
+      subQuestionsData: assembled.payload,
+      boardYearTag: '',
+      shortMark: assembled.mark,
+      // Typed by hand for this paper, so it starts selected: the reason it was
+      // typed was to print it.
+      isSelected: true,
+      isManual: true,
+    );
+  }
+
+  /// [original] with the reader's corrections applied.
+  ///
+  /// The same payload a hand-typed question takes, but everything that
+  /// identifies the row is inherited instead: its id, class, subject, board tag,
+  /// and its place in the paper ([isSelected], [setLabel]). The sheet therefore
+  /// keeps the row it came from — an edit changes what *this* paper prints and
+  /// nothing else — while the card still points at the row it was fixed from.
+  /// [isEdited] is set so the picker can say so.
+  factory HighSchoolQuestion.edited({
+    required HighSchoolQuestion original,
+    required String chapterNumber,
+    required String chapterName,
+    String text = '',
+    String stem = '',
+    String stemImageUrl = '',
+    List<CqSubQuestion> subQuestions = const [],
+    List<String> options = const [],
+    String correctAnswer = '',
+    int shortMark = ShortQuestion.defaultMark,
+  }) {
+    final assembled = _assemble(
+      questionType: original.questionType,
+      text: text,
+      stem: stem,
+      subQuestions: subQuestions,
+      options: options,
+      correctAnswer: correctAnswer,
+      shortMark: shortMark,
+    );
+
+    return HighSchoolQuestion(
+      id: original.id,
+      className: original.className,
+      subject: original.subject,
+      chapterNumber: chapterNumber.trim(),
+      chapterName: chapterName.trim(),
+      questionType: original.questionType,
+      stemText: assembled.stemText,
+      stemImageUrl: stemImageUrl,
+      subQuestionsData: assembled.payload,
+      boardYearTag: original.boardYearTag,
+      shortMark: assembled.mark,
+      isSelected: original.isSelected,
+      setLabel: original.setLabel,
+      isManual: original.isManual,
+      isEdited: true,
+    );
+  }
+
+  /// The stem, payload and mark a typed payload resolves to, whatever the type.
+  ///
+  /// Shared by [HighSchoolQuestion.manual] and [HighSchoolQuestion.edited], so a
+  /// correction is normalised exactly like a first typing: fractions folded, the
+  /// blanks dropped, marks never below one.
+  static ({String stemText, dynamic payload, int mark}) _assemble({
+    required String questionType,
+    String text = '',
+    String stem = '',
+    List<CqSubQuestion> subQuestions = const [],
+    List<String> options = const [],
+    String correctAnswer = '',
+    int shortMark = ShortQuestion.defaultMark,
+  }) {
+    final type = questionType.toUpperCase();
+    final typed = normaliseTypedFractions(text.trim());
+    final typedStem = normaliseTypedFractions(stem.trim());
+    final mark = shortMark < 1 ? 1 : shortMark;
+
+    if (type == 'CQ') {
+      return (
+        stemText: typed,
+        mark: mark,
+        payload: [
+          for (final sq in subQuestions)
+            CqSubQuestion(
+              label: sq.label,
+              mark: sq.mark < 1 ? 1 : sq.mark,
+              text: normaliseTypedFractions(sq.text.trim()),
+            ),
+        ],
+      );
+    }
+    if (type == 'MCQ') {
+      // The intro goes to the stem, where the group logic and the figure look
+      // for it; the question itself and its options are the payload.
+      return (
+        stemText: typedStem,
+        mark: mark,
+        payload: McqQuestion(
+          text: typed,
+          options: [
+            for (final o in options)
+              if (o.trim().isNotEmpty) normaliseTypedFractions(o.trim()),
+          ],
+          correctAns: correctAnswer.trim(),
+        ),
+      );
+    }
+    // A short question is its text: no stem, no sub-questions, no options.
+    return (
+      stemText: typed,
+      mark: mark,
+      payload: ShortQuestion(text: typed, mark: mark),
+    );
+  }
+
+  /// Serial behind the ids of hand-typed questions.
+  ///
+  /// A timestamp alone is not enough: two questions saved from the same sheet
+  /// within the same millisecond would share an id, and the picker keys its
+  /// expand/collapse state on the id.
+  static int _manualSerial = 0;
+
+  static String _nextManualId() =>
+      'manual-${DateTime.now().microsecondsSinceEpoch}-${_manualSerial++}';
 
   bool get isCq => questionType.toUpperCase() == 'CQ';
   bool get isMcq => questionType.toUpperCase() == 'MCQ';
@@ -205,6 +403,37 @@ class HighSchoolQuestion {
     if (mcq == null) return '';
     return _withoutSourceMarker(mcq.text);
   }
+
+  /// The উদ্দীপক an MCQ shares with the questions printed under it, as printed.
+  ///
+  /// An MCQ keeps its own line in the sub-question payload and borrows
+  /// [stemText] — and [stemImageUrl] — for the intro and figure above it:
+  /// "নিচের তথ্য থেকে ২৬ ও ২৭ নং প্রশ্নের উত্তর দাও।". Two questions written
+  /// under one intro therefore carry the same text, which is what
+  /// [opensMcqStemGroup] reads. Empty for every other type, and for an MCQ that
+  /// has no intro of its own.
+  String get mcqStemText => isMcq ? paperStemText.trim() : '';
+
+  /// True when this question prints the উদ্দীপক itself.
+  ///
+  /// That is: it has one, and the question before it in the paper does not carry
+  /// the same one. A shared intro prints once, over the first of the questions
+  /// it introduces — numbering the intro would be wrong when it belongs to two
+  /// questions, and printing it twice is worse. The question before it is the
+  /// only thing that knows whether the group has already been opened, which is
+  /// why the caller passes it in rather than this getter guessing.
+  bool opensMcqStemGroup(HighSchoolQuestion? previous) =>
+      mcqStemText.isNotEmpty && !sharesMcqStemWith(previous);
+
+  /// True when [previous] already printed this question's উদ্দীপক, so all this
+  /// one has to do is follow it.
+  ///
+  /// The mirror of [opensMcqStemGroup], and the reason a two-set shuffle moves
+  /// whole groups rather than single questions: a question that shares an intro
+  /// must not be moved away from the one that printed it. A question with no
+  /// intro of its own shares nothing, however the question before it reads.
+  bool sharesMcqStemWith(HighSchoolQuestion? previous) =>
+      mcqStemText.isNotEmpty && previous?.mcqStemText == mcqStemText;
 
   /// Words that appear in this sheet only as the source of a question.
   static const _sourceWords = <String>[

@@ -121,6 +121,14 @@ class _HighSchoolQPaperGeneratorPageState
   bool _loadingQuestions = false;
   final Map<String, bool> _expandedCards = {};
 
+  /// Chapters whose question cards the picker has folded away, by chapter
+  /// number.
+  ///
+  /// Only the cards are hidden: the header stays, with its counts, so the group
+  /// can be opened again. Kept across filters and searches, because it describes
+  /// how the reader has folded the list, not what the query is.
+  final Set<String> _collapsedChapters = {};
+
   /// Chapters the picker is showing. Empty means all of them, so the default is
   /// never a surprising filter.
   final Set<String> _pickerChapterFilter = {};
@@ -500,10 +508,34 @@ class _HighSchoolQPaperGeneratorPageState
       );
       if (questions.isEmpty) {
         _showError('কোনো প্রশ্ন পাওয়া যায়নি। অন্য ফিল্টার চেষ্টা করুন।');
+        // Still on to the picker rather than stopping here: its empty list is
+        // where a question can be written by hand, and that is exactly what a
+        // subject with no rows needs.
+        await _goToStep(1);
         return;
       }
       setState(() {
-        _fetchedQuestions = questions;
+        // A hand-typed question is not in the sheet, so a re-fetch can never
+        // return it. Carry the ones belonging to this class and subject across,
+        // otherwise going back to widen the chapter filter would quietly throw
+        // away the questions that were typed because the sheet had none.
+        final typed = _fetchedQuestions
+            .where((q) =>
+                q.isManual &&
+                q.className == _selectedClass &&
+                q.subject == _selectedSubject)
+            .toList();
+        // A corrected row would otherwise come back exactly as the bank has it,
+        // quietly throwing the correction away; matching by id keeps the paper
+        // printing what was fixed.
+        final corrected = {
+          for (final q in _fetchedQuestions)
+            if (q.isEdited) q.id: q,
+        };
+        _fetchedQuestions = [
+          for (final q in questions) corrected[q.id] ?? q,
+          ...typed,
+        ];
         _expandedCards.clear();
       });
       await _goToStep(1);
@@ -562,6 +594,140 @@ class _HighSchoolQPaperGeneratorPageState
           q.isSelected = false;
         }
       });
+
+  // ── Hand-typed questions ──────────────────────────────────────────────────
+
+  /// Open the hand-entry sheet and file whatever comes back into the picker.
+  ///
+  /// Reached from the picker, including its empty state — which is where a
+  /// subject with no rows at all ends up, so a question can always be written
+  /// even when the bank has nothing to show.
+  Future<void> _openManualQuestion() async {
+    if (_selectedClass == null || _selectedSubject == null) {
+      _showError('দয়া করে ক্লাস ও বিষয় নির্বাচন করুন।');
+      return;
+    }
+
+    final question = await showModalBottomSheet<HighSchoolQuestion>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ManualQuestionSheet(
+        className: _selectedClass!,
+        subject: _selectedSubject!,
+        chapters: _manualChapterChoices,
+        // One chapter picked in step 1 means the question belongs to it; with
+        // nothing picked, the sheet defaults to the first chapter it knows.
+        initialChapter: _selectedChapterNumbers.length == 1
+            ? _selectedChapterNumbers.first
+            : null,
+      ),
+    );
+    if (question == null || !mounted) return;
+    _addManualQuestion(question);
+  }
+
+  /// The chapters the hand-entry sheet can file a question under.
+  ///
+  /// Everything the reader could be looking at: the chapters the subject has,
+  /// plus any chapter a loaded question came from — the second set covers the
+  /// case where the chapter list itself failed to load.
+  List<ChapterInfo> get _manualChapterChoices {
+    final byNumber = <String, String>{};
+    for (final c in _availableChapters) {
+      if (c.chapterNumber.trim().isNotEmpty) {
+        byNumber[c.chapterNumber] = c.chapterName;
+      }
+    }
+    for (final q in _fetchedQuestions) {
+      if (q.chapterNumber.trim().isNotEmpty) {
+        byNumber.putIfAbsent(q.chapterNumber, () => q.chapterName);
+      }
+    }
+    return [
+      for (final e in byNumber.entries)
+        ChapterInfo(chapterNumber: e.key, chapterName: e.value),
+    ]..sort((a, b) => (int.tryParse(a.chapterNumber) ?? 0)
+        .compareTo(int.tryParse(b.chapterNumber) ?? 0));
+  }
+
+  /// File a hand-typed question into the picker.
+  ///
+  /// It arrives selected: the only reason to type one is to print it.
+  void _addManualQuestion(HighSchoolQuestion question) {
+    setState(() {
+      _fetchedQuestions = [..._fetchedQuestions, question];
+      // A folded chapter would swallow the question just typed, and the sheet
+      // never says which chapter it landed in.
+      _collapsedChapters.remove(question.chapterNumber);
+    });
+    if (_currentStep == 0) {
+      _goToStep(1);
+    } else {
+      _showInfo('প্রশ্নটি তালিকায় যোগ হয়েছে।');
+    }
+  }
+
+  /// Open the hand-entry sheet on an existing question, pre-filled, and put the
+  /// answer back in the list.
+  ///
+  /// Paper-only, exactly like a hand-typed question: the row keeps its id and the
+  /// sheet keeps the text it was fetched with. An edit is how a question gets
+  /// printed the way it should read, not how the bank gets corrected.
+  Future<void> _openEditQuestion(HighSchoolQuestion question) async {
+    final edited = await showModalBottomSheet<HighSchoolQuestion>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ManualQuestionSheet(
+        className: _selectedClass ?? question.className,
+        subject: _selectedSubject ?? question.subject,
+        chapters: _manualChapterChoices,
+        original: question,
+      ),
+    );
+    if (edited == null || !mounted) return;
+
+    setState(() {
+      // The sheet was opened from this very object, so identity is the precise
+      // match; the id is only a fallback in case the list was rebuilt meanwhile.
+      final at = _fetchedQuestions.indexOf(question);
+      final index = at >= 0
+          ? at
+          : _fetchedQuestions.indexWhere((q) => q.id == question.id);
+      if (index < 0) {
+        _fetchedQuestions = [..._fetchedQuestions, edited];
+        return;
+      }
+      final wasExpanded = _expandedCards[_cardKey(question, index)] == true;
+      _fetchedQuestions = [..._fetchedQuestions]..[index] = edited;
+      // The card was open when the edit started; its text has just changed, so
+      // carry the open state onto whatever key the card has now.
+      if (wasExpanded) {
+        _expandedCards[_cardKey(edited, index)] = true;
+      }
+    });
+    _showInfo('প্রশ্নটি সম্পাদনা করা হয়েছে।');
+  }
+
+  void _toggleChapter(String chapterNumber) => setState(() {
+        if (!_collapsedChapters.remove(chapterNumber)) {
+          _collapsedChapters.add(chapterNumber);
+        }
+      });
+
+  void _showInfo(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: _kAccent,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
 
   void _proceedToGenerate() {
     if (_selectedQuestions.isEmpty) {
@@ -1209,6 +1375,8 @@ class _HighSchoolQPaperGeneratorPageState
         smallStyle: smallStyle,
         bannerHeight: bannerHeight,
         metrics: metrics,
+        stemImages: stemImages,
+        imageSize: _imageSize,
       );
     }
 
@@ -1369,6 +1537,8 @@ class _HighSchoolQPaperGeneratorPageState
     required pw.TextStyle smallStyle,
     required PdfTextMetrics metrics,
     required double bannerHeight,
+    required Map<String, Uint8List> stemImages,
+    required StemImageSize imageSize,
   }) {
     // ── MCQ Section ────────────────────────────────────────────────────
     if (mcqs.isNotEmpty) {
@@ -1381,6 +1551,22 @@ class _HighSchoolQPaperGeneratorPageState
       const tickNote = '[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]';
 
       final mcqWidth = PdfLayout.columnWidth(cols);
+
+      // How a group of MCQs under one উদ্দীপক is printed: the intro and its
+      // figure ride at the head of the question that opens the group, and the
+      // questions under it print bare. Both the estimator and the item ask
+      // these, so the room budgeted for a question is the room it draws.
+      bool opensStem(int i) =>
+          mcqs[i].opensMcqStemGroup(i == 0 ? null : mcqs[i - 1]);
+      bool hasStemImage(int i) =>
+          opensStem(i) &&
+          imageSize.isVisible &&
+          HighSchoolExportService.resolveImageUrl(mcqs[i].stemImageUrl)
+              .isNotEmpty;
+      Uint8List? stemBytesOf(int i) => hasStemImage(i)
+          ? stemImages[
+              HighSchoolExportService.resolveImageUrl(mcqs[i].stemImageUrl)]
+          : null;
 
       // The packer fills the foot of a page one *fragment* at a time — a stem
       // can sit at the bottom with its options continuing overleaf — so the
@@ -1397,6 +1583,9 @@ class _HighSchoolQPaperGeneratorPageState
               columnWidth: mcqWidth,
               metrics: metrics,
               fontStep: _fontStep,
+              withStem: opensStem(0),
+              hasImage: hasStemImage(0),
+              imageSize: imageSize,
             );
 
       _keepHeadingWithContent(
@@ -1443,6 +1632,9 @@ class _HighSchoolQPaperGeneratorPageState
           columnWidth: mcqWidth,
           metrics: metrics,
           fontStep: _fontStep,
+          withStem: opensStem(i),
+          hasImage: hasStemImage(i),
+          imageSize: imageSize,
         );
         for (var p = 0; p < parts.length; p++) {
           mcqFragments.add(PdfFlowFragment(
@@ -1468,6 +1660,9 @@ class _HighSchoolQPaperGeneratorPageState
                 qIndex + 1, mcqs[qIndex], baseStyle,
                 columnWidth: mcqWidth,
                 metrics: metrics,
+                withStem: opensStem(qIndex),
+                stemBytes: stemBytesOf(qIndex),
+                imageSize: imageSize,
                 partFrom: from,
                 partTo: to),
             // The rule belongs *between* questions, so a column that ends
@@ -2026,12 +2221,19 @@ class _HighSchoolQPaperGeneratorPageState
   }
 
   /// Mirrors the HTML `.mcq-card` / `.mcq-options`.
+  ///
+  /// [withStem] draws the question's own উদ্দীপক above it — set for the question
+  /// that opens a group, so a shared intro prints once over the questions it
+  /// introduces. [stemBytes] is that intro's figure, already downloaded.
   pw.Widget _buildPdfMcqItem(
     int index,
     HighSchoolQuestion q,
     pw.TextStyle baseStyle, {
     required double columnWidth,
     required PdfTextMetrics metrics,
+    bool withStem = false,
+    Uint8List? stemBytes,
+    StemImageSize imageSize = StemImageSize.medium,
     int partFrom = 0,
     int partTo = 1 << 20,
   }) {
@@ -2039,6 +2241,7 @@ class _HighSchoolQPaperGeneratorPageState
     if (mcq == null) return pw.SizedBox();
 
     final options = mcq.options;
+    final stemText = withStem ? q.mcqStemText : '';
 
     // Four options on a line where the four fit, two where they do not, one
     // where even two will not sit side by side — measured from the room the
@@ -2088,9 +2291,26 @@ class _HighSchoolQPaperGeneratorPageState
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        if (partFrom == 0)
+        if (partFrom == 0) ...[
+          // The intro carries no number: it belongs to the questions under it,
+          // not to one of them.
+          if (stemText.isNotEmpty)
+            pw.RichText(text: _mixedText(stemText, baseStyle)),
+          if (stemText.isNotEmpty && stemBytes != null) ...[
+            pw.SizedBox(height: PdfLayout.cqImageGap),
+            pw.Container(
+              alignment: pw.Alignment.center,
+              child: pw.Image(
+                pw.MemoryImage(stemBytes),
+                height: imageSize.maxHeightPt,
+                fit: pw.BoxFit.contain,
+              ),
+            ),
+          ],
+          if (stemText.isNotEmpty) pw.SizedBox(height: PdfLayout.mcqStemGap),
           pw.RichText(
               text: _mixedText('$index. ${q.paperQuestionText}', baseStyle)),
+        ],
         ...rows,
       ],
     );
@@ -2540,8 +2760,12 @@ class _HighSchoolQPaperGeneratorPageState
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
             children: [
-              // Select all / none
-              Row(
+              // Select all / none, plus hand entry. A Wrap so the three actions
+              // stack onto a second line on a phone rather than overflowing.
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   TextButton.icon(
                     icon: const Icon(Icons.done_all_rounded, size: 18),
@@ -2549,12 +2773,17 @@ class _HighSchoolQPaperGeneratorPageState
                         Text(_pickIsNarrowed ? 'এই তালিকার সব' : 'সব নির্বাচন'),
                     onPressed: _selectAll,
                   ),
-                  const SizedBox(width: 8),
                   TextButton.icon(
                     icon: const Icon(Icons.remove_done_rounded, size: 18),
                     label: Text(_pickIsNarrowed ? 'এই তালিকা বাদ' : 'বাদ দিন'),
                     style: TextButton.styleFrom(foregroundColor: Colors.grey),
                     onPressed: _deselectAll,
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.edit_note_rounded, size: 18),
+                    label: const Text('নিজে প্রশ্ন লিখুন'),
+                    style: TextButton.styleFrom(foregroundColor: _kPrimary),
+                    onPressed: _openManualQuestion,
                   ),
                 ],
               ),
@@ -2562,34 +2791,51 @@ class _HighSchoolQPaperGeneratorPageState
               // Chapter groups
               for (final chNum in chapterNumbers) ...[
                 _ChapterGroupHeader(
+                  key: ValueKey('chapter-header-$chNum'),
                   chapterNumber: chNum,
                   chapterName: byChapter[chNum]!.first.chapterName,
+                  total: byChapter[chNum]!.length,
+                  selected: byChapter[chNum]!.where((q) => q.isSelected).length,
+                  collapsed: _collapsedChapters.contains(chNum),
+                  onToggle: () => _toggleChapter(chNum),
                 ),
                 const SizedBox(height: 8),
-                // CQ cards for this chapter
-                ...byChapter[chNum]!.where((q) => q.isCq).map((q) =>
-                    _buildQuestionCard(
-                        q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
-                // MCQ cards for this chapter
-                ...byChapter[chNum]!.where((q) => q.isMcq).map((q) =>
-                    _buildQuestionCard(
-                        q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
-                // Short-question cards for this chapter
-                ...byChapter[chNum]!.where((q) => q.isShort).map((q) =>
-                    _buildQuestionCard(
-                        q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                // A folded chapter shows its header and nothing else.
+                if (!_collapsedChapters.contains(chNum)) ...[
+                  // CQ cards for this chapter
+                  ...byChapter[chNum]!.where((q) => q.isCq).map((q) =>
+                      _buildQuestionCard(
+                          q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                  // MCQ cards for this chapter
+                  ...byChapter[chNum]!.where((q) => q.isMcq).map((q) =>
+                      _buildQuestionCard(
+                          q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                  // Short-question cards for this chapter
+                  ...byChapter[chNum]!.where((q) => q.isShort).map((q) =>
+                      _buildQuestionCard(
+                          q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                ],
                 const SizedBox(height: 16),
               ],
               if (visible.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 40),
-                  child: Center(
-                    child: Text(
-                      _pickIsNarrowed
-                          ? 'কোনো প্রশ্ন মেলেনি। ফিল্টার বা সার্চ বদলে দেখুন।'
-                          : 'কোনো প্রশ্ন পাওয়া যায়নি।',
-                      style: const TextStyle(color: _kSubText),
-                    ),
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Column(
+                    children: [
+                      Text(
+                        _pickIsNarrowed
+                            ? 'কোনো প্রশ্ন মেলেনি। ফিল্টার বা সার্চ বদলে দেখুন।'
+                            : 'কোনো প্রশ্ন পাওয়া যায়নি।',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: _kSubText),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.edit_note_rounded, size: 18),
+                        label: const Text('নিজে প্রশ্ন লিখুন'),
+                        onPressed: _openManualQuestion,
+                      ),
+                    ],
                   ),
                 ),
             ],
@@ -2931,6 +3177,20 @@ class _HighSchoolQPaperGeneratorPageState
                       label: q.boardYearTag,
                       color: Colors.purple.shade100,
                       textColor: Colors.purple.shade800),
+                // Where the row came from, so a hand-typed question is not
+                // mistaken for one that is in the bank.
+                if (q.isManual)
+                  _TagChip(
+                      label: 'নিজে লেখা',
+                      color: Colors.amber.shade100,
+                      textColor: Colors.amber.shade900),
+                // Corrected here without touching the sheet, so it is worth
+                // saying which rows differ from the bank.
+                if (q.isEdited)
+                  _TagChip(
+                      label: 'সম্পাদিত',
+                      color: Colors.deepOrange.shade50,
+                      textColor: Colors.deepOrange.shade700),
                 _TagChip(
                     label: 'অধ্যায় ${q.chapterNumber}: ${q.chapterName}',
                     color: Colors.teal.shade50,
@@ -2959,7 +3219,40 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
+  /// What an expanded card shows: the question as the paper will print it, and
+  /// the way to correct it.
+  ///
+  /// The edit button lives here rather than on the collapsed row because what is
+  /// being corrected is the text in front of the reader — and because a card has
+  /// to be opened to see what is wrong with it.
   Widget _buildExpandedDetail(HighSchoolQuestion q) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: TextButton.icon(
+              onPressed: () => _openEditQuestion(q),
+              icon: const Icon(Icons.edit_outlined, size: 15),
+              label:
+                  const Text('সম্পাদনা করুন', style: TextStyle(fontSize: 12.5)),
+              style: TextButton.styleFrom(
+                foregroundColor: _kPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 30),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ),
+        _buildExpandedBody(q),
+      ],
+    );
+  }
+
+  Widget _buildExpandedBody(HighSchoolQuestion q) {
     if (q.isShort) {
       final data = q.shortData;
       return Container(
@@ -3043,6 +3336,7 @@ class _HighSchoolQPaperGeneratorPageState
       final mcq = q.mcqData;
       if (mcq == null) return const SizedBox.shrink();
       final letters = ['ক', 'খ', 'গ', 'ঘ'];
+      final stem = q.mcqStemText;
       return Container(
         margin: const EdgeInsets.fromLTRB(56, 0, 12, 12),
         padding: const EdgeInsets.all(12),
@@ -3052,44 +3346,67 @@ class _HighSchoolQPaperGeneratorPageState
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(mcq.options.length, (i) {
-            final letter = i < letters.length ? letters[i] : '${i + 1}';
-            final isCorrect = mcq.options[i] == mcq.correctAns;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: isCorrect
-                          ? Colors.green.shade400
-                          : Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(letter,
-                        style: TextStyle(
-                            color: isCorrect ? Colors.white : Colors.black87,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: Text(mcq.options[i],
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: isCorrect
-                                  ? Colors.green.shade700
-                                  : Colors.black87))),
-                  if (isCorrect)
-                    const Icon(Icons.check_circle,
-                        size: 16, color: Colors.green),
-                ],
+          children: [
+            // The intro and its figure, when the question carries them. A
+            // group of MCQs shares one উদ্দীপক, so what is shown here is what
+            // prints over the first question of that group.
+            if (stem.isNotEmpty) ...[
+              Text(stem, style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 6),
+            ],
+            if (q.stemImageUrl.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  q.stemImageUrl,
+                  height: 160,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.grey),
+                ),
               ),
-            );
-          }),
+              const SizedBox(height: 8),
+            ],
+            ...List.generate(mcq.options.length, (i) {
+              final letter = i < letters.length ? letters[i] : '${i + 1}';
+              final isCorrect = mcq.options[i] == mcq.correctAns;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isCorrect
+                            ? Colors.green.shade400
+                            : Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(letter,
+                          style: TextStyle(
+                              color: isCorrect ? Colors.white : Colors.black87,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(mcq.options[i],
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: isCorrect
+                                    ? Colors.green.shade700
+                                    : Colors.black87))),
+                    if (isCorrect)
+                      const Icon(Icons.check_circle,
+                          size: 16, color: Colors.green),
+                  ],
+                ),
+              );
+            }),
+          ],
         ),
       );
     }
@@ -4058,34 +4375,90 @@ class _InfoChip extends StatelessWidget {
       );
 }
 
+/// The bar over one chapter's questions in the picker.
+///
+/// Tapping it folds the chapter's cards away — the header keeps the chapter's
+/// name and counts, so the group can be opened again. A subject easily runs to
+/// twenty chapters, and folding the ones already dealt with is the difference
+/// between scanning the list and scrolling through it.
 class _ChapterGroupHeader extends StatelessWidget {
   final String chapterNumber;
   final String chapterName;
-  const _ChapterGroupHeader(
-      {required this.chapterNumber, required this.chapterName});
+
+  /// How many questions the chapter shows under the current filter.
+  final int total;
+
+  /// How many of those are selected.
+  final int selected;
+
+  final bool collapsed;
+  final VoidCallback onToggle;
+
+  const _ChapterGroupHeader({
+    super.key,
+    required this.chapterNumber,
+    required this.chapterName,
+    required this.total,
+    required this.selected,
+    required this.collapsed,
+    required this.onToggle,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [
-            _kPrimary.withOpacity(0.08),
-            _kAccent.withOpacity(0.05)
-          ]),
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onToggle,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _kPrimary.withOpacity(0.15)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.folder_special_rounded,
-                color: _kPrimary, size: 18),
-            const SizedBox(width: 8),
-            Text('অধ্যায় $chapterNumber: $chapterName',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _kDarkText,
-                    fontSize: 13)),
-          ],
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                _kPrimary.withOpacity(0.08),
+                _kAccent.withOpacity(0.05)
+              ]),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kPrimary.withOpacity(0.15)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.folder_special_rounded,
+                    color: _kPrimary, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('অধ্যায় $chapterNumber: $chapterName',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _kDarkText,
+                          fontSize: 13)),
+                ),
+                const SizedBox(width: 8),
+                Text('$total টি',
+                    style: const TextStyle(fontSize: 11, color: _kSubText)),
+                if (selected > 0) ...[
+                  const SizedBox(width: 6),
+                  Text('$selected নির্বাচিত',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: _kRqColor,
+                          fontWeight: FontWeight.w600)),
+                ],
+                const SizedBox(width: 2),
+                // The arrow is the affordance; the whole bar is the target.
+                Tooltip(
+                  message: collapsed ? 'প্রশ্নগুলো দেখান' : 'প্রশ্নগুলো লুকান',
+                  child: AnimatedRotation(
+                    turns: collapsed ? -0.25 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.keyboard_arrow_down_rounded,
+                        size: 20, color: _kSubText),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
 }
@@ -4698,6 +5071,686 @@ class _ExportFormatCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hand entry
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The kind of question being typed, in the picker's own words.
+enum _ManualKind {
+  cq('CQ', 'সৃজনশীল', _kCqColor, 'উদ্দীপক'),
+  mcq('MCQ', 'বহুনির্বাচনি', _kMcqColor, 'প্রশ্ন'),
+  sq('RQ', 'সংক্ষিপ্ত', _kRqColor, 'প্রশ্ন');
+
+  const _ManualKind(this.type, this.title, this.color, this.textLabel);
+
+  /// The `question_type` the model and the picker use.
+  final String type;
+  final String title;
+  final Color color;
+
+  /// What the big text box holds for this kind.
+  final String textLabel;
+}
+
+/// One CQ sub-question being typed: its text and its mark.
+///
+/// The label is not stored — it follows the row's position, so removing the
+/// second sub-question re-letters the rest ক, খ, গ exactly as the paper will.
+class _ManualSubRow {
+  _ManualSubRow(int mark)
+      : textCtrl = TextEditingController(),
+        markCtrl = TextEditingController(text: '$mark');
+
+  final TextEditingController textCtrl;
+  final TextEditingController markCtrl;
+
+  void dispose() {
+    textCtrl.dispose();
+    markCtrl.dispose();
+  }
+}
+
+/// Sheet for typing a question the question bank does not have — or for
+/// correcting one it does.
+///
+/// Returns the finished [HighSchoolQuestion] through the navigator, or null when
+/// the reader backs out. Nothing is uploaded either way: a typed question joins
+/// this paper only, and a correction prints here while the bank keeps the row it
+/// came from, so the bank cannot fill up with one-off rows and no write
+/// permission is needed. See [HighSchoolQuestion.manual] and
+/// [HighSchoolQuestion.edited].
+class _ManualQuestionSheet extends StatefulWidget {
+  const _ManualQuestionSheet({
+    required this.className,
+    required this.subject,
+    required this.chapters,
+    this.initialChapter,
+    this.original,
+  });
+
+  final String className;
+  final String subject;
+
+  /// Chapters the question can be filed under, in reading order.
+  final List<ChapterInfo> chapters;
+
+  /// Pre-selected chapter number, when step 1 was narrowed to one chapter.
+  final String? initialChapter;
+
+  /// The question being corrected, when the sheet is opened for an edit.
+  ///
+  /// Non-null puts the sheet in edit mode: the fields arrive filled with the
+  /// question as stored and the result keeps its identity. Null means a question
+  /// being written from scratch.
+  final HighSchoolQuestion? original;
+
+  @override
+  State<_ManualQuestionSheet> createState() => _ManualQuestionSheetState();
+}
+
+class _ManualQuestionSheetState extends State<_ManualQuestionSheet> {
+  /// What the chapter dropdown offers when the chapter is not in the list.
+  static const String _newChapter = '__new__';
+
+  /// Sub-question labels, in order. Options use the first four.
+  static const List<String> _letters = ['ক', 'খ', 'গ', 'ঘ', 'ঙ'];
+
+  /// Four options is what every paper in the bank uses, so the sheet does not
+  /// ask how many: it is always four.
+  static const int _optionCount = 4;
+
+  _ManualKind _kind = _ManualKind.cq;
+
+  late String _chapter;
+  final _newNumberCtrl = TextEditingController();
+  final _newNameCtrl = TextEditingController();
+
+  /// The উদ্দীপক for a CQ, the question itself for an MCQ or a short question.
+  final _textCtrl = TextEditingController();
+
+  /// An MCQ's own উদ্দীপক — the intro and figure shared with the questions
+  /// printed under it. Kept apart from [_textCtrl], which holds the question.
+  final _stemCtrl = TextEditingController();
+
+  /// URL of the figure that goes with the stem. CQ and MCQ only.
+  final _imageCtrl = TextEditingController();
+
+  /// CQ sub-questions. Four to start with — the shape of an ordinary CQ.
+  final List<_ManualSubRow> _subs = [
+    for (var i = 0; i < 4; i++) _ManualSubRow(i + 1)
+  ];
+
+  final _optionCtrls = [
+    for (var i = 0; i < _optionCount; i++) TextEditingController()
+  ];
+
+  /// Which option is ticked as the correct one, or -1 for none.
+  ///
+  /// -1 is what editing an MCQ the bank has no answer for opens with: a tick the
+  /// reader never placed must not be saved back as an answer.
+  int _correct = 0;
+
+  final _shortMarkCtrl = TextEditingController(text: '1');
+
+  String? _error;
+
+  /// True when the sheet was opened on an existing question. The fields then
+  /// arrive filled and saving replaces that question instead of adding one.
+  bool get _editing => widget.original != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final original = widget.original;
+    if (original != null) {
+      _fillFrom(original);
+      return;
+    }
+    final preferred = widget.initialChapter;
+    final known = preferred != null &&
+        widget.chapters.any((c) => c.chapterNumber == preferred);
+    _chapter = known
+        ? preferred
+        : (widget.chapters.isEmpty
+            ? _newChapter
+            : widget.chapters.first.chapterNumber);
+  }
+
+  /// Load a question into the fields so it can be corrected in place.
+  ///
+  /// The raw stored text goes in, not the printed form: a source tag stays in the
+  /// উদ্দীপক exactly as the row holds it, and the paper trims it as it always
+  /// does. An empty box is a box to be filled, so a CQ with three sub-questions
+  /// still gets a fourth row to type into.
+  void _fillFrom(HighSchoolQuestion q) {
+    _kind = _ManualKind.values.firstWhere(
+      (k) => k.type == q.questionType.toUpperCase(),
+      // An unexpected type is a short question: text and a mark, nothing more.
+      orElse: () => _ManualKind.sq,
+    );
+
+    if (widget.chapters.any((c) => c.chapterNumber == q.chapterNumber)) {
+      _chapter = q.chapterNumber;
+    } else {
+      // A chapter the list does not know about is kept as a new one, so saving
+      // cannot quietly move the question into a different chapter.
+      _chapter = _newChapter;
+      _newNumberCtrl.text = q.chapterNumber;
+      _newNameCtrl.text = q.chapterName;
+    }
+
+    if (q.isCq) {
+      _textCtrl.text = q.stemText;
+    } else if (q.isMcq) {
+      _textCtrl.text = q.mcqData?.text ?? '';
+    } else {
+      _textCtrl.text = q.shortData?.text ?? '';
+    }
+    _stemCtrl.text = q.isMcq ? q.stemText : '';
+    _imageCtrl.text = q.stemImageUrl;
+    _shortMarkCtrl.text = '${q.shortData?.mark ?? q.shortMark}';
+
+    if (q.isCq) {
+      for (final row in _subs) {
+        row.dispose();
+      }
+      _subs
+        ..clear()
+        ..addAll([
+          for (final s in q.cqSubQuestions.take(_letters.length))
+            _ManualSubRow(s.mark < 1 ? 1 : s.mark)..textCtrl.text = s.text,
+        ]);
+      // Four rows is the shape of an ordinary CQ; a five-part question never
+      // loses its fifth.
+      while (_subs.length < 4) {
+        _subs.add(_ManualSubRow(_subs.length + 1));
+      }
+    }
+
+    if (q.isMcq) {
+      final options = q.mcqData?.options ?? const <String>[];
+      for (var i = 0; i < _optionCount; i++) {
+        _optionCtrls[i].text = i < options.length ? options[i] : '';
+      }
+      final at = options.indexOf(q.mcqData?.correctAns ?? '');
+      // No stored answer stays no answer rather than defaulting to the first
+      // option, which would quietly invent one.
+      _correct = at;
+    }
+  }
+
+  @override
+  void dispose() {
+    _newNumberCtrl.dispose();
+    _newNameCtrl.dispose();
+    _textCtrl.dispose();
+    _stemCtrl.dispose();
+    _imageCtrl.dispose();
+    for (final s in _subs) {
+      s.dispose();
+    }
+    for (final c in _optionCtrls) {
+      c.dispose();
+    }
+    _shortMarkCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Building the question ─────────────────────────────────────────────────
+
+  /// Validate what was typed and hand the question back to the picker.
+  void _save() {
+    final text = _textCtrl.text.trim();
+    if (text.isEmpty) {
+      setState(() => _error = '${_kind.textLabel} লিখুন।');
+      return;
+    }
+
+    final number =
+        _chapter == _newChapter ? _newNumberCtrl.text.trim() : _chapter;
+    final name =
+        _chapter == _newChapter ? _newNameCtrl.text.trim() : _nameOf(_chapter);
+    if (number.isEmpty) {
+      setState(() => _error = 'অধ্যায়ের নম্বর লিখুন।');
+      return;
+    }
+    if (name.isEmpty) {
+      setState(() => _error = 'অধ্যায়ের নাম লিখুন।');
+      return;
+    }
+
+    // Options are read here rather than in the model, because "at least two of
+    // them" is a rule about what was typed, not about the question shape.
+    final options = [for (final c in _optionCtrls) c.text.trim()];
+    if (_kind == _ManualKind.mcq &&
+        options.where((o) => o.isNotEmpty).length < 2) {
+      setState(() => _error = 'অন্তত দুটি অপশন লিখুন।');
+      return;
+    }
+
+    final subs = <CqSubQuestion>[];
+    if (_kind == _ManualKind.cq) {
+      for (var i = 0; i < _subs.length; i++) {
+        final typed = _subs[i].textCtrl.text.trim();
+        if (typed.isEmpty) continue;
+        subs.add(CqSubQuestion(
+          label: _letters[i],
+          mark: int.tryParse(_subs[i].markCtrl.text.trim()) ?? 1,
+          text: typed,
+        ));
+      }
+      if (subs.isEmpty) {
+        setState(() => _error = 'অন্তত একটি উপপ্রশ্ন লিখুন।');
+        return;
+      }
+    }
+
+    Navigator.of(context).pop(_editing
+        ? HighSchoolQuestion.edited(
+            original: widget.original!,
+            chapterNumber: number,
+            chapterName: name,
+            text: text,
+            stem: _kind == _ManualKind.mcq ? _stemCtrl.text : '',
+            stemImageUrl: _kind == _ManualKind.sq ? '' : _imageCtrl.text.trim(),
+            subQuestions: subs,
+            options: options,
+            correctAnswer: _correct >= 0 && _correct < options.length
+                ? options[_correct]
+                : '',
+            shortMark: int.tryParse(_shortMarkCtrl.text.trim()) ?? 1,
+          )
+        : HighSchoolQuestion.manual(
+            className: widget.className,
+            subject: widget.subject,
+            chapterNumber: number,
+            chapterName: name,
+            questionType: _kind.type,
+            text: text,
+            stem: _kind == _ManualKind.mcq ? _stemCtrl.text : '',
+            stemImageUrl: _kind == _ManualKind.sq ? '' : _imageCtrl.text.trim(),
+            subQuestions: subs,
+            options: options,
+            correctAnswer: _correct >= 0 && _correct < options.length
+                ? options[_correct]
+                : '',
+            shortMark: int.tryParse(_shortMarkCtrl.text.trim()) ?? 1,
+          ));
+  }
+
+  String _nameOf(String number) {
+    for (final c in widget.chapters) {
+      if (c.chapterNumber == number) return c.chapterName;
+    }
+    return '';
+  }
+
+  void _addSub() => setState(() => _subs.add(_ManualSubRow(1)));
+
+  void _removeSub(int index) => setState(() => _subs.removeAt(index).dispose());
+
+  // ── Fields ────────────────────────────────────────────────────────────────
+
+  InputDecoration _decoration(String label, {String? helper}) =>
+      InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(fontSize: 13),
+        helperText: helper,
+        helperStyle: const TextStyle(fontSize: 10.5, color: _kSubText),
+        helperMaxLines: 2,
+        isDense: true,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kPrimary, width: 1.6),
+        ),
+      );
+
+  /// A text box, clearing any complaint as soon as the reader types again.
+  Widget _field({
+    required TextEditingController ctrl,
+    required String label,
+    String? helper,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) =>
+      TextField(
+        controller: ctrl,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        style: const TextStyle(color: _kDarkText, fontSize: 13.5),
+        onChanged: (_) {
+          if (_error != null) setState(() => _error = null);
+        },
+        decoration: _decoration(label, helper: helper),
+      );
+
+  Widget _kindChip(_ManualKind kind) {
+    final active = _kind == kind;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _kind = kind;
+        _error = null;
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? kind.color : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: active ? kind.color : Colors.grey.shade300, width: 1.5),
+        ),
+        child: Text(kind.title,
+            style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                color: active ? Colors.white : _kSubText)),
+      ),
+    );
+  }
+
+  Widget _chapterField() => DropdownButtonFormField<String>(
+        value: _chapter,
+        isExpanded: true,
+        style: const TextStyle(color: _kDarkText, fontSize: 13.5),
+        decoration: _decoration('অধ্যায়'),
+        items: [
+          for (final c in widget.chapters)
+            DropdownMenuItem(
+              value: c.chapterNumber,
+              child: Text('অধ্যায় ${c.chapterNumber}: ${c.chapterName}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          const DropdownMenuItem(
+              value: _newChapter, child: Text('নতুন অধ্যায় লিখুন…')),
+        ],
+        onChanged: (v) => setState(() {
+          _chapter = v ?? _newChapter;
+          _error = null;
+        }),
+      );
+
+  List<Widget> _cqFields() => [
+        const Text('উপপ্রশ্ন ও নম্বর',
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 13, color: _kDarkText)),
+        const SizedBox(height: 8),
+        for (var i = 0; i < _subs.length; i++) ...[
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: _kCqColor.withOpacity(0.14),
+                child: Text(_letters[i],
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: _kCqColor,
+                        fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _field(
+                    ctrl: _subs[i].textCtrl, label: 'উপপ্রশ্ন ${_letters[i]}'),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 74,
+                child: _field(
+                  ctrl: _subs[i].markCtrl,
+                  label: 'নম্বর',
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              IconButton(
+                tooltip: 'এই উপপ্রশ্নটি বাদ দিন',
+                onPressed: _subs.length > 1 ? () => _removeSub(i) : null,
+                icon: const Icon(Icons.remove_circle_outline, size: 18),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('আরেকটি উপপ্রশ্ন'),
+            onPressed: _subs.length < _letters.length ? _addSub : null,
+          ),
+        ),
+      ];
+
+  List<Widget> _mcqFields() => [
+        const Text('চারটি অপশন — সঠিকটিতে টিক দিন',
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 13, color: _kDarkText)),
+        const SizedBox(height: 8),
+        for (var i = 0; i < _optionCount; i++) ...[
+          Row(
+            children: [
+              SizedBox(
+                width: 30,
+                child: Text('(${_letters[i]})',
+                    style: const TextStyle(fontSize: 13, color: _kSubText)),
+              ),
+              Expanded(
+                child:
+                    _field(ctrl: _optionCtrls[i], label: 'অপশন ${_letters[i]}'),
+              ),
+              IconButton(
+                tooltip: 'সঠিক উত্তর',
+                onPressed: () => setState(() => _correct = i),
+                icon: Icon(
+                  _correct == i
+                      ? Icons.check_circle_rounded
+                      : Icons.circle_outlined,
+                  size: 20,
+                  color: _correct == i ? _kRqColor : Colors.grey.shade400,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+      ];
+
+  List<Widget> _sqFields() => [
+        const Text('নম্বর',
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 13, color: _kDarkText)),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 90,
+          child: _field(
+            ctrl: _shortMarkCtrl,
+            label: 'নম্বর',
+            keyboardType: TextInputType.number,
+          ),
+        ),
+      ];
+
+  @override
+  Widget build(BuildContext context) {
+    final insets = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: insets),
+      child: Container(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.92),
+        decoration: const BoxDecoration(
+          color: _kBg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(_editing ? Icons.edit_rounded : Icons.edit_note_rounded,
+                      color: _kPrimary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                        _editing ? 'প্রশ্ন সম্পাদনা করুন' : 'নিজে প্রশ্ন লিখুন',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: _kDarkText)),
+                  ),
+                  IconButton(
+                    tooltip: 'বন্ধ করুন',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: _kSubText),
+                  ),
+                ],
+              ),
+              Text(
+                _editing
+                    ? 'পরিবর্তন শুধু এই প্রশ্নপত্রে ছাপা হবে — ব্যাংকের শিট অপরিবর্তিত থাকবে।'
+                    : 'ব্যাংকে না থাকা প্রশ্ন এই প্রশ্নপত্রে যোগ হবে — শিটে আপলোড হবে না।',
+                style: const TextStyle(fontSize: 11.5, color: _kSubText),
+              ),
+              const SizedBox(height: 16),
+              // An edit keeps the kind the bank row has: the type is the sheet's
+              // column, and every field below follows from it.
+              if (_editing)
+                _kindChip(_kind)
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final k in _ManualKind.values) _kindChip(k),
+                  ],
+                ),
+              const SizedBox(height: 16),
+              _chapterField(),
+              if (_chapter == _newChapter) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 110,
+                      child: _field(
+                        ctrl: _newNumberCtrl,
+                        label: 'অধ্যায় নম্বর',
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _field(ctrl: _newNameCtrl, label: 'অধ্যায়ের নাম'),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
+              if (_kind == _ManualKind.mcq) ...[
+                _field(ctrl: _stemCtrl, label: 'উদ্দীপক (ঐচ্ছিক)', maxLines: 2),
+                const Padding(
+                  padding: EdgeInsets.only(top: 4, left: 4),
+                  child: Text(
+                    'একই উদ্দীপকের একাধিক প্রশ্ন হলে প্রতিটিতে একই উদ্দীপক লিখুন — '
+                    'প্রশ্নপত্রে উদ্দীপকটি একবারই ছাপা হবে।',
+                    style: TextStyle(fontSize: 11, color: _kSubText),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              _field(
+                ctrl: _textCtrl,
+                label: _kind.textLabel,
+                maxLines: _kind == _ManualKind.cq ? 3 : 2,
+              ),
+              if (_kind != _ManualKind.sq) ...[
+                const SizedBox(height: 12),
+                _field(
+                    ctrl: _imageCtrl,
+                    label: 'ছবির লিংক (ঐচ্ছিক)',
+                    helper: 'গুগল ড্রাইভ বা যেকোনো সরাসরি ছবির লিংক'),
+              ],
+              const SizedBox(height: 16),
+              if (_kind == _ManualKind.cq)
+                ..._cqFields()
+              else if (_kind == _ManualKind.mcq)
+                ..._mcqFields()
+              else
+                ..._sqFields(),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline,
+                        size: 16, color: Colors.redAccent),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(_error!,
+                          style: const TextStyle(
+                              color: Colors.redAccent, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  icon:
+                      Icon(_editing ? Icons.check_rounded : Icons.add_rounded),
+                  label: Text(
+                      _editing
+                          ? 'পরিবর্তন সংরক্ষণ করুন'
+                          : 'প্রশ্নপত্রে যোগ করুন',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: _save,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _editing
+                    ? 'সংরক্ষণ করলে তালিকার ওই প্রশ্নটিই বদলে যাবে।'
+                    : 'যোগ করলে প্রশ্নটি নির্বাচিত অবস্থায় তালিকায় আসবে।',
+                style: const TextStyle(fontSize: 11, color: _kSubText),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

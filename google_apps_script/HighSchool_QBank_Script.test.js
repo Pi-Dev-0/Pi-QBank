@@ -163,3 +163,204 @@ test('no unresolvable enum or string input option is used anywhere', () => {
     'SpreadsheetApp.InputOption is undefined on this runtime'
   );
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity: the script mints the id, so a client never has to.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A sheet backed by a plain 2-D array, with just the calls the script makes. */
+function fakeSheet(rows) {
+  const data = rows.map((r) => r.slice());
+
+  const range = (row, col, numRows, numCols) => ({
+    getValues: () => {
+      const out = [];
+      for (let r = 0; r < numRows; r++) {
+        const src = data[row - 1 + r] || [];
+        const line = [];
+        for (let c = 0; c < numCols; c++) {
+          const v = src[col - 1 + c];
+          line.push(v === undefined ? '' : v);
+        }
+        out.push(line);
+      }
+      return out;
+    },
+    setValues: (values) => {
+      for (let r = 0; r < values.length; r++) {
+        while (data.length < row + r) data.push([]);
+        const target = data[row - 1 + r];
+        while (target.length < col - 1 + values[r].length) target.push('');
+        for (let c = 0; c < values[r].length; c++) {
+          target[col - 1 + c] = values[r][c];
+        }
+      }
+    },
+    setFontWeight: () => {},
+  });
+
+  return {
+    data,
+    getLastRow: () => data.length,
+    getLastColumn: () => data.reduce((m, r) => Math.max(m, r.length), 0),
+    getFrozenRows: () => 1,
+    setFrozenRows: () => {},
+    getRange: range,
+    appendRow: (row) => data.push(row.slice()),
+  };
+}
+
+/** Load the script against a fake sheet, returning the context and the alerts. */
+function loadScriptWithSheet(sheet) {
+  const source = fs.readFileSync(
+    path.join(__dirname, 'HighSchool_QBank_Script.js'),
+    'utf8'
+  );
+
+  const alerts = [];
+  let serial = 0;
+
+  const context = vm.createContext({
+    SpreadsheetApp: {
+      getActiveSpreadsheet: () => ({
+        getSheetByName: (name) =>
+          name === 'HighSchool_Questions' ? sheet : null,
+      }),
+      getUi: () => ({
+        alert: (message) => alerts.push(String(message)),
+        createMenu: () => ({ addItem: () => ({ addToUi: () => {} }) }),
+      }),
+    },
+    ContentService: {
+      // Returning the parsed body makes the response assertable; the real
+      // setMimeType returns the output object and is not otherwise used.
+      MimeType: { JSON: 'application/json' },
+      createTextOutput: (text) => ({ setMimeType: () => JSON.parse(text) }),
+    },
+    Utilities: { getUuid: () => 'uuid-' + ++serial },
+    console,
+    JSON,
+    Math,
+    Date,
+    String,
+    Number,
+    Array,
+    Object,
+    Error,
+    RegExp,
+    isNaN,
+    parseInt,
+    parseFloat,
+  });
+
+  vm.runInContext(source, context);
+  return { context, alerts };
+}
+
+function sheetWithHeaders(dataRows) {
+  const headers = vm.runInContext('HEADERS', script);
+  return fakeSheet([headers.slice(), ...dataRows]);
+}
+
+test('a question uploaded without an id is given one by the script', () => {
+  const sheet = sheetWithHeaders([]);
+  const { context } = loadScriptWithSheet(sheet);
+
+  const response = context.doPost({
+    postData: {
+      contents: JSON.stringify({
+        action: 'addQuestions',
+        questions: [
+          {
+            id: '',
+            class: 'Class (9-10) SSC',
+            subject: 'গণিত',
+            chapter_number: '1',
+            chapter_name: 'প্রথম',
+            question_type: 'MCQ',
+            stem_text: 'নিচের তথ্য থেকে উত্তর দাও',
+            sub_questions_json: { text: 'প্রশ্ন', options: ['ক', 'খ'], correct_ans: 'ক' },
+          },
+        ],
+      }),
+      type: 'application/json',
+    },
+  });
+
+  assert.strictEqual(response.status, 'SUCCESS');
+  assert.strictEqual(response.inserted, 1);
+  assert.deepStrictEqual(response.ids, ['uuid-1']);
+  // And the id really landed in the sheet's first column.
+  assert.strictEqual(sheet.data[1][0], 'uuid-1');
+});
+
+test('a client-supplied id is kept, not replaced', () => {
+  const sheet = sheetWithHeaders([]);
+  const { context } = loadScriptWithSheet(sheet);
+
+  const response = context.doPost({
+    postData: {
+      contents: JSON.stringify({
+        questions: [
+          {
+            id: 'kept-id',
+            class: 'Class (9-10) SSC',
+            question_type: 'RQ',
+            stem_text: 'প্রশ্ন',
+          },
+        ],
+      }),
+      type: 'application/json',
+    },
+  });
+
+  assert.deepStrictEqual(response.ids, ['kept-id']);
+  assert.strictEqual(sheet.data[1][0], 'kept-id');
+});
+
+test('an id already in the sheet still rejects the whole batch', () => {
+  const sheet = sheetWithHeaders([
+    ['taken', 'Class (9-10) SSC', 'গণিত', '1', 'প্রথম', 'RQ', 'x'],
+  ]);
+  const { context } = loadScriptWithSheet(sheet);
+
+  const response = context.doPost({
+    postData: {
+      contents: JSON.stringify({
+        questions: [
+          {
+            id: 'taken',
+            class: 'Class (9-10) SSC',
+            question_type: 'RQ',
+            stem_text: 'প্রশ্ন',
+          },
+        ],
+      }),
+      type: 'application/json',
+    },
+  });
+
+  assert.strictEqual(response.status, 'ERROR');
+  assert.match(response.message, /Duplicate question id/);
+  assert.strictEqual(sheet.data.length, 2, 'nothing may be written');
+});
+
+test('a row added by hand in the sheet can be given an id from the menu', () => {
+  const sheet = sheetWithHeaders([
+    ['', 'Class (9-10) SSC', 'গণিত', '1', 'প্রথম', 'RQ', 'হাতে লেখা'],
+    ['done', 'Class (9-10) SSC', 'গণিত', '1', 'প্রথম', 'RQ', 'আগেই ছিল'],
+  ]);
+  const { context, alerts } = loadScriptWithSheet(sheet);
+
+  context.assignMissingIds();
+
+  assert.strictEqual(sheet.data[1][0], 'uuid-1');
+  assert.strictEqual(sheet.data[2][0], 'done', 'an existing id is left alone');
+  assert.match(alerts.join(' '), /Filled 1 missing id/);
+
+  // Running it again is a no-op, not a re-id.
+  alerts.length = 0;
+  context.assignMissingIds();
+  assert.strictEqual(sheet.data[1][0], 'uuid-1');
+  assert.match(alerts.join(' '), /Every row already has an id/);
+});

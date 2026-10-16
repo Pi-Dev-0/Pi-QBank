@@ -110,6 +110,14 @@ String flowOf(String sheet) {
 int occurrences(String haystack, String needle) =>
     needle.allMatches(haystack).length;
 
+/// The markup without the hover tooltips, which carry a question's id rather
+/// than anything the paper prints.
+///
+/// These tests ask "how many times is this text on the paper?", so an id that
+/// happens to read like the question must not be counted as a second copy.
+String withoutTooltips(String html) =>
+    html.replaceAll(RegExp(r'\s*title="[^"]*"'), '');
+
 void main() {
   group('two sets', () {
     test('share one sheet, each with only its own questions', () {
@@ -134,8 +142,8 @@ void main() {
 
       // The reported bug: one masthead and the questions of both sets merged
       // into a single paper, so each question appeared twice.
-      expect(occurrences(html, 'সেট-ক-এর প্রশ্ন'), 1);
-      expect(occurrences(html, 'সেট-খ-এর প্রশ্ন'), 1);
+      expect(occurrences(withoutTooltips(html), 'সেট-ক-এর প্রশ্ন'), 1);
+      expect(occurrences(withoutTooltips(html), 'সেট-খ-এর প্রশ্ন'), 1);
     });
 
     test('number each set from one', () {

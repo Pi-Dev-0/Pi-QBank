@@ -22,6 +22,12 @@
  *  J  = board_year_tag
  *  K  = short_mark     (RQ only; empty for CQ/MCQ)
  *
+ * Identity: the script owns column A. A question uploaded without an id is
+ * given a fresh UUID here, and "Question Bank → Auto-fill missing ids" does the
+ * same for rows typed straight into the sheet. An MCQ that shares its উদ্দীপক
+ * with the question under it repeats that intro in G on both rows — the app
+ * prints it once.
+ *
  * Deploy → Web App → Execute as: Me | Who has access: Anyone
  */
 
@@ -81,6 +87,49 @@ function getSheet() {
 
 function generateId() {
   return Utilities.getUuid();
+}
+
+/**
+ * Sheet menu: the script owns identity, and a row typed straight into the sheet
+ * has none. "Auto-fill missing ids" gives every blank id a fresh UUID, so a
+ * hand-entered question behaves like an uploaded one.
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("Question Bank")
+    .addItem("Auto-fill missing ids", "assignMissingIds")
+    .addToUi();
+}
+
+function assignMissingIds() {
+  const sheet = getSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) {
+    SpreadsheetApp.getUi().alert("No questions to fix.");
+    return;
+  }
+
+  const range = sheet.getRange(2, 1, lastRow - 1, 1);
+  const values = range.getValues();
+  const existing = readExistingIds(sheet);
+  let filled = 0;
+  for (let i = 0; i < values.length; i++) {
+    const current = String(values[i][0] == null ? "" : values[i][0]).trim();
+    if (current) continue;
+    let id = generateId();
+    // Unlikely, but a collision would silently merge two rows into one id.
+    while (existing[id.toLowerCase()]) id = generateId();
+    existing[id.toLowerCase()] = true;
+    values[i][0] = id;
+    filled++;
+  }
+
+  if (filled === 0) {
+    SpreadsheetApp.getUi().alert("Every row already has an id.");
+    return;
+  }
+  range.setValues(values);
+  SpreadsheetApp.getUi().alert("Filled " + filled + " missing id(s).");
 }
 
 /**
@@ -578,6 +627,9 @@ function doPost(e) {
       status: "SUCCESS",
       message: `${rows.length} question(s) added successfully.`,
       inserted: rows.length,
+      // The ids as written, in upload order. A client that sent no id gets the
+      // ones the server minted here, and can adopt them without another read.
+      ids: rows.map((row) => row[0]),
     });
   } catch (err) {
     return jsonResponse({ status: "ERROR", message: err.toString() });

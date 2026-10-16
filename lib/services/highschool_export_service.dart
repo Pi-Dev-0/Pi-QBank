@@ -493,10 +493,18 @@ class HighSchoolExportService {
           buffer.writeln('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]');
           buffer.writeln();
           const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+          HighSchoolQuestion? previousMcq;
           for (int j = 0; j < inSection.length; j++) {
             final q = inSection[j];
             final mcq = q.mcqData;
             if (mcq == null) continue;
+            // A shared উদ্দীপক is written once, over the first question of the
+            // group, in every export format alike.
+            if (q.opensMcqStemGroup(previousMcq)) {
+              buffer.writeln(q.mcqStemText);
+              buffer.writeln();
+            }
+            previousMcq = q;
             buffer.writeln('${j + 1}. ${q.paperQuestionText}');
             final options = mcq.options;
             for (int optIdx = 0; optIdx < options.length; optIdx++) {
@@ -668,6 +676,12 @@ class HighSchoolExportService {
       font-weight: 500;
       margin-bottom: 3pt;
     }
+    /* An MCQ's shared intro: printed once, over the first question of the group
+       that carries it, and never numbered. */
+    .mcq-stem {
+      font-size: 11pt;
+      margin-bottom: 4pt;
+    }
     .mcq-options-table {
       width: 100%;
       border-collapse: collapse;
@@ -796,7 +810,8 @@ class HighSchoolExportService {
               buffer, inSection, heading, cqLayout, imageBytes, imageSize);
           break;
         case PaperSection.mcq:
-          _writeWordMcqSection(buffer, inSection, heading, mcqLayout);
+          _writeWordMcqSection(
+              buffer, inSection, heading, mcqLayout, imageBytes, imageSize);
           break;
         case PaperSection.rq:
           _writeWordRqSection(buffer, inSection, heading, rqLayout);
@@ -869,11 +884,16 @@ class HighSchoolExportService {
   }
 
   /// The MCQ block of a Word paper, options in two columns inside each cell.
+  ///
+  /// A shared উদ্দীপক prints once, over the first question of its group, exactly
+  /// as the HTML and the PDF do it.
   static void _writeWordMcqSection(
     StringBuffer buffer,
     List<HighSchoolQuestion> mcqs,
     String heading,
     QuestionLayout layout,
+    Map<String, Uint8List>? imageBytes,
+    StemImageSize imageSize,
   ) {
     buffer.write('''
   <div class="section-title">${_escapeXml(heading)}</div>
@@ -903,11 +923,17 @@ class HighSchoolExportService {
     }
 
     // One question as a full cell.
+    HighSchoolQuestion? previous;
     String questionCell(int index, HighSchoolQuestion q) {
       final mcq = q.mcqData;
       if (mcq == null) return '<td class="mcq-col-cell"></td>';
+      // The last question actually printed decides whether this one has already
+      // had its intro.
+      final opensStem = q.opensMcqStemGroup(previous);
+      previous = q;
       return '''
     <td class="mcq-col-cell">
+      ${opensStem ? '<div class="mcq-stem">${latexToHtml(_escapeXml(q.mcqStemText))}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
       <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
       <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
     </td>''';
@@ -1274,6 +1300,18 @@ class HighSchoolExportService {
        PDF draws both from the same style, and an option smaller than the
        question it belongs to reads as a footnote to it. */
     .mcq-question { font-size: ${_cssFontSize(15, fontStep)}; }
+    /* The intro an MCQ shares with the question below it — printed once, at the
+       head of the first question of the group, and never numbered. */
+    .mcq-stem {
+      font-size: ${_cssFontSize(15, fontStep)};
+      margin-bottom: 4px;
+    }
+    /* The intro and its figure ride with the question they introduce, exactly as
+       they do in the PDF: an intro left at the foot of a column while its
+       question starts the next one reads as belonging to whatever is beside it.
+       The options stay free to break — that is what keeps the two columns
+       level. */
+    .mcq-head { break-inside: avoid; }
     .mcq-options {
       display: grid;
       /* The script below measures the options and gives them four to a line, two
@@ -1555,6 +1593,10 @@ class HighSchoolExportService {
   /// Seeded rather than random: the sheet, the PDF and the Word file are three
   /// exports of one paper and have to print the same order. Every MCQ moves, so
   /// no question sits in the same place on both papers.
+  ///
+  /// What moves is the *group*, not the question: MCQs written under one
+  /// উদ্দীপক are printed under it, so shuffling one of them away from the intro
+  /// would print the intro twice, or leave a question with none.
   static List<HighSchoolQuestion> _mcqsReshuffled(
     List<HighSchoolQuestion> questions,
     int index,
@@ -1564,11 +1606,22 @@ class HighSchoolExportService {
         if (q.isMcq) q,
     ];
     if (mcqs.length < 2) return questions;
-    mcqs.shuffle(Random(_mcqShuffleSeed + index));
+
+    // One unit for each opener and the questions that follow it, so a group
+    // travels as a block.
+    final units = <List<HighSchoolQuestion>>[];
+    for (final q in mcqs) {
+      if (q.sharesMcqStemWith(units.isEmpty ? null : units.last.last)) {
+        units.last.add(q);
+      } else {
+        units.add([q]);
+      }
+    }
+    units.shuffle(Random(_mcqShuffleSeed + index));
 
     // Hand the MCQs their shuffled order back in the places they already hold,
     // so the creative and short questions keep their own order.
-    final next = [...mcqs];
+    final next = [for (final unit in units) ...unit];
     return [
       for (final q in questions)
         if (q.isMcq) next.removeAt(0) else q,
@@ -1693,7 +1746,7 @@ class HighSchoolExportService {
               declarationInFlow: declarationInFlow);
           break;
         case PaperSection.mcq:
-          _writeHtmlMcqSection(buffer, inSection, heading,
+          _writeHtmlMcqSection(buffer, inSection, heading, imageSize,
               declarationInFlow: declarationInFlow);
           break;
         case PaperSection.rq:
@@ -1825,7 +1878,7 @@ class HighSchoolExportService {
       final q = cqs[i];
       final index = i + 1;
       buffer.write('''
-    <div class="cq-card">
+    <div class="cq-card" title="${_idTooltip(q)}">
       <div class="cq-stem">
         <b>$index.</b> ${latexToHtml(_escapeXml(q.paperStemText))}
         ${q.boardYearTag.isNotEmpty ? '<small style="color:var(--muted);"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
@@ -1847,10 +1900,16 @@ class HighSchoolExportService {
   }
 
   /// The বহুনির্বাচনী প্রশ্ন block.
+  ///
+  /// MCQs written under one উদ্দীপক share it: the intro and its figure print once,
+  /// over the first question of the group, and the questions under it print bare.
+  /// The grouping is by consecutive identical stem text, so the sheet says which
+  /// questions belong together simply by repeating the intro on each row.
   static void _writeHtmlMcqSection(
     StringBuffer buffer,
     List<HighSchoolQuestion> mcqs,
-    String heading, {
+    String heading,
+    StemImageSize imageSize, {
     required bool declarationInFlow,
   }) {
     if (!declarationInFlow) {
@@ -1863,15 +1922,30 @@ class HighSchoolExportService {
       _writeHtmlDeclaration(buffer, heading, inFlow: true);
     }
     const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+    HighSchoolQuestion? previous;
     for (int i = 0; i < mcqs.length; i++) {
       final q = mcqs[i];
       final mcq = q.mcqData;
       final index = i + 1;
       if (mcq == null) continue;
 
+      // The last question actually printed, which is what decides whether this
+      // one has already had its intro.
+      final opensStem = q.opensMcqStemGroup(previous);
+      previous = q;
+
       buffer.write('''
-      <div class="mcq-card">
-        <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
+      <div class="mcq-card" title="${_idTooltip(q)}">
+        <div class="mcq-head">
+''');
+      if (opensStem) {
+        buffer.write('''
+          <div class="mcq-stem">${latexToHtml(_escapeXml(q.mcqStemText))}${_stemImageMarkup(q, size: imageSize, usePoints: false)}</div>
+''');
+      }
+      buffer.write('''
+          <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
+        </div>
         <div class="mcq-options" data-fit="1">
 ''');
       final options = mcq.options;
@@ -1891,6 +1965,14 @@ class HighSchoolExportService {
     </div>
 ''');
   }
+
+  /// The `title` every question block carries: its id, shown by the browser on
+  /// hover and printed by nothing.
+  ///
+  /// It is there so a question on the paper can be found in the sheet it came
+  /// from. Hand-typed questions have a local `manual-…` id, which is exactly
+  /// right: it says the row is not in the bank.
+  static String _idTooltip(HighSchoolQuestion q) => 'আইডি: ${_escapeXml(q.id)}';
 
   /// The সংক্ষিপ্ত প্রশ্ন block.
   static void _writeHtmlRqSection(
@@ -1926,7 +2008,7 @@ class HighSchoolExportService {
       final data = shorts[i].shortData;
       if (data == null || data.text.trim().isEmpty) continue;
       buffer.write('''
-        <div class="rq-item">
+        <div class="rq-item" title="${_idTooltip(shorts[i])}">
           <div><b>${i + 1}.</b> ${_escapeXml(data.text)}</div>
           <div class="rq-mark">[${data.mark}]</div>
         </div>
@@ -2041,10 +2123,20 @@ class HighSchoolExportService {
 
         case PaperSection.mcq:
           const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+          HighSchoolQuestion? previousMcq;
           for (int j = 0; j < inSection.length; j++) {
             final q = inSection[j];
             final mcq = q.mcqData;
             if (mcq == null) continue;
+
+            // The shared intro, once, over the first question of its group.
+            if (q.opensMcqStemGroup(previousMcq)) {
+              buffer.writeln('> ${q.mcqStemText}\n');
+              if (_hasStemImage(q, imageSize)) {
+                buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})\n');
+              }
+            }
+            previousMcq = q;
 
             buffer.writeln('**${j + 1}.** ${q.paperQuestionText}');
             for (int opt = 0; opt < mcq.options.length; opt++) {
