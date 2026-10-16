@@ -631,6 +631,8 @@ class _HighSchoolQPaperGeneratorPageState
         questions: _selectedQuestions,
         imageBytes: stemImages,
         imageSize: _imageSize,
+        setLabels: _twoSets ? _setLabels : const [],
+        sectionOrder: _paperSectionOrder,
         cqLayout: _cqLayout,
         mcqLayout: _mcqLayout,
         rqLayout: _rqLayout,
@@ -700,6 +702,8 @@ class _HighSchoolQPaperGeneratorPageState
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
         imageSize: _imageSize,
+        setLabels: _twoSets ? _setLabels : const [],
+        sectionOrder: _paperSectionOrder,
       );
       final file = await HighSchoolExportService.saveFile(
         content: text,
@@ -730,6 +734,8 @@ class _HighSchoolQPaperGeneratorPageState
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
         imageSize: _imageSize,
+        setLabels: _twoSets ? _setLabels : const [],
+        sectionOrder: _paperSectionOrder,
       );
       final file = await HighSchoolExportService.saveFile(
         content: md,
@@ -851,6 +857,8 @@ class _HighSchoolQPaperGeneratorPageState
       totalMarks: _marksCtrl.text,
       questions: _selectedQuestions,
       imageSize: _imageSize,
+      setLabels: _twoSets ? _setLabels : const [],
+      sectionOrder: _paperSectionOrder,
     );
     HighSchoolExportService.copyToClipboard(context, text);
   }
@@ -2798,7 +2806,7 @@ class _HighSchoolQPaperGeneratorPageState
                   borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
-            child: const Text('PDF তৈরি করুন ➜',
+            child: const Text('প্রশ্নপত্র তৈরি করুন ➜',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           ),
         ],
@@ -3066,7 +3074,7 @@ class _HighSchoolQPaperGeneratorPageState
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 3 — Exam Header Config & PDF Generation
+  // STEP 3 — Exam Header Config & Export
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildStep3() {
@@ -3163,7 +3171,8 @@ class _HighSchoolQPaperGeneratorPageState
           _buildFontSizeSelector(),
           const SizedBox(height: 28),
 
-          // Primary Action: PDF View & Download
+          // Primary Action: HTML View & Download — the sheet is the print-exact
+          // A4 page and opens in any browser, so it is the default export.
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -3171,8 +3180,8 @@ class _HighSchoolQPaperGeneratorPageState
                 ? const Center(
                     child: CircularProgressIndicator(color: _kPrimary))
                 : ElevatedButton.icon(
-                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 22),
-                    label: const Text('PDF দেখুন ও ডাউনলোড করুন',
+                    icon: const Icon(Icons.language_rounded, size: 22),
+                    label: const Text('HTML দেখুন ও ডাউনলোড করুন',
                         style: TextStyle(
                             fontSize: 16, fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
@@ -3183,12 +3192,12 @@ class _HighSchoolQPaperGeneratorPageState
                       elevation: 6,
                       shadowColor: _kPrimary.withOpacity(0.5),
                     ),
-                    onPressed: _generateAndPreviewPdf,
+                    onPressed: _exportHtml,
                   ),
           ),
           const SizedBox(height: 12),
 
-          // Secondary Row: Quick Print & Share PDF
+          // Secondary Row: Quick Print & Share of that same default export.
           Row(
             children: [
               Expanded(
@@ -3205,7 +3214,7 @@ class _HighSchoolQPaperGeneratorPageState
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                     ),
-                    onPressed: _generating ? null : _generateAndPreviewPdf,
+                    onPressed: _generating ? null : _exportHtml,
                   ),
                 ),
               ),
@@ -3215,7 +3224,7 @@ class _HighSchoolQPaperGeneratorPageState
                   height: 48,
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.share_rounded, size: 20),
-                    label: const Text('PDF শেয়ার',
+                    label: const Text('HTML শেয়ার',
                         style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.bold)),
                     style: OutlinedButton.styleFrom(
@@ -3225,7 +3234,8 @@ class _HighSchoolQPaperGeneratorPageState
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                     ),
-                    onPressed: _generating ? null : _sharePdfFile,
+                    onPressed:
+                        _generating ? null : () => _exportHtml(open: false),
                   ),
                 ),
               ),
@@ -3258,7 +3268,7 @@ class _HighSchoolQPaperGeneratorPageState
               label: 'অন্যান্য ফরম্যাটে এক্সপোর্ট ও সংরক্ষণ'),
           const SizedBox(height: 6),
           const Text(
-            'পিডিএফ ছাড়াও ওয়ার্ড এডিটর, ব্রাউজার বা মেসেজিং অ্যাপের জন্য যেকোনো ফরম্যাটে প্রশ্নপত্র সংরক্ষণ ও শেয়ার করুন:',
+            'প্রশ্নপত্রটি HTML ছাড়াও ওয়ার্ড এডিটর, পিডিএফ বা নোট অ্যাপের জন্য যেকোনো ফরম্যাটে সংরক্ষণ ও শেয়ার করুন:',
             style: TextStyle(fontSize: 13, color: _kSubText),
           ),
           const SizedBox(height: 16),
@@ -3305,7 +3315,20 @@ class _HighSchoolQPaperGeneratorPageState
           ),
           const SizedBox(height: 16),
 
-          // Format Cards
+          // Format Cards. The page-exact PDF leads the list: it is the other
+          // export a reader reaches for, right after the default HTML sheet.
+          _ExportFormatCard(
+            icon: Icons.picture_as_pdf_rounded,
+            accentColor: const Color(0xFFDC2626),
+            title: 'PDF ফাইল (.pdf)',
+            badge: 'পেজ-এক্সাক্ট A4 ফাইল',
+            description:
+                'অফলাইনে সংরক্ষণ, শেয়ার বা সরাসরি প্রিন্টের জন্য প্রিন্টার-রেডি ফাইল।',
+            onOpen: _generateAndPreviewPdf,
+            onShare: _sharePdfFile,
+          ),
+          const SizedBox(height: 10),
+
           _ExportFormatCard(
             icon: Icons.article_rounded,
             accentColor: const Color(0xFF2B579A),
@@ -3315,18 +3338,6 @@ class _HighSchoolQPaperGeneratorPageState
                 'কম্পিউটার বা ফোনে MS Word/WPS/Docs এ প্রশ্ন এডিট ও প্রিন্ট করার জন্য।',
             onOpen: () => _exportWord(open: true),
             onShare: () => _exportWord(open: false),
-          ),
-          const SizedBox(height: 10),
-
-          _ExportFormatCard(
-            icon: Icons.language_rounded,
-            accentColor: const Color(0xFFEA580C),
-            title: 'Web Page (.html)',
-            badge: 'ব্রাউজার ও প্রিন্ট উপযোগী',
-            description:
-                'যেকোনো ব্রাউজারে ওপেন করুন এবং কীবোর্ডে Ctrl+P চেপে সুন্দরভাবে প্রিন্ট করুন।',
-            onOpen: () => _exportHtml(open: true),
-            onShare: () => _exportHtml(open: false),
           ),
           const SizedBox(height: 10),
 
@@ -3860,7 +3871,7 @@ class _StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const steps = ['ফিল্টার', 'প্রশ্ন বেছে নিন', 'PDF তৈরি'];
+    const steps = ['ফিল্টার', 'প্রশ্ন বেছে নিন', 'প্রশ্নপত্র তৈরি'];
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),

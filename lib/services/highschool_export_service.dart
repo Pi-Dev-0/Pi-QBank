@@ -292,8 +292,58 @@ class HighSchoolExportService {
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
     StemImageSize imageSize = StemImageSize.medium,
+    List<String> setLabels = const [],
+    List<PaperSection> sectionOrder = PaperSection.defaultOrder,
   }) {
     final buffer = StringBuffer();
+    final labels = _setLabelsOf(setLabels);
+    final sections = [
+      for (final s in _orderedSections(sectionOrder))
+        if (questions.any((q) => _sectionOf(q) == s)) s,
+    ];
+
+    // A two-set paper is two papers in one file, each carrying only its own
+    // questions; a question the reader never filed rides in both. The PDF and
+    // the HTML sheet read a paper the same way.
+    final sets = labels.isEmpty ? 1 : labels.length;
+    for (var s = 0; s < sets; s++) {
+      if (s > 0) {
+        buffer.writeln();
+        buffer.writeln('=' * 50);
+        buffer.writeln();
+      }
+      _writePlainTextSet(
+        buffer,
+        schoolName: schoolName,
+        examName: examName,
+        subject: subject,
+        className: className,
+        time: time,
+        totalMarks: totalMarks,
+        setLabel: labels.isEmpty ? '' : labels[s],
+        questions: _questionsForSet(questions, labels, s),
+        sections: sections,
+        imageSize: imageSize,
+      );
+    }
+    return buffer.toString();
+  }
+
+  /// One set of the plain-text paper: its masthead, then every block in the
+  /// reader's order, under the letter its position gives it.
+  static void _writePlainTextSet(
+    StringBuffer buffer, {
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required String setLabel,
+    required List<HighSchoolQuestion> questions,
+    required List<PaperSection> sections,
+    required StemImageSize imageSize,
+  }) {
     final divider = '=' * 50;
     final thinDivider = '-' * 50;
 
@@ -307,6 +357,7 @@ class HighSchoolExportService {
     buffer.writeln(divider);
 
     final metaLine1 = <String>[];
+    if (setLabel.isNotEmpty) metaLine1.add('সেট: $setLabel');
     if (subject.trim().isNotEmpty) metaLine1.add('বিষয়: $subject');
     if (className.trim().isNotEmpty) metaLine1.add('শ্রেণি: $className');
     if (metaLine1.isNotEmpty) buffer.writeln(metaLine1.join('  |  '));
@@ -318,77 +369,74 @@ class HighSchoolExportService {
     buffer.writeln(thinDivider);
     buffer.writeln();
 
-    final cqs = questions.where((q) => q.isCq).toList();
-    final mcqs = questions.where((q) => q.isMcq).toList();
-    final shorts = questions.where((q) => q.isShort).toList();
+    var printed = 0;
+    for (var i = 0; i < sections.length; i++) {
+      final kind = sections[i];
+      final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
+      // A block that came up empty in this set is skipped; the blocks that do
+      // print keep the letters their positions give them.
+      if (inSection.isEmpty) continue;
 
-    // CQ Section
-    if (cqs.isNotEmpty) {
-      buffer.writeln('【 ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ) 】');
-      buffer.writeln('[নিচের উদ্দীপকগুলো পড়ে সংশ্লিষ্ট প্রশ্নের উত্তর দাও]');
-      buffer.writeln();
+      if (printed > 0) buffer.writeln(thinDivider);
+      printed++;
 
-      for (int i = 0; i < cqs.length; i++) {
-        final q = cqs[i];
-        final index = i + 1;
-        buffer.writeln('$index. ${latexToPlainText(q.paperStemText.trim())}');
-        if (q.boardYearTag.isNotEmpty) {
-          buffer.writeln('   [উৎস: ${q.boardYearTag}]');
-        }
-        if (_hasStemImage(q, imageSize)) {
-          // Plain text cannot embed an image, so surface the link.
-          buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
-        }
+      buffer.writeln('【 ${_sectionHeading(kind, i)} 】');
+      switch (kind) {
+        case PaperSection.cq:
+          buffer
+              .writeln('[নিচের উদ্দীপকগুলো পড়ে সংশ্লিষ্ট প্রশ্নের উত্তর দাও]');
+          buffer.writeln();
+          for (int j = 0; j < inSection.length; j++) {
+            final q = inSection[j];
+            buffer.writeln(
+                '${j + 1}. ${latexToPlainText(q.paperStemText.trim())}');
+            if (q.boardYearTag.isNotEmpty) {
+              buffer.writeln('   [উৎস: ${q.boardYearTag}]');
+            }
+            if (_hasStemImage(q, imageSize)) {
+              // Plain text cannot embed an image, so surface the link.
+              buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
+            }
+            for (final sq in q.cqSubQuestions) {
+              final markStr = sq.mark > 0 ? ' [${sq.mark}]' : '';
+              buffer.writeln('   (${sq.label}) ${sq.text}$markStr');
+            }
+            buffer.writeln();
+          }
+          break;
 
-        for (final sq in q.cqSubQuestions) {
-          final markStr = sq.mark > 0 ? ' [${sq.mark}]' : '';
-          buffer.writeln('   (${sq.label}) ${sq.text}$markStr');
-        }
-        buffer.writeln();
+        case PaperSection.mcq:
+          buffer.writeln('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]');
+          buffer.writeln();
+          const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+          for (int j = 0; j < inSection.length; j++) {
+            final q = inSection[j];
+            final mcq = q.mcqData;
+            if (mcq == null) continue;
+            buffer.writeln('${j + 1}. ${q.paperQuestionText}');
+            final options = mcq.options;
+            for (int optIdx = 0; optIdx < options.length; optIdx++) {
+              final letter = optIdx < bengaliLetters.length
+                  ? bengaliLetters[optIdx]
+                  : '${optIdx + 1}';
+              buffer.writeln('   ($letter) ${options[optIdx]}');
+            }
+            buffer.writeln();
+          }
+          break;
+
+        case PaperSection.rq:
+          buffer.writeln();
+          for (int j = 0; j < inSection.length; j++) {
+            final data = inSection[j].shortData;
+            if (data == null || data.text.trim().isEmpty) continue;
+            final markStr = data.mark > 0 ? ' [${data.mark}]' : '';
+            buffer.writeln('${j + 1}. ${data.text.trim()}$markStr');
+          }
+          buffer.writeln();
+          break;
       }
     }
-
-    // MCQ Section
-    if (mcqs.isNotEmpty) {
-      buffer.writeln(thinDivider);
-      buffer.writeln('【 খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ) 】');
-      buffer.writeln('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]');
-      buffer.writeln();
-
-      const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
-      for (int i = 0; i < mcqs.length; i++) {
-        final q = mcqs[i];
-        final mcq = q.mcqData;
-        final index = i + 1;
-        if (mcq == null) continue;
-
-        buffer.writeln('$index. ${q.paperQuestionText}');
-        final options = mcq.options;
-        for (int optIdx = 0; optIdx < options.length; optIdx++) {
-          final letter = optIdx < bengaliLetters.length
-              ? bengaliLetters[optIdx]
-              : '${optIdx + 1}';
-          buffer.writeln('   ($letter) ${options[optIdx]}');
-        }
-        buffer.writeln();
-      }
-    }
-
-    // Short question section (গ-বিভাগ)
-    if (shorts.isNotEmpty) {
-      buffer.writeln(thinDivider);
-      buffer.writeln('【 গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ) 】');
-      buffer.writeln();
-      for (int i = 0; i < shorts.length; i++) {
-        final data = shorts[i].shortData;
-        if (data == null || data.text.trim().isEmpty) continue;
-        final markStr = data.mark > 0 ? ' [${data.mark}]' : '';
-        buffer.writeln('${i + 1}. ${data.text.trim()}$markStr');
-      }
-      buffer.writeln();
-    }
-
-    return buffer.toString();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -405,13 +453,13 @@ class HighSchoolExportService {
     required List<HighSchoolQuestion> questions,
     Map<String, Uint8List>? imageBytes,
     StemImageSize imageSize = StemImageSize.medium,
+    List<String> setLabels = const [],
+    List<PaperSection> sectionOrder = PaperSection.defaultOrder,
     QuestionLayout cqLayout = QuestionLayout.single,
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
   }) {
-    final cqs = questions.where((q) => q.isCq).toList();
-    final mcqs = questions.where((q) => q.isMcq).toList();
-    final shorts = questions.where((q) => q.isShort).toList();
+    final labels = _setLabelsOf(setLabels);
 
     final buffer = StringBuffer();
     buffer.write('''
@@ -568,181 +616,42 @@ class HighSchoolExportService {
 </head>
 <body>
 <div class="Section1">
-  <div class="header-table">
-    ${schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
-    ${examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
-    <table style="width:100%; border:none; margin-top:4pt;">
-      <tr class="meta-row">
-        <td style="text-align:left;">বিষয়: ${_escapeXml(subject)}</td>
-        <td style="text-align:center;">শ্রেণি: ${_escapeXml(className)}</td>
-        <td style="text-align:right;">সময়: ${_escapeXml(time)} | পূর্ণমান: ${_escapeXml(totalMarks)}</td>
-      </tr>
-    </table>
-  </div>
 ''');
 
-    // CQ Section
-    if (cqs.isNotEmpty) {
-      buffer.write('''
-  <div class="section-title">ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)</div>
-  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[যেকোনো নির্ধারিত সংখ্যক প্রশ্নের উত্তর দাও]</div>
-''');
+    // The blocks the paper has, in the reader's order. Read off every question,
+    // so a block that is empty in one set keeps its letter in the other — the
+    // PDF and the HTML sheet read a paper the same way.
+    final sections = [
+      for (final s in _orderedSections(sectionOrder))
+        if (questions.any((q) => _sectionOf(q) == s)) s,
+    ];
 
-      // A real table keeps columns stable in Word/WPS, which CSS does not.
-      buffer.write('''
-  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
-''');
-      final cqCols = cqLayout.mcqColumns;
-      for (int i = 0; i < cqs.length; i += cqCols) {
-        final cells = StringBuffer();
-        for (int c = 0; c < cqCols; c++) {
-          if (c > 0) cells.write('<td class="mcq-col-gap" width="16"></td>');
-          final idx = i + c;
-          if (idx >= cqs.length) {
-            cells.write('<td class="mcq-col-cell"></td>');
-            continue;
-          }
-          final q = cqs[idx];
-          final index = idx + 1;
-          cells.write('''
-    <td class="cq-col-cell">
-      <div class="cq-box">
-        <div class="cq-stem">
-          <b>$index.</b> ${latexToHtml(_escapeXml(q.paperStemText))}
-          ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
-        </div>
-        ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
-        <table class="cq-sub-table">''');
-          for (final sq in q.cqSubQuestions) {
-            cells.write('''
-          <tr>
-            <td class="cq-sub-label">(${_escapeXml(sq.label)})</td>
-            <td class="cq-sub-text">${latexToHtml(_escapeXml(sq.text))}</td>
-            <td class="cq-sub-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</td>
-          </tr>''');
-          }
-          cells.write('''
-        </table>
-      </div>
-    </td>''');
-        }
+    // Two sets are two papers in one document, each starting on a page of its
+    // own — the same pair the PDF prints.
+    final sets = labels.isEmpty ? 1 : labels.length;
+    for (var s = 0; s < sets; s++) {
+      if (s > 0) {
         buffer.write('''
-    <tr>$cells
-    </tr>
+  <br clear=all style='mso-special-character:line-break;page-break-before:always'>
 ''');
       }
-      buffer.write('''
-  </table>
-''');
-    }
-
-    // MCQ Section
-    if (mcqs.isNotEmpty) {
-      buffer.write('''
-  <div class="section-title">খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)</div>
-  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]</div>
-''');
-
-      const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
-
-      // Options for one question, as an HTML fragment.
-      String optionsHtml(List<String> options) {
-        final b = StringBuffer();
-        for (int opt = 0; opt < options.length; opt += 2) {
-          final l1 =
-              opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
-          final has2 = opt + 1 < options.length;
-          final l2 = has2 && (opt + 1) < bengaliLetters.length
-              ? bengaliLetters[opt + 1]
-              : '${opt + 2}';
-          final o2 = has2 ? options[opt + 1] : '';
-          b.write('''
-      <tr>
-        <td class="mcq-opt-cell">($l1) ${_escapeXml(options[opt])}</td>
-        <td class="mcq-opt-cell">${has2 ? '($l2) ${_escapeXml(o2)}' : ''}</td>
-      </tr>''');
-        }
-        return b.toString();
-      }
-
-      // One question as a full cell.
-      String questionCell(int index, HighSchoolQuestion q) {
-        final mcq = q.mcqData;
-        if (mcq == null) return '<td class="mcq-col-cell"></td>';
-        return '''
-    <td class="mcq-col-cell">
-      <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
-      <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
-    </td>''';
-      }
-
-      // A real table keeps the columns stable in Word/WPS, which a CSS grid
-      // does not reliably survive.
-      buffer.write('''
-  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
-''');
-      final cols = mcqLayout.mcqColumns;
-      for (int i = 0; i < mcqs.length; i += cols) {
-        final cells = StringBuffer();
-        for (int c = 0; c < cols; c++) {
-          final idx = i + c;
-          if (c > 0) cells.write('<td class="mcq-col-gap" width="16"></td>');
-          cells.write(idx < mcqs.length
-              ? questionCell(idx + 1, mcqs[idx])
-              : '<td class="mcq-col-cell"></td>');
-        }
-        buffer.write('''
-    <tr>$cells
-    </tr>
-''');
-      }
-      buffer.write('''
-  </table>
-''');
-    }
-
-    // Short question section (গ-বিভাগ)
-    if (shorts.isNotEmpty) {
-      buffer.write('''
-  <div class="section-title">গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)</div>
-  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সংক্ষেপে উত্তর দাও]</div>
-''');
-
-      // Short questions in two columns, laid out as a table so Word keeps the
-      // fixed 50/50 split that its CQ and MCQ sections use.
-      String rqCell(int index) {
-        final data = shorts[index].shortData;
-        if (data == null || data.text.trim().isEmpty) return '';
-        return '''
-    <div class="rq-item">
-      <span>${index + 1}. ${_escapeXml(data.text)}</span>
-      <span class="rq-mark">[${data.mark}]</span>
-    </div>''';
-      }
-
-      final rqCols = rqLayout.mcqColumns;
-      if (rqCols > 1) {
-        buffer.write('''
-  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
-''');
-        for (int i = 0; i < shorts.length; i += rqCols) {
-          buffer.write('  <tr>');
-          for (int c = 0; c < rqCols; c++) {
-            if (c > 0) buffer.write('<td class="mcq-col-gap" width="16"></td>');
-            final idx = i + c;
-            buffer.write(idx < shorts.length
-                ? '    <td class="rq-col-cell">${rqCell(idx)}</td>'
-                : '    <td class="rq-col-cell"></td>');
-          }
-          buffer.write('  </tr>\n');
-        }
-        buffer.write('  </table>\n');
-      } else {
-        for (int i = 0; i < shorts.length; i++) {
-          final cell = rqCell(i);
-          if (cell.isNotEmpty) buffer.write('$cell\n');
-        }
-      }
+      _writeWordSet(
+        buffer,
+        schoolName: schoolName,
+        examName: examName,
+        subject: subject,
+        className: className,
+        time: time,
+        totalMarks: totalMarks,
+        setLabel: labels.isEmpty ? '' : labels[s],
+        questions: _questionsForSet(questions, labels, s),
+        sections: sections,
+        imageBytes: imageBytes,
+        imageSize: imageSize,
+        cqLayout: cqLayout,
+        mcqLayout: mcqLayout,
+        rqLayout: rqLayout,
+      );
     }
 
     buffer.write('''
@@ -751,6 +660,245 @@ class HighSchoolExportService {
 </html>
 ''');
     return buffer.toString();
+  }
+
+  /// One set of the Word paper: its masthead, then every block in the reader's
+  /// order, under the letter its position gives it.
+  static void _writeWordSet(
+    StringBuffer buffer, {
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required String setLabel,
+    required List<HighSchoolQuestion> questions,
+    required List<PaperSection> sections,
+    required Map<String, Uint8List>? imageBytes,
+    required StemImageSize imageSize,
+    required QuestionLayout cqLayout,
+    required QuestionLayout mcqLayout,
+    required QuestionLayout rqLayout,
+  }) {
+    buffer.write('''
+  <div class="header-table">
+    ${schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
+    ${examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
+    <table style="width:100%; border:none; margin-top:4pt;">
+      <tr class="meta-row">
+        <td style="text-align:left;">${setLabel.isNotEmpty ? 'সেট: ${_escapeXml(setLabel)} | ' : ''}বিষয়: ${_escapeXml(subject)}</td>
+        <td style="text-align:center;">শ্রেণি: ${_escapeXml(className)}</td>
+        <td style="text-align:right;">সময়: ${_escapeXml(time)} | পূর্ণমান: ${_escapeXml(totalMarks)}</td>
+      </tr>
+    </table>
+  </div>
+''');
+
+    for (var i = 0; i < sections.length; i++) {
+      final kind = sections[i];
+      final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
+      // A block that came up empty in this set is skipped; the blocks that do
+      // print keep the letters their positions give them.
+      if (inSection.isEmpty) continue;
+
+      final heading = _sectionHeading(kind, i);
+      switch (kind) {
+        case PaperSection.cq:
+          _writeWordCqSection(
+              buffer, inSection, heading, cqLayout, imageBytes, imageSize);
+          break;
+        case PaperSection.mcq:
+          _writeWordMcqSection(buffer, inSection, heading, mcqLayout);
+          break;
+        case PaperSection.rq:
+          _writeWordRqSection(buffer, inSection, heading, rqLayout);
+          break;
+      }
+    }
+  }
+
+  /// The CQ block of a Word paper.
+  ///
+  /// A real table keeps columns stable in Word/WPS, which CSS does not.
+  static void _writeWordCqSection(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> cqs,
+    String heading,
+    QuestionLayout layout,
+    Map<String, Uint8List>? imageBytes,
+    StemImageSize imageSize,
+  ) {
+    buffer.write('''
+  <div class="section-title">${_escapeXml(heading)}</div>
+  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[যেকোনো নির্ধারিত সংখ্যক প্রশ্নের উত্তর দাও]</div>
+''');
+
+    buffer.write('''
+  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
+''');
+    final cqCols = layout.mcqColumns;
+    for (int i = 0; i < cqs.length; i += cqCols) {
+      final cells = StringBuffer();
+      for (int c = 0; c < cqCols; c++) {
+        if (c > 0) cells.write('<td class="mcq-col-gap" width="16"></td>');
+        final idx = i + c;
+        if (idx >= cqs.length) {
+          cells.write('<td class="mcq-col-cell"></td>');
+          continue;
+        }
+        final q = cqs[idx];
+        final index = idx + 1;
+        cells.write('''
+    <td class="cq-col-cell">
+      <div class="cq-box">
+        <div class="cq-stem">
+          <b>$index.</b> ${latexToHtml(_escapeXml(q.paperStemText))}
+          ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
+        </div>
+        ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
+        <table class="cq-sub-table">''');
+        for (final sq in q.cqSubQuestions) {
+          cells.write('''
+          <tr>
+            <td class="cq-sub-label">(${_escapeXml(sq.label)})</td>
+            <td class="cq-sub-text">${latexToHtml(_escapeXml(sq.text))}</td>
+            <td class="cq-sub-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</td>
+          </tr>''');
+        }
+        cells.write('''
+        </table>
+      </div>
+    </td>''');
+      }
+      buffer.write('''
+    <tr>$cells
+    </tr>
+''');
+    }
+    buffer.write('''
+  </table>
+''');
+  }
+
+  /// The MCQ block of a Word paper, options in two columns inside each cell.
+  static void _writeWordMcqSection(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> mcqs,
+    String heading,
+    QuestionLayout layout,
+  ) {
+    buffer.write('''
+  <div class="section-title">${_escapeXml(heading)}</div>
+  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]</div>
+''');
+
+    const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+
+    // Options for one question, as an HTML fragment.
+    String optionsHtml(List<String> options) {
+      final b = StringBuffer();
+      for (int opt = 0; opt < options.length; opt += 2) {
+        final l1 =
+            opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
+        final has2 = opt + 1 < options.length;
+        final l2 = has2 && (opt + 1) < bengaliLetters.length
+            ? bengaliLetters[opt + 1]
+            : '${opt + 2}';
+        final o2 = has2 ? options[opt + 1] : '';
+        b.write('''
+      <tr>
+        <td class="mcq-opt-cell">($l1) ${_escapeXml(options[opt])}</td>
+        <td class="mcq-opt-cell">${has2 ? '($l2) ${_escapeXml(o2)}' : ''}</td>
+      </tr>''');
+      }
+      return b.toString();
+    }
+
+    // One question as a full cell.
+    String questionCell(int index, HighSchoolQuestion q) {
+      final mcq = q.mcqData;
+      if (mcq == null) return '<td class="mcq-col-cell"></td>';
+      return '''
+    <td class="mcq-col-cell">
+      <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
+      <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
+    </td>''';
+    }
+
+    // A real table keeps the columns stable in Word/WPS, which a CSS grid
+    // does not reliably survive.
+    buffer.write('''
+  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
+''');
+    final cols = layout.mcqColumns;
+    for (int i = 0; i < mcqs.length; i += cols) {
+      final cells = StringBuffer();
+      for (int c = 0; c < cols; c++) {
+        final idx = i + c;
+        if (c > 0) cells.write('<td class="mcq-col-gap" width="16"></td>');
+        cells.write(idx < mcqs.length
+            ? questionCell(idx + 1, mcqs[idx])
+            : '<td class="mcq-col-cell"></td>');
+      }
+      buffer.write('''
+    <tr>$cells
+    </tr>
+''');
+    }
+    buffer.write('''
+  </table>
+''');
+  }
+
+  /// The short-question block of a Word paper.
+  ///
+  /// Laid out as a table so Word keeps the fixed 50/50 split that its CQ and
+  /// MCQ blocks use.
+  static void _writeWordRqSection(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> shorts,
+    String heading,
+    QuestionLayout layout,
+  ) {
+    buffer.write('''
+  <div class="section-title">${_escapeXml(heading)}</div>
+  <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সংক্ষেপে উত্তর দাও]</div>
+''');
+
+    String rqCell(int index) {
+      final data = shorts[index].shortData;
+      if (data == null || data.text.trim().isEmpty) return '';
+      return '''
+    <div class="rq-item">
+      <span>${index + 1}. ${_escapeXml(data.text)}</span>
+      <span class="rq-mark">[${data.mark}]</span>
+    </div>''';
+    }
+
+    final rqCols = layout.mcqColumns;
+    if (rqCols > 1) {
+      buffer.write('''
+  <table class="mcq-layout-table" width="100%" cellspacing="0" cellpadding="0">
+''');
+      for (int i = 0; i < shorts.length; i += rqCols) {
+        buffer.write('  <tr>');
+        for (int c = 0; c < rqCols; c++) {
+          if (c > 0) buffer.write('<td class="mcq-col-gap" width="16"></td>');
+          final idx = i + c;
+          buffer.write(idx < shorts.length
+              ? '    <td class="rq-col-cell">${rqCell(idx)}</td>'
+              : '    <td class="rq-col-cell"></td>');
+        }
+        buffer.write('  </tr>\n');
+      }
+      buffer.write('  </table>\n');
+    } else {
+      for (int i = 0; i < shorts.length; i++) {
+        final cell = rqCell(i);
+        if (cell.isNotEmpty) buffer.write('$cell\n');
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -797,10 +945,7 @@ class HighSchoolExportService {
     // set through [HighSchoolQuestion.setLabel], and a question the reader never
     // filed into a set belongs to both — dropping it would silently lose a
     // question from the paper.
-    final labels = [
-      for (final label in setLabels)
-        if (label.trim().isNotEmpty) label.trim(),
-    ];
+    final labels = _setLabelsOf(setLabels);
     final sets = <List<HighSchoolQuestion>>[
       for (var i = 0; i < (labels.isEmpty ? 1 : labels.length); i++)
         _questionsForSet(questions, labels, i),
@@ -809,10 +954,7 @@ class HighSchoolExportService {
     // The blocks the paper actually has, in the order the reader arranged them.
     // Read off every question rather than one set, so a block that happens to be
     // empty in one set keeps its letter in the other — the PDF does the same.
-    final ordered = <PaperSection>[
-      ...sectionOrder,
-      ...PaperSection.defaultOrder.where((s) => !sectionOrder.contains(s)),
-    ];
+    final ordered = _orderedSections(sectionOrder);
     final sections = [
       for (final s in ordered)
         if (questions.any((q) => _sectionOf(q) == s)) s,
@@ -1218,6 +1360,25 @@ class HighSchoolExportService {
         .toList();
   }
 
+  /// The paper's blocks, in the reader's order.
+  ///
+  /// The blocks the reader dragged into place come first, then any block they
+  /// left where it was. Every export reads its order from here, so the letters
+  /// match across formats.
+  static List<PaperSection> _orderedSections(List<PaperSection> order) => [
+        ...order,
+        ...PaperSection.defaultOrder.where((s) => !order.contains(s)),
+      ];
+
+  /// The set labels a paper actually prints.
+  ///
+  /// A blank label is not a set: a paper the reader named only one half of
+  /// still prints one paper. The HTML reads the labels the same way.
+  static List<String> _setLabelsOf(List<String> setLabels) => [
+        for (final label in setLabels)
+          if (label.trim().isNotEmpty) label.trim(),
+      ];
+
   /// The heading a block is printed under.
   ///
   /// The বাংলা letter comes from the block's *position*, not its type: the
@@ -1567,8 +1728,52 @@ class HighSchoolExportService {
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
     StemImageSize imageSize = StemImageSize.medium,
+    List<String> setLabels = const [],
+    List<PaperSection> sectionOrder = PaperSection.defaultOrder,
   }) {
     final buffer = StringBuffer();
+    final labels = _setLabelsOf(setLabels);
+    final sections = [
+      for (final s in _orderedSections(sectionOrder))
+        if (questions.any((q) => _sectionOf(q) == s)) s,
+    ];
+
+    // Two sets are two papers in one file, as in the PDF and the HTML sheet.
+    final sets = labels.isEmpty ? 1 : labels.length;
+    for (var s = 0; s < sets; s++) {
+      if (s > 0) buffer.writeln('---\n');
+      _writeMarkdownSet(
+        buffer,
+        schoolName: schoolName,
+        examName: examName,
+        subject: subject,
+        className: className,
+        time: time,
+        totalMarks: totalMarks,
+        setLabel: labels.isEmpty ? '' : labels[s],
+        questions: _questionsForSet(questions, labels, s),
+        sections: sections,
+        imageSize: imageSize,
+      );
+    }
+    return buffer.toString();
+  }
+
+  /// One set of the markdown paper: its masthead, then every block in the
+  /// reader's order, under the letter its position gives it.
+  static void _writeMarkdownSet(
+    StringBuffer buffer, {
+    required String schoolName,
+    required String examName,
+    required String subject,
+    required String className,
+    required String time,
+    required String totalMarks,
+    required String setLabel,
+    required List<HighSchoolQuestion> questions,
+    required List<PaperSection> sections,
+    required StemImageSize imageSize,
+  }) {
     if (schoolName.trim().isNotEmpty) {
       buffer.writeln('# ${schoolName.trim()}\n');
     }
@@ -1576,66 +1781,74 @@ class HighSchoolExportService {
       buffer.writeln('## ${examName.trim()}\n');
     }
 
-    buffer.writeln(
-        '**বিষয়:** $subject | **শ্রেণি:** $className | **সময়:** $time | **পূর্ণমান:** $totalMarks\n');
-    buffer.writeln('---\n');
+    buffer.writeln(<String>[
+      if (setLabel.isNotEmpty) '**সেট:** $setLabel',
+      '**বিষয়:** $subject',
+      '**শ্রেণি:** $className',
+      '**সময়:** $time',
+      '**পূর্ণমান:** $totalMarks',
+    ].join(' | '));
+    buffer.writeln('\n---\n');
 
-    final cqs = questions.where((q) => q.isCq).toList();
-    final mcqs = questions.where((q) => q.isMcq).toList();
-    final shorts = questions.where((q) => q.isShort).toList();
+    var printed = 0;
+    for (var i = 0; i < sections.length; i++) {
+      final kind = sections[i];
+      final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
+      if (inSection.isEmpty) continue;
 
-    if (cqs.isNotEmpty) {
-      buffer.writeln('### ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)\n');
-      for (int i = 0; i < cqs.length; i++) {
-        final q = cqs[i];
-        final index = i + 1;
-        buffer
-            .writeln('**$index.** ${latexToPlainText(q.paperStemText.trim())}');
-        if (q.boardYearTag.isNotEmpty) {
-          buffer.writeln('> *উৎস: ${q.boardYearTag}*');
-        }
-        if (_hasStemImage(q, imageSize)) {
-          buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})');
-        }
-        buffer.writeln();
-        for (final sq in q.cqSubQuestions) {
-          buffer.writeln('- **(${sq.label})** ${sq.text} `[${sq.mark}]`');
-        }
-        buffer.writeln();
+      if (printed > 0) buffer.writeln('---\n');
+      printed++;
+
+      buffer.writeln('### ${_sectionHeading(kind, i)}\n');
+      switch (kind) {
+        case PaperSection.cq:
+          for (int j = 0; j < inSection.length; j++) {
+            final q = inSection[j];
+            buffer.writeln(
+                '**${j + 1}.** ${latexToPlainText(q.paperStemText.trim())}');
+            if (q.boardYearTag.isNotEmpty) {
+              buffer.writeln('> *উৎস: ${q.boardYearTag}*');
+            }
+            if (_hasStemImage(q, imageSize)) {
+              buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})');
+            }
+            buffer.writeln();
+            for (final sq in q.cqSubQuestions) {
+              buffer.writeln('- **(${sq.label})** ${sq.text} `[${sq.mark}]`');
+            }
+            buffer.writeln();
+          }
+          break;
+
+        case PaperSection.mcq:
+          const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
+          for (int j = 0; j < inSection.length; j++) {
+            final q = inSection[j];
+            final mcq = q.mcqData;
+            if (mcq == null) continue;
+
+            buffer.writeln('**${j + 1}.** ${q.paperQuestionText}');
+            for (int opt = 0; opt < mcq.options.length; opt++) {
+              final l = opt < bengaliLetters.length
+                  ? bengaliLetters[opt]
+                  : '${opt + 1}';
+              buffer.writeln('- ($l) ${mcq.options[opt]}');
+            }
+            buffer.writeln();
+          }
+          break;
+
+        case PaperSection.rq:
+          for (int j = 0; j < inSection.length; j++) {
+            final data = inSection[j].shortData;
+            if (data == null || data.text.trim().isEmpty) continue;
+            buffer
+                .writeln('**${j + 1}.** ${data.text.trim()} `[${data.mark}]`');
+          }
+          buffer.writeln();
+          break;
       }
     }
-
-    if (mcqs.isNotEmpty) {
-      buffer.writeln('---\n');
-      buffer.writeln('### খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)\n');
-      const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
-      for (int i = 0; i < mcqs.length; i++) {
-        final q = mcqs[i];
-        final mcq = q.mcqData;
-        final index = i + 1;
-        if (mcq == null) continue;
-
-        buffer.writeln('**$index.** ${q.paperQuestionText}');
-        for (int opt = 0; opt < mcq.options.length; opt++) {
-          final l =
-              opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
-          buffer.writeln('- ($l) ${mcq.options[opt]}');
-        }
-        buffer.writeln();
-      }
-    }
-
-    if (shorts.isNotEmpty) {
-      buffer.writeln('---\n');
-      buffer.writeln('### গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)\n');
-      for (int i = 0; i < shorts.length; i++) {
-        final data = shorts[i].shortData;
-        if (data == null || data.text.trim().isEmpty) continue;
-        buffer.writeln('**${i + 1}.** ${data.text.trim()} `[${data.mark}]`');
-      }
-      buffer.writeln();
-    }
-    return buffer.toString();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
