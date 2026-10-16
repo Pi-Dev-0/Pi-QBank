@@ -1232,6 +1232,15 @@ class _HighSchoolQPaperGeneratorPageState
         ) +
         PdfLayout.headerAfterGap);
 
+    // A set that holds one type of question has nothing to tell apart, so its
+    // lone declaration — «ক-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)» — is dropped and
+    // the questions print on their own. The instruction line under the bar
+    // stays: it is a directive, not a label. The air that separates one block
+    // from the next stays too. The export service reads it the same way, so a
+    // sheet looks the same on paper as it does in the browser.
+    final declares = [cqs, shorts, mcqs].where((l) => l.isNotEmpty).length > 1;
+    final double bandHeight = declares ? bannerHeight : 0;
+
     // The sections are declared below as closures and dispatched in the order
     // the reader arranged them, so dragging one in the last step really does
     // move it on the page. CQ and the short questions share one continuous
@@ -1293,11 +1302,13 @@ class _HighSchoolQPaperGeneratorPageState
         _keepHeadingWithContent(
           widgets: widgets,
           flow: flow,
-          headingHeight: bannerHeight + PdfLayout.sectionBannerGap + noteHeight,
+          headingHeight: bandHeight +
+              (declares ? PdfLayout.sectionBannerGap : 0) +
+              noteHeight,
           firstUnitHeight: cqFragments.isEmpty ? 0 : cqFragments.first.height,
         );
 
-        if (!cqInline) {
+        if (!cqInline && declares) {
           widgets.add(cqBanner);
         }
         if (answerAny > 0) {
@@ -1313,13 +1324,14 @@ class _HighSchoolQPaperGeneratorPageState
         // inside the first column, so a SizedBox added here would sit above the
         // heading and leave it flush against the first question — which is
         // exactly what it looked like.
-        if (!cqInline) {
+        if (!cqInline && declares) {
           widgets.add(pw.SizedBox(height: PdfLayout.sectionBannerGap));
         }
-        // bannerHeight is charged here and nowhere else. The inline/full-width
-        // branch used to charge it as well, so the flow reserved the heading's
-        // height twice in the two-set layout and every column came up short.
-        flow.consume(bannerHeight + PdfLayout.sectionBannerGap);
+        // The declaration band is charged here and nowhere else. The
+        // inline/full-width branch used to charge it as well, so the flow
+        // reserved the heading's height twice in the two-set layout and every
+        // column came up short.
+        flow.consume(bandHeight + (declares ? PdfLayout.sectionBannerGap : 0));
 
         final cqRows = flow.layoutFragments(
             fragments: cqFragments,
@@ -1350,7 +1362,7 @@ class _HighSchoolQPaperGeneratorPageState
               afterQuestion: () => pw.SizedBox(height: PdfLayout.cqCardGap),
             ));
           }
-          if (bi == 0 && cqInline && columns.isNotEmpty) {
+          if (bi == 0 && cqInline && declares && columns.isNotEmpty) {
             // The heading carries its own gap into the column, so it reads the
             // same as a full-width one.
             columns.first.insertAll(0, [
@@ -1373,7 +1385,8 @@ class _HighSchoolQPaperGeneratorPageState
         baseStyle: baseStyle,
         boldStyle: boldStyle,
         smallStyle: smallStyle,
-        bannerHeight: bannerHeight,
+        bannerHeight: bandHeight,
+        declares: declares,
         metrics: metrics,
         stemImages: stemImages,
         imageSize: _imageSize,
@@ -1407,23 +1420,23 @@ class _HighSchoolQPaperGeneratorPageState
           widgets: widgets,
           flow: flow,
           headingHeight: (rqInline ? 0 : PdfLayout.sectionGap) +
-              bannerHeight +
-              PdfLayout.sectionBannerGap,
+              bandHeight +
+              (declares ? PdfLayout.sectionBannerGap : 0),
           firstUnitHeight: rqHeights.isEmpty ? 0 : rqHeights.first,
         );
 
         if (!rqInline) {
           widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
-          widgets.add(rqBanner);
+          if (declares) widgets.add(rqBanner);
         }
         // Under the heading, which is inside the column when rqInline — see
         // the insert below.
-        if (!rqInline) {
+        if (!rqInline && declares) {
           widgets.add(pw.SizedBox(height: PdfLayout.sectionBannerGap));
         }
         flow.consume((rqInline ? 0 : PdfLayout.sectionGap) +
-            bannerHeight +
-            PdfLayout.sectionBannerGap);
+            bandHeight +
+            (declares ? PdfLayout.sectionBannerGap : 0));
 
         final rqRows = flow.layout(
           heights: rqHeights,
@@ -1460,7 +1473,7 @@ class _HighSchoolQPaperGeneratorPageState
               afterQuestion: () => pw.SizedBox.shrink(),
             ));
           }
-          if (bi == 0 && rqInline && columns.isNotEmpty) {
+          if (bi == 0 && rqInline && declares && columns.isNotEmpty) {
             columns.first.insertAll(0, [
               rqBanner,
               pw.SizedBox(height: PdfLayout.sectionBannerGap),
@@ -1501,7 +1514,8 @@ class _HighSchoolQPaperGeneratorPageState
         cqMarkStyle: cqMarkStyle,
         rqMarkStyle: rqMarkStyle,
         metrics: metrics,
-        bannerHeight: bannerHeight,
+        bannerHeight: bandHeight,
+        declares: declares,
         stemImages: stemImages,
       );
 
@@ -1537,6 +1551,10 @@ class _HighSchoolQPaperGeneratorPageState
     required pw.TextStyle smallStyle,
     required PdfTextMetrics metrics,
     required double bannerHeight,
+
+    /// False when this set holds nothing but MCQs, so the block prints without
+    /// its declaration. See the call site in [_appendPdfSet].
+    required bool declares,
     required Map<String, Uint8List> stemImages,
     required StemImageSize imageSize,
   }) {
@@ -1596,13 +1614,13 @@ class _HighSchoolQPaperGeneratorPageState
             4 +
             metrics.lineHeight(tickNote,
                 fontSize: _typeSize(PdfLayout.smallFontSize)) +
-            PdfLayout.sectionBannerGap,
+            (declares ? PdfLayout.sectionBannerGap : 0),
         firstUnitHeight: firstMcqParts.isEmpty ? 0 : firstMcqParts.first,
       );
 
       if (!mcqInline) {
         widgets.add(pw.SizedBox(height: PdfLayout.sectionGap));
-        widgets.add(mcqBanner);
+        if (declares) widgets.add(mcqBanner);
       }
       widgets.add(pw.SizedBox(height: 4));
       widgets.add(pw.RichText(
@@ -1611,7 +1629,7 @@ class _HighSchoolQPaperGeneratorPageState
           textAlign: pw.TextAlign.center));
       // Under the heading, which is inside the column when mcqInline — see the
       // insert below.
-      if (!mcqInline) {
+      if (!mcqInline && declares) {
         widgets.add(pw.SizedBox(height: PdfLayout.sectionBannerGap));
       }
       // Charge exactly what is drawn: the leading gap only exists when the
@@ -1622,7 +1640,7 @@ class _HighSchoolQPaperGeneratorPageState
           4 +
           metrics.lineHeight(tickNote,
               fontSize: _typeSize(PdfLayout.smallFontSize)) +
-          PdfLayout.sectionBannerGap);
+          (declares ? PdfLayout.sectionBannerGap : 0));
 
       final mcqFragments = <PdfFlowFragment>[];
       for (int i = 0; i < mcqs.length; i++) {
@@ -1673,7 +1691,7 @@ class _HighSchoolQPaperGeneratorPageState
             ),
           ));
         }
-        if (bi == 0 && mcqInline && columns.isNotEmpty) {
+        if (bi == 0 && mcqInline && declares && columns.isNotEmpty) {
           columns.first.insertAll(0, [
             mcqBanner,
             pw.SizedBox(height: PdfLayout.sectionBannerGap),
@@ -1706,6 +1724,9 @@ class _HighSchoolQPaperGeneratorPageState
     required pw.TextStyle rqMarkStyle,
     required PdfTextMetrics metrics,
     required double bannerHeight,
+
+    /// Whether the blocks print their declarations. See [_appendPdfSet].
+    required bool declares,
     required Map<String, Uint8List> stemImages,
   }) {
     final cqCols = _cqLayout.mcqColumns;
@@ -1736,8 +1757,12 @@ class _HighSchoolQPaperGeneratorPageState
     // the CQ part begin where they end rather than starting the flow afresh.
     for (final kind in _activeSections) {
       if (kind.isCq) {
-        add(bannerHeight + PdfLayout.mergedHeadingGap, cqBannerId, 0, true,
-            true);
+        // The merged run only exists between two blocks, so there is always a
+        // declaration here — but the flag is read rather than assumed.
+        if (declares) {
+          add(bannerHeight + PdfLayout.mergedHeadingGap, cqBannerId, 0, true,
+              true);
+        }
         for (int i = 0; i < cqs.length; i++) {
           final parts = PdfLayout.cqFragments(
             index: i + 1,
@@ -1758,8 +1783,10 @@ class _HighSchoolQPaperGeneratorPageState
         // — the dispatcher emits it on its own — and letting it through here
         // printed the whole short-question section a second time, once for the
         // MCQ entry and once for the SQ entry.
-        add(bannerHeight + PdfLayout.mergedHeadingGap, rqBannerId, 0, true,
-            true);
+        if (declares) {
+          add(bannerHeight + PdfLayout.mergedHeadingGap, rqBannerId, 0, true,
+              true);
+        }
         for (int i = 0; i < shorts.length; i++) {
           final parts = PdfLayout.rqFragments(
             index: i + 1,
@@ -2802,18 +2829,9 @@ class _HighSchoolQPaperGeneratorPageState
                 const SizedBox(height: 8),
                 // A folded chapter shows its header and nothing else.
                 if (!_collapsedChapters.contains(chNum)) ...[
-                  // CQ cards for this chapter
-                  ...byChapter[chNum]!.where((q) => q.isCq).map((q) =>
-                      _buildQuestionCard(
-                          q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
-                  // MCQ cards for this chapter
-                  ...byChapter[chNum]!.where((q) => q.isMcq).map((q) =>
-                      _buildQuestionCard(
-                          q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
-                  // Short-question cards for this chapter
-                  ...byChapter[chNum]!.where((q) => q.isShort).map((q) =>
-                      _buildQuestionCard(
-                          q, _cardKey(q, _fetchedQuestions.indexOf(q)))),
+                  for (final q in _pickerOrder(byChapter[chNum]!))
+                    _buildQuestionCard(
+                        q, _cardKey(q, _fetchedQuestions.indexOf(q))),
                 ],
                 const SizedBox(height: 16),
               ],
@@ -2843,6 +2861,24 @@ class _HighSchoolQPaperGeneratorPageState
         ),
       ],
     );
+  }
+
+  /// The order a chapter's questions take in the picker: the selected ones on
+  /// top, then the rest, and inside each half the CQ → MCQ → RQ order the list
+  /// has always used.
+  ///
+  /// Without this a ticked question stays wherever it was, so the answer to
+  /// "what have I chosen here?" is scattered down a long chapter.
+  List<HighSchoolQuestion> _pickerOrder(List<HighSchoolQuestion> questions) {
+    List<HighSchoolQuestion> byType(Iterable<HighSchoolQuestion> items) => [
+          ...items.where((q) => q.isCq),
+          ...items.where((q) => q.isMcq),
+          ...items.where((q) => q.isShort),
+        ];
+    return [
+      ...byType(questions.where((q) => q.isSelected)),
+      ...byType(questions.where((q) => !q.isSelected)),
+    ];
   }
 
   /// Chips to narrow the picker to one question type, plus a search box.

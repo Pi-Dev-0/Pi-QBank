@@ -37,59 +37,37 @@
     }
 
     /* ── Header ─────────────────────────────── */
+    /* One thin bar. This page is a tool, not a landing page: its title and where
+       the data goes is all it has to say, and every pixel it takes is a pixel
+       the form does not get. */
     .header {
       background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
       color: white;
-      padding: 32px 24px;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
+      padding: 9px 0;
     }
-    .header::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      right: -20%;
-      width: 400px;
-      height: 400px;
-      background: rgba(255,255,255,0.05);
-      border-radius: 50%;
-    }
-    .header::after {
-      content: '';
-      position: absolute;
-      bottom: -30%;
-      left: -10%;
-      width: 300px;
-      height: 300px;
-      background: rgba(255,255,255,0.03);
-      border-radius: 50%;
+    .header-inner {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }
     .header h1 {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      position: relative;
-      z-index: 1;
-    }
-    .header p {
-      font-size: 14px;
-      opacity: 0.85;
-      margin-top: 6px;
-      position: relative;
-      z-index: 1;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0;
+      white-space: nowrap;
     }
     .header .badge {
-      display: inline-block;
       background: rgba(255,255,255,0.2);
       border: 1px solid rgba(255,255,255,0.3);
       border-radius: 20px;
-      padding: 4px 14px;
-      font-size: 12px;
+      padding: 2px 10px;
+      font-size: 11px;
       font-weight: 600;
-      margin-top: 12px;
-      position: relative;
-      z-index: 1;
+      white-space: nowrap;
     }
 
     /* ── Container ──────────────────────────── */
@@ -198,42 +176,57 @@
     }
 
     /* ── Question Type Toggle ──────────────── */
+    /* A thin segmented row at the top of the details card: the type decides
+       which of the fields below matter, so it is set before them. The long
+       description each type used to carry is a tooltip now. */
+    .type-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .type-row .type-row-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
     .type-toggle {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      background: var(--bg);
+      border-radius: 10px;
     }
     .type-btn {
-      padding: 14px;
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      background: var(--bg);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: 1.5px solid transparent;
+      border-radius: 8px;
+      background: none;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
       cursor: pointer;
-      text-align: center;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }
     .type-btn:hover {
-      border-color: var(--primary-light);
+      color: var(--primary);
     }
     .type-btn.active {
+      background: var(--card);
       border-color: var(--primary);
-      background: #EEF2FF;
+      color: var(--primary);
+      box-shadow: var(--shadow);
     }
     .type-btn .type-icon {
-      font-size: 24px;
-      display: block;
-      margin-bottom: 6px;
-    }
-    .type-btn .type-label {
       font-size: 14px;
-      font-weight: 700;
-      display: block;
-    }
-    .type-btn .type-desc {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
-      display: block;
+      line-height: 1;
     }
 
     /* ── Sub-questions (CQ) ───────────────── */
@@ -275,9 +268,12 @@
     }
     .subq-item .subq-grid {
       display: grid;
-      grid-template-columns: 80px 1fr 1fr;
+      grid-template-columns: 80px minmax(0, 1fr) 84px;
       gap: 10px;
     }
+    /* The mark is one or two digits. Its box is the smallest thing in the row
+       and sits at the end of it, where the printed paper puts the mark too. */
+    .subq-item .sq-mark { text-align: center; }
     @media (max-width: 500px) {
       .subq-item .subq-grid { grid-template-columns: 1fr; }
     }
@@ -413,9 +409,20 @@
     }
 
     /* ── Upload Button ─────────────────────── */
+    /* Pinned to the bottom of the viewport: the queue can run long, and the one
+       button this whole page exists for must not need scrolling to reach. */
     .upload-section {
+      position: sticky;
+      bottom: 10px;
+      z-index: 20;
       text-align: center;
       padding: 20px;
+      margin-top: 16px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(6px);
     }
     .upload-btn {
       display: inline-flex;
@@ -432,6 +439,24 @@
       transition: transform 0.2s, box-shadow 0.2s;
       box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
     }
+    /* A quiet diagnostic under the upload button: one click tells a deployment
+       that is not serving apart from a payload problem, and writes nothing. */
+    .link-btn {
+      margin-top: 10px;
+      padding: 7px 12px;
+      min-height: 34px;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .link-btn:hover { background: rgba(79, 70, 229, 0.08); }
+    .link-btn:disabled { opacity: 0.5; cursor: default; }
     .upload-btn:hover {
       transform: translateY(-1px);
       box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
@@ -446,14 +471,43 @@
     }
 
     /* ── Status Messages ───────────────────── */
+    /* A toast pinned to the top of the viewport rather than a box at the top of
+       the page: the message is about whatever was just clicked, and that is
+       almost always far below the fold. */
     .status {
-      padding: 14px 20px;
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(680px, calc(100vw - 24px));
+      z-index: 60;
+      padding: 14px 16px 14px 20px;
       border-radius: 12px;
       font-size: 14px;
       font-weight: 500;
       display: none;
-      align-items: center;
+      align-items: flex-start;
       gap: 10px;
+      box-shadow: var(--shadow-lg);
+      animation: toastIn 0.18s ease-out;
+    }
+    .status .status-text { flex: 1; min-width: 0; }
+    .status .status-close {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      color: inherit;
+      opacity: 0.6;
+      font-size: 15px;
+      line-height: 1.2;
+      cursor: pointer;
+      padding: 0 2px;
+      font-family: inherit;
+    }
+    .status .status-close:hover { opacity: 1; }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translate(-50%, -10px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
     }
     .status.success {
       display: flex;
@@ -472,6 +526,13 @@
       background: #EFF6FF;
       color: #1E40AF;
       border: 1px solid #BFDBFE;
+    }
+    /* Neither done nor failed: an edit loaded, a queue cleared. */
+    .status.info {
+      display: flex;
+      background: #F8FAFC;
+      color: #334155;
+      border: 1px solid var(--border);
     }
     .status .spinner {
       width: 18px;
@@ -492,14 +553,24 @@
       flex-direction: column;
       gap: 10px;
     }
+    /* One line per question, with the whole question folded underneath it. */
     .queue-item {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 12px;
       padding: 12px 16px;
       background: var(--bg);
       border: 1.5px solid var(--border);
       border-radius: 10px;
+    }
+    .queue-item.open { border-color: var(--primary-light); }
+    .queue-item .q-main {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1 1 100%;
+      min-width: 0;
     }
     .queue-item .q-icon {
       width: 36px;
@@ -514,6 +585,7 @@
     .queue-item .q-info {
       flex: 1;
       min-width: 0;
+      cursor: pointer;
     }
     .queue-item .q-title {
       font-size: 13px;
@@ -526,17 +598,53 @@
       font-size: 11px;
       color: var(--text-muted);
     }
+    .queue-item .q-act,
     .queue-item .q-remove {
       background: none;
       border: none;
-      color: var(--error);
+      color: var(--text-muted);
       cursor: pointer;
-      font-size: 18px;
-      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 15px;
+      line-height: 1;
+      padding: 6px 8px;
       border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .queue-item .q-act:hover {
+      background: #EEF2FF;
+      color: var(--primary);
+    }
+    .queue-item .q-remove {
+      color: var(--error);
+      font-size: 18px;
     }
     .queue-item .q-remove:hover {
       background: var(--error-bg);
+    }
+    .queue-item .q-detail {
+      flex: 1 1 100%;
+      display: none;
+      margin-top: 2px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+    }
+    .queue-item.open .q-detail { display: block; }
+    .queue-item .q-detail .qd-line { margin-bottom: 4px; }
+    .queue-item .q-detail .qd-mark {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .queue-item .q-detail .qd-correct {
+      color: #065F46;
+      font-weight: 600;
+    }
+    .queue-item .q-detail .qd-meta {
+      margin-top: 8px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      word-break: break-all;
     }
 
     /* ── JSON Preview ──────────────────────── */
@@ -548,6 +656,8 @@
       font-family: 'Fira Code', 'Courier New', monospace;
       font-size: 12px;
       line-height: 1.6;
+      /* JSON is written in lines; keep them, and wrap only what is too long. */
+      white-space: pre-wrap;
       overflow-x: auto;
       max-height: 300px;
       overflow-y: auto;
@@ -589,6 +699,411 @@
       display: block;
     }
 
+    /* ── Collapsible cards ─────────────────── */
+    /* Every card folds from its own title bar. The bar keeps the icon and the
+       heading, swaps the description for a live one-line summary, and turns the
+       chevron: a folded card still says what it holds. */
+    .card-header {
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .card-header:hover { background: #FAFAFF; }
+    .card-header:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: -2px;
+    }
+    /* The text block takes the free width so the chevron lands at the far right. */
+    .card-header > div:not(.icon) { flex: 1 1 auto; min-width: 0; }
+    .card-summary {
+      display: none;
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card.collapsed .card-body { display: none; }
+    .card.collapsed .card-header p { display: none; }
+    .card.collapsed .card-summary { display: block; }
+    .card .card-header .chevron {
+      flex-shrink: 0;
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1;
+      transition: transform 0.2s;
+    }
+    .card.collapsed .card-header .chevron { transform: rotate(-90deg); }
+
+    /* ── Card toolbar ──────────────────────── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: -6px 0 14px;
+    }
+    .toolbar .toolbar-hint {
+      flex: 1 1 220px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .toolbar-btn {
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--card);
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .toolbar-btn:hover {
+      border-color: var(--primary-light);
+      color: var(--primary);
+    }
+
+    /* ── Field complaints ──────────────────── */
+    /* The reason a field was refused stays on the field, where the cursor is. */
+    .form-group input.invalid,
+    .form-group textarea.invalid,
+    .form-group select.invalid,
+    .mcq-option input[type="text"].invalid {
+      border-color: var(--error);
+      background: #FFF7F7;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+    }
+    /* Options are a group: "no answer picked" rings the group, not one field. */
+    .mcq-options.invalid,
+    .subq-list.invalid {
+      outline: 1.5px solid var(--error);
+      outline-offset: 4px;
+      border-radius: 10px;
+    }
+
+    /* ── Action bar (single question tab) ──── */
+    .action-bar {
+      position: sticky;
+      bottom: 10px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(6px);
+    }
+    .action-bar .action-count {
+      flex: 1 1 auto;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .action-bar .action-count strong {
+      color: var(--primary);
+      font-size: 15px;
+    }
+    .action-bar .action-hint {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0.85;
+    }
+    .mini-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 18px;
+      border: none;
+      border-radius: 11px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgba(79, 70, 229, 0.28);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .mini-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 5px 16px rgba(79, 70, 229, 0.36);
+    }
+    .ghost-btn {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--card);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ghost-btn:hover {
+      border-color: var(--primary-light);
+      color: var(--primary);
+    }
+
+    /* ── Edit banner ───────────────────────── */
+    .edit-banner {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      background: var(--warning-bg);
+      border: 1px solid #FDE68A;
+      border-radius: 12px;
+      color: #92400E;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .edit-banner .edit-banner-text { flex: 1 1 240px; }
+    .edit-banner .link-btn {
+      background: none;
+      border: none;
+      color: #92400E;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 2px 4px;
+    }
+
+    /* ── Tab badge ─────────────────────────── */
+    .tab-badge {
+      display: none;
+      margin-left: 6px;
+      padding: 1px 8px;
+      border-radius: 20px;
+      background: var(--primary);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tab-badge.on { display: inline-block; }
+
+    /* ── Code fields ───────────────────────── */
+    .form-group textarea.code-input {
+      font-family: 'Fira Code', 'Courier New', monospace;
+      font-size: 12.5px;
+    }
+
+    /* ── Responsive layout ─────────────────── */
+    /* Phone first: one column, everything within thumb reach. From 1024px the
+       page becomes two columns — the form on the left, the thing being watched
+       while typing on the right — and the container takes the width of a real
+       screen instead of a phone-shaped strip down the middle. */
+    .tab-layout { display: block; }
+    .top-bar { display: block; }
+    .col-main,
+    .col-side { min-width: 0; }
+    /* Columns finish level: the last card in each drops its bottom margin. */
+    .col-main > .card:last-child,
+    .col-side > .card:last-child { margin-bottom: 0; }
+
+    @media (min-width: 1024px) {
+      .container {
+        max-width: 1240px;
+        padding: 28px 32px 100px;
+      }
+      /* The bar spans the screen, its contents stay on the same line as the
+         cards below it. */
+      .header-inner { max-width: 1240px; padding: 0 32px; }
+      /* Tabs and fold controls share one row, a phone-shaped pair no longer
+         stretched across a desk-wide screen. */
+      .top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 20px;
+      }
+      .top-bar .tabs { flex: 0 1 460px; margin-bottom: 0; }
+      .top-bar .toolbar {
+        flex: 0 1 auto;
+        min-width: 0;
+        margin: 0;
+        justify-content: flex-end;
+      }
+      .top-bar .toolbar .toolbar-hint {
+        flex: 0 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tab-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        gap: 24px;
+        /* Stretch, not start: the side column must be as tall as the form for
+           the card inside it to have room to follow the reader down. */
+        align-items: stretch;
+      }
+      /* The preview card follows the reader down the long form, and scrolls
+         inside itself when it is taller than the screen. */
+      .col-side > .card {
+        position: sticky;
+        top: 16px;
+        max-height: calc(100vh - 32px);
+        display: flex;
+        flex-direction: column;
+      }
+      .col-side > .card > .card-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+      }
+      .card-header { padding: 18px 22px 14px; }
+      .card-body { padding: 22px; }
+      /* Four examples, each shown whole: two across is the width the longest
+         JSON lines need to stay on one line. */
+      .card[data-card-id="examples"] > .card-body {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px 28px;
+        align-items: start;
+      }
+      .card[data-card-id="examples"] > .card-body > .example-block + .example-block { margin-top: 0; }
+      /* Sideways room for a wider form: three fields per row, not two. */
+      .col-main .form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .col-main .form-grid .full { grid-column: 1 / -1; }
+    }
+
+    @media (min-width: 1500px) {
+      .container { max-width: 1400px; }
+      .header-inner { max-width: 1400px; }
+    }
+
+    /* ── Phones ────────────────────────────── */
+    @media (max-width: 520px) {
+      .header { padding: 8px 0; }
+      .header-inner { padding: 0 12px; }
+      .header h1 { font-size: 14px; }
+      .container { padding: 16px 12px 88px; }
+      .card { margin-bottom: 14px; border-radius: 14px; }
+      .card-header { padding: 13px 14px 11px; gap: 10px; }
+      .card-header .icon { width: 34px; height: 34px; border-radius: 10px; font-size: 17px; }
+      .card-header h2 { font-size: 15px; }
+      .card-header p { font-size: 12px; }
+      .card-body { padding: 14px; }
+      /* 16px keeps mobile Safari from zooming the page when a field is focused. */
+      .form-group input,
+      .form-group select,
+      .form-group textarea,
+      .form-group textarea.code-input,
+      .mcq-option input[type="text"] { font-size: 16px; }
+      .form-group input,
+      .form-group select { padding: 11px 12px; }
+      /* Every control worth tapping is at least a thumb wide. */
+      .add-btn, .toolbar-btn, .ghost-btn, .mini-btn, .upload-btn { min-height: 44px; }
+      .queue-item .q-act,
+      .queue-item .q-remove,
+      .subq-item .remove-btn,
+      .mcq-option .remove-opt {
+        min-width: 40px;
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+      .type-toggle { flex: 1 1 100%; }
+      .type-btn { flex: 1 1 0; justify-content: center; padding: 9px 6px; }
+      .toolbar { margin-bottom: 12px; }
+      .toolbar .toolbar-hint { flex: 1 1 100%; }
+      .toolbar-btn { flex: 1 1 0; }
+      /* The bar turns into a thumb zone: the count on top, wide buttons below. */
+      .action-bar { padding: 10px 12px; gap: 8px; }
+      .action-bar .action-count { flex: 1 1 100%; }
+      .action-bar .ghost-btn,
+      .action-bar .mini-btn { flex: 1 1 0; justify-content: center; padding: 11px 10px; }
+      .upload-section { padding: 12px; }
+      .upload-btn { width: 100%; justify-content: center; padding: 14px 18px; }
+      .status { width: calc(100vw - 16px); font-size: 13px; padding: 12px 12px 12px 14px; }
+      /* A long id or URL must not push a card sideways. */
+      .q-detail, .json-preview, .preview-content { overflow-wrap: anywhere; }
+      .json-preview { font-size: 11px; }
+    }
+
+    /* ── JSON examples ─────────────────────── */
+    /* The examples are the reference for the data format, so each one is shown
+       whole and folds from its own title row. */
+    .example-block + .example-block { margin-top: 18px; }
+    .example-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .example-head:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
+    .example-head h3 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    /* A one-line note that stays readable while the example is folded. */
+    .example-head .example-hint {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--text-muted);
+    }
+    .example-head:hover h3 { color: var(--primary); }
+    .example-head .chevron {
+      flex-shrink: 0;
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1;
+      transition: transform 0.2s;
+    }
+    .example-block.collapsed .chevron { transform: rotate(-90deg); }
+    .example-block.collapsed .json-preview { display: none; }
+    /* No inner scrollbar here: the whole example is the point. */
+    .card[data-card-id="examples"] .json-preview {
+      max-height: none;
+      overflow-y: visible;
+    }
+    /* The copy buttons in the example titles. */
+    .example-head .copy-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      background: var(--primary);
+      color: white;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .example-head .copy-btn:hover { background: var(--primary-dark); }
+    .example-head .copy-btn.rq { background: #0E9F6E; }
+    .example-head .copy-btn.mcq { background: var(--success); }
+
     /* ── Footer ────────────────────────────── */
     .footer {
       text-align: center;
@@ -601,289 +1116,339 @@
 <body>
 
   <div class="header">
-    <h1>Upload Questions</h1>
-    <p>Add questions to the Pi-QBank High School Question Bank</p>
-    <span class="badge">Google Sheets</span>
+    <div class="header-inner">
+      <h1>Upload Questions</h1>
+      <span class="badge">Pi-QBank · Google Sheets</span>
+    </div>
   </div>
 
   <div class="container">
 
-    <!-- Status Message -->
-    <div id="status" class="status"></div>
+    <!-- Status Message: a toast, so feedback shows wherever the reader is -->
+    <div id="status" class="status" role="status" aria-live="polite"></div>
 
-    <!-- Tabs -->
-    <div class="tabs">
-      <button class="tab active" data-tab="single">Single Question</button>
-      <button class="tab" data-tab="bulk">Bulk Upload</button>
+    <!-- Tabs and the fold controls: one row on a wide screen, stacked on a
+         phone. -->
+    <div class="top-bar">
+      <div class="tabs">
+        <button class="tab active" data-tab="single">Single Question</button>
+        <button class="tab" data-tab="bulk">
+          Bulk Upload<span class="tab-badge" id="tabQueueBadge">0</span>
+        </button>
+      </div>
+
+      <!-- Card toolbar -->
+      <div class="toolbar">
+        <span class="toolbar-hint">Tip: click a card title to fold it away.</span>
+        <button type="button" class="toolbar-btn" onclick="setAllCardsCollapsed(true)">
+          Collapse all
+        </button>
+        <button type="button" class="toolbar-btn" onclick="setAllCardsCollapsed(false)">
+          Expand all
+        </button>
+      </div>
     </div>
 
     <!-- ═══ SINGLE QUESTION TAB ═══ -->
     <div id="tab-single" class="tab-content active">
 
-      <!-- Question Details Card -->
-      <div class="card">
-        <div class="card-header">
-          <div class="icon icon-purple">📝</div>
-          <div>
-            <h2>Question Details</h2>
-            <p>Fill in the basic information</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Class <span class="required">*</span></label>
-              <select id="classSelect" required onchange="onClassChange()">
-                <option value="">Select Class</option>
-                <option value="Class 6">Class 6</option>
-                <option value="Class 7">Class 7</option>
-                <option value="Class 8">Class 8</option>
-                <option value="Class (9-10) SSC">Class (9-10) SSC</option>
-                <option value="Class (11-12) HSC">Class (11-12) HSC</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Subject <span class="required">*</span></label>
-              <select id="subjectSelect" required>
-                <option value="">Select Subject</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Chapter Number <span class="required">*</span></label>
-              <input type="text" id="chapterNumber" placeholder="e.g., 1" required>
-            </div>
-            <div class="form-group">
-              <label>Chapter Name <span class="required">*</span></label>
-              <input type="text" id="chapterName" placeholder="e.g., সেট ও ফাংশন" required>
-            </div>
-            <div class="form-group">
-              <label>Board / Year Tag <span class="optional">(optional)</span></label>
-              <input type="text" id="boardYear" placeholder="e.g., Dhaka Board 2023">
-            </div>
-            <div class="form-group full">
-              <label>Stem Image URL <span class="optional">(optional)</span></label>
-              <input type="url" id="stemImageUrl" placeholder="https://drive.google.com/...">
-            </div>
-          </div>
-        </div>
+      <!-- Shown only while a queued question is loaded back in for a fix. -->
+      <div class="edit-banner" id="editBanner">
+        <span class="edit-banner-text">
+          ✏️ Editing question <strong id="editBannerIndex">1</strong> — saving replaces
+          it in the queue instead of adding another.
+        </span>
+        <button type="button" class="link-btn" onclick="cancelEdit()">Cancel</button>
       </div>
 
-      <!-- Question Type Card -->
-      <div class="card">
-        <div class="card-header">
-          <div class="icon icon-blue">🔀</div>
-          <div>
-            <h2>Question Type</h2>
-            <p>Choose CQ or MCQ</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="type-toggle">
-            <div class="type-btn active" id="btnCq" onclick="setType('CQ')">
-              <span class="type-icon">📖</span>
-              <span class="type-label">CQ</span>
-              <span class="type-desc">Creative Question</span>
+      <div class="tab-layout">
+        <div class="col-main">
+          <!-- Question Details Card -->
+          <div class="card" data-card-id="details">
+            <div class="card-header">
+              <div class="icon icon-purple">📝</div>
+              <div>
+                <h2>Question Details</h2>
+                <p>Fill in the basic information</p>
+              </div>
             </div>
-            <div class="type-btn" id="btnMcq" onclick="setType('MCQ')">
-              <span class="type-icon">✅</span>
-              <span class="type-label">MCQ</span>
-              <span class="type-desc">Multiple Choice</span>
-            </div>
-            <div class="type-btn" id="btnRq" onclick="setType('RQ')">
-              <span class="type-icon">✏️</span>
-              <span class="type-label">RQ</span>
-              <span class="type-desc">Short Answer</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- CQ Card -->
-      <div class="card" id="cqCard">
-        <div class="card-header">
-          <div class="icon icon-green">📖</div>
-          <div>
-            <h2>CQ Sub-questions</h2>
-            <p>Add sub-questions with marks</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="form-group" style="margin-bottom:16px;">
-            <label>Question Stem <span class="required">*</span></label>
-            <textarea id="cqStem" placeholder="যেমন: A = {1, 2, 3} এবং B = {3, 4, 5} দেওয়া আছে..."></textarea>
-          </div>
-          <div class="subq-list" id="subqList"></div>
-          <button class="add-btn" onclick="addSubQuestion()">
-            <span>+</span> Add Sub-question
-          </button>
-        </div>
-      </div>
-
-      <!-- MCQ Card -->
-      <div class="card" id="mcqCard" style="display:none;">
-        <div class="card-header">
-          <div class="icon icon-orange">✅</div>
-          <div>
-            <h2>MCQ Details</h2>
-            <p>Question with options</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="form-group" style="margin-bottom:16px;">
-            <label>Question Text <span class="required">*</span></label>
-            <textarea id="mcqText" placeholder="যেমন: যদি A = {1, 2, 3} এবং B = {3, 4, 5} হয়, তাহলে A ∩ B = কত?"></textarea>
-          </div>
-          <label style="font-size:13px; font-weight:600; margin-bottom:8px; display:block;">Options <span class="required">*</span> <span style="color:var(--success); font-weight:400; font-size:11px;">(select the correct one)</span></label>
-          <div class="mcq-options" id="mcqOptions"></div>
-          <button class="add-btn" onclick="addMcqOption()" style="margin-top:10px;">
-            <span>+</span> Add Option
-          </button>
-        </div>
-      </div>
-
-      <!-- RQ Card -->
-      <div class="card" id="rqCard" style="display:none;">
-        <div class="card-header">
-          <div class="icon icon-green">✏️</div>
-          <div>
-            <h2>Short Question (RQ)</h2>
-            <p>একটি লাইনে প্রশ্ন ও নম্বর</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="form-group" style="margin-bottom:12px;">
-            <label>Question Text <span class="required">*</span></label>
-            <textarea id="rqText" placeholder="যেমন: সমান্তর সরলরেখার ঢাল কত?"></textarea>
-            <span style="display:block; margin-top:6px; font-size:11px; color:var(--text-muted);">
-              সংক্ষিপ্ত প্রশ্নে শুধু প্রশ্নের লেখাই থাকে — ছবি, অপশন বা উপ-প্রশ্ন নেই।
-            </span>
-          </div>
-          <div class="form-group" style="max-width:180px;">
-            <label>Marks <span class="required">*</span></label>
-            <input type="number" id="rqMark" value="1" min="1" max="10">
-          </div>
-        </div>
-      </div>
-
-      <!-- Live Preview Card -->
-      <div class="card">
-        <div class="card-header">
-          <div class="icon icon-purple">👁️</div>
-          <div>
-            <h2>Live Preview</h2>
-            <p>See how the question will look</p>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="preview-card">
-            <h3>Preview</h3>
-            <div class="preview-content" id="previewContent">
-              <p style="color:var(--text-muted);">Start filling the form to see preview...</p>
+            <div class="card-body">
+              <!-- Asked first: the type decides which cards below carry the fields. -->
+              <div class="type-row">
+                <span class="type-row-label">Question type</span>
+                <div class="type-toggle">
+                  <button type="button" class="type-btn active" id="btnCq"
+                          onclick="setType('CQ')"
+                          title="CQ — Creative Question: an উদ্দীপক with sub-questions">
+                    <span class="type-icon">📖</span> CQ
+                  </button>
+                  <button type="button" class="type-btn" id="btnMcq"
+                          onclick="setType('MCQ')"
+                          title="MCQ — Multiple Choice: one question with options">
+                    <span class="type-icon">✅</span> MCQ
+                  </button>
+                  <button type="button" class="type-btn" id="btnRq"
+                          onclick="setType('RQ')"
+                          title="RQ — Short Answer: one line and a mark">
+                    <span class="type-icon">✏️</span> RQ
+                  </button>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Class <span class="required">*</span></label>
+                  <select id="classSelect" required onchange="onClassChange()">
+                    <option value="">Select Class</option>
+                    <option value="Class 6">Class 6</option>
+                    <option value="Class 7">Class 7</option>
+                    <option value="Class 8">Class 8</option>
+                    <option value="Class (9-10) SSC">Class (9-10) SSC</option>
+                    <option value="Class (11-12) HSC">Class (11-12) HSC</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Subject <span class="required">*</span></label>
+                  <select id="subjectSelect" required>
+                    <option value="">Select Subject</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Chapter Number <span class="required">*</span></label>
+                  <input type="text" id="chapterNumber" placeholder="e.g., 1" required>
+                </div>
+                <div class="form-group">
+                  <label>Chapter Name <span class="required">*</span></label>
+                  <input type="text" id="chapterName" placeholder="e.g., সেট ও ফাংশন" required>
+                </div>
+                <div class="form-group">
+                  <label>Board / Year Tag <span class="optional">(optional)</span></label>
+                  <input type="text" id="boardYear" placeholder="e.g., Dhaka Board 2023">
+                </div>
+                <div class="form-group full">
+                  <label>Stem Image URL <span class="optional">(optional)</span></label>
+                  <input type="url" id="stemImageUrl" placeholder="https://drive.google.com/...">
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- Add to Queue Button -->
-      <button class="add-btn" id="addToQueueBtn" onclick="addToQueue()" style="padding:16px; font-size:15px;">
-        <span>➕</span> Add to Upload Queue
-      </button>
+          <!-- CQ Card -->
+          <div class="card" id="cqCard" data-card-id="cq">
+            <div class="card-header">
+              <div class="icon icon-green">📖</div>
+              <div>
+                <h2>CQ Sub-questions</h2>
+                <p>Add sub-questions with marks</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label>Question Stem <span class="required">*</span></label>
+                <textarea id="cqStem" placeholder="যেমন: A = {1, 2, 3} এবং B = {3, 4, 5} দেওয়া আছে..."></textarea>
+              </div>
+              <div class="subq-list" id="subqList"></div>
+              <button class="add-btn" onclick="addSubQuestion()">
+                <span>+</span> Add Sub-question
+              </button>
+            </div>
+          </div>
+
+          <!-- MCQ Card -->
+          <div class="card" id="mcqCard" data-card-id="mcq" style="display:none;">
+            <div class="card-header">
+              <div class="icon icon-orange">✅</div>
+              <div>
+                <h2>MCQ Details</h2>
+                <p>Question with options</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:16px;">
+                <label>Question Text <span class="required">*</span></label>
+                <textarea id="mcqText" placeholder="যেমন: যদি A = {1, 2, 3} এবং B = {3, 4, 5} হয়, তাহলে A ∩ B = কত?"></textarea>
+              </div>
+              <label style="font-size:13px; font-weight:600; margin-bottom:8px; display:block;">Options <span class="required">*</span> <span style="color:var(--success); font-weight:400; font-size:11px;">(select the correct one)</span></label>
+              <div class="mcq-options" id="mcqOptions"></div>
+              <button class="add-btn" onclick="addMcqOption()" style="margin-top:10px;">
+                <span>+</span> Add Option
+              </button>
+            </div>
+          </div>
+
+          <!-- RQ Card -->
+          <div class="card" id="rqCard" data-card-id="rq" style="display:none;">
+            <div class="card-header">
+              <div class="icon icon-green">✏️</div>
+              <div>
+                <h2>Short Question (RQ)</h2>
+                <p>একটি লাইনে প্রশ্ন ও নম্বর</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:12px;">
+                <label>Question Text <span class="required">*</span></label>
+                <textarea id="rqText" placeholder="যেমন: সমান্তর সরলরেখার ঢাল কত?"></textarea>
+                <span style="display:block; margin-top:6px; font-size:11px; color:var(--text-muted);">
+                  সংক্ষিপ্ত প্রশ্নে শুধু প্রশ্নের লেখাই থাকে — ছবি, অপশন বা উপ-প্রশ্ন নেই।
+                </span>
+              </div>
+              <div class="form-group" style="max-width:180px;">
+                <label>Marks <span class="required">*</span></label>
+                <input type="number" id="rqMark" value="1" min="1" max="10">
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <aside class="col-side">
+          <!-- Live Preview Card -->
+          <div class="card" data-card-id="preview">
+            <div class="card-header">
+              <div class="icon icon-purple">👁️</div>
+              <div>
+                <h2>Live Preview</h2>
+                <p>See how the question will look</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="preview-card">
+                <h3>Preview</h3>
+                <div class="preview-content" id="previewContent">
+                  <p style="color:var(--text-muted);">Start filling the form to see preview...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </aside>
+      </div>
+      <!-- One action zone, stuck to the bottom of the viewport: the form above
+           it is long, and the button that ends the job must always be in reach. -->
+      <div class="action-bar" id="singleActionBar">
+        <div class="action-count">
+          <strong id="actionCount">0</strong> in the queue
+          <span class="action-hint">Ctrl/⌘ + Enter adds · the chapter stays filled in</span>
+        </div>
+        <button type="button" class="ghost-btn" id="cancelEditBtn"
+                style="display:none;" onclick="cancelEdit()">Cancel edit</button>
+        <button type="button" class="ghost-btn" onclick="switchTab('bulk')">
+          Review &amp; upload →
+        </button>
+        <button type="button" class="mini-btn" id="addToQueueBtn" onclick="addToQueue()">
+          <span id="addToQueueIcon">➕</span> <span id="addToQueueLabel">Add to queue</span>
+        </button>
+      </div>
 
     </div>
 
     <!-- ═══ BULK UPLOAD TAB ═══ -->
     <div id="tab-bulk" class="tab-content">
-      <!-- Paste JSON -->
-      <div class="card">
-        <div class="card-header">
-          <div class="icon icon-orange">📋</div>
-          <div>
-            <h2>Paste JSON</h2>
-            <p>Paste questions JSON array directly</p>
+      <div class="tab-layout">
+        <div class="col-main">
+          <!-- Paste JSON -->
+          <div class="card" data-card-id="bulkJson">
+            <div class="card-header">
+              <div class="icon icon-orange">📋</div>
+              <div>
+                <h2>Paste JSON</h2>
+                <p>Paste questions JSON array directly</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="form-group" style="margin-bottom:12px;">
+                <label>Questions JSON <span class="required">*</span> <span class="optional">(array of question objects)</span></label>
+                <textarea id="bulkJson" class="code-input" style="min-height: 160px;" placeholder='[
+      {
+        "id": "",
+        "class": "Class (9-10) SSC",
+        "subject": "উচ্চতর গণিত",
+        "chapter_number": "1",
+        "chapter_name": "সেট ও ফাংশন",
+        "question_type": "CQ",
+        "stem_text": "A = {1, 2, 3} দেওয়া আছে",
+        "stem_image_url": "",
+        "sub_questions_json": [
+          { "label": "ক", "mark": 1, "text": "A এর উপাদান লেখো" },
+          { "label": "খ", "mark": 2, "text": "A এর সংখ্যক নির্ণয় করো" }
+        ],
+        "board_year_tag": ""
+      }
+    ]'></textarea>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="add-btn" style="flex:1; min-width:140px;" onclick="parseBulkJson()">
+                  <span>📥</span> Parse & Add to Queue
+                </button>
+                <button class="add-btn" style="flex:1; min-width:140px; border-color:var(--border); color:var(--text-muted);" onclick="document.getElementById('bulkJson').value='';">
+                  <span>🗑️</span> Clear
+                </button>
+              </div>
+              <div id="bulkParseError" style="display:none; margin-top:12px; padding:12px; background:var(--error-bg); border:1px solid #FECACA; border-radius:10px; color:#991B1B; font-size:13px; font-weight:500;"></div>
+            </div>
           </div>
-        </div>
-        <div class="card-body">
-          <div class="form-group" style="margin-bottom:12px;">
-            <label>Questions JSON <span class="required">*</span> <span class="optional">(array of question objects)</span></label>
-            <textarea id="bulkJson" style="font-family: monospace; font-size: 12px; min-height: 160px;" placeholder='[
-  {
-    "id": "uuid-1",
-    "class": "Class (9-10) SSC",
-    "subject": "উচ্চতর গণিত",
-    "chapter_number": "1",
-    "chapter_name": "সেট ও ফাংশন",
-    "question_type": "CQ",
-    "stem_text": "A = {1, 2, 3} দেওয়া আছে",
-    "stem_image_url": "",
-    "sub_questions_json": [
-      { "label": "ক", "mark": 1, "text": "A এর উপাদান লেখো" },
-      { "label": "খ", "mark": 2, "text": "A এর সংখ্যক নির্ণয় করো" }
-    ],
-    "board_year_tag": ""
-  }
-]'></textarea>
-          </div>
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="add-btn" style="flex:1; min-width:140px;" onclick="parseBulkJson()">
-              <span>📥</span> Parse & Add to Queue
-            </button>
-            <button class="add-btn" style="flex:1; min-width:140px; border-color:var(--border); color:var(--text-muted);" onclick="document.getElementById('bulkJson').value='';">
-              <span>🗑️</span> Clear
-            </button>
-          </div>
-          <div id="bulkParseError" style="display:none; margin-top:12px; padding:12px; background:var(--error-bg); border:1px solid #FECACA; border-radius:10px; color:#991B1B; font-size:13px; font-weight:500;"></div>
-        </div>
-      </div>
 
-      <div class="card">
-        <div class="card-header">
-          <div class="icon icon-green">📦</div>
-          <div>
-            <h2>Upload Queue</h2>
-            <p id="queueCount">0 questions ready to upload</p>
+          <div class="card" data-card-id="queue">
+            <div class="card-header">
+              <div class="icon icon-green">📦</div>
+              <div>
+                <h2>Upload Queue</h2>
+                <p id="queueCount">0 questions ready to upload</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- Click a row to read the whole question; the icons edit, copy or
+                   drop that one entry. -->
+              <div id="queueTools" style="display:none; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                <span style="font-size:12px; color:var(--text-muted);">
+                  Click a question to see it in full.
+                </span>
+                <button type="button" class="ghost-btn" onclick="clearQueue()">
+                  🗑️ Clear all
+                </button>
+              </div>
+              <div class="queue-list" id="queueList">
+                <p style="text-align:center; color:var(--text-muted); padding:24px;">
+                  No questions added yet. Go to "Single Question" tab to add some.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="card-body">
-          <div class="queue-list" id="queueList">
-            <p style="text-align:center; color:var(--text-muted); padding:24px;">
-              No questions added yet. Go to "Single Question" tab to add some.
-            </p>
-          </div>
-        </div>
-      </div>
 
-      <!-- JSON Preview -->
-      <div class="card">
-        <div class="card-header">
-          <div class="icon icon-blue">📋</div>
-          <div>
-            <h2>JSON Preview</h2>
-            <p>What will be sent to the server</p>
+        </div>
+        <aside class="col-side">
+          <!-- JSON Preview -->
+          <div class="card" data-card-id="jsonPreview">
+            <div class="card-header">
+              <div class="icon icon-blue">📋</div>
+              <div>
+                <h2>JSON Preview</h2>
+                <p>What will be sent to the server</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="json-preview" id="jsonPreview" style="white-space:pre-wrap;">[]</div>
+            </div>
           </div>
-        </div>
-        <div class="card-body">
-          <div class="json-preview" id="jsonPreview" style="white-space:pre-wrap;">[]</div>
-        </div>
-      </div>
 
-      <!-- JSON Examples -->
-      <div class="card">
+        </aside>
+      </div>
+      <!-- JSON Examples: one complete question per type, every field the sheet
+           has a column for. -->
+      <div class="card" data-card-id="examples">
         <div class="card-header">
           <div class="icon icon-green">📄</div>
           <div>
             <h2>JSON Examples</h2>
-            <p>Copy these to understand the data format</p>
+            <p>One complete example per pattern — click a title to fold it. An empty <code>id</code> is fine: the sheet assigns one</p>
           </div>
         </div>
         <div class="card-body">
 
           <!-- CQ Example -->
-          <div style="margin-bottom: 20px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-              <h3 style="font-size: 15px; font-weight: 700; color: var(--text);">
-                📖 CQ (Creative Question)
-              </h3>
-              <button onclick="copyExample('cqExample')" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <div class="example-block" data-example-id="cq" data-example-label="CQ">
+            <div class="example-head">
+              <h3>📖 CQ (Creative Question)</h3>
+              <button type="button" class="copy-btn" onclick="copyExample('cqExample')">
                 📋 Copy
               </button>
             </div>
@@ -891,7 +1456,7 @@
   "action": "addQuestions",
   "questions": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "id": "",
       "class": "Class (9-10) SSC",
       "subject": "উচ্চতর গণিত",
       "chapter_number": "1",
@@ -904,19 +1469,50 @@
         { "label": "খ", "mark": 2, "text": "A ∪ B নির্ণয় করো।" },
         { "label": "গ", "mark": 3, "text": "প্রমাণ করো যে A ∪ B = B ∪ A" }
       ],
-      "board_year_tag": "Dhaka Board 2023"
+      "board_year_tag": "Dhaka Board 2023",
+      "short_mark": ""
+    }
+  ]
+}</div>
+          </div>
+
+          <!-- MCQ Example -->
+          <div class="example-block" data-example-id="mcq" data-example-label="MCQ">
+            <div class="example-head">
+              <h3>✅ MCQ (Multiple Choice)</h3>
+              <button type="button" class="copy-btn mcq" onclick="copyExample('mcqExample')">
+                📋 Copy
+              </button>
+            </div>
+            <div class="json-preview" id="mcqExample" style="font-size: 11.5px;">{
+  "action": "addQuestions",
+  "questions": [
+    {
+      "id": "",
+      "class": "Class (9-10) SSC",
+      "subject": "পদার্থবিজ্ঞান",
+      "chapter_number": "3",
+      "chapter_name": "ত্বরণ",
+      "question_type": "MCQ",
+      "stem_text": "",
+      "stem_image_url": "",
+      "sub_questions_json": {
+        "text": "5 kg ভরবিশিষ্ট একটি বস্তু 10 m/s গতিবেগে চলছে। এর গতিশক্তি কত?",
+        "options": ["100 J", "250 J", "500 J", "1000 J"],
+        "correct_ans": "250 J"
+      },
+      "board_year_tag": "SSC Model Test",
+      "short_mark": ""
     }
   ]
 }</div>
           </div>
 
           <!-- RQ Example -->
-          <div style="margin-bottom: 20px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-              <h3 style="font-size: 15px; font-weight: 700; color: var(--text);">
-                ✏️ RQ (Short Answer)
-              </h3>
-              <button onclick="copyExample('rqExample')" style="padding: 8px 16px; background: #0E9F6E; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <div class="example-block" data-example-id="rq" data-example-label="RQ">
+            <div class="example-head">
+              <h3>✏️ RQ (Short Answer)</h3>
+              <button type="button" class="copy-btn rq" onclick="copyExample('rqExample')">
                 📋 Copy
               </button>
             </div>
@@ -924,7 +1520,7 @@
   "action": "addQuestions",
   "questions": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440002",
+      "id": "",
       "class": "Class (9-10) SSC",
       "subject": "উচ্চতর গণিত",
       "chapter_number": "2",
@@ -940,34 +1536,54 @@
 }</div>
           </div>
 
-          <!-- MCQ Example -->
-          <div>
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-              <h3 style="font-size: 15px; font-weight: 700; color: var(--text);">
-                ✅ MCQ (Multiple Choice)
+          <!-- MCQ Example: one উদ্দীপক (text + figure) shared by a run of MCQs.
+               Both questions carry the same stem_text and stem_image_url; the
+               paper prints that intro once, above the first of them. -->
+          <div class="example-block" data-example-id="mcqShared" data-example-label="MCQ + উদ্দীপক">
+            <div class="example-head">
+              <h3>🖼️ MCQ with a shared উদ্দীপক
+                <span class="example-hint">— the intro prints once, above the run</span>
               </h3>
-              <button onclick="copyExample('mcqExample')" style="padding: 8px 16px; background: var(--success); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <button type="button" class="copy-btn mcq" onclick="copyExample('mcqSharedExample')">
                 📋 Copy
               </button>
             </div>
-            <div class="json-preview" id="mcqExample" style="font-size: 11.5px;">{
+            <div class="json-preview" id="mcqSharedExample" style="font-size: 11.5px;">{
   "action": "addQuestions",
   "questions": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "id": "",
       "class": "Class (9-10) SSC",
-      "subject": "পদার্থবিজ্ঞান",
-      "chapter_number": "3",
-      "chapter_name": "ত্বরণ",
+      "subject": "সাধারণ গণিত",
+      "chapter_number": "17",
+      "chapter_name": "পরিসংখ্যান",
       "question_type": "MCQ",
-      "stem_text": "",
-      "stem_image_url": "",
+      "stem_text": "নিচের তথ্য থেকে ২৬ - ২৭ নং প্রশ্নের উত্তর দাও ।",
+      "stem_image_url": "https://i.postimg.cc/W3rCDqnR/ea4fd48f-d0c3-4179-8522-18aeea3fa28a.jpg",
       "sub_questions_json": {
-        "text": "5 kg ভরবিশিষ্ট একটি বস্তু 10 m/s গতিবেগে চলছে। এর গতিশক্তি কত?",
-        "options": ["100 J", "250 J", "500 J", "1000 J"],
-        "correct_ans": "250 J"
+        "text": "মধ্যক শ্রেণির মধ্যবিন্দু কত ?",
+        "options": ["৪৫.৫", "৩৫.৫", "৩৫", "২৫.৫"],
+        "correct_ans": "৩৫.৫"
       },
-      "board_year_tag": "SSC Model Test"
+      "board_year_tag": "",
+      "short_mark": ""
+    },
+    {
+      "id": "",
+      "class": "Class (9-10) SSC",
+      "subject": "সাধারণ গণিত",
+      "chapter_number": "17",
+      "chapter_name": "পরিসংখ্যান",
+      "question_type": "MCQ",
+      "stem_text": "নিচের তথ্য থেকে ২৬ - ২৭ নং প্রশ্নের উত্তর দাও ।",
+      "stem_image_url": "https://i.postimg.cc/W3rCDqnR/ea4fd48f-d0c3-4179-8522-18aeea3fa28a.jpg",
+      "sub_questions_json": {
+        "text": "মধ্যক শ্রেণির নিম্নসীমা কত ?",
+        "options": ["৮০", "৪১", "৩৫", "৩১"],
+        "correct_ans": "৩১"
+      },
+      "board_year_tag": "",
+      "short_mark": ""
     }
   ]
 }</div>
@@ -976,22 +1592,21 @@
         </div>
       </div>
 
-      <!-- Upload & Export Section -->
+      <!-- Upload dock: the one action this page exists for, stuck to the bottom
+           of the viewport so a long queue never hides it. -->
       <div class="upload-section">
         <button class="upload-btn" id="uploadBtn" onclick="uploadQuestions()">
           <span>🚀</span> Upload All to Google Sheet
         </button>
-        <div style="display: flex; gap: 10px; margin-top: 14px; justify-content: center; flex-wrap: wrap;">
-          <button type="button" onclick="downloadQueueJson()" style="padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text);">
-            💾 Export JSON (.json)
-          </button>
-          <button type="button" onclick="downloadQueueWord()" style="padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; cursor: pointer; font-weight: 600; font-size: 13px; color: #2B579A;">
-            📄 Export Word (.doc)
-          </button>
-          <button type="button" onclick="downloadQueueTxt()" style="padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: white; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text);">
-            📝 Export Text (.txt)
-          </button>
-        </div>
+        <p id="uploadHint" style="margin-top:10px; font-size:12px; color:var(--text-muted);">
+          Nothing in the queue yet — add a question from the Single Question tab.
+        </p>
+        <!-- One click tells "the deployment is not serving" apart from "the
+             payload is wrong", and it writes nothing while doing it. -->
+        <button class="link-btn" id="testConnBtn" onclick="testConnection()"
+                title="Send an empty batch and see whether the script answers">
+          🔌 Test connection
+        </button>
       </div>
     </div>
 
@@ -1021,13 +1636,302 @@
 
     let currentType = 'CQ';
     let questionQueue = [];
+
+    // Index of the queued question currently loaded back into the form, or -1
+    // when the form is writing a new one. See [editQueueItem].
+    let editingIndex = -1;
+
+    // True while an upload is in flight, so the page does not warn about losing
+    // a queue that is already on its way to the sheet.
+    let uploading = false;
+
     let subQuestionCount = 0;
     let mcqOptionCount = 0;
+
+    // ═══════════════════════════════════════════════════════════════
+    // COLLAPSIBLE CARDS
+    // ═══════════════════════════════════════════════════════════════
+    // Every card folds from its own title bar. Which ones are folded is
+    // remembered between visits, because "I keep that card shut" is a
+    // preference. localStorage is unavailable in private windows and in some
+    // file:// contexts, so every access is guarded and nothing depends on it.
+    const CARD_STATE_KEY = 'piqbank.upload.collapsedCards';
+
+    function readCollapsedCards() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(CARD_STATE_KEY) || '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function persistCollapsedCards() {
+      try {
+        localStorage.setItem(CARD_STATE_KEY, JSON.stringify(collapsedCards));
+      } catch (e) {
+        /* The fold state is a convenience; failing to store it changes nothing. */
+      }
+    }
+
+    let collapsedCards = readCollapsedCards();
+
+    // The value of a field, trimmed, or '' when the field is not on the page.
+    function fieldValue(id) {
+      const el = document.getElementById(id);
+      return el ? String(el.value || '').trim() : '';
+    }
+
+    // What a folded card says about itself, keyed by its `data-card-id`.
+    ///
+    // A folded card that says nothing makes the reader open it to find out
+    // whether it still needs attention, which is the whole cost of folding.
+    // A card with no entry here folds without a summary line.
+    const CARD_SUMMARIES = {
+      details: () => {
+        const type = currentType === 'CQ'
+          ? 'CQ'
+          : (currentType === 'MCQ' ? 'MCQ' : 'RQ');
+        const missing = [];
+        if (!fieldValue('classSelect')) missing.push('class');
+        if (!fieldValue('subjectSelect')) missing.push('subject');
+        if (!fieldValue('chapterNumber')) missing.push('chapter number');
+        if (!fieldValue('chapterName')) missing.push('chapter name');
+        if (missing.length) return `${type} · still needed: ${missing.join(', ')}`;
+        return `${type} · ${fieldValue('classSelect')} · ${fieldValue('subjectSelect')} · ` +
+          `অধ্যায় ${fieldValue('chapterNumber')}: ${fieldValue('chapterName')}`;
+      },
+      cq: () => {
+        const rows = Array.from(document.querySelectorAll('.subq-item'));
+        const written = rows.filter(
+          row => (row.querySelector('.sq-text')?.value || '').trim()).length;
+        return `${written} of ${rows.length} sub-questions written` +
+          (fieldValue('cqStem') ? '' : ' · stem not written');
+      },
+      mcq: () => {
+        const options = Array.from(document.querySelectorAll('.mcq-option'))
+          .map(row => (row.querySelector('.opt-text')?.value || '').trim())
+          .filter(Boolean).length;
+        const answered =
+          document.querySelector('.mcq-option input[type="radio"]:checked') !== null;
+        return `${options} options` +
+          (answered ? ' · answer picked' : ' · no answer picked') +
+          (fieldValue('mcqText') ? '' : ' · question not written');
+      },
+      rq: () => `${fieldValue('rqText') ? 'question written' : 'question not written'} · ` +
+        `${fieldValue('rqMark') || 1} marks`,
+      preview: () => {
+        const text = (document.getElementById('previewContent')?.textContent || '')
+          .replace(/\s+/g, ' ').trim();
+        if (!text || text.indexOf('Start filling') === 0) return 'nothing to preview yet';
+        return text.length > 80 ? text.slice(0, 80) + '…' : text;
+      },
+      bulkJson: () => {
+        const length = fieldValue('bulkJson').length;
+        return length ? `JSON pasted · ${length} characters` : 'nothing pasted';
+      },
+      examples: () => {
+        const blocks = document.querySelectorAll('.example-block');
+        if (!blocks.length) return 'nothing to show';
+        const folded = document.querySelectorAll('.example-block.collapsed').length;
+        const labels = Array.from(blocks)
+          .map(block => block.dataset.exampleLabel || (block.dataset.exampleId || '').toUpperCase())
+          .filter(Boolean)
+          .join(', ');
+        return `${blocks.length} examples · ${labels}` + (folded ? ` · ${folded} folded` : '');
+      },
+      queue: () => questionQueue.length
+        ? `${questionQueue.length} question${questionQueue.length === 1 ? '' : 's'} ` +
+          'ready to upload'
+        : 'empty',
+      jsonPreview: () => questionQueue.length
+        ? `${JSON.stringify(questionQueue).length} characters of JSON`
+        : 'nothing to send yet',
+    };
+
+    function cardIdOf(card) {
+      return card.dataset.cardId || '';
+    }
+
+    function applyCardCollapsed(card, collapsed) {
+      card.classList.toggle('collapsed', collapsed);
+      const header = card.querySelector('.card-header');
+      if (header) header.setAttribute('aria-expanded', String(!collapsed));
+      const id = cardIdOf(card);
+      if (!id) return;
+      if (collapsed) {
+        collapsedCards[id] = true;
+      } else {
+        delete collapsedCards[id];
+      }
+    }
+
+    function setCardCollapsed(card, collapsed) {
+      applyCardCollapsed(card, collapsed);
+      persistCollapsedCards();
+    }
+
+    function setAllCardsCollapsed(collapsed) {
+      document.querySelectorAll('.card').forEach(
+        card => applyCardCollapsed(card, collapsed));
+      persistCollapsedCards();
+    }
+
+    function refreshCardSummary(card) {
+      const summary = card.querySelector('.card-summary');
+      if (!summary) return;
+      const describe = CARD_SUMMARIES[cardIdOf(card)];
+      summary.textContent = describe ? describe() : '';
+    }
+
+    function refreshCardSummaries(ids) {
+      ids.forEach(id => {
+        const card = document.querySelector(`.card[data-card-id="${id}"]`);
+        if (card) refreshCardSummary(card);
+      });
+    }
+
+    function refreshAllCardSummaries() {
+      document.querySelectorAll('.card').forEach(refreshCardSummary);
+    }
+
+    // Make every card foldable from its title bar.
+    ///
+    // The bar keeps the icon and the heading, swaps the description for the live
+    // summary above, and turns the chevron. It is a button: it answers to click,
+    // to Enter and to Space, and says whether it is open.
+    function setupCollapsibleCards() {
+      document.querySelectorAll('.card').forEach(card => {
+        const header = card.querySelector('.card-header');
+        if (!header) return;
+
+        const textBlock = header.querySelector('div:not(.icon)');
+        if (textBlock && !textBlock.querySelector('.card-summary')) {
+          const summary = document.createElement('span');
+          summary.className = 'card-summary';
+          textBlock.appendChild(summary);
+        }
+
+        const chevron = document.createElement('span');
+        chevron.className = 'chevron';
+        chevron.textContent = '▾';
+        chevron.setAttribute('aria-hidden', 'true');
+        header.appendChild(chevron);
+
+        header.setAttribute('role', 'button');
+        header.setAttribute('tabindex', '0');
+        header.setAttribute('aria-expanded', String(!collapsedCards[cardIdOf(card)]));
+        header.title = 'Fold or unfold this card';
+
+        const toggle = () =>
+          setCardCollapsed(card, !card.classList.contains('collapsed'));
+        header.addEventListener('click', event => {
+          // A control inside a header keeps its own job.
+          if (event.target.closest('button, a, input, select, textarea')) return;
+          toggle();
+        });
+        header.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+            event.preventDefault();
+            toggle();
+          }
+        });
+
+        if (collapsedCards[cardIdOf(card)]) applyCardCollapsed(card, true);
+      });
+      refreshAllCardSummaries();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // EXAMPLE BLOCKS
+    // ═══════════════════════════════════════════════════════════════
+    // Each JSON example folds from its own title row. They are long by design —
+    // they show every field — so folding one is how a reader gets the others
+    // into view, and the choice is remembered like the card folds are.
+    const EXAMPLE_STATE_KEY = 'piqbank.upload.collapsedExamples';
+
+    function readCollapsedExamples() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(EXAMPLE_STATE_KEY) || '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    let collapsedExamples = readCollapsedExamples();
+
+    function persistCollapsedExamples() {
+      try {
+        localStorage.setItem(EXAMPLE_STATE_KEY, JSON.stringify(collapsedExamples));
+      } catch (e) {
+        /* A fold is a convenience; failing to store it changes nothing. */
+      }
+    }
+
+    function setupExampleBlocks() {
+      document.querySelectorAll('.example-block').forEach(block => {
+        const head = block.querySelector('.example-head');
+        if (!head) return;
+        const key = block.dataset.exampleId || '';
+
+        // The chevron goes with the title, not after the Copy button.
+        const chevron = document.createElement('span');
+        chevron.className = 'chevron';
+        chevron.textContent = '▾';
+        chevron.setAttribute('aria-hidden', 'true');
+        const title = head.querySelector('h3');
+        if (title) {
+          title.insertBefore(chevron, title.firstChild);
+        } else {
+          head.appendChild(chevron);
+        }
+
+        head.setAttribute('role', 'button');
+        head.setAttribute('tabindex', '0');
+        head.title = 'Fold or unfold this example';
+
+        const apply = collapsed => {
+          block.classList.toggle('collapsed', collapsed);
+          head.setAttribute('aria-expanded', String(!collapsed));
+          if (!key) return;
+          if (collapsed) {
+            collapsedExamples[key] = true;
+          } else {
+            delete collapsedExamples[key];
+          }
+        };
+
+        const toggle = () => {
+          apply(!block.classList.contains('collapsed'));
+          persistCollapsedExamples();
+          refreshCardSummary(document.querySelector('.card[data-card-id="examples"]'));
+        };
+
+        head.addEventListener('click', event => {
+          // Copy stays Copy.
+          if (event.target.closest('button, a')) return;
+          toggle();
+        });
+        head.addEventListener('keydown', event => {
+          if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+            event.preventDefault();
+            toggle();
+          }
+        });
+
+        apply(Boolean(key && collapsedExamples[key]));
+      });
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // INITIALIZATION
     // ═══════════════════════════════════════════════════════════════
     document.addEventListener('DOMContentLoaded', () => {
+      // Folding first, so every card is ready before anything fills it in.
+      setupCollapsibleCards();
+      setupExampleBlocks();
+
       // Add initial sub-question
       addSubQuestion();
       addSubQuestion();
@@ -1050,24 +1954,63 @@
         input.addEventListener('change', updatePreview);
       });
 
+      // A field stops complaining the moment it is being corrected.
+      document.addEventListener('input', event => {
+        if (event.target.classList) event.target.classList.remove('invalid');
+      });
+
+      // Ctrl/⌘ + Enter is the whole form in one keystroke: the reader types the
+      // last field and the question is queued without reaching for the mouse.
+      document.addEventListener('keydown', event => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          if (!document.getElementById('tab-single').classList.contains('active')) return;
+          event.preventDefault();
+          addToQueue();
+        }
+      });
+
+      // A queue typed by hand cannot be recovered after a reload, so leaving the
+      // page with one is worth a question. Numbers go to the sheet only after an
+      // upload, so nothing here is on the server yet.
+      window.addEventListener('beforeunload', event => {
+        if (questionQueue.length > 0 && !uploading) {
+          event.preventDefault();
+          event.returnValue = '';
+        }
+      });
+
       updatePreview();
+      renderQueue();
+      updateJsonPreview();
+      syncEditMode();
+      syncQueueCounts();
+      refreshAllCardSummaries();
     });
 
     // ═══════════════════════════════════════════════════════════════
     // CLASS → SUBJECT DEPENDENCY
     // ═══════════════════════════════════════════════════════════════
+    let lastClass = '';
+
     function onClassChange() {
       const cls = document.getElementById('classSelect').value;
       const subjectSelect = document.getElementById('subjectSelect');
-      subjectSelect.innerHTML = '<option value="">Select Subject</option>';
-      if (cls && SUBJECTS_BY_CLASS[cls]) {
-        SUBJECTS_BY_CLASS[cls].forEach(subj => {
-          const opt = document.createElement('option');
-          opt.value = subj;
-          opt.textContent = subj;
-          subjectSelect.appendChild(opt);
-        });
+      // Rebuilding the list throws the chosen subject away, so it is only done
+      // when the class really changed — re-picking the same class is not a
+      // reason to lose the subject.
+      if (cls !== lastClass) {
+        lastClass = cls;
+        subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+        if (cls && SUBJECTS_BY_CLASS[cls]) {
+          SUBJECTS_BY_CLASS[cls].forEach(subj => {
+            const opt = document.createElement('option');
+            opt.value = subj;
+            opt.textContent = subj;
+            subjectSelect.appendChild(opt);
+          });
+        }
       }
+      refreshCardSummaries(['details']);
       updatePreview();
     }
 
@@ -1079,6 +2022,7 @@
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
       document.getElementById(`tab-${tabName}`).classList.add('active');
+      refreshAllCardSummaries();
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1089,9 +2033,18 @@
       document.getElementById('btnCq').classList.toggle('active', type === 'CQ');
       document.getElementById('btnMcq').classList.toggle('active', type === 'MCQ');
       document.getElementById('btnRq').classList.toggle('active', type === 'RQ');
+
+      const cardId = type === 'CQ' ? 'cqCard' : (type === 'MCQ' ? 'mcqCard' : 'rqCard');
       document.getElementById('cqCard').style.display = type === 'CQ' ? 'block' : 'none';
       document.getElementById('mcqCard').style.display = type === 'MCQ' ? 'block' : 'none';
       document.getElementById('rqCard').style.display = type === 'RQ' ? 'block' : 'none';
+
+      // Picking a type is asking for its fields: unfold them, whatever the reader
+      // left folded earlier.
+      const card = document.getElementById(cardId);
+      if (card && card.classList.contains('collapsed')) setCardCollapsed(card, false);
+
+      refreshCardSummaries(['details', 'cq', 'mcq', 'rq']);
       updatePreview();
     }
 
@@ -1114,15 +2067,15 @@
         <div class="subq-grid">
           <div class="form-group">
             <label>Label</label>
-            <input type="text" class="sq-label" value="${label}" placeholder="ক">
+            <input type="text" class="sq-label" value="${escapeAttr(label)}" placeholder="ক">
+          </div>
+          <div class="form-group">
+            <label>Text</label>
+            <input type="text" class="sq-text" value="${escapeAttr(data.text || '')}" placeholder="Sub-question text...">
           </div>
           <div class="form-group">
             <label>Marks</label>
             <input type="number" class="sq-mark" value="${data.mark || 1}" min="1" max="10">
-          </div>
-          <div class="form-group">
-            <label>Text</label>
-            <input type="text" class="sq-text" value="${data.text || ''}" placeholder="Sub-question text...">
           </div>
         </div>
       `;
@@ -1155,7 +2108,7 @@
         <div class="radio-wrap">
           <label for="correct_${mcqOptionCount}">✓</label>
         </div>
-        <input type="text" class="opt-text" value="${data.text || ''}" placeholder="Option ${mcqOptionCount}...">
+        <input type="text" class="opt-text" value="${escapeAttr(data.text || '')}" placeholder="Option ${mcqOptionCount}...">
         <button class="remove-opt" onclick="removeMcqOption(${mcqOptionCount})" title="Remove">✕</button>
       `;
       document.getElementById('mcqOptions').appendChild(div);
@@ -1181,6 +2134,17 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    /// For text that goes inside a quoted attribute. escapeHtml leaves quotes
+    /// alone, which would end the attribute early and spill the rest of the
+    /// question into the markup.
+    function escapeAttr(text) {
+      return String(text == null ? '' : text)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
     }
 
     function updatePreview() {
@@ -1228,12 +2192,34 @@
       }
 
       preview.innerHTML = html || '<p style="color:var(--text-muted);">Start filling the form to see preview...</p>';
+      refreshCardSummaries(['details', 'cq', 'mcq', 'rq', 'preview']);
     }
 
     // ═══════════════════════════════════════════════════════════════
     // BUILD QUESTION OBJECT
     // ═══════════════════════════════════════════════════════════════
+
+    // A message alone leaves the reader hunting for the field it is about, so a
+    // refusal points at it: unfold its card, ring it, put the cursor in it.
+    function failWith(target, message) {
+      showStatus('error', message);
+      const el = typeof target === 'string' ? document.getElementById(target) : target;
+      if (!el) return null;
+      const card = el.closest('.card');
+      if (card && card.classList.contains('collapsed')) setCardCollapsed(card, false);
+      el.classList.add('invalid');
+      if (typeof el.focus === 'function') el.focus({ preventScroll: true });
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return null;
+    }
+
+    function clearInvalid() {
+      document.querySelectorAll('.invalid').forEach(el => el.classList.remove('invalid'));
+    }
+
     function buildQuestion() {
+      clearInvalid();
+
       const cls = document.getElementById('classSelect').value;
       const subject = document.getElementById('subjectSelect').value;
       const chNum = document.getElementById('chapterNumber').value;
@@ -1241,37 +2227,34 @@
       const board = document.getElementById('boardYear').value;
       const imgUrl = document.getElementById('stemImageUrl').value;
 
-      if (!cls || !subject || !chNum || !chName) {
-        showStatus('error', 'Please fill in all required fields (Class, Subject, Chapter Number, Chapter Name).');
-        return null;
-      }
+      if (!cls) return failWith('classSelect', 'Choose the class.');
+      if (!subject) return failWith('subjectSelect', 'Choose the subject.');
+      if (!chNum) return failWith('chapterNumber', 'Enter the chapter number.');
+      if (!chName) return failWith('chapterName', 'Enter the chapter name.');
 
       let subJson;
       let shortMark = '';
       if (currentType === 'CQ') {
         const stem = document.getElementById('cqStem').value;
         if (!stem) {
-          showStatus('error', 'Please enter the CQ stem text.');
-          return null;
+          return failWith('cqStem', 'Write the CQ stem — the উদ্দীপক its sub-questions follow.');
         }
         const subqs = [];
         document.querySelectorAll('.subq-item').forEach(item => {
           const label = item.querySelector('.sq-label')?.value.trim();
-          const mark = parseInt(item.querySelector('.sq-mark')?.value) || 1;
+          const mark = Math.max(1, parseInt(item.querySelector('.sq-mark')?.value, 10) || 1);
           const text = item.querySelector('.sq-text')?.value.trim();
           if (text) subqs.push({ label, mark, text });
         });
         if (subqs.length === 0) {
-          showStatus('error', 'Please add at least one CQ sub-question.');
-          return null;
+          return failWith(
+            document.querySelector('.subq-item .sq-text') || 'subqList',
+            'Write at least one sub-question.');
         }
         subJson = subqs;
       } else if (currentType === 'MCQ') {
         const text = document.getElementById('mcqText').value;
-        if (!text) {
-          showStatus('error', 'Please enter the MCQ question text.');
-          return null;
-        }
+        if (!text) return failWith('mcqText', 'Write the MCQ question.');
         const options = [];
         let correctAns = '';
         document.querySelectorAll('.mcq-option').forEach(item => {
@@ -1283,22 +2266,17 @@
           }
         });
         if (options.length < 2) {
-          showStatus('error', 'Please add at least 2 MCQ options.');
-          return null;
+          return failWith('mcqOptions', 'Write at least two options.');
         }
         if (!correctAns) {
-          showStatus('error', 'Please select the correct answer.');
-          return null;
+          return failWith('mcqOptions', 'Tick the option that is the correct answer.');
         }
         subJson = { text, options, correct_ans: correctAns };
       } else {
         // Short question (RQ) — text in stem_text, mark in its own column.
         const text = document.getElementById('rqText').value.trim();
-        if (!text) {
-          showStatus('error', 'Please enter the short question text.');
-          return null;
-        }
-        const mark = parseInt(document.getElementById('rqMark').value) || 1;
+        if (!text) return failWith('rqText', 'Write the short question.');
+        const mark = Math.max(1, parseInt(document.getElementById('rqMark').value, 10) || 1);
         subJson = [];
         shortMark = mark;
       }
@@ -1395,60 +2373,326 @@
     // ═══════════════════════════════════════════════════════════════
     // QUEUE MANAGEMENT
     // ═══════════════════════════════════════════════════════════════
+
+    /// Queue a new question, or replace the one being edited.
+    ///
+    /// The form stays on this tab afterwards: the sticky bar and the toast both
+    /// report what happened, and jumping to the Bulk tab would interrupt a run of
+    /// questions from the same chapter.
     function addToQueue() {
       const q = buildQuestion();
       if (!q) return;
 
-      questionQueue.push(q);
-      showStatus('success', `Question added to queue! (${questionQueue.length} total)`);
+      if (editingIndex >= 0) {
+        const previous = questionQueue[editingIndex];
+        // The row keeps its id: it is the same question, corrected.
+        if (previous && previous.id) q.id = previous.id;
+        questionQueue[editingIndex] = q;
+        showStatus('success', `Question ${editingIndex + 1} updated in the queue.`);
+        editingIndex = -1;
+      } else {
+        questionQueue.push(q);
+        showStatus('success',
+          `Added to the queue (${questionQueue.length} waiting). ` +
+          'Class and chapter stay filled in for the next question.');
+      }
+
+      resetQuestionFields();
+      syncEditMode();
       renderQueue();
       updateJsonPreview();
+    }
 
-      // Switch to bulk tab
-      switchTab('bulk');
+    /// Wipe the question fields but keep class, subject and chapter.
+    ///
+    /// A teacher works through one chapter, so the chapter is the part worth
+    /// keeping. Marks are left alone too: a run of questions usually shares
+    /// their shape, and retyping a 2 is not a service to anyone.
+    function resetQuestionFields() {
+      document.getElementById('cqStem').value = '';
+      document.getElementById('mcqText').value = '';
+      document.getElementById('rqText').value = '';
+      document.querySelectorAll('.sq-text').forEach(input => { input.value = ''; });
+      document.querySelectorAll('.opt-text').forEach(input => { input.value = ''; });
+      document.querySelectorAll('.mcq-option input[type="radio"]')
+        .forEach(radio => { radio.checked = false; });
+      clearInvalid();
+      updatePreview();
     }
 
     function removeFromQueue(index) {
       questionQueue.splice(index, 1);
+      // Keep an open edit pointing at the same question after the shift.
+      if (editingIndex === index) {
+        editingIndex = -1;
+        syncEditMode();
+      } else if (editingIndex > index) {
+        editingIndex--;
+        syncEditMode();
+      }
       renderQueue();
       updateJsonPreview();
     }
 
+    function clearQueue() {
+      if (questionQueue.length === 0) return;
+      const count = questionQueue.length;
+      if (!window.confirm(
+        `Remove all ${count} queued question${count === 1 ? '' : 's'}? ` +
+        'The Google Sheet is not touched.')) return;
+      questionQueue = [];
+      editingIndex = -1;
+      syncEditMode();
+      renderQueue();
+      updateJsonPreview();
+      showStatus('info', `Queue cleared — ${count} question${count === 1 ? '' : 's'} dropped. Nothing was uploaded.`);
+    }
+
+    function duplicateQueueItem(index) {
+      const source = questionQueue[index];
+      if (!source) return;
+      const copy = JSON.parse(JSON.stringify(source));
+      // A copy is a different row, so it gets its own id.
+      copy.id = generateUUID();
+      questionQueue.splice(index + 1, 0, copy);
+      if (editingIndex > index) editingIndex++;
+      renderQueue();
+      updateJsonPreview();
+      showStatus('info', `Copy of question ${index + 1} added just below it.`);
+    }
+
+    /// Load a queued question back into the form for a fix.
+    function editQueueItem(index) {
+      const q = questionQueue[index];
+      if (!q) return;
+      editingIndex = index;
+      fillFormFromQuestion(q);
+      switchTab('single');
+      syncEditMode();
+      showStatus('info',
+        `Question ${index + 1} loaded — change what you like and press "Save changes".`);
+    }
+
+    function cancelEdit() {
+      if (editingIndex < 0) return;
+      editingIndex = -1;
+      syncEditMode();
+      resetQuestionFields();
+      showStatus('info', 'Edit dropped — the queued question is unchanged.');
+    }
+
+    /// Put a queued question back on the form, all fields, whatever its type.
+    function fillFormFromQuestion(q) {
+      const type = questionType(q);
+      // Class first, then rebuild the subject list for it, then pick the subject:
+      // onClassChange() clears the subject whenever the class changes.
+      document.getElementById('classSelect').value = q.class || '';
+      onClassChange();
+      const subjectSelect = document.getElementById('subjectSelect');
+      subjectSelect.value = q.subject || '';
+      if (q.subject && subjectSelect.value !== q.subject) {
+        // A class/subject pair this page does not list — a row that came from the
+        // sheet. Keep it rather than quietly dropping it on the way back in.
+        const option = document.createElement('option');
+        option.value = q.subject;
+        option.textContent = q.subject;
+        subjectSelect.appendChild(option);
+        subjectSelect.value = q.subject;
+      }
+      document.getElementById('chapterNumber').value = q.chapter_number || '';
+      document.getElementById('chapterName').value = q.chapter_name || '';
+      document.getElementById('boardYear').value = q.board_year_tag || '';
+      document.getElementById('stemImageUrl').value = q.stem_image_url || '';
+
+      setType(type);
+
+      if (type === 'CQ') {
+        document.getElementById('cqStem').value = q.stem_text || '';
+        const subs = Array.isArray(q.sub_questions_json) ? q.sub_questions_json : [];
+        document.querySelectorAll('.subq-item').forEach(item => item.remove());
+        subQuestionCount = 0;
+        // The form keeps four rows; pad rather than shrink so the layout holds.
+        for (let i = 0; i < Math.max(subs.length, 2); i++) {
+          addSubQuestion(subs[i] || {});
+        }
+      } else if (type === 'MCQ') {
+        const payload = q.sub_questions_json || {};
+        document.getElementById('mcqText').value = payload.text || '';
+        const options = Array.isArray(payload.options) ? payload.options : [];
+        document.querySelectorAll('.mcq-option').forEach(item => item.remove());
+        mcqOptionCount = 0;
+        for (let i = 0; i < Math.max(options.length, 4); i++) {
+          addMcqOption({
+            text: options[i] || '',
+            correct: options[i] !== undefined && options[i] === payload.correct_ans,
+          });
+        }
+      } else {
+        document.getElementById('rqText').value = q.stem_text || '';
+        document.getElementById('rqMark').value = q.short_mark || 1;
+      }
+
+      updatePreview();
+    }
+
+    function toggleQueueItem(index) {
+      const item = document.getElementById(`qitem_${index}`);
+      if (!item) return;
+      const open = !item.classList.contains('open');
+      item.classList.toggle('open', open);
+      const info = item.querySelector('.q-info');
+      if (info) info.setAttribute('aria-expanded', String(open));
+    }
+
+    function questionType(q) {
+      const type = String(q.question_type || '').toUpperCase();
+      if (type === 'SHORT') return 'RQ';
+      return ['CQ', 'MCQ', 'RQ'].includes(type) ? type : 'CQ';
+    }
+
+    function queueTitle(q) {
+      const type = questionType(q);
+      const raw = type === 'CQ'
+        ? String(q.stem_text || '')
+        : String((q.sub_questions_json && q.sub_questions_json.text) || q.stem_text || '');
+      const text = raw.replace(/\s+/g, ' ').trim();
+      if (!text) return '(no text yet)';
+      return text.length > 60 ? text.slice(0, 60) + '…' : text;
+    }
+
+    function queueMarks(q) {
+      const type = questionType(q);
+      if (type === 'CQ') {
+        const subs = Array.isArray(q.sub_questions_json) ? q.sub_questions_json : [];
+        const total = subs.reduce((sum, sq) => sum + (parseInt(sq.mark, 10) || 0), 0);
+        return `${total} marks`;
+      }
+      if (type === 'RQ') return `${q.short_mark || 1} mark${(q.short_mark || 1) === 1 ? '' : 's'}`;
+      return '1 mark';
+    }
+
+    /// Only http(s) links, with quotes neutralised: this goes into an href, where
+    /// the escaping escapeHtml does is not enough.
+    function safeUrl(url) {
+      const text = String(url || '').trim();
+      if (!/^https?:\/\//i.test(text)) return '';
+      return text.replace(/"/g, '%22').replace(/</g, '%3C').replace(/>/g, '%3E');
+    }
+
+    /// The whole question, shown when a queue row is opened.
+    function queueDetailHtml(q) {
+      const type = questionType(q);
+      const lines = [];
+
+      if (type === 'CQ') {
+        if (q.stem_text) lines.push(`<div class="qd-line">${escapeHtml(String(q.stem_text))}</div>`);
+        const subs = Array.isArray(q.sub_questions_json) ? q.sub_questions_json : [];
+        subs.forEach(sq => lines.push(
+          `<div class="qd-line">(${escapeHtml(String(sq.label || ''))}) ` +
+          `${escapeHtml(String(sq.text || ''))} ` +
+          `<span class="qd-mark">[${escapeHtml(String(sq.mark ?? ''))}]</span></div>`));
+      } else if (type === 'MCQ') {
+        const payload = q.sub_questions_json || {};
+        lines.push(`<div class="qd-line">${escapeHtml(String(payload.text || ''))}</div>`);
+        (payload.options || []).forEach((option, i) => {
+          const letter = ['ক', 'খ', 'গ', 'ঘ', 'ঙ'][i] || String(i + 1);
+          const correct = option === payload.correct_ans;
+          lines.push(
+            `<div class="qd-line${correct ? ' qd-correct' : ''}">` +
+            `(${letter}) ${escapeHtml(String(option))}${correct ? ' ✓' : ''}</div>`);
+        });
+        if (!payload.correct_ans) {
+          lines.push('<div class="qd-line qd-meta">No correct answer marked.</div>');
+        }
+      } else {
+        lines.push(
+          `<div class="qd-line">${escapeHtml(String(q.stem_text || ''))} ` +
+          `<span class="qd-mark">[${escapeHtml(String(q.short_mark ?? 1))}]</span></div>`);
+      }
+
+      const image = safeUrl(q.stem_image_url);
+      lines.push(
+        `<div class="qd-meta">` +
+        `Board / year: ${escapeHtml(String(q.board_year_tag || '—'))} · ` +
+        (image
+          ? `Image: <a href="${image}" target="_blank" rel="noopener">open ↗</a>`
+          : 'Image: —') +
+        `<br>id: <code>${escapeHtml(String(q.id || ''))}</code></div>`);
+
+      return lines.join('');
+    }
+
+    /// The queue count shows up in four places; they are written together.
+    function syncQueueCounts() {
+      const n = questionQueue.length;
+      document.getElementById('queueCount').textContent =
+        `${n} question${n === 1 ? '' : 's'} ready to upload`;
+
+      document.getElementById('actionCount').textContent = String(n);
+
+      const badge = document.getElementById('tabQueueBadge');
+      badge.textContent = String(n);
+      badge.classList.toggle('on', n > 0);
+
+      document.getElementById('uploadBtn').disabled = n === 0;
+      document.getElementById('uploadHint').textContent = n
+        ? `Uploads all ${n} question${n === 1 ? '' : 's'} to the sheet and empties the queue.`
+        : 'Nothing in the queue yet — add a question from the Single Question tab.';
+      document.getElementById('queueTools').style.display = n ? 'flex' : 'none';
+    }
+
+    /// Keep the form telling the truth about whether it is adding or replacing.
+    function syncEditMode() {
+      const editing = editingIndex >= 0;
+      document.getElementById('editBanner').style.display = editing ? 'flex' : 'none';
+      document.getElementById('editBannerIndex').textContent =
+        editing ? String(editingIndex + 1) : '';
+      document.getElementById('cancelEditBtn').style.display =
+        editing ? 'inline-flex' : 'none';
+      document.getElementById('addToQueueLabel').textContent =
+        editing ? 'Save changes' : 'Add to queue';
+      document.getElementById('addToQueueIcon').textContent = editing ? '💾' : '➕';
+    }
+
     function renderQueue() {
       const list = document.getElementById('queueList');
-      const count = document.getElementById('queueCount');
-      count.textContent = `${questionQueue.length} question${questionQueue.length !== 1 ? 's' : ''} ready to upload`;
+      syncQueueCounts();
 
       if (questionQueue.length === 0) {
         list.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:24px;">No questions added yet. Go to "Single Question" tab to add some.</p>';
+        refreshAllCardSummaries();
         return;
       }
 
       list.innerHTML = questionQueue.map((q, i) => {
-        const isCq = q.question_type === 'CQ';
-        const isRq = q.question_type === 'RQ';
-        const icon = isCq ? '📖' : (isRq ? '✏️' : '✅');
-        const bg = isCq ? '#EEF2FF' : (isRq ? '#ECFDF5' : '#FFF7ED');
-        const title = (isCq
-          ? (q.stem_text || '')
-          : ((q.sub_questions_json && q.sub_questions_json.text) || q.stem_text || '')).substring(0, 60);
-        const marks = isCq
-          ? (Array.isArray(q.sub_questions_json)
-              ? q.sub_questions_json.reduce((s, sq) => s + sq.mark, 0)
-              : 0) + ' marks'
-          : (isRq ? ((q.short_mark ?? 1) + ' mark') : '1 mark');
-
+        const type = questionType(q);
+        const icon = type === 'CQ' ? '📖' : (type === 'RQ' ? '✏️' : '✅');
+        const bg = type === 'CQ' ? '#EEF2FF' : (type === 'RQ' ? '#ECFDF5' : '#FFF7ED');
+        const meta =
+          `${escapeHtml(String(q.class || ''))} · ${escapeHtml(String(q.subject || ''))} · ` +
+          `${escapeHtml(String(q.chapter_number || ''))}: ${escapeHtml(String(q.chapter_name || ''))} · ` +
+          `${queueMarks(q)}`;
         return `
-          <div class="queue-item">
-            <div class="q-icon" style="background:${bg};">${icon}</div>
-            <div class="q-info">
-              <div class="q-title">${escapeHtml(title)}${title.length >= 60 ? '...' : ''}</div>
-              <div class="q-meta">${escapeHtml(q.class)} · ${escapeHtml(q.subject)} · ${escapeHtml(q.chapter_number)}: ${escapeHtml(q.chapter_name)} · ${marks}</div>
+          <div class="queue-item" id="qitem_${i}">
+            <div class="q-main">
+              <div class="q-icon" style="background:${bg};">${icon}</div>
+              <div class="q-info" role="button" tabindex="0" aria-expanded="false"
+                   title="Click to read the whole question"
+                   onclick="toggleQueueItem(${i})"
+                   onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleQueueItem(${i}); }">
+                <div class="q-title">${escapeHtml(queueTitle(q))}</div>
+                <div class="q-meta">${meta}</div>
+              </div>
+              <button type="button" class="q-act" title="Edit this question" onclick="editQueueItem(${i})">✏️</button>
+              <button type="button" class="q-act" title="Duplicate it just below" onclick="duplicateQueueItem(${i})">⧉</button>
+              <button type="button" class="q-remove" title="Remove from the queue" onclick="removeFromQueue(${i})">✕</button>
             </div>
-            <button class="q-remove" onclick="removeFromQueue(${i})" title="Remove">✕</button>
+            <div class="q-detail">${queueDetailHtml(q)}</div>
           </div>
         `;
       }).join('');
+
+      refreshAllCardSummaries();
     }
 
     function updateJsonPreview() {
@@ -1462,17 +2706,17 @@
         .replace(/: "([^"]*)"/g, ': <span class="string">"$1"</span>')
         .replace(/: (\d+)/g, ': <span class="number">$1</span>');
       preview.innerHTML = highlighted;
+      refreshAllCardSummaries();
     }
 
     // ═══════════════════════════════════════════════════════════════
     // DIAGNOSIS
     // ═══════════════════════════════════════════════════════════════
 
-    // Apps Script never answers a POST with an HTML page on its own. When one
-    // comes back, Google did not run the script at all: the request was
-    // redirected to a sign-in or consent screen, or to the "deployment missing"
-    // page. The two need completely different fixes, so they are told apart
-    // here rather than sending everyone to run the function in the editor.
+    // Apps Script never answers a POST with an HTML page on its own. Two
+    // different Google pages come back instead, and they need different fixes,
+    // so they are told apart here rather than sending everyone to run the
+    // function in the editor.
     function describeFailure(xhr, body) {
       const head = [
         `HTTP ${xhr.status}`,
@@ -1480,21 +2724,43 @@
       ].join(', ');
       const snippet = body.replace(/\s+/g, ' ').slice(0, 200);
 
-      // Google's account shell: any of these markers mean we were bounced to a
-      // sign-in page rather than being answered by the script.
+      // A sign-in page asks the reader to pick an account.
       const isSignIn =
-        body.indexOf('ppConfig') !== -1 ||
         body.indexOf('ServiceLogin') !== -1 ||
         body.indexOf('accounts.google.com') !== -1 ||
-        body.indexOf('needsAuthorisation') !== -1;
+        body.indexOf('needsAuthorisation') !== -1 ||
+        body.indexOf('identifierNext') !== -1;
+
+      // The other page is Drive's "page not found", which is what a deployment
+      // that is not serving this URL returns. It carries the same `ppConfig`
+      // banner as the sign-in page, so `ppConfig` alone must never be read as
+      // "sign in" — that sent readers to fix the wrong thing.
+      const isDriveMiss =
+        body.indexOf('docs-drivelogo') !== -1 ||
+        body.indexOf('drive.google.com') !== -1 ||
+        body.indexOf('errorMessage') !== -1;
 
       if (isSignIn) {
         return (
-          `The script did not run — Google returned its sign-in page (${head}). ` +
+          `The script did not run — Google asked for a sign-in (${head}). ` +
           'Nothing was uploaded by this attempt. Fix: in Apps Script open ' +
-          'Deploy ▸ Manage deployment, set "Who has access" to Anyone, then ' +
+          'Deploy ▸ Manage deployment and set "Who has access" to Anyone, then ' +
           'copy the /exec URL again and paste it into APPS_SCRIPT_URL. ' +
           `Server said: ${snippet}`
+        );
+      }
+
+      if (isDriveMiss) {
+        return (
+          `The script did not run — Google answered with its Drive "page not ` +
+          `found" page (${head}). Nothing was uploaded by this attempt. That is ` +
+          'what a deployment which is not serving this URL returns. Check, in ' +
+          'this order: Deploy ▸ Manage deployment, "Who has access" must be ' +
+          'Anyone; the URL must be the /exec of the deployment you are looking ' +
+          'at, because redeploying can mint a new one; and if the setting was ' +
+          'just changed, give it a minute and hard-refresh this page. Opening ' +
+          'the /exec URL in a browser tab is the quickest check — a live ' +
+          `deployment answers with JSON. Server said: ${snippet}`
         );
       }
 
@@ -1524,16 +2790,87 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // UPLOAD
+    // STATUS TOAST
     // ═══════════════════════════════════════════════════════════════
+    let statusTimer = null;
+
+    function hideStatus() {
+      if (statusTimer) {
+        clearTimeout(statusTimer);
+        statusTimer = null;
+      }
+      const status = document.getElementById('status');
+      status.className = 'status';
+      status.innerHTML = '';
+      status.style.display = '';
+    }
+
+    /// One message at a time, over the page, dismissable.
+    ///
+    /// A success is a receipt, not a task, so it clears itself; a failure stays
+    /// until the reader dismisses it or something else replaces it.
     function showStatus(type, message) {
       const status = document.getElementById('status');
-      status.className = 'status ' + type;
-      if (type === 'loading') {
-        status.innerHTML = `<div class="spinner"></div><span>${message}</span>`;
-      } else {
-        status.textContent = message;
+      if (statusTimer) {
+        clearTimeout(statusTimer);
+        statusTimer = null;
       }
+      status.style.display = '';
+      status.className = 'status ' + type;
+
+      const spinner = type === 'loading' ? '<div class="spinner"></div>' : '';
+      const close = type === 'loading' ? '' :
+        '<button type="button" class="status-close" aria-label="Dismiss"' +
+        ' onclick="hideStatus()">✕</button>';
+      status.innerHTML = `${spinner}<span class="status-text">${escapeHtml(message)}</span>${close}`;
+
+      if (type === 'success') {
+        statusTimer = setTimeout(hideStatus, 6000);
+      }
+    }
+
+    /// Ask the server for a reply that cannot write anything.
+    ///
+    /// The failure this page keeps hitting is a deployment that is not serving
+    /// the request at all, and from the outside it looks just like a bad
+    /// payload. An empty batch is the safest possible probe: every version of
+    /// the script rejects it before it can reach the sheet.
+    function testConnection() {
+      const btn = document.getElementById('testConnBtn');
+      btn.disabled = true;
+      showStatus('loading', 'Testing the Apps Script connection…');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', APPS_SCRIPT_URL, true);
+      xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+      xhr.onload = function () {
+        btn.disabled = false;
+        const body = xhr.responseText || '';
+        try {
+          JSON.parse(body);
+        } catch (e) {
+          showStatus('error', describeFailure(xhr, body));
+          return;
+        }
+        // The reply is an error ("No questions provided") or a success with
+        // nothing to insert. Either way it came from the script, which is the
+        // only thing this test is about.
+        showStatus('success',
+          '✅ The deployment is reachable — it answered with JSON. ' +
+          'Nothing was written by this test.');
+      };
+      xhr.onerror = function () {
+        btn.disabled = false;
+        showStatus('error',
+          'Network error. Check your connection and the APPS_SCRIPT_URL.');
+      };
+      xhr.ontimeout = function () {
+        btn.disabled = false;
+        showStatus('error', 'The test timed out. The Apps Script may be ' +
+          'waiting for authorisation — open its editor and run the function once.');
+      };
+      xhr.timeout = 30000;
+      xhr.send(JSON.stringify({ action: 'addQuestions', questions: [] }));
     }
 
     function uploadQuestions() {
@@ -1541,14 +2878,16 @@
         showStatus('error', 'No questions in the queue. Add some first.');
         return;
       }
-
       const btn = document.getElementById('uploadBtn');
+      const queued = questionQueue.slice();
       btn.disabled = true;
-      showStatus('loading', `Uploading ${questionQueue.length} question${questionQueue.length > 1 ? 's' : ''}...`);
+      uploading = true;
+      showStatus('loading',
+        `Uploading ${queued.length} question${queued.length === 1 ? '' : 's'}…`);
 
       const payload = JSON.stringify({
         action: 'addQuestions',
-        questions: questionQueue
+        questions: queued
       });
 
       // Use XHR with text/plain to bypass CORS (most reliable for Apps Script)
@@ -1556,6 +2895,7 @@
       xhr.open('POST', APPS_SCRIPT_URL, true);
       xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
       xhr.onload = function () {
+        uploading = false;
         btn.disabled = false;
         const body = xhr.responseText || '';
         let result = null;
@@ -1571,109 +2911,31 @@
         }
 
         if (result.status === 'SUCCESS') {
-          showStatus('success', `✅ ${result.message || 'Upload successful!'} (${result.inserted || questionQueue.length} questions)`);
+          // Only a confirmed insert empties the queue: a reply that says the
+          // upload failed must leave the questions here to try again.
+          questionQueue = [];
+          renderQueue();
+          updateJsonPreview();
+          showStatus('success',
+            `✅ ${result.message || 'Upload successful!'} ` +
+            `(${result.inserted || queued.length} questions)`);
         } else {
-          showStatus('error', `Upload failed: ${result.message || 'Unknown error'}`);
+          showStatus('error', `Upload failed: ${result.message || 'Unknown error'} — ` +
+            'the queue has been kept, nothing was lost.');
         }
-        questionQueue = [];
-        renderQueue();
-        updateJsonPreview();
       };
       xhr.onerror = function () {
+        uploading = false;
         btn.disabled = false;
-        showStatus('error', 'Network error. Check your connection and the APPS_SCRIPT_URL.');
+        showStatus('error', 'Network error. Check your connection and the APPS_SCRIPT_URL. The queue has been kept.');
       };
       xhr.ontimeout = function () {
+        uploading = false;
         btn.disabled = false;
-        showStatus('error', 'The upload timed out. The Apps Script may be waiting for authorisation — open its editor and run the function once.');
+        showStatus('error', 'The upload timed out. The Apps Script may be waiting for authorisation — open its editor and run the function once. The queue has been kept.');
       };
       xhr.timeout = 120000;
       xhr.send(payload);
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Export Helpers
-    // ─────────────────────────────────────────────────────────────
-
-    function downloadFile(filename, content, mimeType) {
-      const blob = new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    function downloadQueueJson() {
-      if (questionQueue.length === 0) {
-        showStatus('error', 'No questions to export. Add some first.');
-        return;
-      }
-      const data = JSON.stringify({ questions: questionQueue }, null, 2);
-      downloadFile('Pi-QBank_Questions.json', data, 'application/json');
-    }
-
-    function downloadQueueTxt() {
-      if (questionQueue.length === 0) {
-        showStatus('error', 'No questions to export. Add some first.');
-        return;
-      }
-      let txt = '==================================================\nPi-QBank Questions Export\n==================================================\n\n';
-      questionQueue.forEach((q, idx) => {
-        txt += `${idx + 1}. [${q.question_type}] ${q.class} - ${q.subject} (অধ্যায় ${q.chapter_number}: ${q.chapter_name})\n`;
-        if (q.stem_text) txt += `উদ্দীপক/প্রশ্ন: ${q.stem_text}\n`;
-        if (q.question_type === 'CQ' && Array.isArray(q.sub_questions_json)) {
-          q.sub_questions_json.forEach(sq => {
-            txt += `   (${sq.label}) ${sq.text} [${sq.mark}]\n`;
-          });
-        } else if (q.question_type === 'MCQ' && q.sub_questions_json && q.sub_questions_json.options) {
-          q.sub_questions_json.options.forEach((opt, oi) => {
-            const letter = ['ক', 'খ', 'গ', 'ঘ'][oi] || `${oi + 1}`;
-            txt += `   (${letter}) ${opt}\n`;
-          });
-          if (q.sub_questions_json.correct_ans) txt += `   সঠিক উত্তর: ${q.sub_questions_json.correct_ans}\n`;
-        } else if (q.question_type === 'RQ') {
-          txt += `   উত্তর: [${q.short_mark ?? 1}]\n`;
-        }
-        txt += '\n--------------------------------------------------\n\n';
-      });
-      downloadFile('Pi-QBank_Questions.txt', txt, 'text/plain;charset=utf-8');
-    }
-
-    function downloadQueueWord() {
-      if (questionQueue.length === 0) {
-        showStatus('error', 'No questions to export. Add some first.');
-        return;
-      }
-      let html = '<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8">';
-      html += '<style>body{font-family:Segoe UI,Hind Siliguri,sans-serif;line-height:1.5;padding:20px;} .q-item{margin-bottom:15px;border-bottom:1px solid #ccc;padding-bottom:10px;}</style></head><body>';
-      html += '<h2 style="text-align:center;">Pi-QBank Questions Export</h2>';
-      questionQueue.forEach((q, idx) => {
-        html += `<div class="q-item"><b>${idx + 1}. [${q.question_type}]</b> ${q.class} - ${q.subject} (অধ্যায় ${q.chapter_number}: ${q.chapter_name})<br/>`;
-        if (q.stem_text) html += `<p>${q.stem_text}</p>`;
-        if (q.question_type === 'CQ' && Array.isArray(q.sub_questions_json)) {
-          html += '<ul>';
-          q.sub_questions_json.forEach(sq => {
-            html += `<li><b>(${sq.label})</b> ${sq.text} [${sq.mark}]</li>`;
-          });
-          html += '</ul>';
-        } else if (q.question_type === 'MCQ' && q.sub_questions_json && q.sub_questions_json.options) {
-          html += '<ul>';
-          q.sub_questions_json.options.forEach((opt, oi) => {
-            const letter = ['ক', 'খ', 'গ', 'ঘ'][oi] || `${oi + 1}`;
-            html += `<li>(${letter}) ${opt}</li>`;
-          });
-          html += '</ul>';
-        } else if (q.question_type === 'RQ') {
-          html += `<p>উত্তর: [${q.short_mark ?? 1}]</p>`;
-        }
-        html += '</div>';
-      });
-      html += '</body></html>';
-      downloadFile('Pi-QBank_Questions.doc', html, 'application/msword;charset=utf-8');
     }
   </script>
 </body>

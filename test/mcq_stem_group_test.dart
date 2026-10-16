@@ -162,6 +162,77 @@ void main() {
     });
   });
 
+  group('the figure the intro carries', () {
+    // The intro is the wording *and* the figure under it. Two questions under
+    // one wording but two different figures are two intros; reading them as one
+    // printed the first figure and dropped the second off the paper.
+
+    test('the same wording over two figures opens two groups', () {
+      final first = mcq(id: 'a', stem: kSharedStem, image: 'https://x/a.png');
+      final same = mcq(id: 'b', stem: kSharedStem, image: 'https://x/a.png');
+      final other = mcq(id: 'c', stem: kSharedStem, image: 'https://x/b.png');
+
+      expect(same.opensMcqStemGroup(first), isFalse);
+      expect(other.opensMcqStemGroup(first), isTrue);
+      expect(other.sharesMcqStemWith(first), isFalse);
+    });
+
+    test('a question with no figure of its own follows on the wording', () {
+      final opening = mcq(id: 'a', stem: kSharedStem, image: 'https://x/a.png');
+      final bare = mcq(id: 'b', stem: kSharedStem);
+      final textOnly = mcq(id: 'c', stem: kSharedStem);
+
+      expect(bare.opensMcqStemGroup(opening), isFalse);
+      expect(textOnly.opensMcqStemGroup(bare), isFalse);
+    });
+
+    test('a figure arriving under a figureless intro opens its own group', () {
+      // The group cannot adopt a figure it never printed, so the question that
+      // carries one starts a group of its own rather than losing the figure.
+      final textOnly = mcq(id: 'a', stem: kSharedStem);
+      final figured = mcq(id: 'b', stem: kSharedStem, image: 'https://x/a.png');
+
+      expect(figured.opensMcqStemGroup(textOnly), isTrue);
+    });
+
+    test('other types never carry a figure with their intro', () {
+      final cq = HighSchoolQuestion.fromJson({
+        'id': 'cq',
+        'class': 'Class (9-10) SSC',
+        'subject': 'গণিত',
+        'chapter_number': '1',
+        'chapter_name': 'অনুশীলনী',
+        'question_type': 'CQ',
+        'stem_text': kSharedStem,
+        'stem_image_url': 'https://x/a.png',
+        'sub_questions_json': [
+          {'label': 'ক', 'mark': 1, 'text': 'প্রশ্ন'},
+        ],
+      });
+      expect(cq.mcqStemImageUrl, isEmpty);
+    });
+
+    test('the sheet prints two intros under two figures', () {
+      final html = htmlOf([
+        mcq(id: 'a', stem: kSharedStem, image: 'https://x/a.png'),
+        mcq(id: 'b', stem: kSharedStem, image: 'https://x/b.png'),
+      ]);
+
+      expect(countOf(html, 'class="mcq-stem"'), 2);
+      expect(countOf(html, kSharedStem), 2);
+    });
+
+    test('the sheet keeps one intro when only one figure is filed', () {
+      final html = htmlOf([
+        mcq(id: 'a', stem: kSharedStem, image: 'https://x/a.png'),
+        mcq(id: 'b', stem: kSharedStem),
+      ]);
+
+      expect(countOf(html, 'class="mcq-stem"'), 1);
+      expect(countOf(html, kSharedStem), 1);
+    });
+  });
+
   group('the PDF estimator', () {
     late PdfTextMetrics m;
 

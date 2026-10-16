@@ -223,8 +223,12 @@ void main() {
     expect(decl(item, 'padding'), anyOf(isNull, '0'));
     expect(decl(item, 'gap'), anyOf(isNull, '0'));
 
-    // The dashed rule belongs to the MCQs, where the PDF draws it too.
-    expect(rule(css, '.mcq-card'), contains('dashed'));
+    // The MCQ card carries no frame of its own either: no rule under it, no
+    // padding and no margin — the questions are not boxed.
+    expect(
+        decl(rule(css, '.mcq-card'), 'border-bottom'), anyOf(isNull, 'none'));
+    expect(decl(rule(css, '.mcq-card'), 'padding'), anyOf(isNull, '0'));
+    expect(decl(rule(css, '.mcq-card'), 'margin-bottom'), anyOf(isNull, '0'));
   });
 
   test('the page is black on white, with the marks a touch grey', () {

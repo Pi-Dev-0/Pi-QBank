@@ -454,6 +454,9 @@ class HighSchoolExportService {
     buffer.writeln();
 
     var printed = 0;
+    // A sheet with one type of question has nothing to tell apart; its lone
+    // declaration is dropped. See [_declaresSections].
+    final declares = _declaresSections(questions);
     for (var i = 0; i < sections.length; i++) {
       final kind = sections[i];
       final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
@@ -464,7 +467,7 @@ class HighSchoolExportService {
       if (printed > 0) buffer.writeln(thinDivider);
       printed++;
 
-      buffer.writeln('【 ${_sectionHeading(kind, i)} 】');
+      if (declares) buffer.writeln('【 ${_sectionHeading(kind, i)} 】');
       switch (kind) {
         case PaperSection.cq:
           buffer
@@ -803,7 +806,8 @@ class HighSchoolExportService {
       // print keep the letters their positions give them.
       if (inSection.isEmpty) continue;
 
-      final heading = _sectionHeading(kind, i);
+      final heading =
+          _declaresSections(questions) ? _sectionHeading(kind, i) : '';
       switch (kind) {
         case PaperSection.cq:
           _writeWordCqSection(
@@ -820,6 +824,15 @@ class HighSchoolExportService {
     }
   }
 
+  /// A Word block's declaration bar — or, when the sheet holds one type of
+  /// question, the air the bar took.
+  ///
+  /// A bare `<div>` with a margin collapses away in Word, so the stand-in is a
+  /// line of its own: hair-thin, empty, and carrying the bar's top margin.
+  static String _wordSectionTitle(String heading) => heading.isEmpty
+      ? '<div style="font-size:1pt; line-height:1pt; margin-top:12pt;">&nbsp;</div>'
+      : '<div class="section-title">${_escapeXml(heading)}</div>';
+
   /// The CQ block of a Word paper.
   ///
   /// A real table keeps columns stable in Word/WPS, which CSS does not.
@@ -832,7 +845,7 @@ class HighSchoolExportService {
     StemImageSize imageSize,
   ) {
     buffer.write('''
-  <div class="section-title">${_escapeXml(heading)}</div>
+  ${_wordSectionTitle(heading)}
   <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[যেকোনো নির্ধারিত সংখ্যক প্রশ্নের উত্তর দাও]</div>
 ''');
 
@@ -855,7 +868,7 @@ class HighSchoolExportService {
     <td class="cq-col-cell">
       <div class="cq-box">
         <div class="cq-stem">
-          <b>$index.</b> ${latexToHtml(_escapeXml(q.paperStemText))}
+          <b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
           ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
         </div>
         ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
@@ -864,7 +877,7 @@ class HighSchoolExportService {
           cells.write('''
           <tr>
             <td class="cq-sub-label">(${_escapeXml(sq.label)})</td>
-            <td class="cq-sub-text">${latexToHtml(_escapeXml(sq.text))}</td>
+            <td class="cq-sub-text">${_htmlText(sq.text, latex: true)}</td>
             <td class="cq-sub-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</td>
           </tr>''');
         }
@@ -896,7 +909,7 @@ class HighSchoolExportService {
     StemImageSize imageSize,
   ) {
     buffer.write('''
-  <div class="section-title">${_escapeXml(heading)}</div>
+  ${_wordSectionTitle(heading)}
   <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]</div>
 ''');
 
@@ -915,8 +928,8 @@ class HighSchoolExportService {
         final o2 = has2 ? options[opt + 1] : '';
         b.write('''
       <tr>
-        <td class="mcq-opt-cell">($l1) ${_escapeXml(options[opt])}</td>
-        <td class="mcq-opt-cell">${has2 ? '($l2) ${_escapeXml(o2)}' : ''}</td>
+        <td class="mcq-opt-cell">($l1) ${_htmlText(options[opt])}</td>
+        <td class="mcq-opt-cell">${has2 ? '($l2) ${_htmlText(o2)}' : ''}</td>
       </tr>''');
       }
       return b.toString();
@@ -933,8 +946,8 @@ class HighSchoolExportService {
       previous = q;
       return '''
     <td class="mcq-col-cell">
-      ${opensStem ? '<div class="mcq-stem">${latexToHtml(_escapeXml(q.mcqStemText))}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
-      <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
+      ${opensStem ? '<div class="mcq-stem">${_htmlText(q.mcqStemText, latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
+      <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
       <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
     </td>''';
     }
@@ -975,7 +988,7 @@ class HighSchoolExportService {
     QuestionLayout layout,
   ) {
     buffer.write('''
-  <div class="section-title">${_escapeXml(heading)}</div>
+  ${_wordSectionTitle(heading)}
   <div style="font-size:10pt; font-style:italic; margin-bottom:8pt; text-align:center;">[সংক্ষেপে উত্তর দাও]</div>
 ''');
 
@@ -984,7 +997,7 @@ class HighSchoolExportService {
       if (data == null || data.text.trim().isEmpty) return '';
       return '''
     <div class="rq-item">
-      <span>${index + 1}. ${_escapeXml(data.text)}</span>
+      <span>${index + 1}. ${_htmlText(data.text)}</span>
       <span class="rq-mark">[${data.mark}]</span>
     </div>''';
     }
@@ -1173,7 +1186,7 @@ class HighSchoolExportService {
       min-height: 297mm;
       margin: 0 auto;
       background: white;
-      padding: 18pt 40pt 18px;
+      padding: 18pt 28pt 18px;
       border-radius: 8px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
       /* The paper's base size, set where the PDF sets its body style. Text with
@@ -1237,6 +1250,13 @@ class HighSchoolExportService {
       margin: 0 0 6px 0;
       break-after: avoid;
     }
+    /* A block with no declaration to print — the sheet holds one type of
+       question — keeps the air the bar's top margin gave it and nothing else.
+       The same 5pt as the bar's own `margin` above. See the writers'
+       `_declaresSections`. */
+    .section-gap {
+      height: 5pt;
+    }
     /* No frame around a question. The two sides are divided by one vertical
        line down the gutter — set on the flow containers with `column-rule` —
        instead of every question carrying a box of its own, which is what made
@@ -1289,10 +1309,9 @@ class HighSchoolExportService {
     }
     .mcq-grid {${mcqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
+    /* The card is the question and nothing else: no padding, no margin of its
+       own and no rule under it. */
     .mcq-card {
-      padding: 4px;
-      margin-bottom: 4px;
-      border-bottom: 1px dashed var(--border);
       orphans: 2;
       widows: 2;
     }
@@ -1321,10 +1340,12 @@ class HighSchoolExportService {
          the block sits inside a half-page column. */
       grid-template-columns: ${mcqLayout.isDouble ? '1fr' : '1fr 1fr'};
       /* No gap between the rows of options, so they sit as one tight stack
-         under their question. The columns keep their gutter — 16px, the same
-         12pt the PDF leaves between two options on a line. */
-      gap: 0 16px;
-      padding-left: 16px;
+         under their question. The columns keep a small gutter, 6px, and the
+         indent under the question number is 8px. Both are read back by the
+         fitting script, which measures the room with `paddingLeft` and the
+         gutter with `columnGap`, so they may be changed here alone. */
+      gap: 0 6px;
+      padding-left: 6px;
       font-size: ${_cssFontSize(15, fontStep)};
     }
     .rq-grid {${rqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
@@ -1357,7 +1378,7 @@ class HighSchoolExportService {
         min-height: 0;
         box-shadow: none;
         border-radius: 0;
-        padding: 18pt 40pt 18px;
+        padding: 18pt 28pt 18px;
       }
       .paper-sheet + .paper-sheet { break-before: page; margin-top: 0; }
     }
@@ -1671,6 +1692,22 @@ class HighSchoolExportService {
     }
   }
 
+  /// Whether a sheet — or one set of it — still has blocks worth declaring.
+  ///
+  /// A sheet that holds a single type of question has nothing to tell apart, so
+  /// its lone «ক-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)» bar is dropped and the
+  /// questions print on their own. The instruction line under the bar stays: it
+  /// is a directive, not a label. Every writer asks this of its own questions,
+  /// so a paper with one block declares nothing in any export — and in the PDF.
+  static bool _declaresSections(List<HighSchoolQuestion> questions) {
+    final kinds = <PaperSection>{};
+    for (final q in questions) {
+      final kind = _sectionOf(q);
+      if (kind != null) kinds.add(kind);
+    }
+    return kinds.length > 1;
+  }
+
   /// One set of the paper: its masthead, then every block in the reader's order.
   ///
   /// The sheet holds each set in a `.paper-set` of its own so the script at the
@@ -1709,6 +1746,10 @@ class HighSchoolExportService {
       </div>
 ''');
 
+    // What this set has to declare. A set carrying a single type of question
+    // gets no bar; see [_declaresSections].
+    final declares = _declaresSections(questions);
+
     for (var i = 0; i < sections.length; i++) {
       final kind = sections[i];
       final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
@@ -1717,7 +1758,9 @@ class HighSchoolExportService {
       // letters they have in the other set.
       if (inSection.isEmpty) continue;
 
-      final heading = _sectionHeading(kind, i);
+      // A set with one type of question declares nothing — see
+      // [_declaresSections] — but keeps the letters its positions give it.
+      final heading = declares ? _sectionHeading(kind, i) : '';
 
       // CQ and the short questions are neighbours on a two-column sheet: one
       // flow for both, so the second type begins exactly where the first one
@@ -1772,6 +1815,14 @@ class HighSchoolExportService {
     String heading, {
     required bool inFlow,
   }) {
+    if (heading.isEmpty) {
+      // Nothing to declare: the sheet holds one type of question. The air the
+      // bar took is kept so the block does not start flush against the masthead
+      // — an in-flow block gets that air from its container already, and a bar
+      // inside the flow would have sat in the first column only.
+      if (!inFlow) buffer.write('    <div class="section-gap"></div>\n');
+      return;
+    }
     buffer.write(inFlow
         ? '      <div class="section-banner in-flow">${_escapeXml(heading)}</div>\n'
         : '    <div class="section-banner">${_escapeXml(heading)}</div>\n');
@@ -1880,7 +1931,7 @@ class HighSchoolExportService {
       buffer.write('''
     <div class="cq-card" title="${_idTooltip(q)}">
       <div class="cq-stem">
-        <b>$index.</b> ${latexToHtml(_escapeXml(q.paperStemText))}
+        <b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
         ${q.boardYearTag.isNotEmpty ? '<small style="color:var(--muted);"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
       </div>
       ${_stemImageMarkup(q, size: imageSize, usePoints: false)}
@@ -1888,7 +1939,7 @@ class HighSchoolExportService {
       for (final sq in q.cqSubQuestions) {
         buffer.write('''
       <div class="cq-sub-item">
-        <div><b>(${_escapeXml(sq.label)})</b> ${latexToHtml(_escapeXml(sq.text))}</div>
+        <div><b>(${_escapeXml(sq.label)})</b> ${_htmlText(sq.text, latex: true)}</div>
         <div class="cq-mark">${sq.mark > 0 ? '[${sq.mark}]' : ''}</div>
       </div>
 ''');
@@ -1903,8 +1954,9 @@ class HighSchoolExportService {
   ///
   /// MCQs written under one উদ্দীপক share it: the intro and its figure print once,
   /// over the first question of the group, and the questions under it print bare.
-  /// The grouping is by consecutive identical stem text, so the sheet says which
-  /// questions belong together simply by repeating the intro on each row.
+  /// The grouping is by consecutive identical stem text and figure, so the sheet
+  /// says which questions belong together simply by repeating the intro on each
+  /// row.
   static void _writeHtmlMcqSection(
     StringBuffer buffer,
     List<HighSchoolQuestion> mcqs,
@@ -1940,11 +1992,11 @@ class HighSchoolExportService {
 ''');
       if (opensStem) {
         buffer.write('''
-          <div class="mcq-stem">${latexToHtml(_escapeXml(q.mcqStemText))}${_stemImageMarkup(q, size: imageSize, usePoints: false)}</div>
+          <div class="mcq-stem">${_htmlText(q.mcqStemText, latex: true)}${_stemImageMarkup(q, size: imageSize, usePoints: false)}</div>
 ''');
       }
       buffer.write('''
-          <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
+          <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
         </div>
         <div class="mcq-options" data-fit="1">
 ''');
@@ -1953,7 +2005,7 @@ class HighSchoolExportService {
         final l =
             opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
         buffer.write('''
-          <div>($l) ${_escapeXml(options[opt])}</div>
+          <div>($l) ${_htmlText(options[opt])}</div>
 ''');
       }
       buffer.write('''
@@ -2009,7 +2061,7 @@ class HighSchoolExportService {
       if (data == null || data.text.trim().isEmpty) continue;
       buffer.write('''
         <div class="rq-item" title="${_idTooltip(shorts[i])}">
-          <div><b>${i + 1}.</b> ${_escapeXml(data.text)}</div>
+          <div><b>${i + 1}.</b> ${_htmlText(data.text)}</div>
           <div class="rq-mark">[${data.mark}]</div>
         </div>
 ''');
@@ -2092,6 +2144,9 @@ class HighSchoolExportService {
     buffer.writeln('\n---\n');
 
     var printed = 0;
+    // A sheet with one type of question needs no declaration; see
+    // [_declaresSections].
+    final declares = _declaresSections(questions);
     for (var i = 0; i < sections.length; i++) {
       final kind = sections[i];
       final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
@@ -2100,7 +2155,7 @@ class HighSchoolExportService {
       if (printed > 0) buffer.writeln('---\n');
       printed++;
 
-      buffer.writeln('### ${_sectionHeading(kind, i)}\n');
+      if (declares) buffer.writeln('### ${_sectionHeading(kind, i)}\n');
       switch (kind) {
         case PaperSection.cq:
           for (int j = 0; j < inSection.length; j++) {
@@ -2273,5 +2328,19 @@ class HighSchoolExportService {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&apos;');
+  }
+
+  /// Element text for the HTML and Word writers: escaped, typeset when asked,
+  /// and carrying the writer's own line breaks.
+  ///
+  /// A question typed over several lines — the `i. … ii. … iii. …` form of an
+  /// MCQ, or a short question with a list in it — has to print the way it was
+  /// written. HTML folds a newline into a space, so the breaks came out as a
+  /// single run-on paragraph; `<br>` is what the browser wants instead, and Word
+  /// reads the same markup. The PDF never had the problem: the pdf package
+  /// breaks a span on '\n' by itself.
+  static String _htmlText(String input, {bool latex = false}) {
+    final body = latex ? latexToHtml(_escapeXml(input)) : _escapeXml(input);
+    return body.replaceAll('\n', '<br>');
   }
 }

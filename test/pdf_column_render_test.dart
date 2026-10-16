@@ -419,7 +419,12 @@ void main() {
   });
 
   test('RQ columns reach the HTML and Word exports', () {
-    final shorts = [for (var i = 1; i <= 4; i++) rq('প্রশ্ন $i', i)];
+    // Two blocks, so the sheet has something to declare: a paper holding one
+    // type of question prints no declaration at all.
+    final shorts = [
+      for (var i = 1; i <= 4; i++) rq('প্রশ্ন $i', i),
+      mcq('একটি MCQ'),
+    ];
 
     final singleHtml = ex.HighSchoolExportService.generateHtml(
         schoolName: 'S',

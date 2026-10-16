@@ -221,6 +221,14 @@ final Finder _searchBox = find.byWidgetPredicate(
   (w) => w is TextField && w.decoration?.hintText == 'অনুসন্ধান…',
 );
 
+/// The checkbox on the card whose preview text contains [text].
+Finder _checkboxFor(String text) => find.descendant(
+      of: find
+          .ancestor(of: find.textContaining(text), matching: find.byType(Row))
+          .first,
+      matching: find.byType(Checkbox),
+    );
+
 Future<void> _openPicker(WidgetTester tester) async {
   // Tall enough that the lazy ListView builds every card, so assertions are
   // about the data rather than about what happens to be on screen.
@@ -299,5 +307,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('কোনো প্রশ্ন মেলেনি'), findsOneWidget);
+  });
+
+  testWidgets('a ticked question rises to the top of its chapter',
+      (tester) async {
+    await _openPicker(tester);
+
+    double top(String text) => tester.getTopLeft(find.textContaining(text)).dy;
+
+    // A chapter reads CQ, MCQ, RQ — the short question sits last.
+    expect(top('সৃজনশীল প্রশ্ন এক'), lessThan(top('বহুনির্বাচনি প্রশ্ন এক')));
+    expect(top('বহুনির্বাচনি প্রশ্ন এক'), lessThan(top('সংক্ষিপ্ত প্রশ্ন এক')));
+
+    await tester.tap(_checkboxFor('সংক্ষিপ্ত প্রশ্ন এক'));
+    await tester.pumpAndSettle();
+
+    // Ticked, it leads its chapter; the other two keep their order.
+    expect(top('সংক্ষিপ্ত প্রশ্ন এক'), lessThan(top('সৃজনশীল প্রশ্ন এক')));
+    expect(top('সৃজনশীল প্রশ্ন এক'), lessThan(top('বহুনির্বাচনি প্রশ্ন এক')));
+
+    // The reordering is per chapter: the other one is untouched.
+    expect(top('সৃজনশীল প্রশ্ন দুই'), lessThan(top('বহুনির্বাচনি প্রশ্ন দুই')));
+    expect(top('বহুনির্বাচনি প্রশ্ন দুই'), lessThan(top('সংক্ষিপ্ত প্রশ্ন দুই')));
+
+    // Unticking puts it back where the type order wants it.
+    await tester.tap(_checkboxFor('সংক্ষিপ্ত প্রশ্ন এক'));
+    await tester.pumpAndSettle();
+    expect(top('সৃজনশীল প্রশ্ন এক'), lessThan(top('বহুনির্বাচনি প্রশ্ন এক')));
+    expect(top('বহুনির্বাচনি প্রশ্ন এক'), lessThan(top('সংক্ষিপ্ত প্রশ্ন এক')));
   });
 }

@@ -136,6 +136,11 @@ String _bodyOf(String source, String name) {
 }
 
 /// Every heading-height reservation inside [body].
+///
+/// The band is `bannerHeight` where a section always declares itself and
+/// `bandHeight` where it may not — a sheet holding one type of question
+/// declares nothing, so its band is zero. Both names are the same charge, so
+/// both count.
 List<String> chargesIn(String body) => RegExp(
-      r'flow\.consume\([^;]*?bannerHeight',
+      r'flow\.consume\([^;]*?(?:banner|band)Height',
     ).allMatches(body).map((m) => m.group(0)!).toList();

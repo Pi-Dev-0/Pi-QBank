@@ -171,7 +171,8 @@ void main() {
       expect(printed[1], contains('কোথাও নেই'));
     });
 
-    test('a single-set paper stays one set with no set name and no divider', () {
+    test('a single-set paper stays one set with no set name and no divider',
+        () {
       final html = generate([cqTest('একমাত্র প্রশ্ন')]);
 
       expect(sheets(html).length, 1);
@@ -230,8 +231,8 @@ void main() {
     });
 
     test('default to CQ, then the short questions, then MCQ', () {
-      final html = generate(
-          [cqTest('একটি CQ'), mcqTest('একটি MCQ'), rqTest('একটি SQ')]);
+      final html =
+          generate([cqTest('একটি CQ'), mcqTest('একটি MCQ'), rqTest('একটি SQ')]);
 
       expect(banners(sheets(html).single), [
         'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
@@ -243,10 +244,11 @@ void main() {
     test('a block that is empty in one set keeps its letter in the other', () {
       final withMcq = cqTest('ক-এর CQ')..setLabel = 'ক';
       final onlyShort = rqTest('খ-এর SQ')..setLabel = 'খ';
+      final alsoMcq = mcqTest('খ-এর MCQ')..setLabel = 'খ';
       final mcq = mcqTest('ক-এর MCQ')..setLabel = 'ক';
 
-      final printed =
-          sets(generate([withMcq, onlyShort, mcq], setLabels: const ['ক', 'খ']));
+      final printed = sets(generate([withMcq, onlyShort, alsoMcq, mcq],
+          setLabels: const ['ক', 'খ']));
 
       // ক has no short questions, so that block is skipped here — but the MCQ
       // block is still গ-বিভাগ, not খ: its letter comes from the paper's blocks,
@@ -255,7 +257,12 @@ void main() {
         'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
         'গ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
       ]);
-      expect(banners(printed[1]), ['খ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)']);
+      // খ holds short questions and MCQs, so both are declared — and the MCQs
+      // are গ-বিভাগ here too.
+      expect(banners(printed[1]), [
+        'খ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
+        'গ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
+      ]);
     });
   });
 
@@ -264,7 +271,8 @@ void main() {
     List<HighSchoolQuestion> mixed() =>
         [cqTest('একটি CQ'), rqTest('একটি SQ'), mcqTest('একটি MCQ')];
 
-    test('CQ and the short questions share one flow while they are next to '
+    test(
+        'CQ and the short questions share one flow while they are next to '
         'each other', () {
       final sheet = sheets(generate(
         mixed(),
@@ -336,7 +344,10 @@ void main() {
     });
 
     test('a two-column block declares itself inside its first column', () {
-      final sheet = sheets(generate([cqTest('একটি CQ')],
+      // Two blocks, so the sheet has something to declare — a sheet of one type
+      // prints no declaration at all. The MCQ block is in its own columns too,
+      // so neither bar sits across the page.
+      final sheet = sheets(generate([cqTest('একটি CQ'), mcqTest('একটি MCQ')],
               cqLayout: QuestionLayout.doubleColumn))
           .single;
 
@@ -350,7 +361,9 @@ void main() {
     });
 
     test('a single-column block declares itself across the page', () {
-      final sheet = sheets(generate([cqTest('একটি CQ')])).single;
+      // Two single-column blocks: each bar spans the page, above its own block.
+      final sheet =
+          sheets(generate([cqTest('একটি CQ'), rqTest('একটি SQ')])).single;
 
       expect(
           sheet,

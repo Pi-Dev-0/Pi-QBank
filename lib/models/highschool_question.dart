@@ -409,10 +409,18 @@ class HighSchoolQuestion {
   /// An MCQ keeps its own line in the sub-question payload and borrows
   /// [stemText] — and [stemImageUrl] — for the intro and figure above it:
   /// "নিচের তথ্য থেকে ২৬ ও ২৭ নং প্রশ্নের উত্তর দাও।". Two questions written
-  /// under one intro therefore carry the same text, which is what
-  /// [opensMcqStemGroup] reads. Empty for every other type, and for an MCQ that
-  /// has no intro of its own.
+  /// under one intro therefore carry the same text — and, when the intro has a
+  /// figure, the same [mcqStemImageUrl] — which is what [opensMcqStemGroup]
+  /// reads. Empty for every other type, and for an MCQ that has no intro of its
+  /// own.
   String get mcqStemText => isMcq ? paperStemText.trim() : '';
+
+  /// The figure that belongs to the উদ্দীপক, as printed.
+  ///
+  /// An intro is a wording *and* the figure printed under it, so the figure is
+  /// read off [stemImageUrl] the way the wording is read off [stemText]. Empty
+  /// for every other type, and for an intro that carries no figure.
+  String get mcqStemImageUrl => isMcq ? stemImageUrl.trim() : '';
 
   /// True when this question prints the উদ্দীপক itself.
   ///
@@ -428,12 +436,22 @@ class HighSchoolQuestion {
   /// True when [previous] already printed this question's উদ্দীপক, so all this
   /// one has to do is follow it.
   ///
+  /// The intro is a wording and the figure that goes with it, so the two
+  /// questions share only while both match. A question that carries no figure
+  /// of its own is the soft spot: it follows on the wording alone, which is how
+  /// a run written under one figure is filed. A question that *does* carry one
+  /// joins only an intro carrying the same figure — the same wording over two
+  /// different figures is two intros, and reading them as one silently drops
+  /// the second figure from the paper.
+  ///
   /// The mirror of [opensMcqStemGroup], and the reason a two-set shuffle moves
   /// whole groups rather than single questions: a question that shares an intro
   /// must not be moved away from the one that printed it. A question with no
   /// intro of its own shares nothing, however the question before it reads.
   bool sharesMcqStemWith(HighSchoolQuestion? previous) =>
-      mcqStemText.isNotEmpty && previous?.mcqStemText == mcqStemText;
+      mcqStemText.isNotEmpty &&
+      previous?.mcqStemText == mcqStemText &&
+      (mcqStemImageUrl.isEmpty || previous?.mcqStemImageUrl == mcqStemImageUrl);
 
   /// Words that appear in this sheet only as the source of a question.
   static const _sourceWords = <String>[
