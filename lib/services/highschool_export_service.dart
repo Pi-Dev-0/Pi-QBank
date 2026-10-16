@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -119,6 +120,89 @@ extension QuestionLayoutMetrics on QuestionLayout {
   String get description => isDouble
       ? 'প্রতি সারিতে দুটি MCQ — কম পেজ, ছোট প্রশ্নপত্র'
       : 'প্রতি সারিতে একটি MCQ — প্রশ্ন ও অপশন সরল দেখা যায়';
+}
+
+/// A Bangla face a paper can be printed in.
+///
+/// The PDF stands apart: it sets Bangla through SutonnyMJ, a Bijoy-ANSI face
+/// with a text pipeline of its own, so this choice reaches the HTML sheet and
+/// the Word file, not the PDF.
+///
+/// [family] is the name a stylesheet asks for first. [google] is the Google
+/// Fonts family that supplies it over the network when the machine reading the
+/// file does not have it installed; a face with no [google] entry is one the
+/// machine has to have (Kalpurush and SolaimanLipi ship with the Bangla typing
+/// tools teachers already use). Every stack ends in Hind Siliguri, which is
+/// always fetched, so the paper prints in something readable either way.
+enum PaperFont {
+  hindSiliguri('হিন্দ শিলিগুড়ি', 'Hind Siliguri',
+      google: 'Hind+Siliguri:wght@400;500;600;700'),
+  notoSansBengali('নোটো সানস বাংলা', 'Noto Sans Bengali',
+      google: 'Noto+Sans+Bengali:wght@400;500;600;700'),
+  notoSerifBengali('নোটো সেরিফ বাংলা', 'Noto Serif Bengali',
+      google: 'Noto+Serif+Bengali:wght@400;500;600;700'),
+  balooDa('বালু দা ২ (গোলাকার)', 'Baloo Da 2',
+      google: 'Baloo+Da+2:wght@400;500;600;700'),
+  mina('মিনা (চওড়া)', 'Mina', google: 'Mina:wght@400;700'),
+  kalpurush('কলপুরুষ (Kalpurush)', 'Kalpurush'),
+  solaimanLipi('সলাইমানলিপি (SolaimanLipi)', 'SolaimanLipi'),
+  nirmalaUi('নির্মলা ইউআই (Nirmala UI)', 'Nirmala UI');
+
+  const PaperFont(this.label, this.family, {this.google = ''});
+
+  /// What the picker shows the reader.
+  final String label;
+
+  /// The face's own name, without quotes — the first name in every stack and
+  /// the name a Word file asks for.
+  final String family;
+
+  /// The Google Fonts family query for this face, or empty when it has to be
+  /// installed on the machine that opens the file.
+  final String google;
+
+  /// Whether reading the file means downloading this face.
+  bool get isWebFont => google.isNotEmpty;
+
+  /// The `font-family` a stylesheet sets: the chosen face, then the Bangla
+  /// faces a machine is most likely to have, then Hind Siliguri.
+  ///
+  /// The chosen face is dropped from the fall-backs, so picking Hind Siliguri
+  /// gives the stack the sheet has always had.
+  String get cssStack => [
+        "'$family'",
+        for (final fallback in const ['SolaimanLipi', 'Hind Siliguri'])
+          if (fallback != family) "'$fallback'",
+        'sans-serif',
+      ].join(', ');
+
+  /// The family list a Word file asks for. Word looks for the first face on this
+  /// machine, and Kalpurush is the one it is most likely to find — a Word export
+  /// from before the picker existed named it first, and it still supplies the
+  /// paper wherever Hind Siliguri is not installed.
+  String get wordStack => [
+        "'$family'",
+        for (final fallback in const [
+          'Kalpurush',
+          'SolaimanLipi',
+          'Nirmala UI',
+          'Vrinda',
+          'Times New Roman',
+        ])
+          if (fallback != family) "'$fallback'",
+        'serif',
+      ].join(', ');
+
+  /// The Google Fonts families the sheet has to *fetch* for [font]: the face
+  /// itself when it is a web font, plus Hind Siliguri — which every stack falls
+  /// back to, and which is the one face that is always fetched.
+  static List<String> webFamiliesOf(PaperFont font) {
+    const hindSiliguriFamily = 'Hind+Siliguri:wght@400;500;600;700';
+    return [
+      if (font.isWebFont && font.google != hindSiliguriFamily) font.google,
+      hindSiliguriFamily,
+    ];
+  }
 }
 
 /// One of the blocks a question paper is divided into.
@@ -321,7 +405,7 @@ class HighSchoolExportService {
         time: time,
         totalMarks: totalMarks,
         setLabel: labels.isEmpty ? '' : labels[s],
-        questions: _questionsForSet(questions, labels, s),
+        questions: questionsForSet(questions, labels, s),
         sections: sections,
         imageSize: imageSize,
       );
@@ -458,6 +542,9 @@ class HighSchoolExportService {
     QuestionLayout cqLayout = QuestionLayout.single,
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
+
+    /// The face the document is set in, as in the HTML sheet; see [PaperFont].
+    PaperFont font = PaperFont.hindSiliguri,
   }) {
     final labels = _setLabelsOf(setLabels);
 
@@ -488,7 +575,7 @@ class HighSchoolExportService {
     }
     div.Section1 { page: Section1; }
     body {
-      font-family: 'Kalpurush', 'SolaimanLipi', 'Nirmala UI', 'Vrinda', 'Times New Roman', serif;
+      font-family: ${font.wordStack};
       font-size: 11pt;
       line-height: 1.45;
       color: #000000;
@@ -644,7 +731,7 @@ class HighSchoolExportService {
         time: time,
         totalMarks: totalMarks,
         setLabel: labels.isEmpty ? '' : labels[s],
-        questions: _questionsForSet(questions, labels, s),
+        questions: questionsForSet(questions, labels, s),
         sections: sections,
         imageBytes: imageBytes,
         imageSize: imageSize,
@@ -941,6 +1028,10 @@ class HighSchoolExportService {
     QuestionLayout rqLayout = QuestionLayout.single,
     double fontStep = 0,
 
+    /// The face the sheet is set in. Fetched from Google Fonts when it is a web
+    /// font, and fallen back on when it is not; see [PaperFont].
+    PaperFont font = PaperFont.hindSiliguri,
+
     /// Lay the sheet out for a desktop-width window instead of the device's own
     /// width. The live preview asks for this; see [desktopViewport] below.
     bool desktopMode = false,
@@ -952,7 +1043,7 @@ class HighSchoolExportService {
     final labels = _setLabelsOf(setLabels);
     final sets = <List<HighSchoolQuestion>>[
       for (var i = 0; i < (labels.isEmpty ? 1 : labels.length); i++)
-        _questionsForSet(questions, labels, i),
+        questionsForSet(questions, labels, i),
     ];
 
     // The blocks the paper actually has, in the order the reader arranged them.
@@ -984,6 +1075,12 @@ class HighSchoolExportService {
     // to fit the screen. The exported file keeps the device width.
     const desktopViewport = 'width=900';
 
+    // The faces the sheet fetches: the chosen one, when the browser cannot be
+    // expected to have it, and Hind Siliguri, which every stack falls back to.
+    final fontQuery = [
+      for (final family in PaperFont.webFamiliesOf(font)) 'family=$family',
+    ].join('&');
+
     final buffer = StringBuffer();
     buffer.write('''
 <!DOCTYPE html>
@@ -992,7 +1089,7 @@ class HighSchoolExportService {
   <meta charset="UTF-8">
   <meta name="viewport" content="${desktopMode ? desktopViewport : 'width=device-width, initial-scale=1.0'}">
   <title>${_escapeXml(examName.isEmpty ? 'Question Paper' : examName)} - Pi-QBank</title>
-  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?$fontQuery&display=swap" rel="stylesheet">
   <style>
     :root {
       --primary: #4f46e5;
@@ -1005,7 +1102,7 @@ class HighSchoolExportService {
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Hind Siliguri', 'SolaimanLipi', sans-serif;
+      font-family: ${font.cssStack};
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
@@ -1167,19 +1264,30 @@ class HighSchoolExportService {
     .mcq-grid {${mcqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
     .mcq-card {
-      padding: 12px;
-      margin-bottom: 12px;
+      padding: 4px;
+      margin-bottom: 4px;
       border-bottom: 1px dashed var(--border);
       orphans: 2;
       widows: 2;
     }
+    /* The question and its options are one block of text, set at one size: the
+       PDF draws both from the same style, and an option smaller than the
+       question it belongs to reads as a footnote to it. */
+    .mcq-question { font-size: ${_cssFontSize(15, fontStep)}; }
     .mcq-options {
       display: grid;
+      /* The script below measures the options and gives them four to a line, two
+         or one, whichever the room allows — in a narrow column just as in a
+         full-width block. This is what prints if the file is opened with scripts
+         turned off: two per row where there is a page's width, one per row where
+         the block sits inside a half-page column. */
       grid-template-columns: ${mcqLayout.isDouble ? '1fr' : '1fr 1fr'};
-      gap: 6px 16px;
-      margin-top: 6px;
+      /* No gap between the rows of options, so they sit as one tight stack
+         under their question. The columns keep their gutter — 16px, the same
+         12pt the PDF leaves between two options on a line. */
+      gap: 0 16px;
       padding-left: 16px;
-      font-size: ${_cssFontSize(14, fontStep)};
+      font-size: ${_cssFontSize(15, fontStep)};
     }
     .rq-grid {${rqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
@@ -1271,6 +1379,60 @@ class HighSchoolExportService {
        between the sets, so the second one reaches the foot of the page instead
        of leaving a band of white under it. */
     (function () {
+      /* The MCQ options sit in a grid: all four on one line where the four of
+         them fit, two lines of two where they do not, and one per line where
+         even two will not sit side by side. Which of the three it is cannot be
+         written in a stylesheet — it depends on how wide the options turn out
+         to be — so the file measures them. This runs before the two-set
+         decision, which measures the heights this choice decides. */
+      function fitOptions() {
+        var lists = document.querySelectorAll('.mcq-options[data-fit]');
+        for (var i = 0; i < lists.length; i++) {
+          var list = lists[i];
+          var cells = Array.prototype.slice.call(list.children);
+          // One option, or none: there is nothing to fit.
+          if (cells.length < 2) continue;
+
+          var style = getComputedStyle(list);
+          var room = list.clientWidth - parseFloat(style.paddingLeft) -
+              parseFloat(style.paddingRight);
+          var gutter = parseFloat(style.columnGap) || 0;
+          var wanted = cells.map(function (cell) {
+            return wantedWidth(cell, style.fontSize);
+          });
+
+          var counts = [4, 2, 1];
+          for (var c = 0; c < counts.length; c++) {
+            var count = counts[c];
+            if (count > wanted.length) continue;
+            var cell = (room - (count - 1) * gutter) / count;
+            var fits = wanted.every(function (width) {
+              return width <= cell;
+            });
+            // A smaller count always gives every option more room, so one per
+            // line always fits and the search ends there.
+            if (fits) {
+              list.style.gridTemplateColumns = 'repeat(' + count + ', 1fr)';
+              break;
+            }
+          }
+        }
+      }
+
+      /* How wide one option wants to be unwrapped: the same text, at the size
+         the options print at, in a plain box out of the flow. */
+      function wantedWidth(cell, fontSize) {
+        var probe = document.createElement('span');
+        probe.style.cssText = 'position:absolute;left:-10000px;top:0;' +
+            'white-space:nowrap;visibility:hidden;margin:0;padding:0;' +
+            'font-size:' + fontSize + ';';
+        probe.textContent = cell.textContent;
+        document.body.appendChild(probe);
+        var width = probe.getBoundingClientRect().width;
+        probe.parentNode.removeChild(probe);
+        return width;
+      }
+
       function decide() {
         var sheet = document.querySelector('.paper-sheet');
         if (!sheet) return;
@@ -1327,10 +1489,15 @@ class HighSchoolExportService {
       }
 
       function run() {
-        // Fonts and images decide how tall a set is, so wait for both.
+        // Fonts and images decide how wide a line is and how tall a set is, so
+        // wait for both before measuring anything.
         if (document.fonts && document.fonts.ready) {
-          document.fonts.ready.then(decide);
+          document.fonts.ready.then(function () {
+            fitOptions();
+            decide();
+          });
         } else {
+          fitOptions();
           decide();
         }
       }
@@ -1354,23 +1521,63 @@ class HighSchoolExportService {
     return null;
   }
 
-  /// The questions of set [index], out of a paper printed with [labels].
+  /// The questions printed on the paper of set [index], out of a paper printed
+  /// with [labels].
   ///
   /// Without labels there is one set and every question belongs to it.
   ///
   /// An unlabelled question belongs to *every* set: it is a question the reader
   /// selected but never filed away, and both papers should still carry it —
   /// dropping it would lose it from the paper altogether.
-  static List<HighSchoolQuestion> _questionsForSet(
+  ///
+  /// A set that would come out empty takes the whole paper instead. That is the
+  /// "সব প্রশ্ন প্রথম সেটে" case: the reader wants two copies of one set of
+  /// questions, not one copy and a blank sheet. The copy's MCQs come in a
+  /// different order — two papers handed out in the same room should not have
+  /// the answers in the same places — while every other question keeps the
+  /// order it was selected in. The first paper is never reordered.
+  static List<HighSchoolQuestion> questionsForSet(
     List<HighSchoolQuestion> questions,
     List<String> labels,
     int index,
   ) {
     if (labels.isEmpty) return questions;
-    return questions
+    final mine = questions
         .where((q) => q.setLabel.trim().isEmpty || q.setLabel == labels[index])
         .toList();
+    if (mine.isNotEmpty) return mine;
+    if (index == 0) return questions;
+    return _mcqsReshuffled(questions, index);
   }
+
+  /// The paper with its MCQs in a different order, everything else untouched.
+  ///
+  /// Seeded rather than random: the sheet, the PDF and the Word file are three
+  /// exports of one paper and have to print the same order. Every MCQ moves, so
+  /// no question sits in the same place on both papers.
+  static List<HighSchoolQuestion> _mcqsReshuffled(
+    List<HighSchoolQuestion> questions,
+    int index,
+  ) {
+    final mcqs = [
+      for (final q in questions)
+        if (q.isMcq) q,
+    ];
+    if (mcqs.length < 2) return questions;
+    mcqs.shuffle(Random(_mcqShuffleSeed + index));
+
+    // Hand the MCQs their shuffled order back in the places they already hold,
+    // so the creative and short questions keep their own order.
+    final next = [...mcqs];
+    return [
+      for (final q in questions)
+        if (q.isMcq) next.removeAt(0) else q,
+    ];
+  }
+
+  /// Seed for [_mcqsReshuffled]: any fixed number, so the shuffle is the same
+  /// in every export of a paper.
+  static const int _mcqShuffleSeed = 8137;
 
   /// The paper's blocks, in the reader's order.
   ///
@@ -1664,8 +1871,8 @@ class HighSchoolExportService {
 
       buffer.write('''
       <div class="mcq-card">
-        <div><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
-        <div class="mcq-options">
+        <div class="mcq-question"><b>$index.</b> ${_escapeXml(q.paperQuestionText)}</div>
+        <div class="mcq-options" data-fit="1">
 ''');
       final options = mcq.options;
       for (int opt = 0; opt < options.length; opt++) {
@@ -1763,7 +1970,7 @@ class HighSchoolExportService {
         time: time,
         totalMarks: totalMarks,
         setLabel: labels.isEmpty ? '' : labels[s],
-        questions: _questionsForSet(questions, labels, s),
+        questions: questionsForSet(questions, labels, s),
         sections: sections,
         imageSize: imageSize,
       );

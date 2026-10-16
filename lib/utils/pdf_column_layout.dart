@@ -328,13 +328,57 @@ class PdfLayout {
     return parts;
   }
 
+  /// How many MCQ options share a row.
+  ///
+  /// Four to a row is how the papers teachers already hand out set them, and it
+  /// is what the sheet does too when all four fit. Too wide together, the four
+  /// fall to two rows of two; too wide even for that, every option takes a line
+  /// of its own. Nothing in between — three and a half-width one below reads as
+  /// a mistake, not as a layout.
+  ///
+  /// The width alone decides, so a narrow column is treated the same way as a
+  /// full-width block: short answers still pair up inside it, and only options
+  /// that will not sit side by side go one to a line.
+  ///
+  /// Measured rather than guessed, because the answer depends on the text. The
+  /// estimator and the item both ask this question, so the room budgeted for a
+  /// question and the room it takes are decided by the same arithmetic.
+  static int mcqOptionsPerRow({
+    required List<String> options,
+    required double columnWidth,
+    required PdfTextMetrics metrics,
+    double fontStep = 0,
+  }) {
+    if (options.length < 2) return 1;
+
+    final body = bodyFontSize + fontStep;
+    final available = columnWidth - mcqOptionIndent;
+    final widths = [
+      for (var i = 0; i < options.length; i++)
+        metrics.textWidth(mcqOptionText(i, options[i]), fontSize: body),
+    ];
+
+    // A smaller count always gives every option more room, so one per row always
+    // fits and the search ends there.
+    for (final perRow in const [4, 2, 1]) {
+      if (perRow > options.length) continue;
+      final cell = (available - (perRow - 1) * mcqOptionGap) / perRow;
+      if (widths.every((wanted) => wanted <= cell)) return perRow;
+    }
+    return 1;
+  }
+
+  /// One MCQ option exactly as the estimator measures it and the item prints it:
+  /// the letter in brackets, then the text.
+  static String mcqOptionText(int index, String option) =>
+      '(${_mcqLetter(index)}) $option';
+
   /// Rendered height of an MCQ question, including the rule that follows it.
   static double mcqHeight({
     required int index,
     required HighSchoolQuestion question,
     required double columnWidth,
     required PdfTextMetrics metrics,
-    required bool stackOptions,
     double fontStep = 0,
   }) =>
       mcqFragments(
@@ -342,22 +386,20 @@ class PdfLayout {
         question: question,
         columnWidth: columnWidth,
         metrics: metrics,
-        stackOptions: stackOptions,
         fontStep: fontStep,
       ).fold<double>(0, (sum, h) => sum + h);
 
   /// The MCQ question broken into the chunks it can be split at: the stem, then
   /// one chunk per row of options.
   ///
-  /// Chunking by *row* rather than by option matters — the builder lays options
-  /// out two-per-row in single-column mode and one-per-row in double, so a
+  /// Chunking by *row* rather than by option matters — how many options share a
+  /// row is measured from the room they have (see [mcqOptionsPerRow]), so a
   /// chunk is only ever cut the way the card is actually drawn.
   static List<double> mcqFragments({
     required int index,
     required HighSchoolQuestion question,
     required double columnWidth,
     required PdfTextMetrics metrics,
-    required bool stackOptions,
     double fontStep = 0,
   }) {
     final mcq = question.mcqData;
@@ -371,9 +413,14 @@ class PdfLayout {
           width: columnWidth, fontSize: body)
     ];
 
-    // A half-width cell cannot fit two options side by side, so double-column
-    // mode stacks them one per row.
-    final perRow = stackOptions ? 1 : 2;
+    // Four options to a row where they fit, two where they do not, one where
+    // even two will not sit side by side.
+    final perRow = mcqOptionsPerRow(
+      options: mcq.options,
+      columnWidth: columnWidth,
+      metrics: metrics,
+      fontStep: fontStep,
+    );
     final available = columnWidth - mcqOptionIndent;
 
     for (int i = 0; i < mcq.options.length; i += perRow) {
@@ -384,7 +431,7 @@ class PdfLayout {
 
         final gutters = perRow > 1 ? (perRow - 1) * mcqOptionGap : 0.0;
         final h = metrics.blockHeight(
-          '${_mcqLetter(idx)} ${mcq.options[idx]}',
+          mcqOptionText(idx, mcq.options[idx]),
           width: (available - gutters) / perRow,
           fontSize: body,
         );

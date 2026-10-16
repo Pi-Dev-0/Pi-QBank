@@ -122,8 +122,7 @@ void main() {
     test('Latin in a Bangla line raises it to the Latin box', () {
       // Latin drops the descent below the baseline, so the line spans the full
       // Helvetica box even though the Bangla words alone are shorter.
-      expect(m.lineHeight('সংখ্যা এবং x', fontSize: 11),
-          closeTo(12.716, 0.01));
+      expect(m.lineHeight('সংখ্যা এবং x', fontSize: 11), closeTo(12.716, 0.01));
       expect(m.lineHeight('সংখ্যা এবং x', fontSize: 11),
           greaterThan(m.lineHeight('সংখ্যা এবং', fontSize: 11)));
     });
@@ -303,7 +302,9 @@ void main() {
           'board_year_tag': '',
         });
 
-    HighSchoolQuestion mcq(String text) => HighSchoolQuestion.fromJson({
+    HighSchoolQuestion mcq(String text,
+            {List<String> options = const ['৪', '৫', '৬', '৭']}) =>
+        HighSchoolQuestion.fromJson({
           'id': 'm',
           'class': 'Class (9-10) SSC',
           'subject': 'গণিত',
@@ -314,8 +315,8 @@ void main() {
           'stem_image_url': '',
           'sub_questions_json': {
             'text': text,
-            'options': ['৪', '৫', '৬', '৭'],
-            'correct_ans': '৫',
+            'options': options,
+            'correct_ans': options[1],
           },
           'board_year_tag': '',
         });
@@ -411,36 +412,52 @@ void main() {
       expect(hidden, noImage);
     });
 
-    test('stacking MCQ options makes them taller', () {
-      final q = mcq('নিচের কোনটি সঠিক?');
-      final sideBySide = PdfLayout.mcqHeight(
+    test('a narrow column wraps what a full-width line takes whole', () {
+      // Answers that fit four to a line across the page need two lines inside a
+      // half-page column, so the narrow card is taller — the cost of the
+      // two-column layout.
+      const words = [
+        'বর্গক্ষেত্র',
+        'আয়তক্ষেত্র',
+        'সামান্তরিক',
+        'ট্রাপিজিয়াম'
+      ];
+      final wide = PdfLayout.mcqHeight(
           index: 1,
-          question: q,
+          question: mcq('নিচের কোনটি চতুর্ভুজ?', options: words),
           columnWidth: PdfLayout.columnWidth(1),
-          metrics: m,
-          stackOptions: false);
-      final stacked = PdfLayout.mcqHeight(
+          metrics: m);
+      final narrow = PdfLayout.mcqHeight(
           index: 1,
-          question: q,
+          question: mcq('নিচের কোনটি চতুর্ভুজ?', options: words),
           columnWidth: PdfLayout.columnWidth(2),
-          metrics: m,
-          stackOptions: true);
-      expect(stacked, greaterThan(sideBySide));
+          metrics: m);
+      expect(narrow, greaterThan(wide));
+
+      // The one-word answers most papers use cost nothing extra: a half-page
+      // column still holds all four of them on a single line.
+      expect(
+        PdfLayout.mcqHeight(
+            index: 1,
+            question: mcq('নিচের কোনটি সঠিক?'),
+            columnWidth: PdfLayout.columnWidth(2),
+            metrics: m),
+        PdfLayout.mcqHeight(
+            index: 1,
+            question: mcq('নিচের কোনটি সঠিক?'),
+            columnWidth: PdfLayout.columnWidth(1),
+            metrics: m),
+      );
     });
 
     test('longer question text measures taller', () {
       final short = PdfLayout.mcqHeight(
-          index: 1,
-          question: mcq('২+২ কত?'),
-          columnWidth: 250,
-          metrics: m,
-          stackOptions: true);
+          index: 1, question: mcq('২+২ কত?'), columnWidth: 250, metrics: m);
       final long = PdfLayout.mcqHeight(
           index: 1,
           question: mcq(List.filled(30, 'দীর্ঘ প্রশ্ন').join(' ')),
           columnWidth: 250,
-          metrics: m,
-          stackOptions: true);
+          metrics: m);
       // The four stacked options dominate both totals, so the stem's extra
       // wrapping shows up as a clear but not dramatic increase. The extra lines
       // here are Bangla-only, and a Bangla-only line advances by the Bangla
@@ -490,8 +507,7 @@ void main() {
                   index: i + 1,
                   question: questions[i],
                   columnWidth: 250,
-                  metrics: m,
-                  stackOptions: true)
+                  metrics: m)
       ];
 
       final groups = balanceColumns(heights: heights, columns: 2);
@@ -776,13 +792,17 @@ void main() {
       // headings 14 and 15) that packed that way.
       const paper = <List<double>>[
         [14, 25.2],
-        [0, 111.0], [0, 74.0],
-        [1, 148.3], [1, 98.9],
-        [2, 116.9], [2, 77.9],
+        [0, 111.0],
+        [0, 74.0],
+        [1, 148.3],
+        [1, 98.9],
+        [2, 116.9],
+        [2, 77.9],
         [3, 44.2],
         [4, 120.4],
         [5, 201.9],
-        [6, 148.0], [6, 98.7],
+        [6, 148.0],
+        [6, 98.7],
         [15, 20.1],
         [7, 166.7],
         [8, 238.2],
@@ -798,11 +818,10 @@ void main() {
         for (final piece in paper)
           () {
             final id = piece[0].toInt();
-            final index = seenInQuestion.update(id, (n) => n + 1,
-                ifAbsent: () => 0);
+            final index =
+                seenInQuestion.update(id, (n) => n + 1, ifAbsent: () => 0);
             // How many pieces the question has, so `isLast` is right.
-            final total =
-                paper.where((p) => p[0].toInt() == id).length;
+            final total = paper.where((p) => p[0].toInt() == id).length;
             return PdfFlowFragment(
                 height: piece[1],
                 question: id,

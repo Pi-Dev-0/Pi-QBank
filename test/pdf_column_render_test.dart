@@ -181,7 +181,6 @@ Future<List<int>> render(
       buildPdfTextSpan(t, style ?? base);
 
   final width = PdfLayout.columnWidth(columns);
-  final stackOptions = columns > 1;
 
   final heights = <double>[];
   for (var i = 0; i < questions.length; i++) {
@@ -199,8 +198,7 @@ Future<List<int>> render(
                 index: i + 1,
                 question: questions[i],
                 columnWidth: width,
-                metrics: metrics,
-                stackOptions: stackOptions) +
+                metrics: metrics) +
             0);
   }
 
@@ -276,8 +274,13 @@ Future<List<int>> render(
     }
 
     final m = q.mcqData!;
-    const letters = ['ক', 'খ', 'গ', 'ঘ'];
-    final perRow = stackOptions ? 1 : 2;
+    // The same rule the item and the estimator use: what is drawn here has to be
+    // the card that was budgeted for, or the render proves nothing.
+    final perRow = PdfLayout.mcqOptionsPerRow(
+      options: m.options,
+      columnWidth: width,
+      metrics: metrics,
+    );
     final rows = <pw.Widget>[];
     for (int i = 0; i < m.options.length; i += perRow) {
       final cells = <pw.Widget>[];
@@ -286,13 +289,14 @@ Future<List<int>> render(
         if (j >= m.options.length) break;
         cells.add(pw.Expanded(
             child: pw.RichText(
-                text: mixed('(${letters[j]}) ${m.options[j]}', base))));
+                text: mixed(PdfLayout.mcqOptionText(j, m.options[j]), base))));
         if (c < perRow - 1 && j + 1 < m.options.length) {
-          cells.add(pw.SizedBox(width: 12));
+          cells.add(pw.SizedBox(width: PdfLayout.mcqOptionGap));
         }
       }
       rows.add(pw.Padding(
-        padding: const pw.EdgeInsets.only(left: 10, top: 2),
+        padding: const pw.EdgeInsets.only(
+            left: PdfLayout.mcqOptionIndent, top: PdfLayout.mcqOptionTop),
         child: pw.Row(children: cells),
       ));
     }

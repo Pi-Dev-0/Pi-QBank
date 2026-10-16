@@ -180,6 +180,10 @@ class _HighSchoolQPaperGeneratorPageState
   /// The size a paper text style prints at: its tuned base plus [_fontStep].
   double _typeSize(double base) => base + _fontStep;
 
+  /// The face the paper is set in — the HTML sheet and the Word file; the PDF
+  /// keeps its own embedded Bijoy face. See [PaperFont].
+  PaperFont _paperFont = PaperFont.hindSiliguri;
+
   // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _stepAnim = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 400));
@@ -317,12 +321,15 @@ class _HighSchoolQPaperGeneratorPageState
       : [''];
 
   /// Selected questions belonging to the set at [index].
-  List<HighSchoolQuestion> _questionsForSet(int index) {
-    final label = _setLabels[index];
-    return _selectedQuestions
-        .where((q) => label.isEmpty || q.setLabel == label)
-        .toList();
-  }
+  ///
+  /// Shared with the exports: an empty set mirrors the whole paper rather than
+  /// printing a blank sheet, so the count shown here is the count that prints.
+  List<HighSchoolQuestion> _questionsForSet(int index) =>
+      HighSchoolExportService.questionsForSet(
+        _selectedQuestions,
+        _twoSets ? _setLabels : const [],
+        index,
+      );
 
   List<HighSchoolQuestion> get _selectedCqs =>
       _selectedQuestions.where((q) => q.isCq).toList();
@@ -636,6 +643,7 @@ class _HighSchoolQPaperGeneratorPageState
         cqLayout: _cqLayout,
         mcqLayout: _mcqLayout,
         rqLayout: _rqLayout,
+        font: _paperFont,
       );
       final file = await HighSchoolExportService.saveFile(
         content: doc,
@@ -672,6 +680,7 @@ class _HighSchoolQPaperGeneratorPageState
         mcqLayout: _mcqLayout,
         rqLayout: _rqLayout,
         fontStep: _fontStep,
+        font: _paperFont,
       );
       final file = await HighSchoolExportService.saveFile(
         content: html,
@@ -815,6 +824,7 @@ class _HighSchoolQPaperGeneratorPageState
           mcqLayout: _mcqLayout,
           rqLayout: _rqLayout,
           fontStep: _fontStep,
+          font: _paperFont,
         ),
       ),
     );
@@ -838,6 +848,7 @@ class _HighSchoolQPaperGeneratorPageState
       mcqLayout: _mcqLayout,
       rqLayout: _rqLayout,
       fontStep: _fontStep,
+      font: _paperFont,
       // Desktop-width layout, as in the in-app preview: the file opens in a
       // browser, and a phone-width one should still show the printed page.
       desktopMode: true,
@@ -1369,7 +1380,6 @@ class _HighSchoolQPaperGeneratorPageState
       final mcqInline = _inlineSectionBanner(cols, _SectionKind.mcq);
       const tickNote = '[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]';
 
-      final stackOptions = cols > 1;
       final mcqWidth = PdfLayout.columnWidth(cols);
 
       // The packer fills the foot of a page one *fragment* at a time — a stem
@@ -1386,7 +1396,6 @@ class _HighSchoolQPaperGeneratorPageState
               question: mcqs.first,
               columnWidth: mcqWidth,
               metrics: metrics,
-              stackOptions: stackOptions,
               fontStep: _fontStep,
             );
 
@@ -1433,7 +1442,6 @@ class _HighSchoolQPaperGeneratorPageState
           question: mcqs[i],
           columnWidth: mcqWidth,
           metrics: metrics,
-          stackOptions: stackOptions,
           fontStep: _fontStep,
         );
         for (var p = 0; p < parts.length; p++) {
@@ -1458,7 +1466,10 @@ class _HighSchoolQPaperGeneratorPageState
             column,
             itemBuilder: (qIndex, from, to) => _buildPdfMcqItem(
                 qIndex + 1, mcqs[qIndex], baseStyle,
-                stackOptions: stackOptions, partFrom: from, partTo: to),
+                columnWidth: mcqWidth,
+                metrics: metrics,
+                partFrom: from,
+                partTo: to),
             // The rule belongs *between* questions, so a column that ends
             // on a question is not left with a trailing divider.
             afterQuestion: () => pw.Padding(
@@ -2019,19 +2030,27 @@ class _HighSchoolQPaperGeneratorPageState
     int index,
     HighSchoolQuestion q,
     pw.TextStyle baseStyle, {
-    bool stackOptions = false,
+    required double columnWidth,
+    required PdfTextMetrics metrics,
     int partFrom = 0,
     int partTo = 1 << 20,
   }) {
     final mcq = q.mcqData;
     if (mcq == null) return pw.SizedBox();
 
-    final letters = ['ক', 'খ', 'গ', 'ঘ'];
     final options = mcq.options;
 
-    // Single column -> options two-per-row (as in the HTML). Double column ->
-    // stack them, because a half-width cell cannot fit two side by side.
-    final perRow = stackOptions ? 1 : 2;
+    // Four options on a line where the four fit, two where they do not, one
+    // where even two will not sit side by side — measured from the room the
+    // block has, so a narrow column pairs the short ones up just the same. The
+    // estimator asks the same question of the same text, so the room the packer
+    // budgeted for a question is the room the row actually takes.
+    final perRow = PdfLayout.mcqOptionsPerRow(
+      options: options,
+      columnWidth: columnWidth,
+      metrics: metrics,
+      fontStep: _fontStep,
+    );
 
     // Part 0 is the stem; the remaining parts are successive rows of options.
     // Rendering a slice lets a question continue into the next column or page
@@ -2050,18 +2069,18 @@ class _HighSchoolQPaperGeneratorPageState
       for (int c = 0; c < perRow; c++) {
         final idx = i + c;
         if (idx >= options.length) break;
-        final letter =
-            idx < letters.length ? letters[idx] : (idx + 1).toString();
         cells.add(pw.Expanded(
           child: pw.RichText(
-              text: _mixedText('($letter) ${options[idx]}', baseStyle)),
+              text: _mixedText(
+                  PdfLayout.mcqOptionText(idx, options[idx]), baseStyle)),
         ));
         if (c < perRow - 1 && idx + 1 < options.length) {
-          cells.add(pw.SizedBox(width: 12));
+          cells.add(pw.SizedBox(width: PdfLayout.mcqOptionGap));
         }
       }
       rows.add(pw.Padding(
-        padding: const pw.EdgeInsets.only(left: 10, top: 2),
+        padding: const pw.EdgeInsets.only(
+            left: PdfLayout.mcqOptionIndent, top: PdfLayout.mcqOptionTop),
         child: pw.Row(children: cells),
       ));
     }
@@ -3488,7 +3507,7 @@ class _HighSchoolQPaperGeneratorPageState
             children: [
               const Icon(Icons.format_size_rounded, size: 18, color: _kPrimary),
               const SizedBox(width: 8),
-              const Text('লেখার আকার',
+              const Text('লেখার আকার ও ফন্ট',
                   style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -3533,13 +3552,82 @@ class _HighSchoolQPaperGeneratorPageState
                   enabled: _fontStep < _fontStepMax),
             ],
           ),
+          const SizedBox(height: 12),
+          _buildFontPicker(),
           const SizedBox(height: 8),
           const Text(
             'প্রতিটি ধাপে প্রশ্নপত্রের সব লেখা একসাথে এক পয়েন্ট বড় বা ছোট হয়। '
             'PDF আর HTML — দুই এক্সপোর্টেই একই আকারে ছাপা হবে।',
             style: TextStyle(fontSize: 11, color: _kSubText),
           ),
+          const SizedBox(height: 3),
+          const Text(
+            'ফন্ট বাছাই HTML ও ওয়ার্ডে কাজ করে; PDF নিজের এমবেড করা ফন্টে ছাপে। '
+            'কলপুরুষ, সলাইমানলিপি ও নির্মলা ইউআই ফাইলটি যে ডিভাইসে খোলা হবে সেখানে '
+            'ইনস্টল থাকলে তবেই হুবহু দেখাবে — নাহলে হিন্দ শিলিগুড়িতে ছাপা হবে।',
+            style: TextStyle(fontSize: 11, color: _kSubText),
+          ),
         ],
+      ),
+    );
+  }
+
+  /// The face the paper is set in, as a row of names.
+  ///
+  /// A wrap of chips rather than a menu: the reader is choosing by eye, and a
+  /// menu has to be opened before the options can be read at all. The faces the
+  /// browser cannot fetch are marked, so nobody is left wondering why a file
+  /// opened on another machine looks different.
+  Widget _buildFontPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ফন্ট',
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w600, color: _kSubText)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [for (final font in PaperFont.values) _buildFontChip(font)],
+        ),
+      ],
+    );
+  }
+
+  /// One face in the picker. A face that has to be installed on the machine
+  /// reading the file carries a small desktop mark.
+  Widget _buildFontChip(PaperFont font) {
+    final selected = font == _paperFont;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => setState(() => _paperFont = font),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? _kPrimary.withOpacity(0.10) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: selected ? _kPrimary : Colors.transparent, width: 1.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!font.isWebFont) ...[
+              Icon(Icons.computer_rounded,
+                  size: 12, color: selected ? _kPrimary : _kSubText),
+              const SizedBox(width: 5),
+            ],
+            Text(
+              font.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? _kPrimary : _kDarkText,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3804,7 +3892,12 @@ class _HighSchoolQPaperGeneratorPageState
             ),
           const SizedBox(height: 6),
           const Text(
-            'প্রতিটি প্রশ্নের কার্ডে সেট বদলাতে পারবেন।',
+            'প্রতিটি প্রশ্নের কার্ডে সেট বদলাতে পারেন।',
+            style: TextStyle(fontSize: 11, color: _kSubText),
+          ),
+          const SizedBox(height: 3),
+          const Text(
+            'কোনো সেটে নিজের প্রশ্ন না থাকলে সেটিও প্রথম সেটের সব প্রশ্ন ছাপে — শুধু MCQ-এর ক্রম বদলে যায়।',
             style: TextStyle(fontSize: 11, color: _kSubText),
           ),
         ],

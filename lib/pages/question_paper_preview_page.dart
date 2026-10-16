@@ -31,6 +31,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.mcqLayout = QuestionLayout.doubleColumn,
     this.rqLayout = QuestionLayout.single,
     this.fontStep = 0,
+    this.font = PaperFont.hindSiliguri,
   });
 
   final String schoolName;
@@ -57,6 +58,9 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   /// points. The PDF is built at the same step; see the font-size control on
   /// the generator page.
   final double fontStep;
+
+  /// The face the sheet is set in; see [PaperFont]. The PDF keeps its own.
+  final PaperFont font;
 
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
@@ -88,6 +92,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         mcqLayout: widget.mcqLayout,
         rqLayout: widget.rqLayout,
         fontStep: widget.fontStep,
+        font: widget.font,
         // The preview shows the page as a desktop browser lays it out, not as a
         // phone-width WebView reflows it.
         desktopMode: true,

@@ -223,7 +223,7 @@ Future<void> _openPicker(WidgetTester tester) async {
 Future<void> _toLastStep(WidgetTester tester) async {
   await tester.tap(find.text('সব নির্বাচন'));
   await tester.pumpAndSettle();
-  await tester.tap(find.textContaining('PDF তৈরি করুন'));
+  await tester.tap(find.textContaining('প্রশ্নপত্র তৈরি করুন ➜'));
   await tester.pumpAndSettle();
 }
 
@@ -315,8 +315,8 @@ void main() {
 
       expect(_sectionOrder(tester), [
         'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
-        'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
+        'খ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
+        'গ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
       ]);
     });
 
@@ -341,8 +341,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_sectionOrder(tester), [
-        'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
-        'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
+        'ক-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
+        'খ-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
         'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
       ]);
     });
@@ -368,7 +368,7 @@ void main() {
       expect(find.textContaining('আলাদা বিভাগ হিসেবে'), findsOneWidget);
     });
 
-    testWidgets('an empty section is never offered for dragging',
+    testWidgets('an empty section is still listed, with nothing in it',
         (tester) async {
       await _openPicker(tester);
 
@@ -377,11 +377,15 @@ void main() {
         await tester.tap(find.byType(Checkbox).at(i));
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.textContaining('PDF তৈরি করুন'));
+      await tester.tap(find.textContaining('প্রশ্নপত্র তৈরি করুন ➜'));
       await tester.pumpAndSettle();
 
-      // One section cannot be reordered, so the editor hides itself.
-      expect(find.byType(ReorderableListView), findsNothing);
+      // The rows still map one-for-one onto the order the blocks print in: a
+      // block with nothing in it keeps its place and says so, because the order
+      // still decides the letter the other blocks print under.
+      expect(find.byType(ReorderableListView), findsOneWidget);
+      expect(find.text('কোনো সংক্ষিপ্ত প্রশ্ন নেই'), findsOneWidget);
+      expect(find.text('কোনো বহুনির্বাচনী প্রশ্ন নেই'), findsOneWidget);
     });
   });
 }

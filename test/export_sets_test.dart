@@ -110,6 +110,79 @@ int occurrences(String haystack, String needle) =>
     needle.allMatches(haystack).length;
 
 void main() {
+  group('a set with no questions of its own', () {
+    test('prints the whole paper, with its MCQs in another order', () {
+      // The "সব প্রশ্ন প্রথম সেটে" case: every question is filed into the first
+      // set, so the second one would print a blank sheet. It prints the paper
+      // instead — the same questions in the same order, with the MCQs moved so
+      // the two papers do not have the answers in the same places.
+      final questions = [
+        cqTest('সি-এক')..setLabel = 'ক',
+        cqTest('সি-দুই')..setLabel = 'ক',
+        mcqTest('এম-এক')..setLabel = 'ক',
+        mcqTest('এম-দুই')..setLabel = 'ক',
+        mcqTest('এম-তিন')..setLabel = 'ক',
+      ];
+
+      List<HighSchoolQuestion> set(int i) =>
+          HighSchoolExportService.questionsForSet(
+              questions, const ['ক', 'খ'], i);
+
+      final first = set(0);
+      final second = set(1);
+
+      expect(first.length, questions.length);
+      expect(second.length, questions.length);
+      expect(first.map((q) => q.id).toSet(), second.map((q) => q.id).toSet());
+
+      // Everything but the MCQs keeps the order it was selected in.
+      expect([
+        for (final q in first)
+          if (!q.isMcq) q.id
+      ], [
+        for (final q in second)
+          if (!q.isMcq) q.id
+      ]);
+
+      expect(
+        [
+          for (final q in second)
+            if (q.isMcq) q.id
+        ],
+        isNot([
+          for (final q in first)
+            if (q.isMcq) q.id
+        ]),
+      );
+    });
+
+    test('a set with questions of its own keeps only those', () {
+      final questions = [
+        cqTest('ক-এর')..setLabel = 'ক',
+        cqTest('খ-এর')..setLabel = 'খ',
+      ];
+
+      expect(
+        HighSchoolExportService.questionsForSet(questions, const ['ক', 'খ'], 1)
+            .map((q) => q.id),
+        ['খ-এর'],
+      );
+    });
+
+    test('an unfiled question is still printed in both sets', () {
+      final questions = [cqTest('সবার')];
+
+      for (final i in [0, 1]) {
+        expect(
+          HighSchoolExportService.questionsForSet(
+                  questions, const ['ক', 'খ'], i)
+              .length,
+          1,
+        );
+      }
+    });
+  });
+
   group('plain text', () {
     test('prints a paper per set, each with only its own questions', () {
       final questions = [

@@ -107,6 +107,8 @@ void main() {
       // exactly as it did before the control existed.
       expect(decl(rule(css, '.cq-stem'), 'font-size'), '15px');
       expect(decl(rule(css, '.rq-item'), 'font-size'), '15px');
+      expect(decl(rule(css, '.mcq-question'), 'font-size'), '15px');
+      expect(decl(rule(css, '.mcq-options'), 'font-size'), '15px');
       expect(decl(rule(css, '.school-title'), 'font-size'), '24px');
       expect(decl(rule(css, '.paper-sheet'), 'font-size'), '16px');
     });
@@ -123,7 +125,8 @@ void main() {
         '.section-banner': 'calc(14px + 2pt)',
         '.cq-stem': 'calc(15px + 2pt)',
         '.cq-sub-item': 'calc(14px + 2pt)',
-        '.mcq-options': 'calc(14px + 2pt)',
+        '.mcq-question': 'calc(15px + 2pt)',
+        '.mcq-options': 'calc(15px + 2pt)',
         '.rq-item': 'calc(15px + 2pt)',
         // The sheet's own size: what an MCQ stem, which sets no size of its
         // own, inherits.
@@ -195,7 +198,6 @@ void main() {
             question: mcq,
             columnWidth: 260,
             metrics: metrics,
-            stackOptions: true,
             fontStep: fontStep,
           );
 
