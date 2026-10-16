@@ -940,6 +940,10 @@ class HighSchoolExportService {
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
     double fontStep = 0,
+
+    /// Lay the sheet out for a desktop-width window instead of the device's own
+    /// width. The live preview asks for this; see [desktopViewport] below.
+    bool desktopMode = false,
   }) {
     // A two-set paper prints as two papers in one file. A question belongs to a
     // set through [HighSchoolQuestion.setLabel], and a question the reader never
@@ -972,13 +976,21 @@ class HighSchoolExportService {
     };
     final mergeCqAndShort = cqLayout.isDouble && rqLayout.isDouble;
 
+    // The live preview renders this same file in a phone-width WebView, where
+    // `width=device-width` reflows the A4 sheet into a narrow column that is
+    // nothing like the page that prints. Naming the sheet's own width instead —
+    // 210mm, about 794px, plus the page's 24px of side padding — makes the
+    // WebView lay the sheet out at its real size and scale the whole page down
+    // to fit the screen. The exported file keeps the device width.
+    const desktopViewport = 'width=900';
+
     final buffer = StringBuffer();
     buffer.write('''
 <!DOCTYPE html>
 <html lang="bn">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="${desktopMode ? desktopViewport : 'width=device-width, initial-scale=1.0'}">
   <title>${_escapeXml(examName.isEmpty ? 'Question Paper' : examName)} - Pi-QBank</title>
   <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>

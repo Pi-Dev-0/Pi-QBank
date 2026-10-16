@@ -88,6 +88,9 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         mcqLayout: widget.mcqLayout,
         rqLayout: widget.rqLayout,
         fontStep: widget.fontStep,
+        // The preview shows the page as a desktop browser lays it out, not as a
+        // phone-width WebView reflows it.
+        desktopMode: true,
       );
 
   @override

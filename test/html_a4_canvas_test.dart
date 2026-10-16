@@ -12,6 +12,7 @@ String sampleHtml({
   QuestionLayout cqLayout = QuestionLayout.single,
   QuestionLayout rqLayout = QuestionLayout.single,
   QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
+  bool desktopMode = false,
 }) =>
     HighSchoolExportService.generateHtml(
       schoolName: 'S',
@@ -23,6 +24,7 @@ String sampleHtml({
       cqLayout: cqLayout,
       rqLayout: rqLayout,
       mcqLayout: mcqLayout,
+      desktopMode: desktopMode,
       questions: [
         HighSchoolQuestion.fromJson({
           'id': 'q',
@@ -236,5 +238,25 @@ void main() {
     // so a bold `[2]` here would make one export shout where the other does not.
     expect(decl(rule(css, '.cq-mark'), 'font-weight'), '400');
     expect(decl(rule(css, '.rq-mark'), 'font-weight'), '400');
+  });
+
+  test('the exported page keeps the device width', () {
+    // The file a reader prints is laid out at the device's own width, so a
+    // desktop browser shows the sheet centred and a phone can pinch-zoom it.
+    expect(sampleHtml(), contains('content="width=device-width'));
+  });
+
+  test('desktop mode lays the preview out at the sheet\'s real width', () {
+    // The live preview runs in a phone-width WebView; `width=device-width`
+    // there would reflow the A4 sheet into a narrow column. A fixed desktop
+    // width instead makes the WebView lay the sheet out at 210mm and scale the
+    // page down to fit — the preview then shows the desktop page.
+    final preview = sampleHtml(desktopMode: true);
+
+    expect(preview, contains('content="width=900"'));
+    expect(preview, isNot(contains('width=device-width')));
+
+    // Only the viewport changes: the sheet's own canvas is untouched.
+    expect(cssOf(preview), cssOf(sampleHtml()));
   });
 }

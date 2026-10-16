@@ -838,6 +838,9 @@ class _HighSchoolQPaperGeneratorPageState
       mcqLayout: _mcqLayout,
       rqLayout: _rqLayout,
       fontStep: _fontStep,
+      // Desktop-width layout, as in the in-app preview: the file opens in a
+      // browser, and a phone-width one should still show the printed page.
+      desktopMode: true,
     );
     final file = await HighSchoolExportService.saveFile(
       content: html,
@@ -3171,33 +3174,13 @@ class _HighSchoolQPaperGeneratorPageState
           _buildFontSizeSelector(),
           const SizedBox(height: 28),
 
-          // Primary Action: HTML View & Download — the sheet is the print-exact
-          // A4 page and opens in any browser, so it is the default export.
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: _generating
-                ? const Center(
-                    child: CircularProgressIndicator(color: _kPrimary))
-                : ElevatedButton.icon(
-                    icon: const Icon(Icons.language_rounded, size: 22),
-                    label: const Text('HTML দেখুন ও ডাউনলোড করুন',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _kPrimary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      elevation: 6,
-                      shadowColor: _kPrimary.withOpacity(0.5),
-                    ),
-                    onPressed: _exportHtml,
-                  ),
-          ),
-          const SizedBox(height: 12),
+          // The sheet is the default export: print it, or share the file. A
+          // "view & download" button of its own would only repeat those two.
+          if (_generating) ...[
+            const LinearProgressIndicator(color: _kPrimary),
+            const SizedBox(height: 12),
+          ],
 
-          // Secondary Row: Quick Print & Share of that same default export.
           Row(
             children: [
               Expanded(
