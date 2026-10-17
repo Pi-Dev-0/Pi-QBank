@@ -1291,7 +1291,7 @@ class HighSchoolExportService {
     }
     .cq-mark {
       font-weight: 400;
-      min-width: 30px;
+      min-width: 20px;
       text-align: right;
       color: var(--muted);
     }
