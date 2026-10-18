@@ -173,15 +173,23 @@ Map<String, dynamic> _cq(String id, String chapter, String text) => {
       'board_year_tag': '',
     };
 
-Map<String, dynamic> _mcq(String id, String chapter, String text) => {
+Map<String, dynamic> _mcq(
+  String id,
+  String chapter,
+  String text, {
+  String stem = '',
+  String group = '',
+}) =>
+    {
       'id': id,
       'class': 'Class (9-10) SSC',
       'subject': 'গণিত',
       'chapter_number': chapter,
       'chapter_name': 'অধ্যায় $chapter',
       'question_type': 'MCQ',
-      'stem_text': '',
+      'stem_text': stem,
       'stem_image_url': '',
+      'stem_group': group,
       'sub_questions_json': {
         'text': text,
         'options': ['১', '২', '৩', '৪'],
@@ -335,5 +343,63 @@ void main() {
     await tester.pumpAndSettle();
     expect(top('সৃজনশীল প্রশ্ন এক'), lessThan(top('বহুনির্বাচনি প্রশ্ন এক')));
     expect(top('বহুনির্বাচনি প্রশ্ন এক'), lessThan(top('সংক্ষিপ্ত প্রশ্ন এক')));
+  });
+
+  // A shared উদ্দীপক: the intro prints once, over the first of the questions
+  // that follow it, so half a run is not something the paper can print. The
+  // picker therefore selects a run whole — one tick takes its partner with it,
+  // and one untick lets it go.
+  group('a shared উদ্দীপক', () {
+    const intro = 'নিচের উদ্দীপকটি পড়।';
+
+    final shared = jsonEncode({
+      'status': 'SUCCESS',
+      'data': [
+        _mcq('s1', '1', 'যৌথ প্রশ্ন এক', stem: intro, group: 'উদ্দীপক-১'),
+        _mcq('s2', '1', 'যৌথ প্রশ্ন দুই', stem: intro, group: 'উদ্দীপক-১'),
+        _mcq('s3', '1', 'একা প্রশ্ন'),
+      ],
+    });
+
+    setUp(() => HttpOverrides.global = _FakeOverrides(shared));
+    tearDown(() => HttpOverrides.global = _FakeOverrides(_payload));
+
+    int tickedCount(WidgetTester tester) => tester
+        .widgetList<Checkbox>(find.byType(Checkbox))
+        .where((c) => c.value == true)
+        .length;
+
+    testWidgets('a run is selected whole, and says so on the card',
+        (tester) async {
+      await _openPicker(tester);
+
+      // Both rows of the run are marked as one.
+      expect(find.text('একই উদ্দীপক · 2টি'), findsNWidgets(2));
+      // The third question shares nothing, so it carries no such mark.
+      expect(find.textContaining('একই উদ্দীপক'), findsNWidgets(2));
+
+      await tester.tap(_checkboxFor('যৌথ প্রশ্ন এক'));
+      await tester.pumpAndSettle();
+
+      expect(tickedCount(tester), 2,
+          reason: 'ticking one of a shared run takes its partner along');
+
+      await tester.tap(_checkboxFor('যৌথ প্রশ্ন এক'));
+      await tester.pumpAndSettle();
+
+      expect(tickedCount(tester), 0,
+          reason: 'a shared run is let go whole');
+    });
+
+    testWidgets('a question sharing nothing is ticked on its own',
+        (tester) async {
+      await _openPicker(tester);
+
+      await tester.tap(_checkboxFor('একা প্রশ্ন'));
+      await tester.pumpAndSettle();
+
+      expect(tickedCount(tester), 1,
+          reason: 'no run, no company: only this one is ticked');
+    });
   });
 }

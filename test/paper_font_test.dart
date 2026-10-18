@@ -83,7 +83,7 @@ void main() {
       final html = sheetHtml();
 
       expect(decl(rule(cssOf(html), 'body'), 'font-family'),
-          "'Hind Siliguri', 'SolaimanLipi', sans-serif");
+          "sans-serif, 'Hind Siliguri', 'SolaimanLipi'");
       expect(fetchedFamilies(html), ['Hind+Siliguri:wght@400;500;600;700']);
     });
 
@@ -91,7 +91,7 @@ void main() {
       final html = sheetHtml(font: PaperFont.kalpurush);
 
       expect(decl(rule(cssOf(html), 'body'), 'font-family'),
-          "'Kalpurush', 'SolaimanLipi', 'Hind Siliguri', sans-serif");
+          "sans-serif, 'Kalpurush', 'SolaimanLipi', 'Hind Siliguri'");
       // Kalpurush is not on Google Fonts, so only the fall-back is fetched.
       expect(fetchedFamilies(html), ['Hind+Siliguri:wght@400;500;600;700']);
     });
@@ -100,7 +100,7 @@ void main() {
       final html = sheetHtml(font: PaperFont.notoSerifBengali);
 
       expect(decl(rule(cssOf(html), 'body'), 'font-family'),
-          "'Noto Serif Bengali', 'SolaimanLipi', 'Hind Siliguri', sans-serif");
+          "sans-serif, 'Noto Serif Bengali', 'SolaimanLipi', 'Hind Siliguri'");
       expect(fetchedFamilies(html), [
         'Noto+Serif+Bengali:wght@400;500;600;700',
         'Hind+Siliguri:wght@400;500;600;700',
@@ -111,9 +111,11 @@ void main() {
       for (final font in PaperFont.values) {
         final html = sheetHtml(font: font);
 
-        expect(font.cssStack, startsWith("'${font.family}'"),
+        expect(font.cssStack, startsWith('sans-serif'),
             reason: font.name);
-        expect(font.cssStack, endsWith('sans-serif'), reason: font.name);
+        // The generic face does the Latin runs; the stack still ends on a
+        // quoted Bengali face that supplies the script itself.
+        expect(font.cssStack, endsWith("'"), reason: font.name);
         expect(font.cssStack, contains("'Hind Siliguri'"), reason: font.name);
         expect(fetchedFamilies(html),
             contains('Hind+Siliguri:wght@400;500;600;700'),

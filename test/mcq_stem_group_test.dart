@@ -24,6 +24,7 @@ HighSchoolQuestion mcq({
   required String id,
   String stem = '',
   String image = '',
+  String group = '',
   String text = 'নিচের কোনটি সঠিক?',
   List<String> options = const ['৩', '৪', '৫', '৬'],
   String boardYearTag = '',
@@ -37,6 +38,7 @@ HighSchoolQuestion mcq({
       'question_type': 'MCQ',
       'stem_text': stem,
       'stem_image_url': image,
+      'stem_group': group,
       'sub_questions_json': {
         'text': text,
         'options': options,
@@ -411,6 +413,157 @@ void main() {
     test('Markdown groups the same way', () {
       final md = markdownOf(pair);
       expect(countOf(md, kSharedStem), 1);
+    });
+  });
+
+  group('the run label the sheet carries', () {
+    // The label is the explicit form of the rule. Instead of the writers working
+    // out whether two rows print under one intro by comparing what they say, the
+    // sheet says it in `stem_group`. The wording-and-figure fallback above stays
+    // for rows filed without a label.
+
+    test('two rows filed under different labels are two intros', () {
+      // The case the label exists for: one generic wording over two different
+      // stimuli. Read on the wording alone they were one run, and the second
+      // intro never reached the paper.
+      final first = mcq(id: 'a', stem: kSharedStem, group: 'উদ্দীপক-১');
+      final second = mcq(id: 'b', stem: kSharedStem, group: 'উদ্দীপক-২');
+
+      expect(second.sharesMcqStemWith(first), isFalse);
+      expect(second.opensMcqStemGroup(first), isTrue);
+    });
+
+    test('rows sharing a label are one run whatever their figure says', () {
+      // The figure is not compared once the sheet has spoken: a rewritten link
+      // must not split a run in half.
+      final first = mcq(
+          id: 'a',
+          stem: kSharedStem,
+          group: 'উদ্দীপক-১',
+          image: 'https://x/a.png');
+      final second = mcq(
+          id: 'b',
+          stem: kSharedStem,
+          group: 'উদ্দীপক-১',
+          image: 'https://x/b.png');
+
+      expect(second.sharesMcqStemWith(first), isTrue);
+      expect(second.opensMcqStemGroup(first), isFalse);
+    });
+
+    test('a row of a run with no wording of its own prints none', () {
+      final first = mcq(id: 'a', stem: kSharedStem, group: 'উদ্দীপক-১');
+      final bare = mcq(id: 'b', group: 'উদ্দীপক-১');
+
+      expect(bare.mcqStemText, isEmpty);
+      expect(bare.opensMcqStemGroup(first), isFalse);
+    });
+
+    test('a wording the run has not printed yet opens its own intro', () {
+      // A labelled row is never swallowed silently: the intro prints the way it
+      // was written, so a different wording prints rather than disappearing.
+      final first = mcq(id: 'a', stem: kSharedStem, group: 'উদ্দীপক-১');
+      final other = mcq(
+          id: 'b', stem: 'নিচের চিত্রটি দেখে উত্তর দাও।', group: 'উদ্দীপক-১');
+
+      expect(other.opensMcqStemGroup(first), isTrue);
+    });
+
+    test('a row with no label beside a labelled one prints its own intro', () {
+      // A label, once filed, is not second-guessed: the unlabelled row never
+      // claimed the run, so it prints rather than being guessed into it. The
+      // failure that leaves is a duplicate intro, which is visible — not a lost
+      // one, which is not.
+      final labelled = mcq(id: 'a', stem: kSharedStem, group: 'উদ্দীপক-১');
+      final plain = mcq(id: 'b', stem: kSharedStem);
+
+      expect(plain.opensMcqStemGroup(labelled), isTrue);
+      // And the other way round.
+      expect(labelled.opensMcqStemGroup(plain), isTrue);
+    });
+
+    test('with no label anywhere the wording and figure still decide', () {
+      final first = mcq(id: 'a', stem: kSharedStem, image: 'https://x/a.png');
+      final same = mcq(id: 'b', stem: kSharedStem, image: 'https://x/a.png');
+      final other = mcq(id: 'c', stem: kSharedStem, image: 'https://x/b.png');
+
+      expect(same.opensMcqStemGroup(first), isFalse);
+      expect(other.opensMcqStemGroup(first), isTrue);
+    });
+
+    test('other types carry no label', () {
+      final cq = HighSchoolQuestion.fromJson({
+        'id': 'cq',
+        'class': 'Class (9-10) SSC',
+        'subject': 'গণিত',
+        'chapter_number': '1',
+        'chapter_name': 'অনুশীলনী',
+        'question_type': 'CQ',
+        'stem_text': kSharedStem,
+        'stem_group': 'উদ্দীপক-১',
+        'sub_questions_json': [
+          {'label': 'ক', 'mark': 1, 'text': 'প্রশ্ন'},
+        ],
+      });
+      expect(cq.mcqStemGroup, isEmpty);
+    });
+
+    test('the sheet prints one intro per label', () {
+      final html = htmlOf([
+        mcq(
+            id: 'a',
+            stem: kSharedStem,
+            group: 'উদ্দীপক-১',
+            image: 'https://x/a.png'),
+        mcq(
+            id: 'b',
+            stem: kSharedStem,
+            group: 'উদ্দীপক-১',
+            image: 'https://x/b.png'),
+        mcq(
+            id: 'c',
+            stem: kSharedStem,
+            group: 'উদ্দীপক-২',
+            image: 'https://x/c.png'),
+      ]);
+
+      expect(countOf(html, 'class="mcq-stem"'), 2);
+      expect(countOf(html, kSharedStem), 2);
+    });
+
+    test('the row keeps its label across a fetch and an edit', () {
+      final original = mcq(id: 'a', stem: kSharedStem, group: 'উদ্দীপক-১');
+      final edited = HighSchoolQuestion.edited(
+        original: original,
+        chapterNumber: '1',
+        chapterName: 'অনুশীলনী',
+        text: 'সংশোধিত প্রশ্ন',
+        stem: kSharedStem,
+      );
+
+      expect(edited.stemGroup, 'উদ্দীপক-১');
+      expect(edited.toJson()['stem_group'], 'উদ্দীপক-১');
+    });
+
+    test('and the shuffle keeps each labelled run whole', () {
+      final questions = [
+        for (var g = 0; g < 3; g++) ...[
+          mcq(id: 'g$g-a', stem: 'উদ্দীপক $g', group: 'উদ্দীপক-$g'),
+          mcq(id: 'g$g-b', stem: 'উদ্দীপক $g', group: 'উদ্দীপক-$g'),
+        ],
+      ];
+
+      final printed = HighSchoolExportService.questionsForSet(
+        questions,
+        const ['ক', 'খ'],
+        1,
+      ).where((q) => q.isMcq).toList();
+
+      expect(printed.length, 6);
+      for (var i = 0; i < printed.length; i += 2) {
+        expect(printed[i + 1].mcqStemGroup, printed[i].mcqStemGroup,
+            reason: 'a labelled run travels together');
+      }
     });
   });
 

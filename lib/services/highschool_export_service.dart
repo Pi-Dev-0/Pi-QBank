@@ -164,16 +164,21 @@ enum PaperFont {
   /// Whether reading the file means downloading this face.
   bool get isWebFont => google.isNotEmpty;
 
-  /// The `font-family` a stylesheet sets: the chosen face, then the Bangla
-  /// faces a machine is most likely to have, then Hind Siliguri.
+  /// The `font-family` a stylesheet sets: a Latin face first, then the chosen
+  /// Bangla face, then the other Bangla faces.
   ///
-  /// The chosen face is dropped from the fall-backs, so picking Hind Siliguri
-  /// gives the stack the sheet has always had.
+  /// The Latin face comes first on purpose. The Bangla faces here are Bijoy-
+  /// ANSI faces: their cmap claims the whole ASCII range and draws Bengali
+  /// glyphs for it, so a backslash or a `C:\Users\…` path set in Kalpurush
+  /// never reaches a face that can draw it — the browser never falls through.
+  /// `sans-serif` takes every Latin run, and the Bangla faces supply everything
+  /// they are for. This is exactly what the PDF does: Latin runs are set in
+  /// Helvetica, never in the Bijoy font.
   String get cssStack => [
+        'sans-serif',
         "'$family'",
         for (final fallback in const ['SolaimanLipi', 'Hind Siliguri'])
           if (fallback != family) "'$fallback'",
-        'sans-serif',
       ].join(', ');
 
   /// The family list a Word file asks for. Word looks for the first face on this
@@ -477,9 +482,6 @@ class HighSchoolExportService {
             final q = inSection[j];
             buffer.writeln(
                 '${j + 1}. ${latexToPlainText(q.paperStemText.trim())}');
-            if (q.boardYearTag.isNotEmpty) {
-              buffer.writeln('   [উৎস: ${q.boardYearTag}]');
-            }
             if (_hasStemImage(q, imageSize)) {
               // Plain text cannot embed an image, so surface the link.
               buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
@@ -869,7 +871,6 @@ class HighSchoolExportService {
       <div class="cq-box">
         <div class="cq-stem">
           <b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
-          ${q.boardYearTag.isNotEmpty ? '<span style="font-size:9pt; color:#555555;"> [${_escapeXml(q.boardYearTag)}]</span>' : ''}
         </div>
         ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
         <table class="cq-sub-table">''');
@@ -1176,6 +1177,23 @@ class HighSchoolExportService {
     .btn-outline { background: white; border: 1px solid #cbd5e1; color: var(--text); }
     .btn-outline:hover { background: #f1f5f9; }
 
+    /* Live edit turns the sheet itself into the editor, so a typo is fixed where
+       it is seen. The cues for it are screen-only: an outline marks the sheet
+       and the field being typed in, and neither belongs on paper. */
+    @media screen {
+      [contenteditable="true"] {
+        outline: 2px dashed #c7d2fe;
+        outline-offset: 4px;
+        cursor: text;
+      }
+      [contenteditable="true"] :focus {
+        outline: 1px solid #a5b4fc;
+        background: #eef2ff;
+      }
+    }
+    .edit-hint { font-size: 12px; color: var(--muted); }
+    .edit-hint[hidden] { display: none; }
+
     /* The sheet *is* an A4 page: the same 210×297mm canvas the PDF export uses,
        the same 18pt at the head and 40pt down each side, and a foot of 18px.
        Same paper, same text width, so a line that wraps here wraps the same way
@@ -1391,7 +1409,9 @@ class HighSchoolExportService {
 <body>
   <div class="no-print-toolbar">
     <div><b>Pi-QBank</b> প্রশ্নপত্র প্রিভিউ</div>
-    <div style="display:flex; gap:10px;">
+    <div style="display:flex; gap:10px; align-items:center;">
+      <span class="edit-hint" id="editHint" hidden>যা লিখবেন সেটাই প্রিন্ট হবে</span>
+      <button class="btn btn-outline" id="editBtn">✏️ লাইভ এডিট</button>
       <button class="btn btn-primary" onclick="window.print()">🖨️ প্রিন্ট / PDF সংরক্ষণ</button>
     </div>
   </div>
@@ -1512,6 +1532,15 @@ class HighSchoolExportService {
         var room = probe.getBoundingClientRect().height - padTop - padBottom;
         probe.remove();
 
+        var divider = sheet.querySelector(':scope > .set-divider');
+        /* The slack a previous pass added goes back before anything is
+           measured: the live editor runs this again after every edit, and slack
+           measured on top of slack would grow with nothing to earn it. */
+        if (divider) {
+          divider.style.marginTop = '';
+          divider.style.marginBottom = '';
+        }
+
         // What the sets take right now — the rule between them and every margin
         // included. Measured with the page's own minimum height out of the way,
         // so a short pair reports its real height and not a full page.
@@ -1520,7 +1549,6 @@ class HighSchoolExportService {
         var used = sheet.getBoundingClientRect().height - padTop - padBottom;
         sheet.style.minHeight = minHeight;
 
-        var divider = sheet.querySelector(':scope > .set-divider');
         if (used <= room) {
           if (divider) {
             // The leftover belongs between the sets: half above the rule and
@@ -1547,6 +1575,68 @@ class HighSchoolExportService {
         if (divider) divider.remove();
       }
 
+      /* ── Live edit ──────────────────────────────────────────────────────
+         A typo noticed here should be fixed here. The button hands the sheet
+         over to the reader: every text on it can be typed over in place, and
+         what prints is what is left on the page. Nothing goes back to the
+         .html file or to the app — the edit lives in this tab — so a paper
+         worth keeping still comes from a fresh export. */
+      function setEditing(on) {
+        var sheets = document.querySelectorAll('.paper-sheet');
+        for (var i = 0; i < sheets.length; i++) {
+          if (on) {
+            sheets[i].setAttribute('contenteditable', 'true');
+            sheets[i].setAttribute('spellcheck', 'false');
+          } else {
+            sheets[i].removeAttribute('contenteditable');
+            sheets[i].removeAttribute('spellcheck');
+          }
+        }
+        document.body.classList.toggle('editing', on);
+        var hint = document.getElementById('editHint');
+        if (hint) hint.hidden = !on;
+        var button = document.getElementById('editBtn');
+        if (button) button.textContent = on ? '✅ এডিট শেষ' : '✏️ লাইভ এডিট';
+      }
+
+      function isEditing() {
+        return document.body.classList.contains('editing');
+      }
+
+      var relayout = null;
+      /* Typing can push a set past the foot of the page, so the measurement
+         that laid the page out runs again — debounced, because it walks every
+         option on the sheet. */
+      function relayoutSoon() {
+        clearTimeout(relayout);
+        relayout = setTimeout(function () {
+          fitOptions();
+          decide();
+          // A split makes a new sheet, and the new sheet has to be editable too.
+          setEditing(isEditing());
+        }, 260);
+      }
+
+      function wireEditor() {
+        var button = document.getElementById('editBtn');
+        if (button) {
+          button.addEventListener('click', function () {
+            setEditing(!isEditing());
+          });
+        }
+        // One listener on the document rather than one per sheet: a split
+        // makes a sheet that was not there when this ran, and the delegate does
+        // not care which sheet the typing landed in.
+        document.addEventListener('input', function (event) {
+          var node = event.target;
+          if (node && node.closest && node.closest('.paper-sheet')) relayoutSoon();
+        });
+        // Escape closes the editor the way it closes anything else.
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape' && isEditing()) setEditing(false);
+        });
+      }
+
       function run() {
         // Fonts and images decide how wide a line is and how tall a set is, so
         // wait for both before measuring anything.
@@ -1561,6 +1651,7 @@ class HighSchoolExportService {
         }
       }
 
+      wireEditor();
       if (document.readyState === 'complete') run();
       else window.addEventListener('load', run);
     })();
@@ -1932,7 +2023,6 @@ class HighSchoolExportService {
     <div class="cq-card" title="${_idTooltip(q)}">
       <div class="cq-stem">
         <b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
-        ${q.boardYearTag.isNotEmpty ? '<small style="color:var(--muted);"> [${_escapeXml(q.boardYearTag)}]</small>' : ''}
       </div>
       ${_stemImageMarkup(q, size: imageSize, usePoints: false)}
 ''');
@@ -2162,9 +2252,6 @@ class HighSchoolExportService {
             final q = inSection[j];
             buffer.writeln(
                 '**${j + 1}.** ${latexToPlainText(q.paperStemText.trim())}');
-            if (q.boardYearTag.isNotEmpty) {
-              buffer.writeln('> *উৎস: ${q.boardYearTag}*');
-            }
             if (_hasStemImage(q, imageSize)) {
               buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})');
             }

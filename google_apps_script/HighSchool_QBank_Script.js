@@ -46,6 +46,12 @@ const HEADERS = [
   // Marks for a short question. Short questions have no sub-questions, so this
   // is the only place their mark can live.
   "short_mark",
+  // The shared-উদ্দীপক label. An MCQ that prints under an intro shared with the
+  // question beside it names the run here, and every row of the run carries the
+  // same label. The paper then prints that intro once, over the first row of
+  // the run, without having to guess from the wording or the figure. Blank for
+  // every other type, and for an MCQ with no intro of its own.
+  "stem_group",
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -398,6 +404,19 @@ function doGet(e) {
 //   "stem_text": "সমান্তর সরলরেখার ঢাল কত?",
 //   "sub_questions_json": [],     // not used for RQ
 //   "short_mark": 2                // marks for this short question
+//
+// Two MCQs that print under one shared উদ্দীপক carry that intro in stem_text on
+// *both* rows — so either one used alone in another paper still prints it — and
+// name the run in "stem_group" on both rows:
+//
+//   { "question_type": "MCQ", "stem_text": "নিচের উদ্দীপকটি পড়…",
+//     "stem_group": "উদ্দীপক-১", "sub_questions_json": {...} },
+//   { "question_type": "MCQ", "stem_text": "নিচের উদ্দীপকটি পড়…",
+//     "stem_group": "উদ্দীপক-১", "sub_questions_json": {...} }
+//
+// The label is free text and only has to agree between the rows of one run;
+// consecutive rows sharing a non-empty label are one run. Without a label the
+// paper falls back on comparing the intro text (and its figure) itself.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -596,6 +615,7 @@ function doPost(e) {
         subJson,
         q.board_year_tag  || "",
         shortMark,
+        q.stem_group      || "",
       ];
     });
 

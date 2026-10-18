@@ -1439,7 +1439,7 @@
           <div class="icon icon-green">📄</div>
           <div>
             <h2>JSON Examples</h2>
-            <p>One complete example per pattern — click a title to fold it. An empty <code>id</code> is fine: the sheet assigns one</p>
+            <p>One complete example per pattern — click a title to fold it. An empty <code>id</code> is fine: the sheet assigns one. <code>stem_group</code> names the run of MCQs that share one উদ্দীপক</p>
           </div>
         </div>
         <div class="card-body">
@@ -1537,12 +1537,14 @@
           </div>
 
           <!-- MCQ Example: one উদ্দীপক (text + figure) shared by a run of MCQs.
-               Both questions carry the same stem_text and stem_image_url; the
-               paper prints that intro once, above the first of them. -->
+               Both questions keep the intro in stem_text — so either one used
+               alone in another paper still prints it — and both name the run in
+               stem_group. The label is what tells the paper these two are one
+               intro; the paper prints it once, above the first of them. -->
           <div class="example-block" data-example-id="mcqShared" data-example-label="MCQ + উদ্দীপক">
             <div class="example-head">
               <h3>🖼️ MCQ with a shared উদ্দীপক
-                <span class="example-hint">— the intro prints once, above the run</span>
+                <span class="example-hint">— one intro for the run, via stem_group</span>
               </h3>
               <button type="button" class="copy-btn mcq" onclick="copyExample('mcqSharedExample')">
                 📋 Copy
@@ -1559,6 +1561,7 @@
       "chapter_name": "পরিসংখ্যান",
       "question_type": "MCQ",
       "stem_text": "নিচের তথ্য থেকে ২৬ - ২৭ নং প্রশ্নের উত্তর দাও ।",
+      "stem_group": "উদ্দীপক-১",
       "stem_image_url": "https://i.postimg.cc/W3rCDqnR/ea4fd48f-d0c3-4179-8522-18aeea3fa28a.jpg",
       "sub_questions_json": {
         "text": "মধ্যক শ্রেণির মধ্যবিন্দু কত ?",
@@ -1576,6 +1579,7 @@
       "chapter_name": "পরিসংখ্যান",
       "question_type": "MCQ",
       "stem_text": "নিচের তথ্য থেকে ২৬ - ২৭ নং প্রশ্নের উত্তর দাও ।",
+      "stem_group": "উদ্দীপক-১",
       "stem_image_url": "https://i.postimg.cc/W3rCDqnR/ea4fd48f-d0c3-4179-8522-18aeea3fa28a.jpg",
       "sub_questions_json": {
         "text": "মধ্যক শ্রেণির নিম্নসীমা কত ?",
@@ -2387,6 +2391,14 @@
         const previous = questionQueue[editingIndex];
         // The row keeps its id: it is the same question, corrected.
         if (previous && previous.id) q.id = previous.id;
+        // Nor does a correction drop it out of its উদ্দীপক. The form has no
+        // field for an MCQ's shared intro or its run label — those are written
+        // in the bulk JSON — so they are carried over here rather than rebuilt
+        // empty.
+        if (previous && q.question_type === 'MCQ') {
+          if (!q.stem_text && previous.stem_text) q.stem_text = previous.stem_text;
+          if (previous.stem_group) q.stem_group = previous.stem_group;
+        }
         questionQueue[editingIndex] = q;
         showStatus('success', `Question ${editingIndex + 1} updated in the queue.`);
         editingIndex = -1;
@@ -2593,6 +2605,16 @@
           `<span class="qd-mark">[${escapeHtml(String(sq.mark ?? ''))}]</span></div>`));
       } else if (type === 'MCQ') {
         const payload = q.sub_questions_json || {};
+        // An MCQ can carry the intro it shares with its neighbour, and the
+        // label that says the two are one run. Both belong in front of the eye
+        // before the batch goes up: a pair whose labels disagree — or whose
+        // intros differ — prints its intro twice.
+        if (q.stem_text) {
+          lines.push(`<div class="qd-line">উদ্দীপক: ${escapeHtml(String(q.stem_text))}` +
+            (q.stem_group
+              ? ` <span class="qd-mark">· stem_group: ${escapeHtml(String(q.stem_group))}</span>`
+              : '') + '</div>');
+        }
         lines.push(`<div class="qd-line">${escapeHtml(String(payload.text || ''))}</div>`);
         (payload.options || []).forEach((option, i) => {
           const letter = ['ক', 'খ', 'গ', 'ঘ', 'ঙ'][i] || String(i + 1);

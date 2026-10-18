@@ -116,6 +116,23 @@ class ChapterInfo {
   String toString() => 'অধ্যায় $chapterNumber: $chapterName';
 }
 
+/// Order two chapter labels the way a textbook reads them: `1`, `2`, `2.2`,
+/// `3`, `10`.
+///
+/// A chapter number is a label, not an integer. "2.2 চক্রবৃদ্ধি মুনাফা" is a
+/// section inside chapter 2, so `int.tryParse` gave up on it and the `?? 0` that
+/// used to stand in for the failure printed the section *ahead* of chapter 1.
+/// Labels that are not numbers at all sort after every number rather than in
+/// front of them, alphabetically among themselves.
+int compareChapterNumbers(String a, String b) {
+  final left = double.tryParse(a.trim());
+  final right = double.tryParse(b.trim());
+  if (left != null && right != null) return left.compareTo(right);
+  if (left != null) return -1;
+  if (right != null) return 1;
+  return a.compareTo(b);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main HighSchool Question model
 // ─────────────────────────────────────────────────────────────────────────────
@@ -129,6 +146,16 @@ class HighSchoolQuestion {
   final String questionType; // 'CQ' | 'MCQ' | 'RQ'
   final String stemText;
   final String stemImageUrl;
+
+  /// The shared-উদ্দীপক label, from the `stem_group` column.
+  ///
+  /// An MCQ that prints under an intro shared with its neighbour can say so
+  /// outright instead of leaving the sheet to guess: every row of the run
+  /// carries the same label here. Consecutive MCQs agreeing on a non-empty label
+  /// are one run whatever their wording or figure says, so two intros that
+  /// happen to read alike ("নিচের উদ্দীপকটি পড়…") stay two intros. Empty for
+  /// every other type, and for a run filed without one.
+  final String stemGroup;
 
   /// For CQ:  List<CqSubQuestion>
   /// For MCQ: McqQuestion
@@ -176,6 +203,7 @@ class HighSchoolQuestion {
     required this.questionType,
     required this.stemText,
     required this.stemImageUrl,
+    this.stemGroup = '',
     required this.subQuestionsData,
     required this.boardYearTag,
     this.shortMark = ShortQuestion.defaultMark,
@@ -288,6 +316,9 @@ class HighSchoolQuestion {
       questionType: original.questionType,
       stemText: assembled.stemText,
       stemImageUrl: stemImageUrl,
+      // A corrected row stays in the উদ্দীপক run it was filed into, so the
+      // intro keeps printing once over the group it belongs to.
+      stemGroup: original.stemGroup,
       subQuestionsData: assembled.payload,
       boardYearTag: original.boardYearTag,
       shortMark: assembled.mark,
@@ -411,8 +442,9 @@ class HighSchoolQuestion {
   /// "নিচের তথ্য থেকে ২৬ ও ২৭ নং প্রশ্নের উত্তর দাও।". Two questions written
   /// under one intro therefore carry the same text — and, when the intro has a
   /// figure, the same [mcqStemImageUrl] — which is what [opensMcqStemGroup]
-  /// reads. Empty for every other type, and for an MCQ that has no intro of its
-  /// own.
+  /// reads, unless the rows were filed with a [mcqStemGroup] label that says it
+  /// outright. Empty for every other type, and for an MCQ that has no intro of
+  /// its own.
   String get mcqStemText => isMcq ? paperStemText.trim() : '';
 
   /// The figure that belongs to the উদ্দীপক, as printed.
@@ -421,6 +453,16 @@ class HighSchoolQuestion {
   /// read off [stemImageUrl] the way the wording is read off [stemText]. Empty
   /// for every other type, and for an intro that carries no figure.
   String get mcqStemImageUrl => isMcq ? stemImageUrl.trim() : '';
+
+  /// The shared-উদ্দীপক label an MCQ was filed with, as read from the sheet.
+  ///
+  /// This is the explicit form of [mcqStemText]: instead of the writers working
+  /// out whether two questions print under one intro by comparing what they say,
+  /// the sheet says it. Every row of the run carries the same label in the
+  /// `stem_group` column. Empty for every other type, and for a run filed
+  /// without a label — the grouping then falls back on the wording and figure,
+  /// as it did before the column existed.
+  String get mcqStemGroup => isMcq ? stemGroup.trim() : '';
 
   /// True when this question prints the উদ্দীপক itself.
   ///
@@ -436,22 +478,40 @@ class HighSchoolQuestion {
   /// True when [previous] already printed this question's উদ্দীপক, so all this
   /// one has to do is follow it.
   ///
-  /// The intro is a wording and the figure that goes with it, so the two
-  /// questions share only while both match. A question that carries no figure
-  /// of its own is the soft spot: it follows on the wording alone, which is how
-  /// a run written under one figure is filed. A question that *does* carry one
-  /// joins only an intro carrying the same figure — the same wording over two
-  /// different figures is two intros, and reading them as one silently drops
-  /// the second figure from the paper.
+  /// A run filed with a [mcqStemGroup] label is one run outright: the intro
+  /// prints over the first of the rows, whatever the rows' wording or figure
+  /// says. That is the whole point of the label — two intros that happen to read
+  /// alike ("নিচের উদ্দীপকটি পড়…" over two different stimuli, or the same text
+  /// with a figure URL rewritten) are told apart by the sheet rather than
+  /// guessed at. A label, once filed, is never second-guessed in the other
+  /// direction either: rows that disagree on it — including a row that carries
+  /// none beside one that does — do not share, so a question the sheet never
+  /// put in a run cannot be swallowed into one. A different *wording* still
+  /// opens its own intro inside a labelled run, so a row carrying text the run
+  /// has not printed yet is printed rather than lost.
+  ///
+  /// Only when neither row filed a label does the intro itself decide: the same
+  /// wording, and — when the intro has a figure — the same figure. A question
+  /// that carries no figure of its own follows on the wording alone, which is
+  /// how a run written under one figure is filed. A question that *does* carry
+  /// one joins only an intro carrying the same figure, so the second figure of
+  /// a pair is never dropped from the paper.
   ///
   /// The mirror of [opensMcqStemGroup], and the reason a two-set shuffle moves
   /// whole groups rather than single questions: a question that shares an intro
   /// must not be moved away from the one that printed it. A question with no
   /// intro of its own shares nothing, however the question before it reads.
-  bool sharesMcqStemWith(HighSchoolQuestion? previous) =>
-      mcqStemText.isNotEmpty &&
-      previous?.mcqStemText == mcqStemText &&
-      (mcqStemImageUrl.isEmpty || previous?.mcqStemImageUrl == mcqStemImageUrl);
+  bool sharesMcqStemWith(HighSchoolQuestion? previous) {
+    if (previous == null || mcqStemText.isEmpty) return false;
+    if (previous.mcqStemText != mcqStemText) return false;
+    final group = mcqStemGroup;
+    final previousGroup = previous.mcqStemGroup;
+    if (group.isNotEmpty || previousGroup.isNotEmpty) {
+      return group == previousGroup;
+    }
+    return mcqStemImageUrl.isEmpty ||
+        previous.mcqStemImageUrl == mcqStemImageUrl;
+  }
 
   /// Words that appear in this sheet only as the source of a question.
   static const _sourceWords = <String>[
@@ -649,6 +709,7 @@ class HighSchoolQuestion {
       questionType: qType,
       stemText: stemText,
       stemImageUrl: json['stem_image_url'] as String? ?? '',
+      stemGroup: (json['stem_group'] as String? ?? '').trim(),
       subQuestionsData: parsed,
       boardYearTag: json['board_year_tag'] as String? ?? '',
       shortMark: _readShortMark(json),
@@ -690,6 +751,7 @@ class HighSchoolQuestion {
       'sub_questions_json': subJson,
       'board_year_tag': boardYearTag,
       'short_mark': isShort ? shortMark : '',
+      'stem_group': stemGroup,
     };
   }
 }

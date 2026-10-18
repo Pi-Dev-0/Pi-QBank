@@ -550,8 +550,68 @@ class _HighSchoolQPaperGeneratorPageState
   // Step 2 logic
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// The MCQs that print under one উদ্দীপক, each keyed by every id in its run.
+  ///
+  /// A shared intro is printed once, over the first question of the run, so half
+  /// a run is not something the paper has a way to print — a shared question is
+  /// never used on its own. The picker holds to that by selecting a run whole,
+  /// which means it has to know which questions form one: the same walk the
+  /// writers make, over the questions in the order the paper prints them
+  /// (chapters in reading order, MCQs only, a new run wherever a question does
+  /// not follow the one before it).
+  ///
+  /// Runs of one are left out: a question with an intro of its own, or with no
+  /// intro at all, is shared with nobody.
+  Map<String, List<HighSchoolQuestion>> _mcqStemRuns() {
+    final byChapter = <String, List<HighSchoolQuestion>>{};
+    for (final q in _fetchedQuestions) {
+      if (!q.isMcq) continue;
+      byChapter.putIfAbsent(q.chapterNumber, () => []).add(q);
+    }
+
+    final runs = <String, List<HighSchoolQuestion>>{};
+    void record(List<HighSchoolQuestion> run) {
+      if (run.length < 2) return;
+      for (final q in run) {
+        runs[q.id] = run;
+      }
+    }
+
+    for (final number in byChapter.keys.toList()..sort(compareChapterNumbers)) {
+      final mcqs = byChapter[number]!;
+      var run = <HighSchoolQuestion>[mcqs.first];
+      for (var i = 1; i < mcqs.length; i++) {
+        if (mcqs[i].sharesMcqStemWith(mcqs[i - 1])) {
+          run.add(mcqs[i]);
+        } else {
+          record(run);
+          run = [mcqs[i]];
+        }
+      }
+      record(run);
+    }
+    return runs;
+  }
+
+  /// Apply one selection to a question and to everything sharing its উদ্দীপক.
+  ///
+  /// Assumes the caller has already opened a [setState]: every selection change
+  /// the picker makes goes through here, so no path — a ticked box, a set chip,
+  /// select-all over a filtered list — can leave half a run selected.
+  void _applySelection(
+    HighSchoolQuestion q,
+    bool selected,
+    Map<String, List<HighSchoolQuestion>> runs,
+  ) {
+    q.isSelected = selected;
+    for (final other in runs[q.id] ?? const <HighSchoolQuestion>[]) {
+      other.isSelected = selected;
+    }
+  }
+
   void _toggleQuestion(HighSchoolQuestion q) {
-    setState(() => q.isSelected = !q.isSelected);
+    final runs = _mcqStemRuns();
+    setState(() => _applySelection(q, !q.isSelected, runs));
   }
 
   /// The questions the picker is currently showing: filtered by type and
@@ -584,16 +644,25 @@ class _HighSchoolQPaperGeneratorPageState
   bool get _pickIsNarrowed =>
       _pickFilter != _PickFilter.all || _pickSearchQuery.trim().isNotEmpty;
 
-  void _selectAll() => setState(() {
-        for (final q in _visibleQuestions) {
-          q.isSelected = true;
-        }
-      });
-  void _deselectAll() => setState(() {
-        for (final q in _visibleQuestions) {
-          q.isSelected = false;
-        }
-      });
+  void _selectAll() {
+    final runs = _mcqStemRuns();
+    setState(() {
+      for (final q in _visibleQuestions) {
+        _applySelection(q, true, runs);
+      }
+    });
+  }
+
+  /// Unticks what is on screen — and with it the run of any shared MCQ in it, so
+  /// a partner hidden by the filter cannot be left behind on its own.
+  void _deselectAll() {
+    final runs = _mcqStemRuns();
+    setState(() {
+      for (final q in _visibleQuestions) {
+        _applySelection(q, false, runs);
+      }
+    });
+  }
 
   // ── Hand-typed questions ──────────────────────────────────────────────────
 
@@ -647,8 +716,7 @@ class _HighSchoolQPaperGeneratorPageState
     return [
       for (final e in byNumber.entries)
         ChapterInfo(chapterNumber: e.key, chapterName: e.value),
-    ]..sort((a, b) => (int.tryParse(a.chapterNumber) ?? 0)
-        .compareTo(int.tryParse(b.chapterNumber) ?? 0));
+    ]..sort((a, b) => compareChapterNumbers(a.chapterNumber, b.chapterNumber));
   }
 
   /// File a hand-typed question into the picker.
@@ -2564,10 +2632,10 @@ class _HighSchoolQPaperGeneratorPageState
       return const SizedBox.shrink();
     }
 
-    // Sorted numerically, so the list reads in the order a textbook does.
-    final chapters = [..._availableChapters]..sort((a, b) =>
-        (int.tryParse(a.chapterNumber) ?? 0)
-            .compareTo(int.tryParse(b.chapterNumber) ?? 0));
+    // Sorted numerically, so the list reads in the order a textbook does —
+    // including a section like "2.2", which is a number too.
+    final chapters = [..._availableChapters]
+      ..sort((a, b) => compareChapterNumbers(a.chapterNumber, b.chapterNumber));
 
     final query = _chapterQuery.trim().toLowerCase();
     final shown = query.isEmpty
@@ -2767,8 +2835,11 @@ class _HighSchoolQPaperGeneratorPageState
     for (final q in visible) {
       byChapter.putIfAbsent(q.chapterNumber, () => []).add(q);
     }
-    final chapterNumbers = byChapter.keys.toList()
-      ..sort((a, b) => (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0));
+    final chapterNumbers = byChapter.keys.toList()..sort(compareChapterNumbers);
+
+    // The উদ্দীপক runs, so a card can say it is one of a shared pair and a click
+    // on it can take the pair along.
+    final stemRuns = _mcqStemRuns();
 
     return Column(
       children: [
@@ -2778,8 +2849,7 @@ class _HighSchoolQPaperGeneratorPageState
         _buildPickerChapterBar([
           for (final c in _fetchedQuestions.map((q) => q.chapterNumber).toSet())
             c
-        ]..sort(
-            (a, b) => (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0))),
+        ]..sort(compareChapterNumbers)),
         // Type filter + search
         _buildPickFilterBar(visible.length),
         // Question list
@@ -2831,7 +2901,8 @@ class _HighSchoolQPaperGeneratorPageState
                 if (!_collapsedChapters.contains(chNum)) ...[
                   for (final q in _pickerOrder(byChapter[chNum]!))
                     _buildQuestionCard(
-                        q, _cardKey(q, _fetchedQuestions.indexOf(q))),
+                        q, _cardKey(q, _fetchedQuestions.indexOf(q)),
+                        run: stemRuns[q.id]),
                 ],
                 const SizedBox(height: 16),
               ],
@@ -3127,7 +3198,8 @@ class _HighSchoolQPaperGeneratorPageState
     return q.mcqData?.text ?? '';
   }
 
-  Widget _buildQuestionCard(HighSchoolQuestion q, String cardKey) {
+  Widget _buildQuestionCard(HighSchoolQuestion q, String cardKey,
+      {List<HighSchoolQuestion>? run}) {
     final isExpanded = _expandedCards[cardKey] == true;
     final typeColor = q.isCq ? _kCqColor : (q.isShort ? _kRqColor : _kMcqColor);
 
@@ -3227,6 +3299,14 @@ class _HighSchoolQPaperGeneratorPageState
                       label: 'সম্পাদিত',
                       color: Colors.deepOrange.shade50,
                       textColor: Colors.deepOrange.shade700),
+                // One উদ্দীপক over several questions: the run is selected whole,
+                // so say which run this card is part of rather than letting a
+                // second question tick itself without explanation.
+                if (run != null && run.length > 1)
+                  _TagChip(
+                      label: 'একই উদ্দীপক · ${run.length}টি',
+                      color: Colors.indigo.shade50,
+                      textColor: Colors.indigo.shade700),
                 _TagChip(
                     label: 'অধ্যায় ${q.chapterNumber}: ${q.chapterName}',
                     color: Colors.teal.shade50,

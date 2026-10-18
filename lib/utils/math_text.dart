@@ -119,7 +119,6 @@ const Map<String, String> kSpacingCommands = {
   ';': '  ',
   ':': ' ',
   '!': '',
-  ' ': ' ',
   'thinspace': ' ',
   'enspace': '  ',
 };
@@ -182,7 +181,10 @@ List<MathSegment> parseMath(String text) {
       final next = text[i + 1];
 
       if (next == r'\') {
-        buffer.write(' ');
+        // `\\` is a line break in LaTeX, but in a question paper it is a path
+        // separator or a set difference: `C:\\Users`, `A \\ B`. Kept as typed,
+        // so the two backslashes print as two backslashes.
+        buffer.write(r'\\');
         i += 2;
         continue;
       }
@@ -236,8 +238,14 @@ List<MathSegment> parseMath(String text) {
         case ';':
         case ':':
         case '!':
-        case ' ':
           buffer.write(kSpacingCommands[name]);
+          i = cursor;
+
+        case ' ':
+          // `\ ` is a space in LaTeX and a set difference in a paper:
+          // `(P ∪ Q) \ (P ∩ Q)` loses its whole sign when it is read as
+          // spacing, so it is written out as typed.
+          buffer.write(r'\ ');
           i = cursor;
 
         default:
