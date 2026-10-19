@@ -1439,7 +1439,7 @@
           <div class="icon icon-green">📄</div>
           <div>
             <h2>JSON Examples</h2>
-            <p>One complete example per pattern — click a title to fold it. An empty <code>id</code> is fine: the sheet assigns one. <code>stem_group</code> names the run of MCQs that share one উদ্দীপক</p>
+            <p>One complete example per pattern — click a title to fold it. An empty <code>id</code> is fine: the sheet assigns one. <code>stem_group</code> names the run of MCQs that share one উদ্দীপক. The question numbers written inside such an intro are not used as written — the paper renumbers every question, so <code>(২৬ - ২৭) নং</code> is rewritten to whatever those two questions end up numbered</p>
           </div>
         </div>
         <div class="card-body">
@@ -1540,11 +1540,16 @@
                Both questions keep the intro in stem_text — so either one used
                alone in another paper still prints it — and both name the run in
                stem_group. The label is what tells the paper these two are one
-               intro; the paper prints it once, above the first of them. -->
+               intro; the paper prints it once, above the first of them.
+
+               The question numbers in the intro are not taken literally: the
+               paper renumbers every question, so "২৬ - ২৭ নং" is rewritten to
+               whatever the two questions end up numbered on that paper. Write
+               "{}" in its place instead if the intro names no numbers yet. -->
           <div class="example-block" data-example-id="mcqShared" data-example-label="MCQ + উদ্দীপক">
             <div class="example-head">
               <h3>🖼️ MCQ with a shared উদ্দীপক
-                <span class="example-hint">— one intro for the run, via stem_group</span>
+                <span class="example-hint">— one intro for the run, via stem_group · its numbers are renumbered per paper</span>
               </h3>
               <button type="button" class="copy-btn mcq" onclick="copyExample('mcqSharedExample')">
                 📋 Copy

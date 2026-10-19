@@ -4,6 +4,11 @@
 // export. The sheet says which questions belong together simply by repeating the
 // intro on each row it covers.
 //
+// This fixture names no numbers on purpose: a number in an intro is rewritten
+// to the paper's own numbering (see the "the numbers in an intro" group below),
+// and these tests are about *which* questions share an intro, not about what its
+// text happens to say.
+//
 // What is locked down here: the grouping rule itself, the fact that the intro is
 // welded to the first question's chunk in the PDF (an intro stranded at the foot
 // of a column with its questions overleaf belongs to whatever is beneath it),
@@ -18,7 +23,7 @@ import 'package:pi_qbank/services/highschool_export_service.dart';
 import 'package:pi_qbank/utils/pdf_column_layout.dart';
 import 'package:pi_qbank/utils/pdf_text_metrics.dart';
 
-const kSharedStem = 'নিচের তথ্য থেকে ২৬ ও ২৭ নং প্রশ্নের উত্তর দাও।';
+const kSharedStem = 'নিচের তথ্য থেকে প্রশ্ন দুটির উত্তর দাও।';
 
 HighSchoolQuestion mcq({
   required String id,
@@ -594,6 +599,166 @@ void main() {
 
       // And the sheet says the same thing: one intro per group, in both sets.
       expect(countOf(html, 'class="mcq-stem"'), 6);
+    });
+  });
+
+  group('the numbers in an intro', () {
+    // The bank's intros are copied out of the board paper they came from, so
+    // they name that paper's numbers. A generated paper prints the questions
+    // wherever they were picked, so the reference has to be rewritten or it
+    // introduces the wrong pair.
+    const bracketed = 'নিচের তথ্যের আলোকে (১২ ও ১৩) নং প্রশ্নের উত্তর দাও:';
+    const bare = 'নিচের তথ্য থেকে ২৬ ও ২৭ নং প্রশ্নের উত্তর দাও।';
+
+    test('a bracketed reference becomes the numbers the paper prints', () {
+      expect(
+          HighSchoolExportService.stemWithNumbers(bracketed, [1, 2]),
+          'নিচের তথ্যের আলোকে (১ ও ২) নং প্রশ্নের উত্তর দাও:');
+    });
+
+    test('a bare reference is rewritten the same way', () {
+      expect(HighSchoolExportService.stemWithNumbers(bare, [1, 2]),
+          'নিচের তথ্য থেকে ১ ও ২ নং প্রশ্নের উত্তর দাও।');
+    });
+
+    test('a range joined by a dash is rewritten too', () {
+      // The form the upload tool's own example uses.
+      const dashed = 'নিচের তথ্য থেকে ২৬ - ২৭ নং প্রশ্নের উত্তর দাও ।';
+      expect(HighSchoolExportService.stemWithNumbers(dashed, [5, 6]),
+          'নিচের তথ্য থেকে ৫ ও ৬ নং প্রশ্নের উত্তর দাও ।');
+    });
+
+    test('three questions read as a list, not a pair', () {
+      expect(
+          HighSchoolExportService.stemWithNumbers(bracketed, [3, 4, 5]),
+          'নিচের তথ্যের আলোকে (৩, ৪ ও ৫) নং প্রশ্নের উত্তর দাও:');
+    });
+
+    test('a question on its own names only itself', () {
+      expect(
+          HighSchoolExportService.stemWithNumbers(bracketed, [7]),
+          'নিচের তথ্যের আলোকে (৭) নং প্রশ্নের উত্তর দাও:');
+    });
+
+    test('an intro written in ASCII digits keeps them', () {
+      expect(HighSchoolExportService.stemWithNumbers('answer 12 and 13 নং', [4, 5]),
+          'answer 4 and 5 নং');
+    });
+
+    test('a placeholder is filled even with no reference to rewrite', () {
+      expect(
+          HighSchoolExportService.stemWithNumbers(
+              'নিচের তথ্যের আলোকে (${HighSchoolExportService.stemNumbersPlaceholder}) নং প্রশ্নের উত্তর দাও:',
+              [2, 3]),
+          'নিচের তথ্যের আলোকে (২ ও ৩) নং প্রশ্নের উত্তর দাও:');
+    });
+
+    test('text that only looks like a reference is left alone', () {
+      // The other form the phrase takes in a real paper: letters, not numbers.
+      const letters = 'নিচের উদ্দীপকটি পড়ে (ক) ও (খ) নং প্রশ্নের উত্তর দাও।';
+      expect(HighSchoolExportService.stemWithNumbers(letters, [1, 2]), letters);
+      // A year in brackets is not a question reference.
+      const year = '২০২৩ সালের (৩) পরীক্ষার নং প্রশ্ন দাও।';
+      expect(HighSchoolExportService.stemWithNumbers(year, [1, 2]), year);
+      // An intro that names no questions at all.
+      const plain = 'নিচের উদ্দীপকটি দেখে উত্তর দাও।';
+      expect(HighSchoolExportService.stemWithNumbers(plain, [1, 2]), plain);
+    });
+
+    test('the run is the questions that share the intro', () {
+      final pair = [
+        mcq(id: 'a', stem: bare),
+        mcq(id: 'b', stem: bare),
+      ];
+      final trio = [
+        mcq(id: 'c', stem: bare),
+        mcq(id: 'd', stem: bare),
+        mcq(id: 'e', stem: bare),
+      ];
+      expect(HighSchoolExportService.mcqStemRunNumbers(pair, 0), [1, 2]);
+      expect(HighSchoolExportService.mcqStemRunNumbers(trio, 0), [1, 2, 3]);
+      // Out of range rather than a wrong number.
+      expect(HighSchoolExportService.mcqStemRunNumbers(pair, 5), isEmpty);
+      expect(HighSchoolExportService.mcqStemRunNumbers(const [], 0), isEmpty);
+    });
+
+    test('two groups in a row each get their own numbers', () {
+      // This is the case from the bank: two shared rows of (১২ ও ১৩) and
+      // (১২৩ ও ১২৪), picked as questions 1-4.
+      final questions = [
+        mcq(id: 'a', stem: bracketed),
+        mcq(id: 'b', stem: bracketed),
+        mcq(id: 'c', stem: 'নিচের তথ্যের আলোকে (১২৩ ও ১২৪) নং প্রশ্নের উত্তর দাও:'),
+        mcq(id: 'd', stem: 'নিচের তথ্যের আলোকে (১২৩ ও ১২৪) নং প্রশ্নের উত্তর দাও:'),
+      ];
+      final html = htmlOf(questions);
+
+      expect(html, contains('(১ ও ২) নং'));
+      expect(html, contains('(৩ ও ৪) নং'));
+      expect(html, isNot(contains('(১২ ও ১৩) নং')));
+      expect(html, isNot(contains('(১২৩ ও ১২৪) নং')));
+      // Still one intro per group, and the questions under them keep their own
+      // printed numbers.
+      expect(countOf(html, 'class="mcq-stem"'), 2);
+      expect(html, contains('<b>1.</b>'));
+      expect(html, contains('<b>4.</b>'));
+    });
+
+    test('ASCII digits in the question body do not change the hand', () {
+      // A real row from the bank: the set is written with ASCII digits, the
+      // question numbers with Bengali ones. The reference has to keep its own
+      // hand rather than borrow the body's.
+      const withSet = 'নিচের তথ্যের আলোকে (১২ ও ১৩) নং প্রশ্নের উত্তর দাও:\n'
+          'U = {1, 2, 3, 4, 5, 6}, A = {2, 4}, B = {3, 4, 5}';
+      final questions = [
+        mcq(id: 'a', stem: withSet),
+        mcq(id: 'b', stem: withSet),
+      ];
+      final html = htmlOf(questions);
+
+      expect(html, contains('(১ ও ২) নং'));
+      expect(html, isNot(contains('(1 and 2) নং')));
+      // And the line break in the intro is still a line break.
+      expect(html, contains('<br>U = {1, 2, 3, 4, 5, 6}'));
+    });
+
+    test('every export gets the same rewritten intro', () {
+      final questions = [
+        mcq(id: 'a', stem: bracketed),
+        mcq(id: 'b', stem: bracketed),
+      ];
+
+      expect(htmlOf(questions), contains('(১ ও ২) নং'));
+      expect(wordOf(questions), contains('(১ ও ২) নং'));
+      expect(textOf(questions), contains('(১ ও ২) নং'));
+      expect(markdownOf(questions), contains('(১ ও ২) নং'));
+    });
+
+    test('the estimator measures the intro the card actually draws', () {
+      // A longer number can push the intro onto another line. Booking the room
+      // from the bank's text and drawing the rewritten one would overflow it.
+      final m = PdfTextMetrics(
+        banglaFontData: ByteData.sublistView(
+            File('assets/fonts/SutonnyMJ Regular.ttf').readAsBytesSync()),
+        symbolFontData: ByteData.sublistView(
+            File('assets/fonts/MathSymbols.ttf').readAsBytesSync()),
+      );
+      final question = mcq(id: 'a', stem: bracketed);
+      final drawn = HighSchoolExportService.stemWithNumbers(
+          question.mcqStemText, [98, 99]);
+      double height(String stem) => PdfLayout.mcqFragments(
+            index: 1,
+            question: question,
+            columnWidth: PdfLayout.columnWidth(1),
+            metrics: m,
+            withStem: true,
+            stemText: stem,
+          ).first;
+
+      expect(height(drawn), greaterThan(0));
+      expect(height(drawn),
+          closeTo(height(question.mcqStemText), 0.01),
+          reason: 'the override must be the text that is measured');
     });
   });
 }

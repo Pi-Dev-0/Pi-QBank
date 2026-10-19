@@ -373,6 +373,109 @@ class HighSchoolExportService {
       resolveImageUrl(q.stemImageUrl);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Shared-উদ্দীপক question numbers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Where an author puts the question numbers when the intro should carry
+  /// whatever the paper ends up numbering them: `নিচের তথ্যের আলোকে ({}) নং…`.
+  static const String stemNumbersPlaceholder = '{}';
+
+  /// The `(১২ ও ১৩) নং` reference inside a shared intro.
+  ///
+  /// The bank's intros are copied verbatim from the board paper they came from,
+  /// so they name *that* paper's numbers while a generated paper prints the
+  /// questions wherever they were picked — `(১২ ও ১৩)` above questions numbered
+  /// 1 and 2. The group has to start with a digit, so `(ক) ও (খ) নং প্রশ্ন` — the
+  /// other form the phrase appears in — is left alone, and the reference has to
+  /// be followed by নং/নম্বর so `(২০২৩) সালের…` is not mistaken for one.
+  static final RegExp _stemNumbersRef = RegExp(
+      r'\(([0-9\u09E6-\u09EF][0-9\u09E6-\u09EF\s,ওএবং\-–—]*)\)'
+      r'(\s*(?:নং|নম্বর))');
+
+  /// The same reference written bare: `২৬ ও ২৭ নং`, `12, 13 নম্বর`.
+  ///
+  /// Two numbers at least. A lone `৫ নং` is too easily a figure reference
+  /// ("চিত্র ৫ নং"), so that form is left to [stemNumbersPlaceholder] or to the
+  /// bracketed one, where it is unambiguous.
+  static final RegExp _bareStemNumbersRef = RegExp(
+      '([0-9\\u09E6-\\u09EF]+(?:\\s*(?:,|ও|এবং|and|&|\\-|–|—)\\s*[0-9\\u09E6-\\u09EF]+)+)'
+      '(\\s*(?:নং|নম্বর))');
+
+  /// The numbers of the questions that share the উদ্দীপক introduced at [start].
+  ///
+  /// These are the numbers the writer prints, so the helper takes the position
+  /// in the list rather than the question: a run is the questions the model
+  /// says share the intro (see [HighSchoolQuestion.sharesMcqStemWith]), which is
+  /// what decides where one উদ্দীপক stops and the next begins.
+  static List<int> mcqStemRunNumbers(
+      List<HighSchoolQuestion> mcqs, int start) {
+    if (start < 0 || start >= mcqs.length) return const [];
+    final numbers = <int>[start + 1];
+    for (var j = start; j + 1 < mcqs.length; j++) {
+      if (!mcqs[j + 1].sharesMcqStemWith(mcqs[j])) break;
+      numbers.add(j + 2);
+    }
+    return numbers;
+  }
+
+  /// [intro] with its "which questions" reference naming [numbers].
+  ///
+  /// The digits stay in the intro's own hand: an intro that wrote `(১২ ও ১৩)` is
+  /// rewritten as `(১ ও ২)` in Bengali, one that wrote `(12, 13)` in ASCII. The
+  /// intro is prose, so it should read like the book it was copied from; only
+  /// the numbers are the paper's.
+  ///
+  /// An intro with nothing to rewrite — no `নং` reference, no
+  /// [stemNumbersPlaceholder] — comes back untouched, which is what an author
+  /// who never numbered anything wants.
+  static String stemWithNumbers(String intro, List<int> numbers) {
+    if (intro.isEmpty || numbers.isEmpty) return intro;
+    // The placeholder takes Bengali: there is no reference to copy the hand
+    // from, and the paper writes Bengali.
+    if (intro.contains(stemNumbersPlaceholder)) {
+      return intro.replaceAll(stemNumbersPlaceholder,
+          _joinStemNumbers(numbers, bengali: true));
+    }
+    // Otherwise the new numbers take the hand of the reference they replace —
+    // and only of *that*: an intro's own text is full of ASCII digits (`U = {1,
+    // 2, 3, 4, 5, 6}`), which says nothing about how its question numbers were
+    // written.
+    //
+    // The bracketed form first, then the bare one; both are idempotent, so a
+    // reference just rewritten inside its brackets is left alone.
+    var out = intro.replaceAllMapped(_stemNumbersRef, (m) {
+      final joined = _joinStemNumbers(numbers,
+          bengali: _writtenInBengaliDigits(m.group(1)!));
+      return '($joined)${m.group(2)}';
+    });
+    out = out.replaceAllMapped(_bareStemNumbersRef, (m) {
+      final joined = _joinStemNumbers(numbers,
+          bengali: _writtenInBengaliDigits(m.group(1)!));
+      return '$joined${m.group(2)}';
+    });
+    return out;
+  }
+
+  /// Whether [text] has any Bengali digit in it.
+  static bool _writtenInBengaliDigits(String text) =>
+      RegExp('[\u09E6-\u09EF]').hasMatch(text);
+
+  /// `(১)`, `(১ ও ২)`, `(১, ২ ও ৩)` — the way a book writes a list of numbers.
+  static String _joinStemNumbers(List<int> numbers, {required bool bengali}) {
+    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    String show(int number) => bengali
+        ? '$number'
+            .split('')
+            .map((d) => bengaliDigits[int.parse(d)])
+            .join()
+        : '$number';
+
+    if (numbers.length == 1) return show(numbers.first);
+    final head = numbers.take(numbers.length - 1).map(show).join(', ');
+    return bengali ? '$head ও ${show(numbers.last)}' : '$head and ${show(numbers.last)}';
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // 1. Plain Text Format
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -510,7 +613,8 @@ class HighSchoolExportService {
             // A shared উদ্দীপক is written once, over the first question of the
             // group, in every export format alike.
             if (q.opensMcqStemGroup(previousMcq)) {
-              buffer.writeln(q.mcqStemText);
+              buffer.writeln(
+                  stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(inSection, j)));
               buffer.writeln();
             }
             previousMcq = q;
@@ -954,7 +1058,7 @@ class HighSchoolExportService {
       previous = q;
       return '''
     <td class="mcq-col-cell">
-      ${opensStem ? '<div class="mcq-stem">${_htmlText(q.mcqStemText, latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
+      ${opensStem ? '<div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, index - 1)), latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
       <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
       <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
     </td>''';
@@ -2092,7 +2196,7 @@ class HighSchoolExportService {
 ''');
       if (opensStem) {
         buffer.write('''
-          <div class="mcq-stem">${_htmlText(q.mcqStemText, latex: true)}${_stemImageMarkup(q, size: imageSize, usePoints: false)}</div>
+          <div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, i)), latex: true)}${_stemImageMarkup(q, size: imageSize, usePoints: false)}</div>
 ''');
       }
       buffer.write('''
@@ -2283,7 +2387,7 @@ class HighSchoolExportService {
 
             // The shared intro, once, over the first question of its group.
             if (q.opensMcqStemGroup(previousMcq)) {
-              buffer.writeln('> ${q.mcqStemText}\n');
+              buffer.writeln('> ${stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(inSection, j))}\n');
               if (_hasStemImage(q, imageSize)) {
                 buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})\n');
               }

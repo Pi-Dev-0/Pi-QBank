@@ -402,7 +402,7 @@ class PdfLayout {
       ).fold<double>(0, (sum, h) => sum + h);
 
   /// The MCQ question broken into the chunks it can be split at: the head (the
-  /// উদ্দীপক, when this question opens one, then the numbered question line),
+  /// The `… উদ্দীপক, when this question opens one, then the numbered question line),
   /// then one chunk per row of options.
   ///
   /// Chunking by *row* rather than by option matters — how many options share a
@@ -414,6 +414,12 @@ class PdfLayout {
   /// the head rather than being a chunk of its own: an intro stranded at the
   /// foot of a column, with the questions it introduces overleaf, reads as
   /// belonging to whatever happens to be beneath it.
+  ///
+  /// [stemText] overrides the intro the estimate reads. The paper rewrites a
+  /// shared intro's question numbers before drawing it
+  /// ([HighSchoolExportService.stemWithNumbers]), and rewriting can make it a
+  /// line longer or shorter — passing the very text the card draws is what
+  /// keeps the booked room and the drawn card the same room.
   static List<double> mcqFragments({
     required int index,
     required HighSchoolQuestion question,
@@ -421,6 +427,7 @@ class PdfLayout {
     required PdfTextMetrics metrics,
     double fontStep = 0,
     bool withStem = false,
+    String? stemText,
     bool hasImage = false,
     StemImageSize imageSize = StemImageSize.medium,
   }) {
@@ -430,7 +437,7 @@ class PdfLayout {
     final body = bodyFontSize + fontStep;
 
     var head = 0.0;
-    final stem = withStem ? question.mcqStemText : '';
+    final stem = withStem ? (stemText ?? question.mcqStemText) : '';
     if (stem.isNotEmpty) {
       head += metrics.blockHeight(stem, width: columnWidth, fontSize: body);
       if (imageSize.isVisible && hasImage) {

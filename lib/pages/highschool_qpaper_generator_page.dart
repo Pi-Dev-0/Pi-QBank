@@ -1669,6 +1669,17 @@ class _HighSchoolQPaperGeneratorPageState
       // these, so the room budgeted for a question is the room it draws.
       bool opensStem(int i) =>
           mcqs[i].opensMcqStemGroup(i == 0 ? null : mcqs[i - 1]);
+
+      /// The intro as it prints: a shared উদ্দীপক names the numbers the paper
+      /// gives the questions under it, not the ones the bank copied out of the
+      /// board paper. Both the estimator and the card read this, so the room
+      /// booked for the intro is the room it draws.
+      String stemTextOf(int i) => opensStem(i)
+          ? HighSchoolExportService.stemWithNumbers(
+              mcqs[i].mcqStemText,
+              HighSchoolExportService.mcqStemRunNumbers(mcqs, i))
+          : '';
+
       bool hasStemImage(int i) =>
           opensStem(i) &&
           imageSize.isVisible &&
@@ -1695,6 +1706,7 @@ class _HighSchoolQPaperGeneratorPageState
               metrics: metrics,
               fontStep: _fontStep,
               withStem: opensStem(0),
+              stemText: stemTextOf(0),
               hasImage: hasStemImage(0),
               imageSize: imageSize,
             );
@@ -1744,6 +1756,7 @@ class _HighSchoolQPaperGeneratorPageState
           metrics: metrics,
           fontStep: _fontStep,
           withStem: opensStem(i),
+          stemText: stemTextOf(i),
           hasImage: hasStemImage(i),
           imageSize: imageSize,
         );
@@ -1772,6 +1785,7 @@ class _HighSchoolQPaperGeneratorPageState
                 columnWidth: mcqWidth,
                 metrics: metrics,
                 withStem: opensStem(qIndex),
+                stemText: stemTextOf(qIndex),
                 stemBytes: stemBytesOf(qIndex),
                 imageSize: imageSize,
                 partFrom: from,
@@ -2366,6 +2380,7 @@ class _HighSchoolQPaperGeneratorPageState
     required double columnWidth,
     required PdfTextMetrics metrics,
     bool withStem = false,
+    String? stemText,
     Uint8List? stemBytes,
     StemImageSize imageSize = StemImageSize.medium,
     int partFrom = 0,
@@ -2375,7 +2390,7 @@ class _HighSchoolQPaperGeneratorPageState
     if (mcq == null) return pw.SizedBox();
 
     final options = mcq.options;
-    final stemText = withStem ? q.mcqStemText : '';
+    final stem = withStem ? (stemText ?? q.mcqStemText) : '';
 
     // Four options on a line where the four fit, two where they do not, one
     // where even two will not sit side by side — measured from the room the
@@ -2428,9 +2443,9 @@ class _HighSchoolQPaperGeneratorPageState
         if (partFrom == 0) ...[
           // The intro carries no number: it belongs to the questions under it,
           // not to one of them.
-          if (stemText.isNotEmpty)
-            pw.RichText(text: _mixedText(stemText, baseStyle)),
-          if (stemText.isNotEmpty && stemBytes != null) ...[
+          if (stem.isNotEmpty)
+            pw.RichText(text: _mixedText(stem, baseStyle)),
+          if (stem.isNotEmpty && stemBytes != null) ...[
             pw.SizedBox(height: PdfLayout.cqImageGap),
             pw.Container(
               alignment: pw.Alignment.center,
@@ -2441,7 +2456,7 @@ class _HighSchoolQPaperGeneratorPageState
               ),
             ),
           ],
-          if (stemText.isNotEmpty) pw.SizedBox(height: PdfLayout.mcqStemGap),
+          if (stem.isNotEmpty) pw.SizedBox(height: PdfLayout.mcqStemGap),
           pw.RichText(
               text: _mixedText('$index. ${q.paperQuestionText}', baseStyle)),
         ],
