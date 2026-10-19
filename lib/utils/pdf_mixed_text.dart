@@ -81,11 +81,18 @@ pw.TextSpan buildPdfTextSpan(
   pw.TextStyle banglaStyle, {
   bool bold = false,
   MathTextMeasurer? measure,
+  pw.Font? symbolFont,
+  Set<int>? symbolCoverage,
 }) {
   final latin = bold ? pw.Font.helveticaBold() : pw.Font.helvetica();
 
   final children = _spansForRaw(text,
-      banglaStyle: banglaStyle, latin: latin, bold: bold, measure: measure);
+      banglaStyle: banglaStyle,
+      latin: latin,
+      bold: bold,
+      measure: measure,
+      symbolFont: symbolFont,
+      symbolCoverage: symbolCoverage);
   if (children.isEmpty) {
     return pw.TextSpan(text: '', style: banglaStyle);
   }
@@ -102,9 +109,16 @@ List<pw.InlineSpan> _spansForRaw(
   required pw.Font latin,
   required bool bold,
   MathTextMeasurer? measure,
+  pw.Font? symbolFont,
+  Set<int>? symbolCoverage,
 }) =>
     _spansForParsed(parseMath(raw),
-        banglaStyle: banglaStyle, latin: latin, bold: bold, measure: measure);
+        banglaStyle: banglaStyle,
+        latin: latin,
+        bold: bold,
+        measure: measure,
+        symbolFont: symbolFont,
+        symbolCoverage: symbolCoverage);
 
 /// Spans for text already split into segments, still unconverted.
 ///
@@ -120,6 +134,8 @@ List<pw.InlineSpan> _spansForParsed(
   required pw.Font latin,
   required bool bold,
   MathTextMeasurer? measure,
+  pw.Font? symbolFont,
+  Set<int>? symbolCoverage,
 }) {
   final out = <pw.InlineSpan>[];
 
@@ -132,7 +148,8 @@ List<pw.InlineSpan> _spansForParsed(
           // inline form, which is always correct, rather than a stack that
           // looks broken.
           out.addAll(_textSpans('($numerator)/($denominator)',
-              banglaStyle: banglaStyle, latin: latin, bold: bold, math: math));
+              banglaStyle: banglaStyle, latin: latin, bold: bold, math: math,
+              symbolFont: symbolFont, symbolCoverage: symbolCoverage));
           continue;
         }
         out.add(_fractionSpan(numerator, denominator,
@@ -146,7 +163,9 @@ List<pw.InlineSpan> _spansForParsed(
                         banglaStyle: at,
                         latin: latin,
                         bold: bold,
-                        measure: measure)))));
+                        measure: measure,
+                        symbolFont: symbolFont,
+                        symbolCoverage: symbolCoverage)))));
 
       case MathScript(:final text, :final superscript, :final math):
         out.add(_scriptSpan(text,
@@ -160,11 +179,14 @@ List<pw.InlineSpan> _spansForParsed(
                         banglaStyle: at,
                         latin: latin,
                         bold: bold,
-                        measure: measure)))));
+                        measure: measure,
+                        symbolFont: symbolFont,
+                        symbolCoverage: symbolCoverage)))));
 
       case MathText(:final text, :final math):
         out.addAll(_textSpans(text,
-            banglaStyle: banglaStyle, latin: latin, bold: bold, math: math));
+            banglaStyle: banglaStyle, latin: latin, bold: bold, math: math,
+            symbolFont: symbolFont, symbolCoverage: symbolCoverage));
     }
   }
   return out;
@@ -172,40 +194,83 @@ List<pw.InlineSpan> _spansForParsed(
 
 /// Draws a string that is still ordinary Unicode text, splitting it into
 /// Bangla and Latin runs and setting each in its own font.
+/// Whitespace runes that stay in the run around them rather than being drawn
+/// as an undrawable box. Mirrors the measurer's set, so the two agree.
+bool _isPdfWhitespace(int rune) => const {
+      0x09, 0x0a, 0x0d, 0x20, 0x00a0, 0x1680, 0x2000, 0x2001, 0x2002, //
+      0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a,
+      0x202f, 0x205f, 0x3000,
+    }.contains(rune);
+
 List<pw.InlineSpan> _textSpans(
   String text, {
   required pw.TextStyle banglaStyle,
   required pw.Font latin,
   required bool bold,
   required bool math,
+  pw.Font? symbolFont,
+  Set<int>? symbolCoverage,
 }) {
   final out = <pw.InlineSpan>[];
+  final banglaFont = banglaStyle.fontNormal;
 
   for (final run in splitPdfTextRuns(text)) {
     if (run.isEmpty) continue;
 
-    // Bangla keeps SutonnyMJ; Latin is set in a standard font. The two have to
-    // be chosen per run — handing the Latin font to a Bangla run draws the
-    // Bijoy bytes as readable ASCII gibberish.
-    final base = run.isBangla
-        ? banglaStyle
-        : banglaStyle.copyWith(
-            // `font:` alone would be discarded — see the note above.
-            fontNormal: latin,
-            fontBold: latin,
-            fontItalic: latin,
-            fontBoldItalic: latin,
-          );
+    final buffer = StringBuffer();
+    pw.Font? bufferFont;
 
-    // Italics mark a maths variable, so they apply to the Latin runs only. The
-    // Bangla font has no italic cut to select.
-    out.add(pw.TextSpan(
-      text: run.text,
-      style: (math && !run.isBangla)
-          ? base.copyWith(fontStyle: pw.FontStyle.italic)
-          : base,
-    ));
+    void flush() {
+      final font = bufferFont;
+      if (buffer.isEmpty || font == null) {
+        buffer.clear();
+        return;
+      }
+      var style = run.isBangla
+          ? banglaStyle
+          : banglaStyle.copyWith(
+              fontNormal: font,
+              fontBold: font,
+              fontItalic: font,
+              fontBoldItalic: font,
+            );
+      if (math && !run.isBangla) {
+        style = style.copyWith(fontStyle: pw.FontStyle.italic);
+      }
+      out.add(pw.TextSpan(text: buffer.toString(), style: style));
+      buffer.clear();
+    }
+
+    for (final rune in run.text.runes) {
+      if (_isPdfWhitespace(rune)) {
+        bufferFont ??= run.isBangla ? (banglaFont ?? latin) : latin;
+        buffer.writeCharCode(rune);
+        continue;
+      }
+
+      pw.Font match;
+      if (run.isBangla) {
+        match = banglaFont ?? latin;
+      } else {
+        final helveticaCovers =
+            (rune >= 0x20 && rune <= 0x7e) || (rune >= 0xa0 && rune <= 0xff);
+        if (helveticaCovers) {
+          match = latin;
+        } else if (symbolFont != null &&
+            (symbolCoverage?.contains(rune) ?? false)) {
+          match = symbolFont;
+        } else {
+          match = latin;
+        }
+      }
+
+      if (bufferFont != null && !identical(bufferFont, match)) flush();
+      bufferFont = match;
+      buffer.writeCharCode(rune);
+    }
+    flush();
   }
+
   return out;
 }
 

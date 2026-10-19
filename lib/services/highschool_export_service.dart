@@ -199,13 +199,17 @@ enum PaperFont {
       ].join(', ');
 
   /// The Google Fonts families the sheet has to *fetch* for [font]: the face
-  /// itself when it is a web font, plus Hind Siliguri — which every stack falls
-  /// back to, and which is the one face that is always fetched.
+  /// itself when it is a web font, Hind Siliguri — which every stack falls back
+  /// to, and which is the one text face that is always fetched — and Noto Sans
+  /// Math, which the `.m` class puts behind every maths symbol so `∪` and `∩`
+  /// come out of the same face.
   static List<String> webFamiliesOf(PaperFont font) {
     const hindSiliguriFamily = 'Hind+Siliguri:wght@400;500;600;700';
+    const notoSansMathFamily = 'Noto+Sans+Math';
     return [
       if (font.isWebFont && font.google != hindSiliguriFamily) font.google,
       hindSiliguriFamily,
+      notoSansMathFamily,
     ];
   }
 }
@@ -718,6 +722,9 @@ class HighSchoolExportService {
     .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
     .frac-den { display:block; padding:0 .25em; }
     .mathv { font-style:italic; }
+    /* One face for maths symbols: the text faces cover ∩ but not ∪, which
+       used to leave the union drawn by a different face than the intersection. */
+    .m { font-family: $kMathFontStack; font-style: normal; }
   </style>
 </head>
 <body>
@@ -1404,6 +1411,9 @@ class HighSchoolExportService {
     .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
     .frac-den { display:block; padding:0 .25em; }
     .mathv { font-style:italic; }
+    /* One face for maths symbols: the text faces cover ∩ but not ∪, which
+       used to leave the union drawn by a different face than the intersection. */
+    .m { font-family: $kMathFontStack; font-style: normal; }
   </style>
 </head>
 <body>
@@ -2337,13 +2347,30 @@ class HighSchoolExportService {
   // File I/O & Sharing Helpers
   // ─────────────────────────────────────────────────────────────────────────
 
+  /// A file name that keeps the script the paper is written in.
+  ///
+  /// The old filter was `[^\w\.-]`, and Dart's `\w` is ASCII-only: every Bengali
+  /// letter in `পদার্থবিজ্ঞান.html` became an underscore, so the whole name
+  /// collapsed to `________________.html` and each export overwrote the last.
+  /// Only the characters a file system actually rejects are replaced now — the
+  /// readers' own script is left alone.
+  static String safeFileName(String name) {
+    final cleaned = name
+        // Path separators, the Windows-reserved set and control characters.
+        .replaceAll(RegExp(r'[\\/:*?"<>|\u0000-\u001F]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceFirst(RegExp(r'^[. ]+'), '')
+        .replaceFirst(RegExp(r'[. ]+$'), '');
+    return cleaned.isEmpty ? 'document' : cleaned;
+  }
+
   static Future<File> saveFile({
     required String content,
     required String fileName,
     List<int>? bytes,
   }) async {
     final tempDir = await getTemporaryDirectory();
-    final sanitizedName = fileName.replaceAll(RegExp(r'[^\w\.-]'), '_');
+    final sanitizedName = safeFileName(fileName);
     final file = File('${tempDir.path}/$sanitizedName');
     if (bytes != null) {
       await file.writeAsBytes(bytes);

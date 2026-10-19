@@ -245,6 +245,8 @@ class _HighSchoolQPaperGeneratorPageState
   /// Set by [_buildPdf] so [_mixedText] can measure a typeset fraction without
   /// every call site having to thread the measurer through.
   PdfTextMetrics? _activeMetrics;
+  pw.Font? _activeMathFont;
+  Set<int>? _activeSymbolCoverage;
 
   /// Order the sections are printed in. Defaults to the paper's original
   /// arrangement: CQ, then the short questions, then MCQ.
@@ -1118,7 +1120,7 @@ class _HighSchoolQPaperGeneratorPageState
   pw.TextSpan _mixedText(String text, pw.TextStyle style) {
     final bold = style.fontWeight == pw.FontWeight.bold;
     return buildPdfTextSpan(text, style,
-        bold: bold, measure: _measureForRender);
+        bold: bold, measure: _measureForRender, symbolFont: _activeMathFont, symbolCoverage: _activeSymbolCoverage);
   }
 
   /// Measures text with the same engine the layout uses, so a typeset
@@ -1993,6 +1995,20 @@ class _HighSchoolQPaperGeneratorPageState
     // Available to _mixedText for the whole build, so a typeset fraction can be
     // measured with the same engine the layout used.
     _activeMetrics = metrics;
+    _activeMathFont = mathFont;
+    if (mathFontData != null) {
+      try {
+        // Read the symbol font's cmap so the renderer can route math glyphs
+        // to it instead of leaving them in Helvetica (which has no ∪ ∩ ≤ …).
+        // TtfParser is internal to the pdf package but exposes exactly this.
+        final parser = TtfParser(mathFontData);
+        _activeSymbolCoverage = parser.charToGlyphIndexMap.keys.toSet();
+      } catch (_) {
+        _activeSymbolCoverage = null;
+      }
+    } else {
+      _activeSymbolCoverage = null;
+    }
 
     // Every size here is the paper's *base* size; _typeSize shifts them all by
     // the same step. The step reaches PdfLayout's height estimators too, so what

@@ -459,18 +459,85 @@ String mathToHtml(List<MathSegment> segments) {
       case MathScript(:final text, :final superscript):
         out.write(superscript ? '<sup>$text</sup>' : '<sub>$text</sub>');
       case MathText(:final text, :final math):
-        out.write(math ? '<span class="mathv">$text</span>' : text);
+        final symbols = _wrapMathSymbols(text);
+        out.write(math ? '<span class="mathv">$symbols</span>' : symbols);
     }
   }
   return out.toString();
 }
 
-/// Parse and render as HTML in one step.
-String latexToHtml(String text) => mathToHtml(parseMath(text));
+/// The `font-family` the `.m` class sets, so maths symbols come out of one face.
+///
+/// This is not a nicety. The text faces are Latin and Bengali faces, and the
+/// common ones cover `∩` (U+2229) but **not** `∪` (U+222A) — Arial, Liberation
+/// Sans, Times New Roman and Courier New all do exactly that. `∪` therefore fell
+/// through to whatever symbol face the system happened to have, next to a `∩`
+/// drawn in Arial: the union came out in a different design, size and weight
+/// from the intersection right beside it. Setting both from a single maths face
+/// (and one that is fetched, so it does not depend on the machine) is the same
+/// split the PDF already makes by routing both to its symbol font.
+const String kMathFontStack =
+    "'Noto Sans Math', 'Cambria Math', 'Segoe UI Symbol', 'DejaVu Sans', sans-serif";
 
-/// The CSS the HTML export needs for the classes [mathToHtml] emits.
+/// The CSS the HTML/Word exports need for the classes [mathToHtml] emits.
 const String kMathCss =
     '.frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }'
     '.frac .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }'
     '.frac .frac-den { display:block; padding:0 .25em; }'
-    '.mathv { font-style:italic; }';
+    '.mathv { font-style:italic; }'
+    '.m { font-family: $kMathFontStack; font-style: normal; }';
+
+/// Wrap each run of maths symbols in `<span class="m">`, which sets the face
+/// they are drawn in (see [kMathFontStack]).
+///
+/// [text] is already HTML-escaped; symbols are never part of an entity, so the
+/// remaining characters can be copied through untouched.
+String _wrapMathSymbols(String text) {
+  final out = StringBuffer();
+  final run = StringBuffer();
+  void flush() {
+    if (run.isEmpty) return;
+    out.write('<span class="m">$run</span>');
+    run.clear();
+  }
+
+  for (final rune in text.runes) {
+    if (isMathSymbol(rune)) {
+      run.writeCharCode(rune);
+    } else {
+      flush();
+      out.writeCharCode(rune);
+    }
+  }
+  flush();
+  return out.toString();
+}
+
+/// Whether [rune] is a maths symbol the text faces cannot be trusted to draw.
+///
+/// Covers the Unicode blocks the app's LaTeX commands and pasted questions land
+/// in, plus the Latin-1 operators (`×`, `÷`, `±`) that share the problem on some
+/// machines.
+bool isMathSymbol(int rune) {
+  if (rune >= 0x2200 && rune <= 0x22ff) return true; // Mathematical Operators
+  if (rune >= 0x2a00 && rune <= 0x2aff) return true; // Supplemental Operators
+  if (rune >= 0x27c0 && rune <= 0x27ef) return true; // Miscellaneous Maths A
+  if (rune >= 0x2980 && rune <= 0x29ff) return true; // Miscellaneous Maths B
+  if (rune >= 0x2190 && rune <= 0x21ff) return true; // Arrows
+  if (rune >= 0x2070 && rune <= 0x209f) return true; // Super/subscripts
+  if (rune >= 0x2100 && rune <= 0x214f) return true; // Letterlike symbols
+  return const {
+    0x00b0, // °
+    0x00b1, // ±
+    0x00b7, // ·
+    0x00d7, // ×
+    0x00f7, // ÷
+    0x2032, // ′
+    0x2033, // ″
+    0x2044, // ⁄
+    0x2212, // −
+  }.contains(rune);
+}
+
+/// Parse and render as HTML in one step.
+String latexToHtml(String text) => mathToHtml(parseMath(text));

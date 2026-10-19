@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:pi_qbank/models/highschool_question.dart';
 import 'package:pi_qbank/services/highschool_export_service.dart';
+import 'package:pi_qbank/utils/math_text.dart';
 
 HighSchoolQuestion rq() => HighSchoolQuestion.fromJson({
       'id': 'q',
@@ -84,7 +85,8 @@ void main() {
 
       expect(decl(rule(cssOf(html), 'body'), 'font-family'),
           "sans-serif, 'Hind Siliguri', 'SolaimanLipi'");
-      expect(fetchedFamilies(html), ['Hind+Siliguri:wght@400;500;600;700']);
+      expect(fetchedFamilies(html),
+          ['Hind+Siliguri:wght@400;500;600;700', 'Noto+Sans+Math']);
     });
 
     test('a face the browser cannot fetch falls back to the one it can', () {
@@ -93,7 +95,8 @@ void main() {
       expect(decl(rule(cssOf(html), 'body'), 'font-family'),
           "sans-serif, 'Kalpurush', 'SolaimanLipi', 'Hind Siliguri'");
       // Kalpurush is not on Google Fonts, so only the fall-back is fetched.
-      expect(fetchedFamilies(html), ['Hind+Siliguri:wght@400;500;600;700']);
+      expect(fetchedFamilies(html),
+          ['Hind+Siliguri:wght@400;500;600;700', 'Noto+Sans+Math']);
     });
 
     test('a web face is fetched alongside the fall-back', () {
@@ -104,7 +107,17 @@ void main() {
       expect(fetchedFamilies(html), [
         'Noto+Serif+Bengali:wght@400;500;600;700',
         'Hind+Siliguri:wght@400;500;600;700',
+        'Noto+Sans+Math',
       ]);
+    });
+
+    test('maths symbols are set in one face of their own', () {
+      final css = cssOf(sheetHtml());
+
+      expect(decl(rule(css, '.m'), 'font-family'), kMathFontStack);
+      expect(decl(rule(css, '.m'), 'font-style'), 'normal',
+          reason: r'a symbol is never italic, even inside $...$');
+      expect(fetchedFamilies(sheetHtml()), contains('Noto+Sans+Math'));
     });
 
     test('every stack ends in a face the file fetches', () {
@@ -142,6 +155,10 @@ void main() {
         expect(family, startsWith("'${font.family}'"), reason: font.name);
         expect(family, endsWith('serif'), reason: font.name);
       }
+    });
+
+    test('sets maths symbols in the same face as the sheet', () {
+      expect(decl(rule(cssOf(wordDoc()), '.m'), 'font-family'), kMathFontStack);
     });
   });
 }

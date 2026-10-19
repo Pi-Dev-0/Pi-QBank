@@ -158,6 +158,44 @@ void main() {
     expect(plain, isNot(contains(r'\text')));
   });
 
+  group('maths symbols in HTML', () {
+    test('union and intersection are given the same face', () {
+      // The text faces cover ∩ (U+2229) but not ∪ (U+222A) — Arial, Liberation
+      // Sans, Times New Roman and Courier New all do — so without the wrapper
+      // the union came from a different face than the intersection beside it.
+      expect(latexToHtml(r'P \cup Q \cap R'),
+          'P <span class="mathv"><span class="m">∪</span></span> Q '
+          '<span class="mathv"><span class="m">∩</span></span> R');
+    });
+
+    test('symbols typed straight into the text are wrapped too', () {
+      expect(latexToHtml('x≤5'), 'x<span class="m">≤</span>5');
+      expect(latexToHtml('A ∪ B'), 'A <span class="m">∪</span> B');
+    });
+
+    test('prose, entities and maths italics are left as they are', () {
+      expect(latexToHtml('A &amp; B ∪ C'),
+          'A &amp; B <span class="m">∪</span> C');
+      // `\cup` is a command, so it lands in the maths span — which is italic
+      // for letters; `.m` sets the symbol back upright.
+      expect(latexToHtml(r'$a \cup b$'),
+          '<span class="mathv">a </span>'
+          '<span class="mathv"><span class="m">∪</span></span>'
+          '<span class="mathv"> b</span>');
+    });
+
+    test('the maths face covers both symbols and is fetched', () {
+      expect(kMathFontStack, contains('Noto Sans Math'));
+      expect(kMathCss, contains('.m {'));
+      // Symbols are never part of an HTML entity, so the class can be emitted
+      // by scanning the escaped text.
+      expect(isMathSymbol(0x222a), isTrue);
+      expect(isMathSymbol(0x2229), isTrue);
+      expect(isMathSymbol(0x09), isFalse);
+      expect(isMathSymbol('ক'.runes.first), isFalse);
+    });
+  });
+
   test('every symbol glyph is one character', () {
     for (final e in kLatexSymbols.entries) {
       if (e.key.endsWith(' ')) continue;
