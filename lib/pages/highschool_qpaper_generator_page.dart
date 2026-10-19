@@ -92,6 +92,27 @@ const _kSubjectsByClass = {
   ],
 };
 
+/// The classes the way a paper writes them.
+///
+/// A display name only: the bank stores (and the endpoint filters on) the
+/// canonical label in [_kClasses], and the picker keeps listing that label. This
+/// map is only what the printed শ্রেণি line puts on the paper.
+const _kClassLabels = {
+  'Class 6': 'ষষ্ঠ',
+  'Class 7': 'সপ্তম',
+  'Class 8': 'অষ্টম',
+  'Class (9-10) SSC': 'নবম-দশম',
+  'Class (11-12) HSC': 'একাদশ-দ্বাদশ',
+};
+
+/// The name to print for [className] — its paper name when the picker set it,
+/// and the value itself when it is a hand-typed section like `অষ্টম (ক)`.
+///
+/// Only the printed শ্রেণি field uses this. The picker itself keeps listing the
+/// canonical labels ([_kClasses]), which are what the bank and the fetch calls
+/// speak.
+String _classLabel(String className) => _kClassLabels[className] ?? className;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Page entry point
 // ─────────────────────────────────────────────────────────────────────────────
@@ -805,7 +826,9 @@ class _HighSchoolQPaperGeneratorPageState
       return;
     }
     _subjectCtrl.text = _selectedSubject ?? '';
-    _classCtrl.text = _selectedClass ?? '';
+    // Step 3's শ্রেণি field writes the class the way a paper does. The canonical
+    // label the picker listed stays behind for the fetch calls and the sheet.
+    _classCtrl.text = _selectedClass == null ? '' : _classLabel(_selectedClass!);
     _marksCtrl.text = '$_totalSelectedMarks';
     _goToStep(2);
   }

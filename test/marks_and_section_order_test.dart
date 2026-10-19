@@ -305,6 +305,16 @@ void main() {
       expect(find.text('RQ নম্বর: 8'), findsOneWidget);
       expect(find.text('মোট নম্বর: 70'), findsOneWidget);
     });
+
+    testWidgets('step 3 writes the class the way a paper does', (tester) async {
+      await _openPicker(tester);
+      await _toLastStep(tester);
+
+      // The শ্রেণি field carries the paper's own name for the class; the
+      // canonical label stays behind for the fetch calls and the sheet.
+      expect(find.text('নবম-দশম'), findsOneWidget);
+      expect(find.text('Class (9-10) SSC'), findsNothing);
+    });
   });
 
   group('section order', () {
