@@ -924,6 +924,9 @@ class _HighSchoolQPaperGeneratorPageState
 
   Future<void> _exportHtml({bool open = true}) async {
     try {
+      // A face the app ships is written into the file, so load it before the
+      // sheet is built; see [HighSchoolExportService.preloadPaperFonts].
+      await HighSchoolExportService.preloadPaperFonts();
       final html = HighSchoolExportService.generateHtml(
         schoolName: _schoolCtrl.text,
         examName: _examCtrl.text,
@@ -1084,6 +1087,10 @@ class _HighSchoolQPaperGeneratorPageState
           rqLayout: _rqLayout,
           fontStep: _fontStep,
           font: _paperFont,
+          // The sheet's own print button goes through the app's PDF path: a
+          // WebView has no print dialog to open, and this is the same paper the
+          // PDF button prints.
+          onPrint: _generateAndPreviewPdf,
         ),
       ),
     );
@@ -1092,6 +1099,7 @@ class _HighSchoolQPaperGeneratorPageState
   /// Preview fallback for platforms without a WebView: write the preview HTML
   /// to a temp file and hand it to the default browser.
   Future<void> _previewInSystemBrowser() async {
+    await HighSchoolExportService.preloadPaperFonts();
     final html = HighSchoolExportService.generateHtml(
       schoolName: _schoolCtrl.text,
       examName: _examCtrl.text,
@@ -4062,9 +4070,10 @@ class _HighSchoolQPaperGeneratorPageState
   /// The face the paper is set in, as a row of names.
   ///
   /// A wrap of chips rather than a menu: the reader is choosing by eye, and a
-  /// menu has to be opened before the options can be read at all. The faces the
-  /// browser cannot fetch are marked, so nobody is left wondering why a file
-  /// opened on another machine looks different.
+  /// menu has to be opened before the options can be read at all. A face the
+  /// paper cannot bring with it — neither fetched nor shipped, so it has to be
+  /// installed on whatever machine opens the file — is marked, so nobody is left
+  /// wondering why a file opened elsewhere looks different.
   Widget _buildFontPicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4082,8 +4091,8 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
-  /// One face in the picker. A face that has to be installed on the machine
-  /// reading the file carries a small desktop mark.
+  /// One face in the picker: its name, and a mark when the paper cannot bring
+  /// the face with it — see [PaperFont.needsInstalling].
   Widget _buildFontChip(PaperFont font) {
     final selected = font == _paperFont;
     return InkWell(
@@ -4100,7 +4109,7 @@ class _HighSchoolQPaperGeneratorPageState
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!font.isWebFont) ...[
+            if (font.needsInstalling) ...[
               Icon(Icons.computer_rounded,
                   size: 12, color: selected ? _kPrimary : _kSubText),
               const SizedBox(width: 5),

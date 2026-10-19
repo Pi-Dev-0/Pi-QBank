@@ -1,0 +1,19 @@
+Kalpurush — the Bangla face the question-paper sheet can be set in.
+
+Copyright (c) OmicronLab. Licensed under the SIL Open Font License,
+Version 1.0. The notice below is the one the font itself carries, in
+its name table ("License Description", name ID 13); the licence travels
+with the font, which is why it is reproduced here beside the file.
+
+    This Font Software is licensed under the SIL Open Font License,
+    Version 1.0. No modification of the license is permitted, only
+    verbatim copy is allowed. This license is copied below, and is also
+    available with a FAQ at: http://scripts.sil.org/OFL
+
+The full text is published at https://openfontlicense.org (the
+scripts.sil.org/OFL address above redirects there).
+
+The file shipped is assets/fonts/Kalpurush.ttf, byte-for-byte as
+released — not modified or renamed:
+
+    sha256 83613a03e53aad8337f2be9fb974409a23c1d99b3b4b494567ba9d156c492b01

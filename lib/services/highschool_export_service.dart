@@ -128,12 +128,19 @@ extension QuestionLayoutMetrics on QuestionLayout {
 /// with a text pipeline of its own, so this choice reaches the HTML sheet and
 /// the Word file, not the PDF.
 ///
-/// [family] is the name a stylesheet asks for first. [google] is the Google
-/// Fonts family that supplies it over the network when the machine reading the
-/// file does not have it installed; a face with no [google] entry is one the
-/// machine has to have (Kalpurush and SolaimanLipi ship with the Bangla typing
-/// tools teachers already use). Every stack ends in Hind Siliguri, which is
-/// always fetched, so the paper prints in something readable either way.
+/// [family] is the name a stylesheet asks for. [google] is the Google Fonts
+/// family that supplies it over the network when the machine reading the file
+/// does not have it installed; [asset] is the copy the app *ships*, which the
+/// sheet carries inside itself (see [HighSchoolExportService.preloadPaperFonts]).
+/// A face with neither is one the reading machine has to have — Nirmala UI is
+/// Windows' own, and cannot be handed out. Every stack ends in Hind Siliguri,
+/// which is always fetched, so the paper prints in something readable either
+/// way.
+///
+/// A shipped copy is not a nicety. A phone has no Kalpurush to fall back on and
+/// no way to install one, so a paper set in it came out in whatever face the
+/// phone happened to have — right on the teacher's laptop, wrong on the student's
+/// phone, from one and the same file.
 enum PaperFont {
   hindSiliguri('হিন্দ শিলিগুড়ি', 'Hind Siliguri',
       google: 'Hind+Siliguri:wght@400;500;600;700'),
@@ -144,11 +151,17 @@ enum PaperFont {
   balooDa('বালু দা ২ (গোলাকার)', 'Baloo Da 2',
       google: 'Baloo+Da+2:wght@400;500;600;700'),
   mina('মিনা (চওড়া)', 'Mina', google: 'Mina:wght@400;700'),
-  kalpurush('কলপুরুষ (Kalpurush)', 'Kalpurush'),
+  // SIL Open Font License 1.0, so the app may carry it (see the licence in the
+  // font's own name table). OFL says the licence travels with the font, which
+  // assets/fonts/LICENSE-Kalpurush.txt holds.
+  kalpurush('কলপুরুষ (Kalpurush)', 'Kalpurush',
+      asset: 'assets/fonts/Kalpurush.ttf'),
+  // Not carried: a face the app does not ship can only be used where it is
+  // installed, which the picker marks.
   solaimanLipi('সলাইমানলিপি (SolaimanLipi)', 'SolaimanLipi'),
   nirmalaUi('নির্মলা ইউআই (Nirmala UI)', 'Nirmala UI');
 
-  const PaperFont(this.label, this.family, {this.google = ''});
+  const PaperFont(this.label, this.family, {this.google = '', this.asset = ''});
 
   /// What the picker shows the reader.
   final String label;
@@ -157,12 +170,43 @@ enum PaperFont {
   /// the name a Word file asks for.
   final String family;
 
-  /// The Google Fonts family query for this face, or empty when it has to be
-  /// installed on the machine that opens the file.
+  /// The Google Fonts family query for this face, or empty when the sheet cannot
+  /// fetch it.
   final String google;
+
+  /// The TTF the app ships for this face, or empty when it ships none. Read as
+  /// an asset; declared in pubspec.yaml as part of `assets/fonts/`.
+  final String asset;
 
   /// Whether reading the file means downloading this face.
   bool get isWebFont => google.isNotEmpty;
+
+  /// Whether the app carries the face and can write it into the file.
+  bool get isBundled => asset.isNotEmpty;
+
+  /// Whether the paper can only come out right on a machine that already has
+  /// this face. Only such a face is worth marking in the picker.
+  bool get needsInstalling => !isWebFont && !isBundled;
+
+  /// The code points a shipped Bengali face is used for.
+  ///
+  /// The embedded copy is restricted to them — Bengali itself, the danda a
+  /// Bengali sentence often ends with, and the joiners that shape conjuncts.
+  /// Everything else keeps the face it has today: Latin (including a `\` in a
+  /// set difference, or a `C:\Users\…` path) stays with the Latin face exactly
+  /// as the named stack and the PDF's Helvetica do, and every maths symbol stays
+  /// with the `.m` class.
+  static const String bengaliCodePoints =
+      'U+0964-0965, U+0980-09FF, U+200C-200D, U+25CC';
+
+  /// The private name the *embedded* copy is declared under.
+  ///
+  /// A name no machine has, on purpose: a document's `@font-face` shadows an
+  /// installed font of the same name, and this sheet has to draw the same face
+  /// with and without the face installed. It also lets the rule carry a
+  /// Bengali-only `unicode-range` without a reader wondering which of two
+  /// Kalpurush a Latin word came from.
+  String get embeddedFamily => 'Pi-QBank $family';
 
   /// The `font-family` a stylesheet sets: a Latin face first, then the chosen
   /// Bangla face, then the other Bangla faces.
@@ -174,7 +218,19 @@ enum PaperFont {
   /// `sans-serif` takes every Latin run, and the Bangla faces supply everything
   /// they are for. This is exactly what the PDF does: Latin runs are set in
   /// Helvetica, never in the Bijoy font.
-  String get cssStack => [
+  String get cssStack => _stack(embedded: false);
+
+  /// The same stack for a sheet that carries the face itself, which asks for the
+  /// embedded copy *first* — the copy is the only one a phone has.
+  ///
+  /// That does not undo the rule above: the embedded face is declared for
+  /// Bengali only (see [bengaliCodePoints]), so a Latin run is not one it can
+  /// draw and still falls through to `sans-serif`. The face's own name stays in
+  /// the list behind it, for a letter the shipped copy happens to miss.
+  String get embeddedStack => _stack(embedded: true);
+
+  String _stack({required bool embedded}) => [
+        if (embedded) "'$embeddedFamily'",
         'sans-serif',
         "'$family'",
         for (final fallback in const ['SolaimanLipi', 'Hind Siliguri'])
@@ -371,6 +427,74 @@ class HighSchoolExportService {
 
   static String _stemImageUrlOf(HighSchoolQuestion q) =>
       resolveImageUrl(q.stemImageUrl);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // The face the sheet carries
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// The shipped faces, as data URIs, filled by [preloadPaperFonts].
+  static final Map<PaperFont, String> _embeddedFaces = {};
+
+  /// Whether [font]'s face is in hand and can be written into a sheet.
+  static bool carriesPaperFont(PaperFont font) =>
+      _embeddedFaces.containsKey(font);
+
+  /// Load the faces the app ships so a sheet can carry them.
+  ///
+  /// The work is done once and a second call returns immediately. Failing is not
+  /// fatal: a face that could not be read is left un-embedded and the sheet asks
+  /// for it by name, which is all it could do before the app carried a copy.
+  ///
+  /// Callers that write or show a sheet wait for this ([generateHtml] itself
+  /// stays synchronous, and simply leaves the face out when it has not arrived).
+  static Future<void> preloadPaperFonts() async {
+    for (final font in PaperFont.values) {
+      if (!font.isBundled || _embeddedFaces.containsKey(font)) continue;
+      try {
+        final bytes = await rootBundle.load(font.asset);
+        _embeddedFaces[font] = _fontDataUri(bytes.buffer.asUint8List());
+      } catch (_) {
+        // Left out; the file names the face instead.
+      }
+    }
+  }
+
+  /// The `data:` URI a stylesheet embeds the face with.
+  static String _fontDataUri(Uint8List bytes) =>
+      'data:font/ttf;base64,${base64Encode(bytes)}';
+
+  /// Fill the cache without touching the asset bundle — for tests that hand in
+  /// the bytes themselves.
+  @visibleForTesting
+  static void cachePaperFontBytes(PaperFont font, Uint8List bytes) {
+    _embeddedFaces[font] = _fontDataUri(bytes);
+  }
+
+  /// The `@font-face` block [font] is written into a sheet with, indented to sit
+  /// with the rules around it, or empty when the sheet does not carry the face.
+  ///
+  /// The face goes into the file itself rather than by name because the machines
+  /// that need it most cannot fetch it and cannot install it: a phone reading the
+  /// file, and a school computer that never had the Bangla typing tools.
+  ///
+  /// It is declared under a name of its own ([PaperFont.embeddedFamily]) and
+  /// only for Bengali ([PaperFont.bengaliCodePoints]), so Latin text and maths
+  /// symbols keep the faces they have in the rest of the sheet.
+  static String _paperFontBlock(PaperFont font) {
+    final data = _embeddedFaces[font];
+    if (data == null) return '';
+    return '''
+    /* The face this sheet is printed in, carried in the file itself: a phone has
+       no Kalpurush to fall back on, and the reader of an exported file rarely
+       installed one. Bengali only, so the Latin and the maths keep their faces. */
+    @font-face {
+      font-family: '${font.embeddedFamily}';
+      src: url($data) format('truetype');
+      font-display: swap;
+      unicode-range: ${PaperFont.bengaliCodePoints};
+    }
+''';
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Shared-উদ্দীপক question numbers
@@ -1218,6 +1342,14 @@ class HighSchoolExportService {
     };
     final mergeCqAndShort = cqLayout.isDouble && rqLayout.isDouble;
 
+    // A face the app ships goes into the file, so the sheet prints the same on a
+    // phone as on the machine it was written on; see [_paperFontBlock]. The
+    // stylesheet asks for the embedded copy by name when there is one, and for
+    // the face itself when there is not.
+    final carriesFont = carriesPaperFont(font);
+    final paperFontBlock = _paperFontBlock(font);
+    final bodyStack = carriesFont ? font.embeddedStack : font.cssStack;
+
     // The live preview renders this same file in a phone-width WebView, where
     // `width=device-width` reflows the A4 sheet into a narrow column that is
     // nothing like the page that prints. Naming the sheet's own width instead —
@@ -1242,7 +1374,7 @@ class HighSchoolExportService {
   <title>${_escapeXml(examName.isEmpty ? 'Question Paper' : examName)} - Pi-QBank</title>
   <link href="https://fonts.googleapis.com/css2?$fontQuery&display=swap" rel="stylesheet">
   <style>
-    :root {
+$paperFontBlock    :root {
       --primary: #4f46e5;
       /* The PDF writes its text in pure black; the page should look the same. */
       --text: #000000;
@@ -1253,7 +1385,7 @@ class HighSchoolExportService {
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: ${font.cssStack};
+      font-family: $bodyStack;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
@@ -1526,7 +1658,7 @@ class HighSchoolExportService {
     <div style="display:flex; gap:10px; align-items:center;">
       <span class="edit-hint" id="editHint" hidden>যা লিখবেন সেটাই প্রিন্ট হবে</span>
       <button class="btn btn-outline" id="editBtn">✏️ লাইভ এডিট</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨️ প্রিন্ট / PDF সংরক্ষণ</button>
+      <button class="btn btn-primary" id="printBtn">🖨️ প্রিন্ট / PDF সংরক্ষণ</button>
     </div>
   </div>
 
@@ -1763,6 +1895,19 @@ class HighSchoolExportService {
           fitOptions();
           decide();
         }
+      }
+
+      /* Printing the sheet. In a browser it prints itself — the page as it
+         stands, live edits and all. The app's preview is not a browser: an
+         Android WebView has no print support at all, so window.print() there
+         does nothing. In that case the button asks the app to print, and the
+         app prints the paper through the same PDF path as its own PDF button. */
+      var printBtn = document.getElementById('printBtn');
+      if (printBtn) {
+        printBtn.addEventListener('click', function () {
+          if (window.PiQBankPrint) window.PiQBankPrint.postMessage('print');
+          else window.print();
+        });
       }
 
       wireEditor();
