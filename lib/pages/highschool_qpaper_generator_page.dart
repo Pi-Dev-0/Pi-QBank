@@ -3322,15 +3322,24 @@ class _HighSchoolQPaperGeneratorPageState
           color: Colors.teal.shade50,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-                child: Text(data?.text ?? '',
-                    style: const TextStyle(fontSize: 13))),
-            const SizedBox(width: 8),
-            Text('[${data?.mark ?? q.totalMarks}]',
-                style: const TextStyle(color: _kSubText, fontSize: 12)),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                    child: Text(data?.text ?? '',
+                        style: const TextStyle(fontSize: 13))),
+                const SizedBox(width: 8),
+                Text('[${data?.mark ?? q.totalMarks}]',
+                    style: const TextStyle(color: _kSubText, fontSize: 12)),
+              ],
+            ),
+            if (q.stemImageUrl.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _buildQuestionImage(q.stemImageUrl),
+            ],
           ],
         ),
       );
@@ -3346,18 +3355,8 @@ class _HighSchoolQPaperGeneratorPageState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (q.stemImageUrl.isNotEmpty) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  q.stemImageUrl,
-                  height: 160,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                      Icons.broken_image_outlined,
-                      color: Colors.grey),
-                ),
-              ),
+            if (q.stemImageUrl.trim().isNotEmpty) ...[
+              _buildQuestionImage(q.stemImageUrl),
               const SizedBox(height: 8),
             ],
             ...q.cqSubQuestions.map((sq) => Padding(
@@ -3414,18 +3413,8 @@ class _HighSchoolQPaperGeneratorPageState
               Text(stem, style: const TextStyle(fontSize: 13)),
               const SizedBox(height: 6),
             ],
-            if (q.stemImageUrl.isNotEmpty) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  q.stemImageUrl,
-                  height: 160,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                      Icons.broken_image_outlined,
-                      color: Colors.grey),
-                ),
-              ),
+            if (q.stemImageUrl.trim().isNotEmpty) ...[
+              _buildQuestionImage(q.stemImageUrl),
               const SizedBox(height: 8),
             ],
             ...List.generate(mcq.options.length, (i) {
@@ -3470,6 +3459,57 @@ class _HighSchoolQPaperGeneratorPageState
         ),
       );
     }
+  }
+
+  Widget _buildQuestionImage(String rawUrl) {
+    final imageUrl = HighSchoolExportService.resolveImageUrl(rawUrl);
+    if (imageUrl.isEmpty) return const SizedBox.shrink();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxHeight: 190),
+        color: Colors.white,
+        alignment: Alignment.center,
+        child: Image.network(
+          imageUrl,
+          height: 180,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            final expected = progress.expectedTotalBytes;
+            final value = expected == null
+                ? null
+                : progress.cumulativeBytesLoaded / expected;
+            return SizedBox(
+              height: 120,
+              child: Center(
+                child: CircularProgressIndicator(
+                  value: value,
+                  strokeWidth: 2,
+                  color: _kPrimary,
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) => Container(
+            height: 90,
+            alignment: Alignment.center,
+            color: Colors.grey.shade100,
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.broken_image_outlined, color: Colors.grey),
+                SizedBox(height: 4),
+                Text('ছবি দেখানো যায়নি',
+                    style: TextStyle(fontSize: 11, color: _kSubText)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
