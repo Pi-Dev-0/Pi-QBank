@@ -106,6 +106,7 @@ class PdfLayout {
     required double columnWidth,
     required PdfTextMetrics metrics,
     double fontStep = 0,
+    StemImageSize imageSize = StemImageSize.hidden,
   }) {
     final data = question.shortData;
     if (data == null || data.text.trim().isEmpty) return 0;
@@ -120,7 +121,12 @@ class PdfLayout {
     );
     final markHeight = metrics.lineHeight(mark, fontSize: size);
 
-    return rqGap + (textHeight > markHeight ? textHeight : markHeight);
+    var height = rqGap + (textHeight > markHeight ? textHeight : markHeight);
+    // If the question has a stem image and it should be visible, reserve space.
+    if (imageSize.isVisible && question.stemImageUrl.trim().isNotEmpty) {
+      height += cqImageGap + imageSize.maxHeightPt;
+    }
+    return height;
   }
 
   /// A4 height in points (`PdfPageFormat.a4.height`).
@@ -438,12 +444,16 @@ class PdfLayout {
 
     var head = 0.0;
     final stem = withStem ? (stemText ?? question.mcqStemText) : '';
-    if (stem.isNotEmpty) {
-      head += metrics.blockHeight(stem, width: columnWidth, fontSize: body);
+    if (withStem) {
+      if (stem.isNotEmpty) {
+        head += metrics.blockHeight(stem, width: columnWidth, fontSize: body);
+      }
       if (imageSize.isVisible && hasImage) {
         head += cqImageGap + imageSize.maxHeightPt;
       }
-      head += mcqStemGap;
+      if (stem.isNotEmpty) {
+        head += mcqStemGap;
+      }
     }
 
     // Measured from the same line the item draws — see
@@ -492,13 +502,15 @@ class PdfLayout {
     required double columnWidth,
     required PdfTextMetrics metrics,
     double fontStep = 0,
+    StemImageSize imageSize = StemImageSize.hidden,
   }) {
     final height = rqHeight(
         index: index,
         question: question,
         columnWidth: columnWidth,
         metrics: metrics,
-        fontStep: fontStep);
+        fontStep: fontStep,
+        imageSize: imageSize);
     return height <= 0 ? const [] : [height];
   }
 

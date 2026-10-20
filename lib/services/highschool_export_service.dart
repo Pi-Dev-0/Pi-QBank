@@ -512,9 +512,9 @@ class HighSchoolExportService {
   /// 1 and 2. The group has to start with a digit, so `(ক) ও (খ) নং প্রশ্ন` — the
   /// other form the phrase appears in — is left alone, and the reference has to
   /// be followed by নং/নম্বর so `(২০২৩) সালের…` is not mistaken for one.
-  static final RegExp _stemNumbersRef = RegExp(
-      r'\(([0-9\u09E6-\u09EF][0-9\u09E6-\u09EF\s,ওএবং\-–—]*)\)'
-      r'(\s*(?:নং|নম্বর))');
+  static final RegExp _stemNumbersRef =
+      RegExp(r'\(([0-9\u09E6-\u09EF][0-9\u09E6-\u09EF\s,ওএবং\-–—]*)\)'
+          r'(\s*(?:নং|নম্বর))');
 
   /// The same reference written bare: `২৬ ও ২৭ নং`, `12, 13 নম্বর`.
   ///
@@ -531,8 +531,7 @@ class HighSchoolExportService {
   /// in the list rather than the question: a run is the questions the model
   /// says share the intro (see [HighSchoolQuestion.sharesMcqStemWith]), which is
   /// what decides where one উদ্দীপক stops and the next begins.
-  static List<int> mcqStemRunNumbers(
-      List<HighSchoolQuestion> mcqs, int start) {
+  static List<int> mcqStemRunNumbers(List<HighSchoolQuestion> mcqs, int start) {
     if (start < 0 || start >= mcqs.length) return const [];
     final numbers = <int>[start + 1];
     for (var j = start; j + 1 < mcqs.length; j++) {
@@ -557,8 +556,8 @@ class HighSchoolExportService {
     // The placeholder takes Bengali: there is no reference to copy the hand
     // from, and the paper writes Bengali.
     if (intro.contains(stemNumbersPlaceholder)) {
-      return intro.replaceAll(stemNumbersPlaceholder,
-          _joinStemNumbers(numbers, bengali: true));
+      return intro.replaceAll(
+          stemNumbersPlaceholder, _joinStemNumbers(numbers, bengali: true));
     }
     // Otherwise the new numbers take the hand of the reference they replace —
     // and only of *that*: an intro's own text is full of ASCII digits (`U = {1,
@@ -588,15 +587,14 @@ class HighSchoolExportService {
   static String _joinStemNumbers(List<int> numbers, {required bool bengali}) {
     const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
     String show(int number) => bengali
-        ? '$number'
-            .split('')
-            .map((d) => bengaliDigits[int.parse(d)])
-            .join()
+        ? '$number'.split('').map((d) => bengaliDigits[int.parse(d)]).join()
         : '$number';
 
     if (numbers.length == 1) return show(numbers.first);
     final head = numbers.take(numbers.length - 1).map(show).join(', ');
-    return bengali ? '$head ও ${show(numbers.last)}' : '$head and ${show(numbers.last)}';
+    return bengali
+        ? '$head ও ${show(numbers.last)}'
+        : '$head and ${show(numbers.last)}';
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -729,20 +727,32 @@ class HighSchoolExportService {
           buffer.writeln('[সঠিক উত্তরের পাশে টিক (✓) চিহ্ন দাও]');
           buffer.writeln();
           const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
-          HighSchoolQuestion? previousMcq;
           for (int j = 0; j < inSection.length; j++) {
             final q = inSection[j];
             final mcq = q.mcqData;
             if (mcq == null) continue;
+            final prev = j > 0 ? inSection[j - 1] : null;
+            final opensStem = q.opensMcqStemGroup(prev);
+            final sharesStem = q.sharesMcqStemWith(prev);
             // A shared উদ্দীপক is written once, over the first question of the
             // group, in every export format alike.
-            if (q.opensMcqStemGroup(previousMcq)) {
-              buffer.writeln(
-                  stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(inSection, j)));
+            if (opensStem) {
+              buffer.writeln(stemWithNumbers(
+                  q.mcqStemText, mcqStemRunNumbers(inSection, j)));
+              if (_hasStemImage(q, imageSize)) {
+                buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
+              }
               buffer.writeln();
             }
-            previousMcq = q;
             buffer.writeln('${j + 1}. ${q.paperQuestionText}');
+            final alreadyPrintedStem = opensStem ||
+                (sharesStem &&
+                    prev != null &&
+                    _hasStemImage(prev, imageSize) &&
+                    prev.stemImageUrl.trim() == q.stemImageUrl.trim());
+            if (!alreadyPrintedStem && _hasStemImage(q, imageSize)) {
+              buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
+            }
             final options = mcq.options;
             for (int optIdx = 0; optIdx < options.length; optIdx++) {
               final letter = optIdx < bengaliLetters.length
@@ -757,10 +767,14 @@ class HighSchoolExportService {
         case PaperSection.rq:
           buffer.writeln();
           for (int j = 0; j < inSection.length; j++) {
-            final data = inSection[j].shortData;
+            final q = inSection[j];
+            final data = q.shortData;
             if (data == null || data.text.trim().isEmpty) continue;
             final markStr = data.mark > 0 ? ' [${data.mark}]' : '';
             buffer.writeln('${j + 1}. ${data.text.trim()}$markStr');
+            if (_hasStemImage(q, imageSize)) {
+              buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
+            }
           }
           buffer.writeln();
           break;
@@ -937,6 +951,7 @@ class HighSchoolExportService {
     .rq-item {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
       gap: 12pt;
       margin-bottom: 6pt;
       font-size: 11pt;
@@ -1055,7 +1070,8 @@ class HighSchoolExportService {
               buffer, inSection, heading, mcqLayout, imageBytes, imageSize);
           break;
         case PaperSection.rq:
-          _writeWordRqSection(buffer, inSection, heading, rqLayout);
+          _writeWordRqSection(
+              buffer, inSection, heading, rqLayout, imageBytes, imageSize);
           break;
       }
     }
@@ -1172,18 +1188,31 @@ class HighSchoolExportService {
     }
 
     // One question as a full cell.
-    HighSchoolQuestion? previous;
     String questionCell(int index, HighSchoolQuestion q) {
       final mcq = q.mcqData;
       if (mcq == null) return '<td class="mcq-col-cell"></td>';
       // The last question actually printed decides whether this one has already
       // had its intro.
-      final opensStem = q.opensMcqStemGroup(previous);
-      previous = q;
+      final prev = index > 1 ? mcqs[index - 2] : null;
+      final opensStem = q.opensMcqStemGroup(prev);
+      final sharesStem = q.sharesMcqStemWith(prev);
+
+      final alreadyPrintedStem = opensStem ||
+          (sharesStem &&
+              prev != null &&
+              _hasStemImage(prev, imageSize) &&
+              prev.stemImageUrl.trim() == q.stemImageUrl.trim());
+      final questionImageHtml =
+          (!alreadyPrintedStem && _hasStemImage(q, imageSize))
+              ? _stemImageMarkup(q,
+                  bytes: imageBytes, size: imageSize, usePoints: true)
+              : '';
+
       return '''
     <td class="mcq-col-cell">
       ${opensStem ? '<div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, index - 1)), latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
       <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
+      $questionImageHtml
       <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
     </td>''';
     }
@@ -1222,6 +1251,8 @@ class HighSchoolExportService {
     List<HighSchoolQuestion> shorts,
     String heading,
     QuestionLayout layout,
+    Map<String, Uint8List>? imageBytes,
+    StemImageSize imageSize,
   ) {
     buffer.write('''
   ${_wordSectionTitle(heading)}
@@ -1229,11 +1260,17 @@ class HighSchoolExportService {
 ''');
 
     String rqCell(int index) {
-      final data = shorts[index].shortData;
+      final q = shorts[index];
+      final data = q.shortData;
       if (data == null || data.text.trim().isEmpty) return '';
+      final imageHtml = _stemImageMarkup(q,
+          bytes: imageBytes, size: imageSize, usePoints: true);
       return '''
     <div class="rq-item">
-      <span>${index + 1}. ${_htmlText(data.text)}</span>
+      <div style="flex:1;">
+        <span>${index + 1}. ${_htmlText(data.text)}</span>
+        $imageHtml
+      </div>
       <span class="rq-mark">[${data.mark}]</span>
     </div>''';
     }
@@ -1302,6 +1339,7 @@ class HighSchoolExportService {
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
     double fontStep = 0,
+    Map<String, Uint8List>? imageBytes,
 
     /// The face the sheet is set in. Fetched from Google Fonts when it is a web
     /// font, and fallen back on when it is not; see [PaperFont].
@@ -1619,10 +1657,14 @@ $paperFontBlock    :root {
     .rq-item {
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
+      align-items: flex-start;
+      gap: 8px;
       font-size: ${_cssFontSize(15, fontStep)};
       page-break-inside: avoid;
       break-inside: avoid;
+    }
+    .rq-content {
+      flex: 1;
     }
     .rq-mark { font-weight: 400; white-space: nowrap; color: var(--muted); }
 
@@ -1658,7 +1700,7 @@ $paperFontBlock    :root {
     <div style="display:flex; gap:10px; align-items:center;">
       <span class="edit-hint" id="editHint" hidden>যা লিখবেন সেটাই প্রিন্ট হবে</span>
       <button class="btn btn-outline" id="editBtn">✏️ লাইভ এডিট</button>
-      <button class="btn btn-primary" id="printBtn">🖨️ প্রিন্ট / PDF সংরক্ষণ</button>
+      <button class="btn btn-primary" id="printBtn">🖨️ প্রিন্ট করুন</button>
     </div>
   </div>
 
@@ -1689,6 +1731,7 @@ $paperFontBlock    :root {
         twoColumnBlocks: twoColumnBlocks,
         mergeCqAndShort: mergeCqAndShort,
         imageSize: imageSize,
+        imageBytes: imageBytes,
       );
     }
 
@@ -1897,16 +1940,11 @@ $paperFontBlock    :root {
         }
       }
 
-      /* Printing the sheet. In a browser it prints itself — the page as it
-         stands, live edits and all. The app's preview is not a browser: an
-         Android WebView has no print support at all, so window.print() there
-         does nothing. In that case the button asks the app to print, and the
-         app prints the paper through the same PDF path as its own PDF button. */
+      /* Print the current HTML page, including any live edits. */
       var printBtn = document.getElementById('printBtn');
       if (printBtn) {
         printBtn.addEventListener('click', function () {
-          if (window.PiQBankPrint) window.PiQBankPrint.postMessage('print');
-          else window.print();
+          window.print();
         });
       }
 
@@ -2079,6 +2117,7 @@ $paperFontBlock    :root {
     required Set<PaperSection> twoColumnBlocks,
     required bool mergeCqAndShort,
     required StemImageSize imageSize,
+    Map<String, Uint8List>? imageBytes,
   }) {
     buffer.write('''
     <div class="paper-set">
@@ -2125,6 +2164,7 @@ $paperFontBlock    :root {
           firstHeading: heading,
           secondHeading: _sectionHeading(partner, i + 1),
           imageSize: imageSize,
+          imageBytes: imageBytes,
         );
         i++;
         continue;
@@ -2136,15 +2176,15 @@ $paperFontBlock    :root {
       switch (kind) {
         case PaperSection.cq:
           _writeHtmlCqSection(buffer, inSection, heading, imageSize,
-              declarationInFlow: declarationInFlow);
+              imageBytes: imageBytes, declarationInFlow: declarationInFlow);
           break;
         case PaperSection.mcq:
           _writeHtmlMcqSection(buffer, inSection, heading, imageSize,
-              declarationInFlow: declarationInFlow);
+              imageBytes: imageBytes, declarationInFlow: declarationInFlow);
           break;
         case PaperSection.rq:
-          _writeHtmlRqSection(buffer, inSection, heading,
-              declarationInFlow: declarationInFlow);
+          _writeHtmlRqSection(buffer, inSection, heading, imageSize,
+              imageBytes: imageBytes, declarationInFlow: declarationInFlow);
           break;
       }
     }
@@ -2210,12 +2250,15 @@ $paperFontBlock    :root {
     required String firstHeading,
     required String secondHeading,
     required StemImageSize imageSize,
+    Map<String, Uint8List>? imageBytes,
   }) {
     buffer.write('''
     <div class="flow-grid">
 ''');
-    _writeHtmlFlowPart(buffer, questions, first, firstHeading, imageSize);
-    _writeHtmlFlowPart(buffer, questions, second, secondHeading, imageSize);
+    _writeHtmlFlowPart(buffer, questions, first, firstHeading, imageSize,
+        imageBytes: imageBytes);
+    _writeHtmlFlowPart(buffer, questions, second, secondHeading, imageSize,
+        imageBytes: imageBytes);
     buffer.write('''
     </div>
 ''');
@@ -2231,16 +2274,17 @@ $paperFontBlock    :root {
     List<HighSchoolQuestion> questions,
     PaperSection kind,
     String heading,
-    StemImageSize imageSize,
-  ) {
+    StemImageSize imageSize, {
+    Map<String, Uint8List>? imageBytes,
+  }) {
     final inSection = questions.where((q) => _sectionOf(q) == kind).toList();
     if (inSection.isEmpty) return;
 
     _writeHtmlDeclaration(buffer, heading, inFlow: true);
     if (kind == PaperSection.cq) {
-      _writeHtmlCqCards(buffer, inSection, imageSize);
+      _writeHtmlCqCards(buffer, inSection, imageSize, imageBytes: imageBytes);
     } else {
-      _writeHtmlRqItems(buffer, inSection);
+      _writeHtmlRqItems(buffer, inSection, imageSize, imageBytes: imageBytes);
     }
   }
 
@@ -2251,6 +2295,7 @@ $paperFontBlock    :root {
     List<HighSchoolQuestion> cqs,
     String heading,
     StemImageSize imageSize, {
+    Map<String, Uint8List>? imageBytes,
     required bool declarationInFlow,
   }) {
     if (!declarationInFlow) {
@@ -2262,7 +2307,7 @@ $paperFontBlock    :root {
     if (declarationInFlow) {
       _writeHtmlDeclaration(buffer, heading, inFlow: true);
     }
-    _writeHtmlCqCards(buffer, cqs, imageSize);
+    _writeHtmlCqCards(buffer, cqs, imageSize, imageBytes: imageBytes);
     buffer.write('''
     </div>
 ''');
@@ -2273,8 +2318,9 @@ $paperFontBlock    :root {
   static void _writeHtmlCqCards(
     StringBuffer buffer,
     List<HighSchoolQuestion> cqs,
-    StemImageSize imageSize,
-  ) {
+    StemImageSize imageSize, {
+    Map<String, Uint8List>? imageBytes,
+  }) {
     for (int i = 0; i < cqs.length; i++) {
       final q = cqs[i];
       final index = i + 1;
@@ -2283,7 +2329,7 @@ $paperFontBlock    :root {
       <div class="cq-stem">
         <b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
       </div>
-      ${_stemImageMarkup(q, size: imageSize, usePoints: false)}
+      ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: false)}
 ''');
       for (final sq in q.cqSubQuestions) {
         buffer.write('''
@@ -2311,6 +2357,7 @@ $paperFontBlock    :root {
     List<HighSchoolQuestion> mcqs,
     String heading,
     StemImageSize imageSize, {
+    Map<String, Uint8List>? imageBytes,
     required bool declarationInFlow,
   }) {
     if (!declarationInFlow) {
@@ -2323,17 +2370,26 @@ $paperFontBlock    :root {
       _writeHtmlDeclaration(buffer, heading, inFlow: true);
     }
     const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
-    HighSchoolQuestion? previous;
     for (int i = 0; i < mcqs.length; i++) {
       final q = mcqs[i];
       final mcq = q.mcqData;
       final index = i + 1;
       if (mcq == null) continue;
 
-      // The last question actually printed, which is what decides whether this
-      // one has already had its intro.
-      final opensStem = q.opensMcqStemGroup(previous);
-      previous = q;
+      final prev = i > 0 ? mcqs[i - 1] : null;
+      final opensStem = q.opensMcqStemGroup(prev);
+      final sharesStem = q.sharesMcqStemWith(prev);
+
+      final alreadyPrintedStem = opensStem ||
+          (sharesStem &&
+              prev != null &&
+              _hasStemImage(prev, imageSize) &&
+              prev.stemImageUrl.trim() == q.stemImageUrl.trim());
+      final questionImageHtml =
+          (!alreadyPrintedStem && _hasStemImage(q, imageSize))
+              ? _stemImageMarkup(q,
+                  bytes: imageBytes, size: imageSize, usePoints: false)
+              : '';
 
       buffer.write('''
       <div class="mcq-card" title="${_idTooltip(q)}">
@@ -2341,11 +2397,12 @@ $paperFontBlock    :root {
 ''');
       if (opensStem) {
         buffer.write('''
-          <div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, i)), latex: true)}${_stemImageMarkup(q, size: imageSize, usePoints: false)}</div>
+          <div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, i)), latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: false)}</div>
 ''');
       }
       buffer.write('''
           <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
+          $questionImageHtml
         </div>
         <div class="mcq-options" data-fit="1">
 ''');
@@ -2379,7 +2436,9 @@ $paperFontBlock    :root {
   static void _writeHtmlRqSection(
     StringBuffer buffer,
     List<HighSchoolQuestion> shorts,
-    String heading, {
+    String heading,
+    StemImageSize imageSize, {
+    Map<String, Uint8List>? imageBytes,
     required bool declarationInFlow,
   }) {
     if (!declarationInFlow) {
@@ -2392,7 +2451,7 @@ $paperFontBlock    :root {
     if (declarationInFlow) {
       _writeHtmlDeclaration(buffer, heading, inFlow: true);
     }
-    _writeHtmlRqItems(buffer, shorts);
+    _writeHtmlRqItems(buffer, shorts, imageSize, imageBytes: imageBytes);
     buffer.write('''
       </div>
     </div>
@@ -2404,13 +2463,21 @@ $paperFontBlock    :root {
   static void _writeHtmlRqItems(
     StringBuffer buffer,
     List<HighSchoolQuestion> shorts,
-  ) {
+    StemImageSize imageSize, {
+    Map<String, Uint8List>? imageBytes,
+  }) {
     for (int i = 0; i < shorts.length; i++) {
-      final data = shorts[i].shortData;
+      final q = shorts[i];
+      final data = q.shortData;
       if (data == null || data.text.trim().isEmpty) continue;
+      final imageHtml = _stemImageMarkup(q,
+          bytes: imageBytes, size: imageSize, usePoints: false);
       buffer.write('''
-        <div class="rq-item" title="${_idTooltip(shorts[i])}">
-          <div><b>${i + 1}.</b> ${_htmlText(data.text)}</div>
+        <div class="rq-item" title="${_idTooltip(q)}">
+          <div class="rq-content">
+            <div><b>${i + 1}.</b> ${_htmlText(data.text)}</div>
+            $imageHtml
+          </div>
           <div class="rq-mark">[${data.mark}]</div>
         </div>
 ''');
@@ -2524,22 +2591,34 @@ $paperFontBlock    :root {
 
         case PaperSection.mcq:
           const bengaliLetters = ['ক', 'খ', 'গ', 'ঘ'];
-          HighSchoolQuestion? previousMcq;
           for (int j = 0; j < inSection.length; j++) {
             final q = inSection[j];
             final mcq = q.mcqData;
             if (mcq == null) continue;
 
+            final prev = j > 0 ? inSection[j - 1] : null;
+            final opensStem = q.opensMcqStemGroup(prev);
+            final sharesStem = q.sharesMcqStemWith(prev);
+
             // The shared intro, once, over the first question of its group.
-            if (q.opensMcqStemGroup(previousMcq)) {
-              buffer.writeln('> ${stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(inSection, j))}\n');
+            if (opensStem) {
+              buffer.writeln(
+                  '> ${stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(inSection, j))}\n');
               if (_hasStemImage(q, imageSize)) {
                 buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})\n');
               }
             }
-            previousMcq = q;
 
             buffer.writeln('**${j + 1}.** ${q.paperQuestionText}');
+            final alreadyPrintedStem = opensStem ||
+                (sharesStem &&
+                    prev != null &&
+                    _hasStemImage(prev, imageSize) &&
+                    prev.stemImageUrl.trim() == q.stemImageUrl.trim());
+            if (!alreadyPrintedStem && _hasStemImage(q, imageSize)) {
+              buffer.writeln('![প্রশ্ন চিত্র](${_stemImageUrlOf(q)})\n');
+            }
+
             for (int opt = 0; opt < mcq.options.length; opt++) {
               final l = opt < bengaliLetters.length
                   ? bengaliLetters[opt]
@@ -2552,10 +2631,15 @@ $paperFontBlock    :root {
 
         case PaperSection.rq:
           for (int j = 0; j < inSection.length; j++) {
-            final data = inSection[j].shortData;
+            final q = inSection[j];
+            final data = q.shortData;
             if (data == null || data.text.trim().isEmpty) continue;
             buffer
                 .writeln('**${j + 1}.** ${data.text.trim()} `[${data.mark}]`');
+            if (_hasStemImage(q, imageSize)) {
+              buffer.writeln(
+                  '![সংক্ষিপ্ত প্রশ্ন চিত্র](${_stemImageUrlOf(q)})\n');
+            }
           }
           buffer.writeln();
           break;

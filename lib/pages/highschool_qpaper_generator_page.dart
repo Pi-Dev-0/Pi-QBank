@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../models/highschool_question.dart';
 import '../services/highschool_qbank_service.dart';
@@ -128,7 +127,7 @@ class HighSchoolQPaperGeneratorPage extends StatefulWidget {
 class _HighSchoolQPaperGeneratorPageState
     extends State<HighSchoolQPaperGeneratorPage> with TickerProviderStateMixin {
   // ── Step tracking ──────────────────────────────────────────────────────────
-  int _currentStep = 0; // 0 = filter, 1 = picker, 2 = generate PDF
+  int _currentStep = 0; // 0 = filter, 1 = picker, 2 = export HTML
 
   // ── Step 1 state ──────────────────────────────────────────────────────────
   String? _selectedClass;
@@ -176,9 +175,7 @@ class _HighSchoolQPaperGeneratorPageState
   final _cqAnswerAnyCtrl = TextEditingController();
   int get _cqAnswerCount => int.tryParse(_cqAnswerAnyCtrl.text.trim()) ?? 0;
 
-  bool _generating = false;
-
-  /// How stem images are sized across PDF / Word / HTML exports.
+  /// How stem images are sized in the HTML paper.
   StemImageSize _imageSize = StemImageSize.medium;
 
   /// How CQ questions are arranged (single or double column).
@@ -195,10 +192,7 @@ class _HighSchoolQPaperGeneratorPageState
   /// at — one point per step.
   ///
   /// The step moves every size together: masthead, section banners, question
-  /// text and the marks, in the PDF and the HTML alike (the sheet carries it as
-  /// `calc(… + Npt)`), so the two exports stay the same size. It also reaches
-  /// [PdfLayout]'s height estimators — budgeting room for 11pt text and drawing
-  /// 13pt text is what makes a column overflow its allowance.
+  /// text and the marks; the sheet carries it as `calc(… + Npt)`.
   double _fontStep = 0;
 
   /// The range the control allows. Below −3 the text stops being comfortable on
@@ -209,8 +203,7 @@ class _HighSchoolQPaperGeneratorPageState
   /// The size a paper text style prints at: its tuned base plus [_fontStep].
   double _typeSize(double base) => base + _fontStep;
 
-  /// The face the paper is set in — the HTML sheet and the Word file; the PDF
-  /// keeps its own embedded Bijoy face. See [PaperFont].
+  /// The face the HTML sheet is set in. See [PaperFont].
   PaperFont _paperFont = PaperFont.hindSiliguri;
 
   // ── Animation ─────────────────────────────────────────────────────────────
@@ -828,13 +821,14 @@ class _HighSchoolQPaperGeneratorPageState
     _subjectCtrl.text = _selectedSubject ?? '';
     // Step 3's শ্রেণি field writes the class the way a paper does. The canonical
     // label the picker listed stays behind for the fetch calls and the sheet.
-    _classCtrl.text = _selectedClass == null ? '' : _classLabel(_selectedClass!);
+    _classCtrl.text =
+        _selectedClass == null ? '' : _classLabel(_selectedClass!);
     _marksCtrl.text = '$_totalSelectedMarks';
     _goToStep(2);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Step 3 — Multi-format generation & export
+  // Step 3 — HTML generation & export
   // ─────────────────────────────────────────────────────────────────────────
 
   String _getBaseFileName() {
@@ -846,87 +840,14 @@ class _HighSchoolQPaperGeneratorPageState
     return '$sub$exam'.replaceAll(RegExp(r'[^\w\u0980-\u09FF-]'), '_');
   }
 
-  Future<void> _generateAndPreviewPdf() async {
-    setState(() => _generating = true);
-    try {
-      final pdfBytes = await _buildPdf();
-      if (!mounted) return;
-      await Printing.layoutPdf(onLayout: (_) => pdfBytes);
-    } catch (e) {
-      _showError('PDF তৈরি করতে ব্যর্থ: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => _generating = false);
-    }
-  }
-
-  Future<void> _sharePdfFile() async {
-    setState(() => _generating = true);
-    try {
-      final pdfBytes = await _buildPdf();
-      final file = await HighSchoolExportService.saveFile(
-        content: '',
-        fileName: '${_getBaseFileName()}.pdf',
-        bytes: pdfBytes,
-      );
-      if (!mounted) return;
-      await HighSchoolExportService.shareExportedFile(
-        file,
-        text:
-            '${_examCtrl.text.trim().isNotEmpty ? _examCtrl.text : "Question Paper"} - PDF Document',
-      );
-    } catch (e) {
-      _showError('PDF শেয়ার করতে ব্যর্থ: $e');
-    } finally {
-      if (mounted) setState(() => _generating = false);
-    }
-  }
-
-  Future<void> _exportWord({bool open = true}) async {
-    try {
-      // Word will not reliably render a remote <img>, so embed the bytes.
-      final stemImages = _imageSize.isVisible
-          ? await HighSchoolExportService.prefetchStemImages(_selectedQuestions)
-          : <String, Uint8List>{};
-      final doc = HighSchoolExportService.generateWordDoc(
-        schoolName: _schoolCtrl.text,
-        examName: _examCtrl.text,
-        subject: _subjectCtrl.text,
-        className: _classCtrl.text,
-        time: _timeCtrl.text,
-        totalMarks: _marksCtrl.text,
-        questions: _selectedQuestions,
-        imageBytes: stemImages,
-        imageSize: _imageSize,
-        setLabels: _twoSets ? _setLabels : const [],
-        sectionOrder: _paperSectionOrder,
-        cqLayout: _cqLayout,
-        mcqLayout: _mcqLayout,
-        rqLayout: _rqLayout,
-        font: _paperFont,
-      );
-      final file = await HighSchoolExportService.saveFile(
-        content: doc,
-        fileName: '${_getBaseFileName()}.doc',
-      );
-      if (!mounted) return;
-      if (open) {
-        await HighSchoolExportService.openExportedFile(context, file);
-      } else {
-        await HighSchoolExportService.shareExportedFile(
-          file,
-          text: '${_examCtrl.text} - Word Document',
-        );
-      }
-    } catch (e) {
-      _showError('Word ফাইল তৈরি করতে সমস্যা: $e');
-    }
-  }
-
   Future<void> _exportHtml({bool open = true}) async {
     try {
       // A face the app ships is written into the file, so load it before the
       // sheet is built; see [HighSchoolExportService.preloadPaperFonts].
       await HighSchoolExportService.preloadPaperFonts();
+      final stemImages = _imageSize.isVisible
+          ? await HighSchoolExportService.prefetchStemImages(_selectedQuestions)
+          : <String, Uint8List>{};
       final html = HighSchoolExportService.generateHtml(
         schoolName: _schoolCtrl.text,
         examName: _examCtrl.text,
@@ -935,6 +856,7 @@ class _HighSchoolQPaperGeneratorPageState
         time: _timeCtrl.text,
         totalMarks: _marksCtrl.text,
         questions: _selectedQuestions,
+        imageBytes: stemImages,
         setLabels: _twoSets ? _setLabels : const [],
         sectionOrder: _paperSectionOrder,
         imageSize: _imageSize,
@@ -959,99 +881,6 @@ class _HighSchoolQPaperGeneratorPageState
       }
     } catch (e) {
       _showError('HTML ফাইল তৈরি করতে সমস্যা: $e');
-    }
-  }
-
-  Future<void> _exportText({bool open = true}) async {
-    try {
-      final text = HighSchoolExportService.generatePlainText(
-        schoolName: _schoolCtrl.text,
-        examName: _examCtrl.text,
-        subject: _subjectCtrl.text,
-        className: _classCtrl.text,
-        time: _timeCtrl.text,
-        totalMarks: _marksCtrl.text,
-        questions: _selectedQuestions,
-        imageSize: _imageSize,
-        setLabels: _twoSets ? _setLabels : const [],
-        sectionOrder: _paperSectionOrder,
-      );
-      final file = await HighSchoolExportService.saveFile(
-        content: text,
-        fileName: '${_getBaseFileName()}.txt',
-      );
-      if (!mounted) return;
-      if (open) {
-        await HighSchoolExportService.openExportedFile(context, file);
-      } else {
-        await HighSchoolExportService.shareExportedFile(
-          file,
-          text: '${_examCtrl.text} - Plain Text',
-        );
-      }
-    } catch (e) {
-      _showError('টেক্সট ফাইল তৈরি করতে সমস্যা: $e');
-    }
-  }
-
-  Future<void> _exportMarkdown({bool open = true}) async {
-    try {
-      final md = HighSchoolExportService.generateMarkdown(
-        schoolName: _schoolCtrl.text,
-        examName: _examCtrl.text,
-        subject: _subjectCtrl.text,
-        className: _classCtrl.text,
-        time: _timeCtrl.text,
-        totalMarks: _marksCtrl.text,
-        questions: _selectedQuestions,
-        imageSize: _imageSize,
-        setLabels: _twoSets ? _setLabels : const [],
-        sectionOrder: _paperSectionOrder,
-      );
-      final file = await HighSchoolExportService.saveFile(
-        content: md,
-        fileName: '${_getBaseFileName()}.md',
-      );
-      if (!mounted) return;
-      if (open) {
-        await HighSchoolExportService.openExportedFile(context, file);
-      } else {
-        await HighSchoolExportService.shareExportedFile(
-          file,
-          text: '${_examCtrl.text} - Markdown Document',
-        );
-      }
-    } catch (e) {
-      _showError('Markdown ফাইল তৈরি করতে সমস্যা: $e');
-    }
-  }
-
-  Future<void> _exportJson({bool open = true}) async {
-    try {
-      final json = HighSchoolExportService.generateJson(
-        schoolName: _schoolCtrl.text,
-        examName: _examCtrl.text,
-        subject: _subjectCtrl.text,
-        className: _classCtrl.text,
-        time: _timeCtrl.text,
-        totalMarks: _marksCtrl.text,
-        questions: _selectedQuestions,
-      );
-      final file = await HighSchoolExportService.saveFile(
-        content: json,
-        fileName: '${_getBaseFileName()}.json',
-      );
-      if (!mounted) return;
-      if (open) {
-        await HighSchoolExportService.openExportedFile(context, file);
-      } else {
-        await HighSchoolExportService.shareExportedFile(
-          file,
-          text: '${_examCtrl.text} - JSON Data',
-        );
-      }
-    } catch (e) {
-      _showError('JSON ফাইল তৈরি করতে সমস্যা: $e');
     }
   }
 
@@ -1087,10 +916,6 @@ class _HighSchoolQPaperGeneratorPageState
           rqLayout: _rqLayout,
           fontStep: _fontStep,
           font: _paperFont,
-          // The sheet's own print button goes through the app's PDF path: a
-          // WebView has no print dialog to open, and this is the same paper the
-          // PDF button prints.
-          onPrint: _generateAndPreviewPdf,
         ),
       ),
     );
@@ -1100,6 +925,9 @@ class _HighSchoolQPaperGeneratorPageState
   /// to a temp file and hand it to the default browser.
   Future<void> _previewInSystemBrowser() async {
     await HighSchoolExportService.preloadPaperFonts();
+    final stemImages = _imageSize.isVisible
+        ? await HighSchoolExportService.prefetchStemImages(_selectedQuestions)
+        : <String, Uint8List>{};
     final html = HighSchoolExportService.generateHtml(
       schoolName: _schoolCtrl.text,
       examName: _examCtrl.text,
@@ -1108,6 +936,7 @@ class _HighSchoolQPaperGeneratorPageState
       time: _timeCtrl.text,
       totalMarks: _marksCtrl.text,
       questions: _selectedQuestions,
+      imageBytes: stemImages,
       setLabels: _twoSets ? _setLabels : const [],
       sectionOrder: _paperSectionOrder,
       imageSize: _imageSize,
@@ -1128,22 +957,6 @@ class _HighSchoolQPaperGeneratorPageState
     await HighSchoolExportService.openExportedFile(context, file);
   }
 
-  void _copyAllText() {
-    final text = HighSchoolExportService.generatePlainText(
-      schoolName: _schoolCtrl.text,
-      examName: _examCtrl.text,
-      subject: _subjectCtrl.text,
-      className: _classCtrl.text,
-      time: _timeCtrl.text,
-      totalMarks: _marksCtrl.text,
-      questions: _selectedQuestions,
-      imageSize: _imageSize,
-      setLabels: _twoSets ? _setLabels : const [],
-      sectionOrder: _paperSectionOrder,
-    );
-    HighSchoolExportService.copyToClipboard(context, text);
-  }
-
   /// Render a string that mixes Bangla and Latin in the PDF.
   ///
   /// See [buildPdfTextSpan] for why this is needed and for the copyWith/font-slot
@@ -1151,7 +964,10 @@ class _HighSchoolQPaperGeneratorPageState
   pw.TextSpan _mixedText(String text, pw.TextStyle style) {
     final bold = style.fontWeight == pw.FontWeight.bold;
     return buildPdfTextSpan(text, style,
-        bold: bold, measure: _measureForRender, symbolFont: _activeMathFont, symbolCoverage: _activeSymbolCoverage);
+        bold: bold,
+        measure: _measureForRender,
+        symbolFont: _activeMathFont,
+        symbolCoverage: _activeSymbolCoverage);
   }
 
   /// Measures text with the same engine the layout uses, so a typeset
@@ -1514,6 +1330,7 @@ class _HighSchoolQPaperGeneratorPageState
               columnWidth: rqWidth,
               metrics: metrics,
               fontStep: _fontStep,
+              imageSize: _imageSize,
             ),
         ];
 
@@ -1553,20 +1370,41 @@ class _HighSchoolQPaperGeneratorPageState
               column,
               // A short question is a single line, so it is never split.
               itemBuilder: (i, from, to) {
-                final data = shorts[i].shortData;
+                final q = shorts[i];
+                final data = q.shortData;
+                final rqImageUrl =
+                    HighSchoolExportService.resolveImageUrl(q.stemImageUrl);
+                final rqImageBytes =
+                    rqImageUrl.isNotEmpty ? stemImages[rqImageUrl] : null;
                 return pw.Padding(
                   padding: const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
-                  child: pw.Row(
+                  child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Expanded(
-                        child: pw.RichText(
-                            text: _mixedText(
-                                '${i + 1}. ${data!.text}', baseStyle)),
+                      pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            child: pw.RichText(
+                                text: _mixedText(
+                                    '${i + 1}. ${data!.text}', baseStyle)),
+                          ),
+                          pw.SizedBox(width: 12),
+                          pw.RichText(
+                              text: _mixedText('[${data.mark}]', rqMarkStyle)),
+                        ],
                       ),
-                      pw.SizedBox(width: 12),
-                      pw.RichText(
-                          text: _mixedText('[${data.mark}]', rqMarkStyle)),
+                      if (rqImageBytes != null && _imageSize.isVisible) ...[
+                        pw.SizedBox(height: PdfLayout.cqImageGap),
+                        pw.Container(
+                          alignment: pw.Alignment.centerLeft,
+                          child: pw.Image(
+                            pw.MemoryImage(rqImageBytes),
+                            height: _imageSize.maxHeightPt,
+                            fit: pw.BoxFit.contain,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -1683,17 +1521,27 @@ class _HighSchoolQPaperGeneratorPageState
       /// board paper. Both the estimator and the card read this, so the room
       /// booked for the intro is the room it draws.
       String stemTextOf(int i) => opensStem(i)
-          ? HighSchoolExportService.stemWithNumbers(
-              mcqs[i].mcqStemText,
+          ? HighSchoolExportService.stemWithNumbers(mcqs[i].mcqStemText,
               HighSchoolExportService.mcqStemRunNumbers(mcqs, i))
           : '';
 
+      // An image attached to an উদ্দীপক that opens a group is rendered inside
+      // the stem block.  A standalone MCQ (no stem text but with a figure) gets
+      // its image as a question-level image.  Both cases need the bytes.
       bool hasStemImage(int i) =>
-          opensStem(i) &&
           imageSize.isVisible &&
           HighSchoolExportService.resolveImageUrl(mcqs[i].stemImageUrl)
               .isNotEmpty;
-      Uint8List? stemBytesOf(int i) => hasStemImage(i)
+      bool needsQuestionImage(int i) {
+        if (!hasStemImage(i) || opensStem(i)) return false;
+        if (i == 0) return true;
+        final previous = mcqs[i - 1];
+        return !mcqs[i].sharesMcqStemWith(previous) ||
+            !hasStemImage(i - 1) ||
+            previous.stemImageUrl.trim() != mcqs[i].stemImageUrl.trim();
+      }
+
+      Uint8List? stemBytesOf(int i) => (opensStem(i) || needsQuestionImage(i))
           ? stemImages[
               HighSchoolExportService.resolveImageUrl(mcqs[i].stemImageUrl)]
           : null;
@@ -1715,7 +1563,7 @@ class _HighSchoolQPaperGeneratorPageState
               fontStep: _fontStep,
               withStem: opensStem(0),
               stemText: stemTextOf(0),
-              hasImage: hasStemImage(0),
+              hasImage: opensStem(0) || needsQuestionImage(0),
               imageSize: imageSize,
             );
 
@@ -1765,7 +1613,7 @@ class _HighSchoolQPaperGeneratorPageState
           fontStep: _fontStep,
           withStem: opensStem(i),
           stemText: stemTextOf(i),
-          hasImage: hasStemImage(i),
+          hasImage: opensStem(i) || needsQuestionImage(i),
           imageSize: imageSize,
         );
         for (var p = 0; p < parts.length; p++) {
@@ -1909,6 +1757,7 @@ class _HighSchoolQPaperGeneratorPageState
             columnWidth: rqWidth,
             metrics: metrics,
             fontStep: _fontStep,
+            imageSize: _imageSize,
           );
           for (var p = 0; p < parts.length; p++) {
             add(parts[p], cqs.length + i, p, p == 0, p == parts.length - 1);
@@ -1952,20 +1801,41 @@ class _HighSchoolQPaperGeneratorPageState
             }
             if (qIndex >= cqs.length) {
               final i = qIndex - cqs.length;
-              final data = shorts[i].shortData;
+              final shortQ = shorts[i];
+              final data = shortQ.shortData;
+              final rqImageUrl =
+                  HighSchoolExportService.resolveImageUrl(shortQ.stemImageUrl);
+              final rqImageBytes =
+                  rqImageUrl.isNotEmpty ? stemImages[rqImageUrl] : null;
               return pw.Padding(
                 padding: const pw.EdgeInsets.only(bottom: PdfLayout.rqGap),
-                child: pw.Row(
+                child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Expanded(
-                      child: pw.RichText(
-                          text:
-                              _mixedText('${i + 1}. ${data!.text}', baseStyle)),
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Expanded(
+                          child: pw.RichText(
+                              text: _mixedText(
+                                  '${i + 1}. ${data!.text}', baseStyle)),
+                        ),
+                        pw.SizedBox(width: 12),
+                        pw.RichText(
+                            text: _mixedText('[${data.mark}]', rqMarkStyle)),
+                      ],
                     ),
-                    pw.SizedBox(width: 12),
-                    pw.RichText(
-                        text: _mixedText('[${data.mark}]', rqMarkStyle)),
+                    if (rqImageBytes != null && _imageSize.isVisible) ...[
+                      pw.SizedBox(height: PdfLayout.cqImageGap),
+                      pw.Container(
+                        alignment: pw.Alignment.centerLeft,
+                        child: pw.Image(
+                          pw.MemoryImage(rqImageBytes),
+                          height: _imageSize.maxHeightPt,
+                          fit: pw.BoxFit.contain,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -2451,9 +2321,10 @@ class _HighSchoolQPaperGeneratorPageState
         if (partFrom == 0) ...[
           // The intro carries no number: it belongs to the questions under it,
           // not to one of them.
-          if (stem.isNotEmpty)
-            pw.RichText(text: _mixedText(stem, baseStyle)),
-          if (stem.isNotEmpty && stemBytes != null) ...[
+          if (stem.isNotEmpty) pw.RichText(text: _mixedText(stem, baseStyle)),
+          // Show the image after the stem text (or alone when there is no text
+          // but the question still has a figure attached to its উদ্দীপক).
+          if (stemBytes != null && withStem) ...[
             pw.SizedBox(height: PdfLayout.cqImageGap),
             pw.Container(
               alignment: pw.Alignment.center,
@@ -2467,6 +2338,17 @@ class _HighSchoolQPaperGeneratorPageState
           if (stem.isNotEmpty) pw.SizedBox(height: PdfLayout.mcqStemGap),
           pw.RichText(
               text: _mixedText('$index. ${q.paperQuestionText}', baseStyle)),
+          if (stemBytes != null && !withStem) ...[
+            pw.SizedBox(height: PdfLayout.cqImageGap),
+            pw.Container(
+              alignment: pw.Alignment.center,
+              child: pw.Image(
+                pw.MemoryImage(stemBytes),
+                height: imageSize.maxHeightPt,
+                fit: pw.BoxFit.contain,
+              ),
+            ),
+          ],
         ],
         ...rows,
       ],
@@ -3680,29 +3562,19 @@ class _HighSchoolQPaperGeneratorPageState
                   : 'সর্বোচ্চ ${_selectedCqs.length} — যেমন: যেকোনো ৫ টি প্রশ্নের উত্তর দাও'),
           const SizedBox(height: 18),
 
-          // ── Stem image size ──────────────────────────────────────────────
-          _buildImageSizeSelector(),
-          const SizedBox(height: 14),
-
-          // ── Paper font size ──────────────────────────────────────────────
-          _buildFontSizeSelector(),
+          // Paper appearance settings share one compact row.
+          _buildPaperSettingsSelector(),
           const SizedBox(height: 28),
 
-          // The sheet is the default export: print it, or share the file. A
-          // "view & download" button of its own would only repeat those two.
-          if (_generating) ...[
-            const LinearProgressIndicator(color: _kPrimary),
-            const SizedBox(height: 12),
-          ],
-
+          // Export and share the generated paper as HTML.
           Row(
             children: [
               Expanded(
                 child: SizedBox(
                   height: 48,
                   child: OutlinedButton.icon(
-                    icon: const Icon(Icons.print_rounded, size: 20),
-                    label: const Text('প্রিন্ট করুন',
+                    icon: const Icon(Icons.open_in_browser_rounded, size: 20),
+                    label: const Text('HTML ফাইল খুলুন',
                         style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.bold)),
                     style: OutlinedButton.styleFrom(
@@ -3711,7 +3583,7 @@ class _HighSchoolQPaperGeneratorPageState
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                     ),
-                    onPressed: _generating ? null : _exportHtml,
+                    onPressed: _exportHtml,
                   ),
                 ),
               ),
@@ -3731,8 +3603,7 @@ class _HighSchoolQPaperGeneratorPageState
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                     ),
-                    onPressed:
-                        _generating ? null : () => _exportHtml(open: false),
+                    onPressed: () => _exportHtml(open: false),
                   ),
                 ),
               ),
@@ -3740,7 +3611,7 @@ class _HighSchoolQPaperGeneratorPageState
           ),
           const SizedBox(height: 28),
 
-          // ── Multi-Format Export Section ──────────────────────────────────
+          // The live preview renders the same HTML file in-app.
           SizedBox(
             width: double.infinity,
             height: 52,
@@ -3760,400 +3631,155 @@ class _HighSchoolQPaperGeneratorPageState
             ),
           ),
           const SizedBox(height: 10),
-          _SectionHeader(
-              icon: Icons.file_download_rounded,
-              label: 'অন্যান্য ফরম্যাটে এক্সপোর্ট ও সংরক্ষণ'),
-          const SizedBox(height: 6),
-          const Text(
-            'প্রশ্নপত্রটি HTML ছাড়াও ওয়ার্ড এডিটর, পিডিএফ বা নোট অ্যাপের জন্য যেকোনো ফরম্যাটে সংরক্ষণ ও শেয়ার করুন:',
-            style: TextStyle(fontSize: 13, color: _kSubText),
-          ),
-          const SizedBox(height: 16),
-
-          // Copy All Text Banner
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFECFDF5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFA7F3D0)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.copy_all_rounded,
-                    color: Color(0xFF059669), size: 24),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'সম্পূর্ণ প্রশ্নপত্রের টেক্সট কপি করুন (WhatsApp / Messenger / Notepad)',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF065F46)),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: _copyAllText,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: const Text('কপি',
-                      style:
-                          TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Format Cards. The page-exact PDF leads the list: it is the other
-          // export a reader reaches for, right after the default HTML sheet.
-          _ExportFormatCard(
-            icon: Icons.picture_as_pdf_rounded,
-            accentColor: const Color(0xFFDC2626),
-            title: 'PDF ফাইল (.pdf)',
-            badge: 'পেজ-এক্সাক্ট A4 ফাইল',
-            description:
-                'অফলাইনে সংরক্ষণ, শেয়ার বা সরাসরি প্রিন্টের জন্য প্রিন্টার-রেডি ফাইল।',
-            onOpen: _generateAndPreviewPdf,
-            onShare: _sharePdfFile,
-          ),
-          const SizedBox(height: 10),
-
-          _ExportFormatCard(
-            icon: Icons.article_rounded,
-            accentColor: const Color(0xFF2B579A),
-            title: 'Microsoft Word (.doc)',
-            badge: 'এডিটেবল ওয়ার্ড ফাইল',
-            description:
-                'কম্পিউটার বা ফোনে MS Word/WPS/Docs এ প্রশ্ন এডিট ও প্রিন্ট করার জন্য।',
-            onOpen: () => _exportWord(open: true),
-            onShare: () => _exportWord(open: false),
-          ),
-          const SizedBox(height: 10),
-
-          _ExportFormatCard(
-            icon: Icons.text_snippet_rounded,
-            accentColor: const Color(0xFF475569),
-            title: 'Plain Text (.txt)',
-            badge: 'নোটপ্যাড বা হালকা ফাইল',
-            description:
-                'সব ডিভাইসে কোনো ফরম্যাটিং ঝামেলা ছাড়াই সাধারণ টেক্সট হিসেবে পড়ার জন্য।',
-            onOpen: () => _exportText(open: true),
-            onShare: () => _exportText(open: false),
-          ),
-          const SizedBox(height: 10),
-
-          _ExportFormatCard(
-            icon: Icons.code_rounded,
-            accentColor: const Color(0xFF7C3AED),
-            title: 'Markdown (.md)',
-            badge: 'নোশন ও ডিজিটাল নোট',
-            description:
-                'Notion, Obsidian, GitHub বা অন্যান্য মার্কডাউন নোট অ্যাপে সংরক্ষণের জন্য।',
-            onOpen: () => _exportMarkdown(open: true),
-            onShare: () => _exportMarkdown(open: false),
-          ),
-          const SizedBox(height: 10),
-
-          _ExportFormatCard(
-            icon: Icons.data_object_rounded,
-            accentColor: const Color(0xFF059669),
-            title: 'JSON Data (.json)',
-            badge: 'ডিজিটাল ব্যাকআপ',
-            description:
-                'প্রশ্নের ডেটাবেজ ব্যাকআপ ও ডিজিটাল আদান-প্রদানের জন্য সম্পূর্ণ স্ট্রাকচার্ড ডেটা।',
-            onOpen: () => _exportJson(open: true),
-            onShare: () => _exportJson(open: false),
-          ),
-          const SizedBox(height: 24),
         ],
       ),
     );
   }
 
-  /// Lets the user control how large stem images appear in every export format.
-  Widget _buildImageSizeSelector() {
-    final withImages = _selectedQuestions
-        .where((q) => q.stemImageUrl.trim().isNotEmpty)
-        .length;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _kCardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.image_outlined, size: 18, color: _kPrimary),
-              const SizedBox(width: 8),
-              const Text('উদ্দীপক ছবির আকার',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: _kDarkText)),
-              const Spacer(),
-              Text(
-                withImages > 0 ? '$withImages টি ছবি' : 'কোনো ছবি নেই',
-                style: TextStyle(fontSize: 11, color: _kSubText),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: StemImageSize.values.map((size) {
-              final selected = _imageSize == size;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => setState(() => _imageSize = size),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? _kPrimary.withOpacity(0.10)
-                            : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: selected ? _kPrimary : Colors.transparent,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(
-                            size.label,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight:
-                                  selected ? FontWeight.bold : FontWeight.w500,
-                              color: selected ? _kPrimary : _kDarkText,
-                            ),
-                          ),
-                          if (size.isVisible) ...[
-                            const SizedBox(height: 5),
-                            // Proportional height bar so the sizes are visual.
-                            Container(
-                              width: 22,
-                              height: 22 * (size.maxHeightPt / 220),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? _kPrimary.withOpacity(0.35)
-                                    : Colors.grey.shade400,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _imageSize.description,
-            style: const TextStyle(fontSize: 11, color: _kSubText),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// The paper's font-size control: one step moves every text size in the paper
-  /// — masthead, section banners, question text and marks — by a single point,
-  /// in the PDF and the HTML alike.
-  ///
-  /// The paper is tuned at step 0, which is why the control ships at 0 rather
-  /// than at a "small / medium / large" default nobody can compare against.
-  Widget _buildFontSizeSelector() {
-    final label = _fontStep == 0
+  /// Image size, paper text size, and typeface in one row of dropdowns.
+  Widget _buildPaperSettingsSelector() {
+    final fontSteps = [
+      for (var step = _fontStepMin; step <= _fontStepMax; step++) step,
+    ];
+    String fontSizeLabel(double step) => step == 0
         ? 'স্বাভাবিক'
-        : '${_fontStep > 0 ? '+' : '−'}${_fontStep.abs().toStringAsFixed(0)} pt';
+        : '${step > 0 ? '+' : ''}${step.toStringAsFixed(0)} pt';
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _kCardBg,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.format_size_rounded, size: 18, color: _kPrimary),
-              const SizedBox(width: 8),
-              const Text('লেখার আকার ও ফন্ট',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: _kDarkText)),
-              const Spacer(),
-              Text(label, style: TextStyle(fontSize: 11, color: _kSubText)),
-            ],
+          Expanded(
+            child: _buildSettingDropdown<StemImageSize>(
+              label: 'ছবির আকার',
+              value: _imageSize,
+              items: StemImageSize.values,
+              itemLabel: (size) => size.label,
+              selectedItemLabel: (size) =>
+                  size == StemImageSize.hidden ? 'বন্ধ' : size.label,
+              onChanged: (value) {
+                if (value != null) setState(() => _imageSize = value);
+              },
+            ),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _buildFontStepButton(
-                  icon: Icons.remove_rounded,
-                  delta: -1,
-                  enabled: _fontStep > _fontStepMin),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  alignment: Alignment.center,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  // Drawn at the paper's own size: the HTML sheet prints
-                  // question text at 15px and a step is one point (96/72 px), so
-                  // the sample grows by exactly what the paper will.
-                  child: Text(
-                    '১. সংক্ষিপ্ত প্রশ্নের নমুনা লেখা',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 15 + _fontStep * 96 / 72, color: _kDarkText),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _buildFontStepButton(
-                  icon: Icons.add_rounded,
-                  delta: 1,
-                  enabled: _fontStep < _fontStepMax),
-            ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildSettingDropdown<double>(
+              label: 'লেখার আকার',
+              value: _fontStep,
+              items: fontSteps,
+              itemLabel: fontSizeLabel,
+              onChanged: (value) {
+                if (value != null) setState(() => _fontStep = value);
+              },
+            ),
           ),
-          const SizedBox(height: 12),
-          _buildFontPicker(),
-          const SizedBox(height: 8),
-          const Text(
-            'প্রতিটি ধাপে প্রশ্নপত্রের সব লেখা একসাথে এক পয়েন্ট বড় বা ছোট হয়। '
-            'PDF আর HTML — দুই এক্সপোর্টেই একই আকারে ছাপা হবে।',
-            style: TextStyle(fontSize: 11, color: _kSubText),
-          ),
-          const SizedBox(height: 3),
-          const Text(
-            'ফন্ট বাছাই HTML ও ওয়ার্ডে কাজ করে; PDF নিজের এমবেড করা ফন্টে ছাপে। '
-            'কলপুরুষ, সলাইমানলিপি ও নির্মলা ইউআই ফাইলটি যে ডিভাইসে খোলা হবে সেখানে '
-            'ইনস্টল থাকলে তবেই হুবহু দেখাবে — নাহলে হিন্দ শিলিগুড়িতে ছাপা হবে।',
-            style: TextStyle(fontSize: 11, color: _kSubText),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildSettingDropdown<PaperFont>(
+              label: 'ফন্ট',
+              value: _paperFont,
+              items: PaperFont.values,
+              itemLabel: (font) => font.label,
+              selectedItemLabel: (font) => switch (font) {
+                PaperFont.hindSiliguri => 'হিন্দ',
+                PaperFont.notoSansBengali => 'নোটো সান্স',
+                PaperFont.notoSerifBengali => 'নোটো সেরিফ',
+                PaperFont.balooDa => 'বালু দা',
+                PaperFont.mina => 'মিনা',
+                PaperFont.kalpurush => 'কলপুরুষ',
+                PaperFont.solaimanLipi => 'সলাইমান',
+                PaperFont.nirmalaUi => 'নির্মলা',
+              },
+              onChanged: (value) {
+                if (value != null) setState(() => _paperFont = value);
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// The face the paper is set in, as a row of names.
-  ///
-  /// A wrap of chips rather than a menu: the reader is choosing by eye, and a
-  /// menu has to be opened before the options can be read at all. A face the
-  /// paper cannot bring with it — neither fetched nor shipped, so it has to be
-  /// installed on whatever machine opens the file — is marked, so nobody is left
-  /// wondering why a file opened elsewhere looks different.
-  Widget _buildFontPicker() {
+  Widget _buildSettingDropdown<T>({
+    required String label,
+    required T value,
+    required List<T> items,
+    required String Function(T) itemLabel,
+    String Function(T)? selectedItemLabel,
+    required ValueChanged<T?> onChanged,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('ফন্ট',
-            style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w600, color: _kSubText)),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [for (final font in PaperFont.values) _buildFontChip(font)],
-        ),
-      ],
-    );
-  }
-
-  /// One face in the picker: its name, and a mark when the paper cannot bring
-  /// the face with it — see [PaperFont.needsInstalling].
-  Widget _buildFontChip(PaperFont font) {
-    final selected = font == _paperFont;
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: () => setState(() => _paperFont = font),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? _kPrimary.withOpacity(0.10) : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: selected ? _kPrimary : Colors.transparent, width: 1.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (font.needsInstalling) ...[
-              Icon(Icons.computer_rounded,
-                  size: 12, color: selected ? _kPrimary : _kSubText),
-              const SizedBox(width: 5),
-            ],
-            Text(
-              font.label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? _kPrimary : _kDarkText,
-              ),
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 6),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: _kSubText,
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// One end of the font-size stepper, greyed out at its limit.
-  Widget _buildFontStepButton({
-    required IconData icon,
-    required double delta,
-    required bool enabled,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: enabled
-          ? () => setState(() => _fontStep =
-              (_fontStep + delta).clamp(_fontStepMin, _fontStepMax).toDouble())
-          : null,
-      child: Container(
-        width: 46,
-        height: 42,
-        decoration: BoxDecoration(
-          color: enabled ? _kPrimary.withOpacity(0.10) : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: enabled ? _kPrimary : Colors.transparent,
-            width: 1.5,
           ),
         ),
-        child: Icon(icon,
-            size: 20, color: enabled ? _kPrimary : Colors.grey.shade400),
-      ),
+        DropdownButtonFormField<T>(
+          value: value,
+          isExpanded: true,
+          iconSize: 18,
+          style: const TextStyle(fontSize: 12, color: _kDarkText),
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+            filled: true,
+            fillColor: Colors.grey.shade50,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9),
+              borderSide: const BorderSide(color: _kPrimary, width: 1.4),
+            ),
+          ),
+          selectedItemBuilder: (context) => [
+            for (final item in items)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  (selectedItemLabel ?? itemLabel)(item),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          items: [
+            for (final item in items)
+              DropdownMenuItem<T>(
+                value: item,
+                child: Text(
+                  itemLabel(item),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 
@@ -5116,146 +4742,6 @@ class _CountBadge extends StatelessWidget {
       );
 }
 
-class _ExportFormatCard extends StatelessWidget {
-  final IconData icon;
-  final Color accentColor;
-  final String title;
-  final String badge;
-  final String description;
-  final VoidCallback onOpen;
-  final VoidCallback onShare;
-
-  const _ExportFormatCard({
-    required this.icon,
-    required this.accentColor,
-    required this.title,
-    required this.badge,
-    required this.description,
-    required this.onOpen,
-    required this.onShare,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: accentColor, size: 22),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: _kDarkText,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        badge,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: accentColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: const TextStyle(fontSize: 12, color: _kSubText),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 38,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.folder_open_rounded, size: 16),
-                    label: const Text('ওপেন করুন',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    onPressed: onOpen,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: 38,
-                  child: OutlinedButton.icon(
-                    icon:
-                        Icon(Icons.share_rounded, size: 16, color: accentColor),
-                    label: Text('শেয়ার',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: accentColor)),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: accentColor.withOpacity(0.5)),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    onPressed: onShare,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Hand entry
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -32,7 +32,6 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.rqLayout = QuestionLayout.single,
     this.fontStep = 0,
     this.font = PaperFont.hindSiliguri,
-    this.onPrint,
   });
 
   final String schoolName;
@@ -56,26 +55,11 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   final QuestionLayout rqLayout;
 
   /// How far every text size in the paper is moved from its tuned size, in
-  /// points. The PDF is built at the same step; see the font-size control on
-  /// the generator page.
+  /// points; see the font-size control on the generator page.
   final double fontStep;
 
-  /// The face the sheet is set in; see [PaperFont]. The PDF keeps its own.
+  /// The face the sheet is set in; see [PaperFont].
   final PaperFont font;
-
-  /// What the sheet's print button does here, when the preview is hosted by the
-  /// app.
-  ///
-  /// A sheet opened in a browser prints itself. Inside a WebView it cannot: an
-  /// Android WebView has no print support at all, so `window.print()` is a no-op
-  /// and the button looked broken on a phone. The host passes the app's own
-  /// printing here — the same path its PDF button takes — and the sheet asks for
-  /// it over [printChannel] instead of printing itself. Null outside the app, in
-  /// which case the button keeps its browser behaviour.
-  final Future<void> Function()? onPrint;
-
-  /// The JavaScript channel the sheet's print button posts to.
-  static const String printChannel = 'PiQBankPrint';
 
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
@@ -97,9 +81,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   /// the moment the load takes.
   bool _preparing = true;
 
-  /// True while the sheet's print button has the host building and printing the
-  /// paper.
-  bool _printing = false;
+  Map<String, Uint8List> _stemImages = const {};
 
   String get _html => HighSchoolExportService.generateHtml(
         schoolName: widget.schoolName,
@@ -109,6 +91,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         time: widget.time,
         totalMarks: widget.totalMarks,
         questions: widget.questions,
+        imageBytes: _stemImages,
         setLabels: widget.setLabels,
         sectionOrder: widget.sectionOrder,
         imageSize: widget.imageSize,
@@ -135,6 +118,11 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   /// the faces this paper can be set in installed, and no way to install one.
   Future<void> _start() async {
     await HighSchoolExportService.preloadPaperFonts();
+    if (widget.imageSize.isVisible) {
+      _stemImages = await HighSchoolExportService.prefetchStemImages(
+        widget.questions,
+      );
+    }
     if (!mounted) return;
     if (!QuestionPaperPreviewPage.supportsWebView) {
       setState(() => _preparing = false);
@@ -156,33 +144,12 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         ),
       );
 
-    // The sheet's print button asks the host to print, because this WebView has
-    // no print dialog of its own to open; see [onPrint].
-    if (widget.onPrint != null) {
-      await controller.addJavaScriptChannel(
-        QuestionPaperPreviewPage.printChannel,
-        onMessageReceived: (message) => _printFromSheet(),
-      );
-    }
-
     if (!mounted) return;
     setState(() {
       _preparing = false;
       _controller = controller;
     });
     await controller.loadHtmlString(_html);
-  }
-
-  /// Print the paper when the sheet's own button asks for it.
-  Future<void> _printFromSheet() async {
-    final print = widget.onPrint;
-    if (print == null || _printing) return;
-    setState(() => _printing = true);
-    try {
-      await print();
-    } finally {
-      if (mounted) setState(() => _printing = false);
-    }
   }
 
   /// Re-render with the current header values (used after returning from edit).
@@ -203,12 +170,6 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         backgroundColor: const Color(0xFF5C35E3),
         foregroundColor: Colors.white,
         actions: [
-          if (widget.onPrint != null)
-            IconButton(
-              icon: const Icon(Icons.print_rounded),
-              tooltip: 'প্রিন্ট / PDF সংরক্ষণ',
-              onPressed: _printing ? null : _printFromSheet,
-            ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'প্রিভিউ রিফ্রেশ করুন',
@@ -237,7 +198,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'এটি ঠিক যেভাবে HTML/PDF এক্সপোর্ট হবে'
+              'HTML প্রশ্নপত্রের প্রিভিউ'
               '${withImages > 0 ? ' • $withImages টি ছবি সহ' : ''}',
               style: const TextStyle(fontSize: 12, color: Color(0xFF6B6880)),
             ),
@@ -286,7 +247,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     return Stack(
       children: [
         WebViewWidget(controller: _controller!),
-        if (_isLoading || _printing)
+        if (_isLoading)
           const LinearProgressIndicator(
             backgroundColor: Color(0xFFEDE9FE),
             color: Color(0xFF5C35E3),
