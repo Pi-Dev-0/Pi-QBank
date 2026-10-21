@@ -2556,7 +2556,8 @@ class _HighSchoolQPaperGeneratorPageState
             ctrl: _cqAnswerAnyCtrl,
             label: 'যেকোনো কয়টি CQ-র উত্তর দিতে হবে',
             icon: Icons.rule_rounded,
-            keyboardType: TextInputType.number,
+            keyboardType: TextInputType.text,
+            hintText: 'যেমন: ৫ অথবা নিজের নির্দেশনা',
             // The remark sits under the field, not in the label: the label
             // would otherwise be too long to float above the box.
             helperText: 'খালি রাখলে লেখা হবে না।'
@@ -2974,6 +2975,7 @@ class _HighSchoolQPaperGeneratorPageState
     required String label,
     IconData? icon,
     TextInputType? keyboardType,
+    String? hintText,
     String? helperText,
   }) {
     return TextField(
@@ -2982,6 +2984,7 @@ class _HighSchoolQPaperGeneratorPageState
       style: const TextStyle(color: _kDarkText, fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
+        hintText: hintText,
         labelStyle: const TextStyle(fontSize: 13.5, color: _kSubText),
         floatingLabelStyle: const TextStyle(
             fontSize: 13, color: _kPrimary, fontWeight: FontWeight.w600),

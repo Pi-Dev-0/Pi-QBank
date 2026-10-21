@@ -1572,6 +1572,14 @@ $paperFontBlock    :root {
     .section-gap {
       height: 5pt;
     }
+    /* Mixed papers make the MCQ block especially easy to scan: the dashed
+       rules mark where that section starts and ends without boxing each item. */
+    .mcq-section-separator.top {
+      border-top: 1px dashed var(--border);
+    }
+    .mcq-section-separator.bottom {
+      border-bottom: 1px dashed var(--border);
+    }
     /* No frame around a question. The two sides are divided by one vertical
        line down the gutter — set on the flow containers with `column-rule` —
        instead of every question carrying a box of its own, which is what made
@@ -2189,9 +2197,26 @@ $paperFontBlock    :root {
         continue;
       }
 
-      // A block laid out in two columns declares itself *inside* the first
-      // column. See [_writeHtmlDeclaration].
+      // MCQ keeps its in-flow heading, while dashed edges mark only the
+      // boundaries that touch neighboring question sections.
       final declarationInFlow = twoColumnBlocks.contains(kind);
+      final hasPreviousSection = sections
+          .take(i)
+          .any((section) => questions.any((q) => _sectionOf(q) == section));
+      final hasNextSection = sections
+          .skip(i + 1)
+          .any((section) => questions.any((q) => _sectionOf(q) == section));
+      final mcqClasses = <String>[
+        if (hasPreviousSection) 'top',
+        if (hasNextSection) 'bottom',
+      ];
+      final wrapMcq = kind == PaperSection.mcq &&
+          declares &&
+          mcqClasses.isNotEmpty;
+      if (wrapMcq) {
+        buffer.write(
+            '    <div class="mcq-section-separator ${mcqClasses.join(' ')}">\n');
+      }
       switch (kind) {
         case PaperSection.cq:
           _writeHtmlCqSection(buffer, inSection, heading, imageSize,
@@ -2206,6 +2231,7 @@ $paperFontBlock    :root {
               imageBytes: imageBytes, declarationInFlow: declarationInFlow);
           break;
       }
+      if (wrapMcq) buffer.write('    </div>\n');
     }
 
     buffer.write('''

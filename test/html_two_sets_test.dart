@@ -343,21 +343,23 @@ void main() {
       expect(sheet, contains('<div class="rq-grid">'));
     });
 
-    test('a two-column block declares itself inside its first column', () {
-      // Two blocks, so the sheet has something to declare — a sheet of one type
-      // prints no declaration at all. The MCQ block is in its own columns too,
-      // so neither bar sits across the page.
+    test('a mixed MCQ section gets a boundary separator', () {
+      // MCQ is last here, so only the dashed top boundary is present. Its
+      // heading remains inside the two-column flow.
       final sheet = sheets(generate([cqTest('একটি CQ'), mcqTest('একটি MCQ')],
               cqLayout: QuestionLayout.doubleColumn))
           .single;
 
-      // The declaration is the grid's own first child - one column wide - not a
-      // bar across the page above it.
+      // CQ remains in-flow, and MCQ starts with a dashed boundary.
       expect(
           sheet,
           matches(RegExp('<div class="cq-grid">\\s*'
               '<div class="section-banner in-flow">ক-বিভাগ[^<]*</div>')));
-      expect(sheet, isNot(contains('<div class="section-banner">')));
+      expect(
+          sheet,
+          matches(RegExp('<div class="mcq-section-separator top">\\s*'
+              '<div class="mcq-grid">\\s*'
+              '<div class="section-banner in-flow">খ-বিভাগ[^<]*</div>')));
     });
 
     test('a single-column block declares itself across the page', () {
@@ -372,13 +374,13 @@ void main() {
       expect(sheet, isNot(contains('in-flow')));
     });
 
-    test('MCQ declares itself inside its columns too, but starts a fresh pair',
-        () {
+    test('MCQ separator follows its position among sections', () {
       final sheet = sheets(generate(mixed())).single;
 
       expect(
           sheet,
-          matches(RegExp('<div class="mcq-grid">\\s*'
+          matches(RegExp('<div class="mcq-section-separator top">\\s*'
+              '<div class="mcq-grid">\\s*'
               '<div class="section-banner in-flow">গ-বিভাগ[^<]*</div>')));
     });
   });
