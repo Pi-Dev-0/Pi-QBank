@@ -1332,6 +1332,10 @@ class HighSchoolExportService {
     required String time,
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
+
+    /// The instruction the CQ block carries — "যেকোনো ৫ টি প্রশ্নের উত্তর
+    /// দাও". Empty leaves the paper without one.
+    String cqInstruction = '',
     List<String> setLabels = const [],
     List<PaperSection> sectionOrder = PaperSection.defaultOrder,
     StemImageSize imageSize = StemImageSize.medium,
@@ -1520,6 +1524,18 @@ $paperFontBlock    :root {
       border-bottom: 1.5px solid var(--text);
       font-weight: 600;
       font-size: ${_cssFontSize(15, fontStep)};
+    }
+    /* The CQ instruction rides inside the bar, on a line of its own between
+       the two rules — the bar is the one band on the sheet that states what
+       the paper wants, so the instruction belongs there rather than in a
+       block of its own further down. */
+    .meta-note {
+      width: 100%;
+      text-align: center;
+      font-weight: 400;
+      font-style: italic;
+      font-size: ${_cssFontSize(12, fontStep)};
+      padding: 1px 0;
     }
     /* The PDF's own spacing, in the PDF's own units: `PdfLayout.sectionGap`
        above every banner and `PdfLayout.sectionBannerGap` below it. The same
@@ -1732,6 +1748,7 @@ $paperFontBlock    :root {
         mergeCqAndShort: mergeCqAndShort,
         imageSize: imageSize,
         imageBytes: imageBytes,
+        cqInstruction: cqInstruction,
       );
     }
 
@@ -2118,6 +2135,7 @@ $paperFontBlock    :root {
     required bool mergeCqAndShort,
     required StemImageSize imageSize,
     Map<String, Uint8List>? imageBytes,
+    String cqInstruction = '',
   }) {
     buffer.write('''
     <div class="paper-set">
@@ -2131,6 +2149,7 @@ $paperFontBlock    :root {
           <div>শ্রেণি: ${_escapeXml(className)}</div>
           <div>সময়: ${_escapeXml(time)}</div>
           <div>পূর্ণমান: ${_escapeXml(totalMarks)}</div>
+          ${cqInstruction.trim().isNotEmpty ? '<div class="meta-note">${_escapeXml(cqInstruction.trim())}</div>' : ''}
         </div>
       </div>
 ''');

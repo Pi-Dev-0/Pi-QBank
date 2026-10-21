@@ -223,7 +223,7 @@ Future<void> _openPicker(WidgetTester tester) async {
 Future<void> _toLastStep(WidgetTester tester) async {
   await tester.tap(find.text('সব নির্বাচন'));
   await tester.pumpAndSettle();
-  await tester.tap(find.textContaining('প্রশ্নপত্র তৈরি করুন ➜'));
+  await tester.tap(find.textContaining('প্রশ্নপত্র সাজান ➜'));
   await tester.pumpAndSettle();
 }
 
@@ -300,9 +300,9 @@ void main() {
       await _openPicker(tester);
       await _toLastStep(tester);
 
-      expect(find.text('CQ নম্বর: 60'), findsOneWidget);
-      expect(find.text('MCQ নম্বর: 2'), findsOneWidget);
-      expect(find.text('RQ নম্বর: 8'), findsOneWidget);
+      expect(find.text('CQ: 6টি  ·  60 নম্বর'), findsOneWidget);
+      expect(find.text('MCQ: 2টি  ·  2 নম্বর'), findsOneWidget);
+      expect(find.text('RQ: 4টি  ·  8 নম্বর'), findsOneWidget);
       expect(find.text('মোট নম্বর: 70'), findsOneWidget);
     });
 
@@ -314,6 +314,35 @@ void main() {
       // canonical label stays behind for the fetch calls and the sheet.
       expect(find.text('নবম-দশম'), findsOneWidget);
       expect(find.text('Class (9-10) SSC'), findsNothing);
+    });
+
+    testWidgets('the CQ remark sits under the field, not in the label',
+        (tester) async {
+      await _openPicker(tester);
+      await _toLastStep(tester);
+
+      // The label stays short enough to float above the box.
+      final label = find.text('যেকোনো কয়টি CQ-র উত্তর দিতে হবে');
+      expect(label, findsOneWidget);
+
+      // The remark is the helper, which the field draws under its own border.
+      final remark = find.textContaining('খালি রাখলে লেখা হবে না');
+      expect(remark, findsOneWidget);
+      final cqField = find.byWidgetPredicate(
+        (w) =>
+            w is TextField &&
+            w.decoration?.labelText == 'যেকোনো কয়টি CQ-র উত্তর দিতে হবে',
+      );
+      // The input row itself — the helper is drawn under it, inside the field.
+      final inputRow = find.descendant(
+        of: cqField,
+        matching: find.byType(EditableText),
+      );
+      expect(
+        tester.getTopLeft(remark).dy,
+        greaterThan(tester.getBottomLeft(inputRow).dy),
+        reason: 'the remark belongs below the input line',
+      );
     });
   });
 
@@ -387,7 +416,7 @@ void main() {
         await tester.tap(find.byType(Checkbox).at(i));
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.textContaining('প্রশ্নপত্র তৈরি করুন ➜'));
+      await tester.tap(find.textContaining('প্রশ্নপত্র সাজান ➜'));
       await tester.pumpAndSettle();
 
       // The rows still map one-for-one onto the order the blocks print in: a

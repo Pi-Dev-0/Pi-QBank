@@ -402,4 +402,80 @@ void main() {
           reason: 'no run, no company: only this one is ticked');
     });
   });
+
+  group('a random draw', () {
+    /// The three count boxes, found by their keys.
+    final cqBox = find.byKey(const ValueKey('cq-count-field'));
+    final mcqBox = find.byKey(const ValueKey('mcq-count-field'));
+    final rqBox = find.byKey(const ValueKey('rq-count-field'));
+
+    Future<void> draw(
+        WidgetTester tester, {
+        String cq = '0',
+        String mcq = '0',
+        String rq = '0',
+      }) async {
+      await tester.enterText(cqBox, cq);
+      await tester.enterText(mcqBox, mcq);
+      await tester.enterText(rqBox, rq);
+      await tester.tap(find.text('বাছাই'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('spreads the count over the types, one each to begin with',
+        (tester) async {
+      await _openPicker(tester);
+
+      await draw(tester, cq: '1', mcq: '1', rq: '1');
+
+      // Two of each type in the bank, so one each is picked.
+      expect(find.text('CQ: 1/2'), findsOneWidget);
+      expect(find.text('MCQ: 1/2'), findsOneWidget);
+      expect(find.text('RQ: 1/2'), findsOneWidget);
+    });
+
+    testWidgets('replaces the selection rather than adding to it',
+        (tester) async {
+      await _openPicker(tester);
+
+      // Fill the paper first, then ask for a smaller draw.
+      await tester.tap(find.text('সব নির্বাচন'));
+      await tester.pumpAndSettle();
+      expect(find.text('CQ: 2/2'), findsOneWidget);
+
+      await draw(tester, cq: '1', mcq: '1', rq: '1');
+
+      // The count asked for is the count in the paper — not seven.
+      expect(find.text('CQ: 1/2'), findsOneWidget);
+      expect(find.text('MCQ: 1/2'), findsOneWidget);
+      expect(find.text('RQ: 1/2'), findsOneWidget);
+    });
+
+    testWidgets('a draw larger than the bank takes everything',
+        (tester) async {
+      await _openPicker(tester);
+
+      await draw(tester, cq: '99', mcq: '99', rq: '99');
+
+      expect(find.text('CQ: 2/2'), findsOneWidget);
+      expect(find.text('MCQ: 2/2'), findsOneWidget);
+      expect(find.text('RQ: 2/2'), findsOneWidget);
+    });
+
+    testWidgets('an empty count is refused with a reason', (tester) async {
+      await _openPicker(tester);
+
+      await draw(tester, cq: '', mcq: '', rq: '');
+      expect(find.textContaining('সংখ্যা লিখুন'), findsOneWidget);
+    });
+
+    testWidgets('a zero count is refused with a reason', (tester) async {
+      await _openPicker(tester);
+
+      await draw(tester, cq: '0', mcq: '0', rq: '0');
+      expect(find.textContaining('সংখ্যা লিখুন'), findsOneWidget);
+      // Nothing was ticked by the refused draw.
+      expect(find.text('CQ: 0/2'), findsOneWidget);
+    });
+  });
 }
