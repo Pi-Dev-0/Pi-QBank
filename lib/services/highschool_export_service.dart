@@ -2376,7 +2376,12 @@ $paperFontBlock    :root {
       const columnsPerTable = 30;
       for (var start = 0; start < mcqs.length; start += columnsPerTable) {
         final end = (start + columnsPerTable).clamp(0, mcqs.length) as int;
-        buffer.write('<table class="serial-answer-table"><tbody><tr>');
+        final count = end - start;
+        final width = count < columnsPerTable
+            ? '${(count / columnsPerTable * 100).toStringAsFixed(4)}%'
+            : '100%';
+        buffer.write(
+            '<table class="serial-answer-table" style="width:$width"><tbody><tr>');
         for (var i = start; i < end; i++) {
           buffer.write('<th>${i + 1}</th>');
         }

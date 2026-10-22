@@ -2646,19 +2646,21 @@ class _HighSchoolQPaperGeneratorPageState
           ),
             ],
           ),
-          const SizedBox(height: 10),
-          _buildSettingDropdown<McqAnswerSheetStyle>(
-            label: 'MCQ উত্তরপত্র',
-            value: _mcqAnswerSheetStyle,
-            items: McqAnswerSheetStyle.values,
-            itemLabel: (style) => '${style.label} — ${style.description}',
-            selectedItemLabel: (style) => style.label,
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _mcqAnswerSheetStyle = value);
-              }
-            },
-          ),
+          if (_selectedMcqs.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildSettingDropdown<McqAnswerSheetStyle>(
+              label: 'MCQ উত্তরপত্র',
+              value: _mcqAnswerSheetStyle,
+              items: McqAnswerSheetStyle.values,
+              itemLabel: (style) => '${style.label} — ${style.description}',
+              selectedItemLabel: (style) => style.label,
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _mcqAnswerSheetStyle = value);
+                }
+              },
+            ),
+          ],
         ],
       ),
     );
