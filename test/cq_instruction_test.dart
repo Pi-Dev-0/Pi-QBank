@@ -44,8 +44,10 @@ void main() {
     final html = htmlOf(questions, cqInstruction: 'যেকোনো ৫ টি প্রশ্নের উত্তর দাও');
 
     expect(html, contains('যেকোনো ৫ টি প্রশ্নের উত্তর দাও'));
+    expect(html, contains('[ যেকোনো ৫ টি প্রশ্নের উত্তর দাও ]'));
     // It sits inside the bar, on a line of its own.
     expect(html, contains('class="meta-note"'));
+    expect(html, contains('padding: 0;'));
 
     final barAt = html.indexOf('class="meta-bar"');
     final noteAt = html.indexOf('class="meta-note"');

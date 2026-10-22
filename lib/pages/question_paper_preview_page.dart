@@ -24,6 +24,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     required this.time,
     required this.totalMarks,
     required this.questions,
+    this.cqInstruction = '',
     this.setLabels = const [],
     this.sectionOrder = PaperSection.defaultOrder,
     this.imageSize = StemImageSize.medium,
@@ -41,6 +42,9 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   final String time;
   final String totalMarks;
   final List<HighSchoolQuestion> questions;
+
+  /// The instruction shown in the CQ meta note, if one was entered.
+  final String cqInstruction;
 
   /// Names of the sets the paper is printed as, in order. Empty for a
   /// single-set paper; see [HighSchoolExportService.generateHtml].
@@ -91,6 +95,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         time: widget.time,
         totalMarks: widget.totalMarks,
         questions: widget.questions,
+        cqInstruction: widget.cqInstruction,
         imageBytes: _stemImages,
         setLabels: widget.setLabels,
         sectionOrder: widget.sectionOrder,

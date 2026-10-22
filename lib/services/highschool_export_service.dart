@@ -1535,7 +1535,7 @@ $paperFontBlock    :root {
       font-weight: 400;
       font-style: italic;
       font-size: ${_cssFontSize(12, fontStep)};
-      padding: 1px 0;
+      padding: 0;
     }
     /* The PDF's own spacing, in the PDF's own units: `PdfLayout.sectionGap`
        above every banner and `PdfLayout.sectionBannerGap` below it. The same
@@ -2157,7 +2157,7 @@ $paperFontBlock    :root {
           <div>শ্রেণি: ${_escapeXml(className)}</div>
           <div>সময়: ${_escapeXml(time)}</div>
           <div>পূর্ণমান: ${_escapeXml(totalMarks)}</div>
-          ${cqInstruction.trim().isNotEmpty ? '<div class="meta-note">${_escapeXml(cqInstruction.trim())}</div>' : ''}
+          ${cqInstruction.trim().isNotEmpty ? '<div class="meta-note">[ ${_escapeXml(cqInstruction.trim())} ]</div>' : ''}
         </div>
       </div>
 ''');

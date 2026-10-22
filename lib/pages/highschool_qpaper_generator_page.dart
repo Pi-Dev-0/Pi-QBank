@@ -1040,6 +1040,7 @@ class _HighSchoolQPaperGeneratorPageState
           time: _timeCtrl.text,
           totalMarks: _marksCtrl.text,
           questions: _selectedQuestions,
+          cqInstruction: _cqInstruction,
           setLabels: _twoSets ? _setLabels : const [],
           sectionOrder: _paperSectionOrder,
           imageSize: _imageSize,
