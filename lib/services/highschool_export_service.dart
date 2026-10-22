@@ -1705,12 +1705,6 @@ $paperFontBlock    :root {
       font-size: ${_cssFontSize(18, fontStep)};
       font-weight: 700;
     }
-    .answer-sheet-hint {
-      text-align: center;
-      color: var(--muted);
-      font-size: ${_cssFontSize(11, fontStep)};
-      margin: 3pt 0 12pt;
-    }
     .omr-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -2348,7 +2342,6 @@ $paperFontBlock    :root {
     buffer.write('''
     <section class="mcq-answer-sheet">
       <div class="answer-sheet-title">MCQ উত্তরপত্র</div>
-      <div class="answer-sheet-hint">প্রতিটি প্রশ্নের সঠিক উত্তরের ঘরে চিহ্ন দাও</div>
 ''');
 
     if (style == McqAnswerSheetStyle.omr) {
