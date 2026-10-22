@@ -31,6 +31,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.cqLayout = QuestionLayout.single,
     this.mcqLayout = QuestionLayout.doubleColumn,
     this.rqLayout = QuestionLayout.single,
+    this.mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
     this.fontStep = 0,
     this.font = PaperFont.hindSiliguri,
   });
@@ -57,6 +58,8 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   final QuestionLayout cqLayout;
   final QuestionLayout mcqLayout;
   final QuestionLayout rqLayout;
+
+  final McqAnswerSheetStyle mcqAnswerSheetStyle;
 
   /// How far every text size in the paper is moved from its tuned size, in
   /// points; see the font-size control on the generator page.
@@ -103,6 +106,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         cqLayout: widget.cqLayout,
         mcqLayout: widget.mcqLayout,
         rqLayout: widget.rqLayout,
+        mcqAnswerSheetStyle: widget.mcqAnswerSheetStyle,
         fontStep: widget.fontStep,
         font: widget.font,
         // The preview shows the page as a desktop browser lays it out, not as a

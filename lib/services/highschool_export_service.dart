@@ -122,6 +122,27 @@ extension QuestionLayoutMetrics on QuestionLayout {
       : 'প্রতি সারিতে একটি MCQ — প্রশ্ন ও অপশন সরল দেখা যায়';
 }
 
+/// Optional answer sheet printed after the generated MCQ paper.
+enum McqAnswerSheetStyle {
+  none,
+  omr,
+  serialAnswer,
+}
+
+extension McqAnswerSheetStyleLabels on McqAnswerSheetStyle {
+  String get label => switch (this) {
+        McqAnswerSheetStyle.none => 'বন্ধ',
+        McqAnswerSheetStyle.omr => 'OMR বুদবুদ',
+        McqAnswerSheetStyle.serialAnswer => 'নম্বর + উত্তর ঘর',
+      };
+
+  String get description => switch (this) {
+        McqAnswerSheetStyle.none => 'কোনো আলাদা MCQ উত্তরপত্র নয়',
+        McqAnswerSheetStyle.omr => 'A–D বৃত্তে টিক বা চিহ্ন দেওয়ার গ্রিড',
+        McqAnswerSheetStyle.serialAnswer => 'প্রশ্ন নম্বরের পাশে হাতে উত্তর লেখার ঘর',
+      };
+}
+
 /// A Bangla face a paper can be printed in.
 ///
 /// The PDF stands apart: it sets Bangla through SutonnyMJ, a Bijoy-ANSI face
@@ -1342,6 +1363,7 @@ class HighSchoolExportService {
     QuestionLayout cqLayout = QuestionLayout.single,
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
+    McqAnswerSheetStyle mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
     double fontStep = 0,
     Map<String, Uint8List>? imageBytes,
 
@@ -1671,6 +1693,71 @@ $paperFontBlock    :root {
       padding-left: 6px;
       font-size: ${_cssFontSize(15, fontStep)};
     }
+    .mcq-answer-sheet {
+      break-before: page;
+      page-break-before: always;
+      margin-top: 18pt;
+      border-top: 1px solid var(--border);
+      padding-top: 12pt;
+    }
+    .answer-sheet-title {
+      text-align: center;
+      font-size: ${_cssFontSize(18, fontStep)};
+      font-weight: 700;
+    }
+    .answer-sheet-hint {
+      text-align: center;
+      color: var(--muted);
+      font-size: ${_cssFontSize(11, fontStep)};
+      margin: 3pt 0 12pt;
+    }
+    .omr-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .omr-column {
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+    }
+    .omr-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      font-size: ${_cssFontSize(13, fontStep)};
+    }
+    .omr-number {
+      width: 24px;
+      font-weight: 700;
+    }
+    .omr-bubble {
+      width: 22px;
+      height: 22px;
+      border: 1px solid #334155;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+    .serial-answer-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: ${_cssFontSize(13, fontStep)};
+    }
+    .serial-answer-table th,
+    .serial-answer-table td {
+      border: 1px solid #94a3b8;
+      height: 30px;
+      padding: 4px 8px;
+    }
+    .serial-answer-table th { width: 8%; text-align: center; }
+    .serial-answer-table td { width: 42%; }
+    @media screen and (max-width: 700px) {
+      .omr-grid { grid-template-columns: repeat(2, 1fr); }
+    }
     .rq-grid {${rqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
     /* Short questions are a single line each, as in the PDF: no padding and no
@@ -1757,6 +1844,7 @@ $paperFontBlock    :root {
         imageSize: imageSize,
         imageBytes: imageBytes,
         cqInstruction: cqInstruction,
+        mcqAnswerSheetStyle: mcqAnswerSheetStyle,
       );
     }
 
@@ -2144,6 +2232,7 @@ $paperFontBlock    :root {
     required StemImageSize imageSize,
     Map<String, Uint8List>? imageBytes,
     String cqInstruction = '',
+    required McqAnswerSheetStyle mcqAnswerSheetStyle,
   }) {
     buffer.write('''
     <div class="paper-set">
@@ -2237,6 +2326,61 @@ $paperFontBlock    :root {
     buffer.write('''
     </div>
 ''');
+
+    if (mcqAnswerSheetStyle != McqAnswerSheetStyle.none) {
+      _writeHtmlMcqAnswerSheet(
+        buffer,
+        questions.where((q) => q.isMcq).toList(),
+        mcqAnswerSheetStyle,
+      );
+    }
+  }
+
+  /// Adds an optional answer sheet after one generated paper set.
+  static void _writeHtmlMcqAnswerSheet(
+    StringBuffer buffer,
+    List<HighSchoolQuestion> mcqs,
+    McqAnswerSheetStyle style,
+  ) {
+    if (mcqs.isEmpty) return;
+    buffer.write('''
+    <section class="mcq-answer-sheet">
+      <div class="answer-sheet-title">MCQ উত্তরপত্র</div>
+      <div class="answer-sheet-hint">প্রতিটি প্রশ্নের সঠিক উত্তরের ঘরে চিহ্ন দাও</div>
+''');
+
+    if (style == McqAnswerSheetStyle.omr) {
+      const letters = ['A', 'B', 'C', 'D'];
+      final columns = <List<int>>[[], [], [], []];
+      final rowsPerColumn = (mcqs.length + columns.length - 1) ~/ columns.length;
+      for (var i = 0; i < mcqs.length; i++) {
+        final column = (i ~/ rowsPerColumn).clamp(0, columns.length - 1) as int;
+        columns[column].add(i + 1);
+      }
+      buffer.write('<div class="omr-grid">');
+      for (final column in columns) {
+        buffer.write('<div class="omr-column">');
+        for (final number in column) {
+          buffer.write('''
+        <div class="omr-row"><span class="omr-number">$number</span>
+          ${letters.map((letter) => '<span class="omr-bubble">$letter</span>').join()}
+        </div>
+''');
+        }
+        buffer.write('</div>');
+      }
+      buffer.write('</div>');
+    } else {
+      buffer.write('<table class="serial-answer-table"><tbody>');
+      for (var i = 0; i < mcqs.length; i += 2) {
+        final next = i + 1 < mcqs.length ? i + 2 : null;
+        buffer.write('''
+        <tr><th>${i + 1}</th><td></td>${next == null ? '<th></th><td></td>' : '<th>$next</th><td></td>'}</tr>
+''');
+      }
+      buffer.write('</tbody></table>');
+    }
+    buffer.write('</section>');
   }
 
   /// A block's declaration — the bar naming the question type.

@@ -34,6 +34,7 @@ HighSchoolQuestion mcqWith(List<String> options) =>
 String sheetHtml({
   QuestionLayout mcqLayout = QuestionLayout.single,
   List<String> options = const ['৩', '৪', '৫', '৬'],
+  McqAnswerSheetStyle answerSheet = McqAnswerSheetStyle.none,
 }) =>
     HighSchoolExportService.generateHtml(
       schoolName: 'S',
@@ -43,6 +44,7 @@ String sheetHtml({
       time: 'T',
       totalMarks: '10',
       mcqLayout: mcqLayout,
+      mcqAnswerSheetStyle: answerSheet,
       questions: [mcqWith(options)],
     );
 
@@ -258,6 +260,23 @@ void main() {
       // neither set has.
       expect(script.indexOf('fitOptions();'),
           lessThan(script.indexOf('decide();')));
+    });
+
+    test('the optional OMR answer sheet matches the selected style', () {
+      final html = sheetHtml(answerSheet: McqAnswerSheetStyle.omr);
+
+      expect(html, contains('class="mcq-answer-sheet"'));
+      expect(html, contains('class="omr-bubble">A</span>'));
+      expect(html, contains('class="omr-bubble">D</span>'));
+      expect(html, isNot(contains('serial-answer-table')));
+    });
+
+    test('the optional serial answer sheet uses repeated number-answer pairs', () {
+      final html = sheetHtml(answerSheet: McqAnswerSheetStyle.serialAnswer);
+
+      expect(html, contains('class="serial-answer-table"'));
+      expect(html, contains('<th>1</th><td></td>'));
+      expect(html, isNot(contains('class="omr-bubble"')));
     });
   });
 }

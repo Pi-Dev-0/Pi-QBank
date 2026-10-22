@@ -205,6 +205,9 @@ class _HighSchoolQPaperGeneratorPageState
   /// two columns only helps when there are many of them.
   QuestionLayout _rqLayout = QuestionLayout.single;
 
+  /// Optional answer sheet appended after the MCQ section in the HTML paper.
+  McqAnswerSheetStyle _mcqAnswerSheetStyle = McqAnswerSheetStyle.none;
+
   /// How far every text size in the paper is moved from the size it was tuned
   /// at — one point per step.
   ///
@@ -994,6 +997,7 @@ class _HighSchoolQPaperGeneratorPageState
         cqLayout: _cqLayout,
         mcqLayout: _mcqLayout,
         rqLayout: _rqLayout,
+        mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
         fontStep: _fontStep,
         font: _paperFont,
         cqInstruction: _cqInstruction,
@@ -1047,6 +1051,7 @@ class _HighSchoolQPaperGeneratorPageState
           cqLayout: _cqLayout,
           mcqLayout: _mcqLayout,
           rqLayout: _rqLayout,
+          mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
           fontStep: _fontStep,
           font: _paperFont,
         ),
@@ -1076,6 +1081,7 @@ class _HighSchoolQPaperGeneratorPageState
       cqLayout: _cqLayout,
       mcqLayout: _mcqLayout,
       rqLayout: _rqLayout,
+      mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
       fontStep: _fontStep,
       font: _paperFont,
       cqInstruction: _cqInstruction,
@@ -2585,9 +2591,12 @@ class _HighSchoolQPaperGeneratorPageState
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           Expanded(
             child: _buildSettingDropdown<StemImageSize>(
               label: 'ছবির আকার',
@@ -2634,6 +2643,21 @@ class _HighSchoolQPaperGeneratorPageState
                 if (value != null) setState(() => _paperFont = value);
               },
             ),
+          ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildSettingDropdown<McqAnswerSheetStyle>(
+            label: 'MCQ উত্তরপত্র',
+            value: _mcqAnswerSheetStyle,
+            items: McqAnswerSheetStyle.values,
+            itemLabel: (style) => '${style.label} — ${style.description}',
+            selectedItemLabel: (style) => style.label,
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _mcqAnswerSheetStyle = value);
+              }
+            },
           ),
         ],
       ),
