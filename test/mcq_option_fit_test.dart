@@ -266,8 +266,8 @@ void main() {
       final html = sheetHtml(answerSheet: McqAnswerSheetStyle.omr);
 
       expect(html, contains('class="mcq-answer-sheet"'));
-      expect(html, contains('class="omr-bubble">A</span>'));
-      expect(html, contains('class="omr-bubble">D</span>'));
+      expect(html, contains('class="omr-bubble">ক</span>'));
+      expect(html, contains('class="omr-bubble">ঘ</span>'));
       expect(html, isNot(contains('serial-answer-table')));
     });
 
@@ -275,7 +275,7 @@ void main() {
       final html = sheetHtml(answerSheet: McqAnswerSheetStyle.serialAnswer);
 
       expect(html, contains('class="serial-answer-table"'));
-      expect(html, contains('<th>1</th><td></td>'));
+      expect(html, contains('<tr><th>1</th></tr><tr class="serial-answer-row"><td></td></tr>'));
       expect(html, isNot(contains('class="omr-bubble"')));
     });
   });

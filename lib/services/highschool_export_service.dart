@@ -138,7 +138,7 @@ extension McqAnswerSheetStyleLabels on McqAnswerSheetStyle {
 
   String get description => switch (this) {
         McqAnswerSheetStyle.none => 'কোনো আলাদা MCQ উত্তরপত্র নয়',
-        McqAnswerSheetStyle.omr => 'A–D বৃত্তে টিক বা চিহ্ন দেওয়ার গ্রিড',
+        McqAnswerSheetStyle.omr => 'ক–ঘ বৃত্তে টিক বা চিহ্ন দেওয়ার গ্রিড',
         McqAnswerSheetStyle.serialAnswer => 'প্রশ্ন নম্বরের পাশে হাতে উত্তর লেখার ঘর',
       };
 }
@@ -1750,11 +1750,13 @@ $paperFontBlock    :root {
     .serial-answer-table th,
     .serial-answer-table td {
       border: 1px solid #94a3b8;
-      height: 30px;
-      padding: 4px 8px;
+      height: 28px;
+      padding: 3px 2px;
+      text-align: center;
     }
-    .serial-answer-table th { width: 8%; text-align: center; }
-    .serial-answer-table td { width: 42%; }
+    .serial-answer-table th { font-weight: 700; }
+    .serial-answer-table td { height: 34px; }
+    .serial-answer-table + .serial-answer-table { margin-top: 8px; }
     @media screen and (max-width: 700px) {
       .omr-grid { grid-template-columns: repeat(2, 1fr); }
     }
@@ -2350,7 +2352,7 @@ $paperFontBlock    :root {
 ''');
 
     if (style == McqAnswerSheetStyle.omr) {
-      const letters = ['A', 'B', 'C', 'D'];
+      const letters = ['ক', 'খ', 'গ', 'ঘ'];
       final columns = <List<int>>[[], [], [], []];
       final rowsPerColumn = (mcqs.length + columns.length - 1) ~/ columns.length;
       for (var i = 0; i < mcqs.length; i++) {
@@ -2371,14 +2373,19 @@ $paperFontBlock    :root {
       }
       buffer.write('</div>');
     } else {
-      buffer.write('<table class="serial-answer-table"><tbody>');
-      for (var i = 0; i < mcqs.length; i += 2) {
-        final next = i + 1 < mcqs.length ? i + 2 : null;
-        buffer.write('''
-        <tr><th>${i + 1}</th><td></td>${next == null ? '<th></th><td></td>' : '<th>$next</th><td></td>'}</tr>
-''');
+      const columnsPerTable = 30;
+      for (var start = 0; start < mcqs.length; start += columnsPerTable) {
+        final end = (start + columnsPerTable).clamp(0, mcqs.length) as int;
+        buffer.write('<table class="serial-answer-table"><tbody><tr>');
+        for (var i = start; i < end; i++) {
+          buffer.write('<th>${i + 1}</th>');
+        }
+        buffer.write('</tr><tr class="serial-answer-row">');
+        for (var i = start; i < end; i++) {
+          buffer.write('<td></td>');
+        }
+        buffer.write('</tr></tbody></table>');
       }
-      buffer.write('</tbody></table>');
     }
     buffer.write('</section>');
   }
