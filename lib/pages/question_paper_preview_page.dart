@@ -167,6 +167,13 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     setState(() => _isLoading = true);
   }
 
+  /// Open the Android WebView's native print flow from the preview AppBar.
+  Future<void> _printPreview() async {
+    final controller = _controller;
+    if (controller == null) return;
+    await controller.runJavaScript('window.print();');
+  }
+
   @override
   Widget build(BuildContext context) {
     final withImages =
@@ -179,6 +186,11 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         backgroundColor: const Color(0xFF5C35E3),
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print_rounded),
+            tooltip: 'প্রিন্ট করুন',
+            onPressed: _controller == null ? null : _printPreview,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'প্রিভিউ রিফ্রেশ করুন',
