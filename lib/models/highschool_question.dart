@@ -194,6 +194,13 @@ class HighSchoolQuestion {
   /// fixed from.
   bool isEdited;
 
+  /// True when the reader marked this row as important for the paper.
+  ///
+  /// Runtime state like [isSelected]: the star belongs to the paper being
+  /// built, not to the bank row, and the sheet only prints it while the
+  /// print-settings panel's important-question switch is on.
+  bool isImportant;
+
   HighSchoolQuestion({
     required this.id,
     required this.className,
@@ -211,6 +218,7 @@ class HighSchoolQuestion {
     this.setLabel = '',
     this.isManual = false,
     this.isEdited = false,
+    this.isImportant = false,
   });
 
   /// A question typed into the picker instead of read from the sheet.
@@ -326,6 +334,7 @@ class HighSchoolQuestion {
       setLabel: original.setLabel,
       isManual: original.isManual,
       isEdited: true,
+      isImportant: original.isImportant,
     );
   }
 

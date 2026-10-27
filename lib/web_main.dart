@@ -97,7 +97,6 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
   bool _includeInstructions = true;
   bool _includeImages = true;
   bool _editingMode = false;
-  bool _leftSidebarOpen = true;
   bool _rightSettingsOpen = true;
 
   @override
@@ -227,12 +226,6 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
         ),
         actions: [
           IconButton(
-            tooltip: _leftSidebarOpen ? 'বাম মেনু গুটান' : 'বাম মেনু খুলুন',
-            onPressed: () =>
-                setState(() => _leftSidebarOpen = !_leftSidebarOpen),
-            icon: Icon(_leftSidebarOpen ? Icons.menu_open : Icons.menu),
-          ),
-          IconButton(
             tooltip: _rightSettingsOpen ? 'সেটিংস গুটান' : 'সেটিংস খুলুন',
             onPressed: () =>
                 setState(() => _rightSettingsOpen = !_rightSettingsOpen),
@@ -324,16 +317,8 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
               ? Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      width: _leftSidebarOpen ? 250 : 68,
-                      child: _buildSidebar(compact: !_leftSidebarOpen),
-                    ),
-                    Expanded(
-                      child: Row(
-                        children: [Expanded(child: controls), preview],
-                      ),
-                    ),
+                    Expanded(child: controls),
+                    preview,
                   ],
                 )
               : Column(
@@ -348,123 +333,6 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
                 );
           return workspace;
         },
-      ),
-    );
-  }
-
-  Widget _buildSidebar({bool compact = false}) {
-    return Container(
-      color: const Color(0xFF102F50),
-      padding: EdgeInsets.fromLTRB(compact ? 8 : 14, 22, compact ? 8 : 14, 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: compact
-                ? IconButton(
-                    tooltip: 'বাম মেনু খুলুন',
-                    onPressed: () => setState(() => _leftSidebarOpen = true),
-                    icon: const Icon(Icons.menu_open, color: Colors.white),
-                  )
-                : Row(
-                    children: [
-                      const Expanded(
-                        child: Row(
-                          children: [
-                            Icon(Icons.auto_stories_outlined,
-                                color: Colors.white, size: 25),
-                            SizedBox(width: 8),
-                            Text('Pi-QBank',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 21,
-                                    fontWeight: FontWeight.w800)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'বাম মেনু গুটান',
-                        onPressed: () =>
-                            setState(() => _leftSidebarOpen = false),
-                        icon: const Icon(Icons.menu_open, color: Colors.white),
-                      ),
-                    ],
-                  ),
-          ),
-          if (!compact) ...[
-            const SizedBox(height: 22),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text('প্রশ্নপত্র',
-                  style: TextStyle(
-                      color: Color(0xFFB7C8DB),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(height: 8),
-            _sidebarItem(Icons.dashboard_outlined, 'ড্যাশবোর্ড'),
-            _sidebarItem(Icons.add_box_outlined, 'প্রশ্নপত্র তৈরি',
-                active: true),
-            _sidebarItem(Icons.preview_outlined, 'প্রিভিউ'),
-            _sidebarItem(Icons.library_books_outlined, 'প্রশ্ন ব্যাংক'),
-            const SizedBox(height: 18),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text('সহায়তা',
-                  style: TextStyle(
-                      color: Color(0xFFB7C8DB),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(height: 8),
-            _sidebarItem(Icons.help_outline, 'নির্দেশিকা'),
-            _sidebarItem(Icons.settings_outlined, 'সেটিংস'),
-          ],
-          if (compact) ...[
-            const SizedBox(height: 22),
-            _sidebarItem(Icons.dashboard_outlined, 'ড্যাশবোর্ড', compact: true),
-            _sidebarItem(Icons.add_box_outlined, 'প্রশ্নপত্র তৈরি',
-                active: true, compact: true),
-            _sidebarItem(Icons.preview_outlined, 'প্রিভিউ', compact: true),
-            _sidebarItem(Icons.library_books_outlined, 'প্রশ্ন ব্যাংক',
-                compact: true),
-            const Spacer(),
-            _sidebarItem(Icons.settings_outlined, 'সেটিংস', compact: true),
-          ],
-          if (!compact) const Spacer(),
-          if (!compact)
-            const Padding(
-              padding: EdgeInsets.all(8),
-              child: Text('Browser edition',
-                  style: TextStyle(color: Color(0xFF90A8C2), fontSize: 12)),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sidebarItem(IconData icon, String label,
-      {bool active = false, bool compact = false}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 5),
-      decoration: BoxDecoration(
-        color: active ? const Color(0xFFDCE7F3) : Colors.transparent,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.symmetric(horizontal: compact ? 0 : 8),
-        horizontalTitleGap: compact ? 0 : 8,
-        leading: Icon(icon,
-            size: 20, color: active ? const Color(0xFF102F50) : Colors.white),
-        title: compact
-            ? null
-            : Text(label,
-                style: TextStyle(
-                    color: active ? const Color(0xFF102F50) : Colors.white,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
-        onTap: () {},
       ),
     );
   }

@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/highschool_question.dart';
@@ -9,6 +12,7 @@ import '../services/highschool_export_service.dart';
 import '../services/highschool_file_export_service.dart';
 import '../pages/question_paper_preview_page.dart';
 import '../widgets/custom_app_bar.dart';
+import '../widgets/exact_html_preview.dart';
 import '../config/app_config.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,7 +132,6 @@ class _HighSchoolQPaperGeneratorPageState
   // ── Step 2 state ──────────────────────────────────────────────────────────
   List<HighSchoolQuestion> _fetchedQuestions = [];
   bool _loadingQuestions = false;
-  final Map<String, bool> _expandedCards = {};
 
   /// Chapters whose question cards the picker has folded away, by chapter
   /// number.
@@ -222,6 +225,110 @@ class _HighSchoolQPaperGeneratorPageState
   /// The face the HTML sheet is set in. See [PaperFont].
   PaperFont _paperFont = PaperFont.kalpurush;
 
+  // ── Print settings ────────────────────────────────────────────────────────
+  //
+  // The desktop studio's settings panel. The values are collected into a
+  // [PaperPrintSettings] and handed to the HTML writer, so the sheet on screen,
+  // the exported file and the print view all carry the same choices.
+
+  PaperSize _paperSize = PaperSize.a4;
+  PaperTextAlign _textAlign = PaperTextAlign.justify;
+  bool _pageNumbers = false;
+  McqOptionStyle _optionStyle = McqOptionStyle.parentheses;
+  bool _columnDivider = true;
+  double _questionGap = 0;
+  double _columnGap = 15;
+
+  bool _showSchool = true;
+  bool _showExam = true;
+  bool _showSubject = true;
+  bool _showClass = true;
+  bool _showSet = true;
+  bool _showInstructions = true;
+  bool _showChapter = false;
+  bool _showSubjectCode = false;
+  bool _showStudentInfo = false;
+  bool _showObtainedMarks = false;
+  bool _showQuestionInfo = false;
+  bool _showImportant = false;
+  bool _editingMode = false;
+
+  bool _showLogo = false;
+  bool _showHeader = false;
+  bool _showFooter = false;
+  bool _showWatermark = false;
+  bool _showAddress = false;
+
+  bool _detectRepeated = false;
+  bool _shortcutHints = false;
+
+  final _subjectCodeCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  final _headerNoteCtrl = TextEditingController();
+  final _watermarkCtrl = TextEditingController(text: 'নমুনা');
+  String _logoDataUri = '';
+  String _logoName = '';
+
+  /// The chapter names the selected questions come from, for the header toggle.
+  String get _chapterLabel {
+    final names = <String>{};
+    for (final q in _selectedQuestions) {
+      final name = q.chapterName.trim();
+      if (name.isNotEmpty) names.add(name);
+    }
+    return names.join(', ');
+  }
+
+  /// Selected rows whose printed text is the same, so the detect-repeats
+  /// helper can point them out before they reach the sheet.
+  List<HighSchoolQuestion> get _repeatedQuestions {
+    final byText = <String, List<HighSchoolQuestion>>{};
+    for (final q in _selectedQuestions) {
+      final text = q.paperQuestionText.trim().replaceAll(RegExp(r'\s+'), ' ');
+      if (text.isEmpty) continue;
+      byText.putIfAbsent(text, () => []).add(q);
+    }
+    return [
+      for (final group in byText.values)
+        if (group.length > 1) ...group,
+    ];
+  }
+
+  /// The settings panel's choices, in the shape the HTML writer wants.
+  PaperPrintSettings get _printSettings => PaperPrintSettings(
+        paperSize: _paperSize,
+        textAlign: _textAlign,
+        pageNumbers: _pageNumbers,
+        optionStyle: _optionStyle,
+        columnDivider: _columnDivider,
+        questionGap: _questionGap,
+        columnGap: _columnGap,
+        showSchool: _showSchool,
+        showExam: _showExam,
+        showSubject: _showSubject,
+        showClass: _showClass,
+        showSet: _showSet,
+        showInstructions: _showInstructions,
+        showChapter: _showChapter,
+        showSubjectCode: _showSubjectCode,
+        showStudentInfo: _showStudentInfo,
+        showObtainedMarks: _showObtainedMarks,
+        showQuestionInfo: _showQuestionInfo,
+        showImportant: _showImportant,
+        editingMode: _editingMode,
+        showLogo: _showLogo,
+        showHeader: _showHeader,
+        showFooter: _showFooter,
+        showWatermark: _showWatermark,
+        showAddress: _showAddress,
+        chapter: _chapterLabel,
+        subjectCode: _subjectCodeCtrl.text.trim(),
+        address: _addressCtrl.text.trim(),
+        headerNote: _headerNoteCtrl.text.trim(),
+        watermarkText: _watermarkCtrl.text.trim(),
+        logoDataUri: _logoDataUri,
+      );
+
   // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _stepAnim = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 400));
@@ -238,6 +345,11 @@ class _HighSchoolQPaperGeneratorPageState
   void initState() {
     super.initState();
     _stepAnim.forward();
+    // The live preview shows the exported file itself, so the faces it embeds
+    // have to be in hand before the first sheet is built.
+    unawaited(HighSchoolExportService.preloadPaperFonts().then((_) {
+      if (mounted) setState(() => _paperFontsReady = true);
+    }));
   }
 
   @override
@@ -255,6 +367,10 @@ class _HighSchoolQPaperGeneratorPageState
     _randomRqCtrl.dispose();
     _chapterSearchCtrl.dispose();
     _pickSearchCtrl.dispose();
+    _subjectCodeCtrl.dispose();
+    _addressCtrl.dispose();
+    _headerNoteCtrl.dispose();
+    _watermarkCtrl.dispose();
     super.dispose();
   }
 
@@ -271,9 +387,13 @@ class _HighSchoolQPaperGeneratorPageState
   /// When false the paper is a single set, exactly as before.
   bool _twoSets = false;
 
-  /// Desktop navigation rail state. The narrow rail keeps the native wizard
-  /// usable while matching the browser studio shell.
-  bool _desktopSidebarOpen = true;
+  /// True once the shipped paper faces are embedded, so the live preview's
+  /// HTML carries them.
+  bool _paperFontsReady = false;
+
+  /// Desktop settings rail state. The browser studio folds this rail away to
+  /// give the preview the whole width; the same toggle lives in the app bar.
+  bool _desktopSettingsOpen = true;
 
   /// Order the sections are printed in. Defaults to the paper's original
   /// arrangement: CQ, then the short questions, then MCQ.
@@ -324,27 +444,6 @@ class _HighSchoolQPaperGeneratorPageState
   /// Marks in a section, summed the same way as the grand total.
   int _marksOf(_SectionKind kind) =>
       _questionsOf(kind).fold(0, (sum, q) => sum + q.totalMarks);
-
-  /// True when CQ is immediately followed by the short questions.
-  ///
-  /// The merged two-column flow only exists while the two types are
-  /// neighbours: they are emitted as one continuous run of blocks, so anything
-  /// placed between them would have to be pulled back out of that flow.
-  /// Separating them by dragging therefore turns the merge off, and the paper
-  /// falls back to two ordinary sections in the order chosen here.
-  bool get _mergesCqAndShorts {
-    final order = _activeSections;
-    for (var i = 0; i + 1 < order.length; i++) {
-      // Either way round. Placing the short questions first should not end the
-      // shared flow: the reader asked for one continuous run of questions, and
-      // the order they chose only decides where the CQ part starts.
-      if ((order[i].isCq && order[i + 1].isRq) ||
-          (order[i].isRq && order[i + 1].isCq)) {
-        return true;
-      }
-    }
-    return false;
-  }
 
   /// Names shown on each set's banner.
   final List<TextEditingController> _setLabelControllers = [
@@ -410,6 +509,23 @@ class _HighSchoolQPaperGeneratorPageState
       selected[i].setLabel = _setLabels[i % 2];
     }
     setState(() {});
+  }
+
+  /// Shuffle the selected questions, then deal them into the two sets.
+  ///
+  /// The paper's own order still follows the section/chapter sort; what changes
+  /// is which set each question lands in, so the two papers carry a different
+  /// mix without losing the section order.
+  void _shuffleIntoTwoSets() {
+    final selected = List<HighSchoolQuestion>.of(_selectedQuestions);
+    if (selected.length < 2) return;
+    selected.shuffle(Random());
+    setState(() {
+      _twoSets = true;
+      for (var i = 0; i < selected.length; i++) {
+        selected[i].setLabel = _setLabels[i % 2];
+      }
+    });
   }
 
   /// Put every selected question into the first set.
@@ -491,6 +607,10 @@ class _HighSchoolQPaperGeneratorPageState
       _selectedSubject = null;
       _availableChapters = [];
       _selectedChapterNumbers.clear();
+      // The studio draws its masthead straight from the paper fields, so the
+      // class the picker lists is written the way the paper prints it as soon
+      // as it is chosen. Step 3 still lets the reader override it.
+      _classCtrl.text = value == null ? '' : _classLabel(value);
     });
   }
 
@@ -499,6 +619,7 @@ class _HighSchoolQPaperGeneratorPageState
       _selectedSubject = value;
       _availableChapters = [];
       _selectedChapterNumbers.clear();
+      _subjectCtrl.text = value ?? '';
     });
     if (value != null && _selectedClass != null) {
       await _fetchChapters();
@@ -565,7 +686,6 @@ class _HighSchoolQPaperGeneratorPageState
           for (final q in questions) corrected[q.id] ?? q,
           ...typed,
         ];
-        _expandedCards.clear();
       });
       await _goToStep(1);
     } catch (e) {
@@ -718,8 +838,9 @@ class _HighSchoolQPaperGeneratorPageState
       _PickFilter.rq: _fetchedQuestions.where((q) => q.isShort).toList(),
     };
     pools.removeWhere((_, pool) => pool.isEmpty);
-    if (pools.isEmpty && cqCount <= 0 && mcqCount <= 0 && rqCount <= 0)
+    if (pools.isEmpty && cqCount <= 0 && mcqCount <= 0 && rqCount <= 0) {
       return const [];
+    }
 
     final order = pools.keys.toList();
     final share = <_PickFilter, int>{
@@ -921,13 +1042,7 @@ class _HighSchoolQPaperGeneratorPageState
         _fetchedQuestions = [..._fetchedQuestions, edited];
         return;
       }
-      final wasExpanded = _expandedCards[_cardKey(question, index)] == true;
       _fetchedQuestions = [..._fetchedQuestions]..[index] = edited;
-      // The card was open when the edit started; its text has just changed, so
-      // carry the open state onto whatever key the card has now.
-      if (wasExpanded) {
-        _expandedCards[_cardKey(edited, index)] = true;
-      }
     });
     _showInfo('প্রশ্নটি সম্পাদনা করা হয়েছে।');
   }
@@ -962,6 +1077,9 @@ class _HighSchoolQPaperGeneratorPageState
     _classCtrl.text =
         _selectedClass == null ? '' : _classLabel(_selectedClass!);
     _marksCtrl.text = '$_totalSelectedMarks';
+    // The studio keeps its settings in the right-hand rail rather than on a
+    // step of its own, so "প্রশ্নপত্র সাজান" opens that rail instead of paging.
+    setState(() => _desktopSettingsOpen = true);
     _goToStep(2);
   }
 
@@ -1005,6 +1123,7 @@ class _HighSchoolQPaperGeneratorPageState
         fontStep: _fontStep,
         font: _paperFont,
         cqInstruction: _cqInstruction,
+        printSettings: _printSettings,
       );
       final file = await HighSchoolFileExportService.saveFile(
         content: html,
@@ -1049,6 +1168,7 @@ class _HighSchoolQPaperGeneratorPageState
           totalMarks: _marksCtrl.text,
           questions: _selectedQuestions,
           cqInstruction: _cqInstruction,
+        printSettings: _printSettings,
           setLabels: _twoSets ? _setLabels : const [],
           sectionOrder: _paperSectionOrder,
           imageSize: _imageSize,
@@ -1089,6 +1209,7 @@ class _HighSchoolQPaperGeneratorPageState
       fontStep: _fontStep,
       font: _paperFont,
       cqInstruction: _cqInstruction,
+        printSettings: _printSettings,
       // Desktop-width layout, as in the in-app preview: the file opens in a
       // browser, and a phone-width one should still show the printed page.
       desktopMode: true,
@@ -1153,170 +1274,2017 @@ class _HighSchoolQPaperGeneratorPageState
 
   @override
   Widget build(BuildContext context) {
+    // The studio is a desktop layout: the sidebar, the control card and the
+    // live preview side by side. A narrow window keeps the wizard, which is the
+    // shape the phone has always had.
+    // Three panes need room to breathe; below this the wizard is the better
+    // layout, so the studio only takes over once the window can hold it.
+    final desktop = MediaQuery.sizeOf(context).width >= 1200;
+
     return Scaffold(
-      backgroundColor: _kBg,
-      appBar: CustomAppBar(
-        title: 'প্রশ্নপত্র তৈরি করুন',
-        actions: [
-          if (_currentStep > 0)
-            IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              tooltip: 'আগের ধাপ',
-              onPressed: () => _goToStep(_currentStep - 1),
+      backgroundColor: desktop ? const Color(0xFFF1F3F7) : _kBg,
+      appBar: desktop
+          ? _buildStudioAppBar()
+          : CustomAppBar(
+              title: 'প্রশ্নপত্র তৈরি করুন',
+              actions: [
+                if (_currentStep > 0)
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                    tooltip: 'আগের ধাপ',
+                    onPressed: () => _goToStep(_currentStep - 1),
+                  ),
+              ],
             ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final desktop = constraints.maxWidth >= 1000;
-          final content = Column(
-            children: [
-              _StepIndicator(currentStep: _currentStep),
-              Expanded(
-                child: FadeTransition(
-                  opacity: _fadeAnim,
-                  child: _buildCurrentStep(),
+      body: desktop
+          ? _buildStudioBody()
+          : Column(
+              children: [
+                _StepIndicator(currentStep: _currentStep),
+                Expanded(
+                  child: FadeTransition(
+                    opacity: _fadeAnim,
+                    child: _buildCurrentStep(),
+                  ),
                 ),
-              ),
-            ],
-          );
-          if (!desktop) return content;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: _desktopSidebarOpen ? 250 : 68,
-                child: _buildDesktopSidebar(compact: !_desktopSidebarOpen),
-              ),
-              Expanded(child: content),
-            ],
-          );
-        },
-      ),
+              ],
+            ),
     );
   }
 
-  Widget _buildDesktopSidebar({bool compact = false}) {
-    return Container(
-      color: const Color(0xFF102F50),
-      padding: EdgeInsets.fromLTRB(compact ? 8 : 14, 16, compact ? 8 : 14, 18),
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DESKTOP STUDIO — the browser edition's shell, drawn in Flutter
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // The browser build (web_main.dart) lays the paper studio out as a navy
+  // sidebar, a control card and a live preview with a settings rail. Linux has
+  // no WebView host, so the preview is drawn natively here instead of in an
+  // iframe — but the shell around it is the same, pane for pane.
+
+  PreferredSizeWidget _buildStudioAppBar() {
+    final selectedCount = _selectedQuestions.length;
+    return AppBar(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      titleSpacing: 18,
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4F46E5),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.auto_stories_rounded,
+                color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 10),
+          const Text('Pi-QBank',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(width: 10),
+          Text(
+            'Question Paper Studio',
+            style: TextStyle(
+              color: Colors.blueGrey.shade500,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          tooltip: _desktopSettingsOpen ? 'সেটিংস গুটান' : 'সেটিংস খুলুন',
+          onPressed: () =>
+              setState(() => _desktopSettingsOpen = !_desktopSettingsOpen),
+          icon: Icon(_desktopSettingsOpen ? Icons.tune : Icons.tune_outlined),
+        ),
+        if (selectedCount > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Center(
+              child: Chip(
+                avatar: const Icon(Icons.check_circle_outline, size: 17),
+                label: Text('$selectedCount নির্বাচিত'),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        IconButton(
+          tooltip: 'HTML ডাউনলোড',
+          onPressed: selectedCount == 0 ? null : () => _exportHtml(),
+          icon: const Icon(Icons.download_rounded),
+        ),
+        IconButton(
+          tooltip: 'প্রিভিউ ও প্রিন্ট',
+          onPressed: selectedCount == 0 ? null : _openLivePreview,
+          icon: const Icon(Icons.print_rounded),
+        ),
+        const SizedBox(width: 6),
+      ],
+    );
+  }
+
+  Widget _buildStudioBody() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _buildStudioControls()),
+        Expanded(child: _buildStudioPreview()),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: _desktopSettingsOpen ? 300 : 48,
+          child: _desktopSettingsOpen
+              ? _buildStudioSettingsRail()
+              : _buildCollapsedSettingsRail(),
+        ),
+      ],
+    );
+  }
+
+  // ── Centre card: the paper's setup, then the picker ────────────────────────
+
+  Widget _buildStudioControls() {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(24, 18, 12, 18),
+      elevation: 0,
+      color: const Color(0xFFF8F8FA),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFD6DCE5)),
+      ),
+      child: _currentStep >= 1 ? _buildStudioPicker() : _buildStudioSetup(),
+    );
+  }
+
+  Widget _buildStudioSetup() {
+    final subjects = _selectedClass == null
+        ? const <String>[]
+        : (_kSubjectsByClass[_selectedClass] ?? const <String>[]);
+
+    return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _buildStudioHero(),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: compact
-                ? IconButton(
-                    tooltip: 'মেনু খুলুন',
-                    onPressed: () => setState(() => _desktopSidebarOpen = true),
-                    icon: const Icon(Icons.menu_open, color: Colors.white),
-                  )
-                : Row(
-                    children: [
-                      const Expanded(
-                        child: Row(
-                          children: [
-                            Icon(Icons.auto_stories_outlined,
-                                color: Colors.white, size: 25),
-                            SizedBox(width: 8),
-                            Text('Pi-QBank',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 21,
-                                    fontWeight: FontWeight.w800)),
-                          ],
-                        ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('নতুন প্রশ্নপত্র',
+                          style: TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.w800)),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEDE9FE),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      IconButton(
-                        tooltip: 'মেনু গুটান',
-                        onPressed: () =>
-                            setState(() => _desktopSidebarOpen = false),
-                        icon: const Icon(Icons.menu_open, color: Colors.white),
-                      ),
-                    ],
+                      child: const Text('DESKTOP',
+                          style: TextStyle(
+                              color: Color(0xFF4F46E5),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'তথ্য দিন, প্রশ্ন বাছাই করুন, তারপর প্রিন্ট করুন',
+                  style:
+                      TextStyle(color: Colors.blueGrey.shade500, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                _buildStudioDropdownField(
+                  key: const ValueKey('studio-class-field'),
+                  label: 'শ্রেণি',
+                  value: _selectedClass,
+                  items: _kClasses,
+                  onChanged: _onClassChanged,
+                ),
+                const SizedBox(height: 10),
+                _buildStudioDropdownField(
+                  key: const ValueKey('studio-subject-field'),
+                  label: 'বিষয়',
+                  value: _selectedSubject,
+                  items: subjects,
+                  onChanged: _onSubjectChanged,
+                ),
+                if (_selectedClass != null && _selectedSubject != null) ...[
+                  const SizedBox(height: 18),
+                  _buildChapterSection(),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _loadingQuestions ? null : _fetchQuestions,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: _loadingQuestions
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.cloud_download_outlined),
+                    label: Text(
+                        _loadingQuestions ? 'লোড হচ্ছে…' : 'প্রশ্ন লোড করুন',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
                   ),
+                ),
+              ],
+            ),
           ),
-          if (!compact) ...[
-            const SizedBox(height: 22),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text('প্রশ্নপত্র',
-                  style: TextStyle(
-                      color: Color(0xFFB7C8DB),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700)),
-            ),
-          ] else
-            const SizedBox(height: 20),
-          _desktopNavItem(Icons.dashboard_outlined, 'ড্যাশবোর্ড',
-              compact: compact, onTap: () => _goToStep(0)),
-          _desktopNavItem(Icons.add_box_outlined, 'প্রশ্নপত্র তৈরি',
-              compact: compact,
-              active: _currentStep == 0,
-              onTap: () => _goToStep(0)),
-          _desktopNavItem(Icons.preview_outlined, 'প্রিভিউ',
-              compact: compact,
-              active: _currentStep == 2,
-              onTap: _selectedQuestions.isEmpty ? null : _openLivePreview),
-          _desktopNavItem(Icons.library_books_outlined, 'প্রশ্ন ব্যাংক',
-              compact: compact,
-              active: _currentStep == 1,
-              onTap: () => _goToStep(1)),
-          if (!compact) ...[
-            const SizedBox(height: 18),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text('সহায়তা',
-                  style: TextStyle(
-                      color: Color(0xFFB7C8DB),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700)),
-            ),
-            const SizedBox(height: 8),
-          ] else
-            const Spacer(),
-          _desktopNavItem(Icons.help_outline, 'নির্দেশিকা',
-              compact: compact,
-              onTap: () => _showError('নির্দেশিকা শীঘ্রই যুক্ত হবে।')),
-          _desktopNavItem(Icons.settings_outlined, 'সেটিংস',
-              compact: compact, onTap: () => _goToStep(2)),
-          const Spacer(),
-          if (!compact)
-            const Padding(
-              padding: EdgeInsets.all(8),
-              child: Text('Linux desktop edition',
-                  style: TextStyle(color: Color(0xFF90A8C2), fontSize: 12)),
-            ),
         ],
       ),
     );
   }
 
-  Widget _desktopNavItem(IconData icon, String label,
-      {required bool compact, bool active = false, VoidCallback? onTap}) {
+  Widget _buildStudioHero() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 5),
-      decoration: BoxDecoration(
-        color: active ? const Color(0xFFDCE7F3) : Colors.transparent,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.symmetric(horizontal: compact ? 0 : 8),
-        horizontalTitleGap: compact ? 0 : 8,
-        leading: Icon(icon,
-            size: 20, color: active ? const Color(0xFF102F50) : Colors.white),
-        title: compact
-            ? null
-            : Text(label,
-                style: TextStyle(
-                    color: active ? const Color(0xFF102F50) : Colors.white,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
-        onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 26),
+      decoration: const BoxDecoration(color: Color(0xFF102F50)),
+      child: const Column(
+        children: [
+          Text(
+            'এক ক্লিকে প্রশ্নপত্র তৈরি করুন!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'আপনার ক্লাসের প্রশ্নপত্র আরও স্মার্টভাবে তৈরি করুন 💻',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFFD7E4F2), fontSize: 15),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildStudioDropdownField({
+    required String label,
+    required String? value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+    Key? key,
+  }) {
+    return DropdownButtonFormField<String>(
+      key: key,
+      value: items.contains(value) ? value : null,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 1.6),
+        ),
+      ),
+      items: [
+        for (final item in items)
+          DropdownMenuItem<String>(value: item, child: Text(item)),
+      ],
+      onChanged: items.isEmpty ? null : onChanged,
+    );
+  }
+
+  Widget _buildStudioPicker() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 10, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('প্রশ্ন বাছাই করুন',
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.w800)),
+                    Text(
+                      '${_selectedClass ?? ''} • ${_selectedSubject ?? ''}',
+                      style: TextStyle(
+                          color: Colors.blueGrey.shade500, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'আবার তথ্য দিন',
+                onPressed: () => setState(() {
+                  _fetchedQuestions = [];
+                  _currentStep = 0;
+                }),
+                icon: const Icon(Icons.tune_rounded),
+              ),
+            ],
+          ),
+        ),
+        // The left pane is the selection itself; the filters live in the rail.
+        _buildStickyBar(),
+        Expanded(child: _buildPickerList()),
+      ],
+    );
+  }
+
+  // ── Right-hand preview ─────────────────────────────────────────────────────
+
+  Widget _buildStudioPreview() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 18, 12, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x120F172A), blurRadius: 24, offset: Offset(0, 8)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.visibility_outlined, size: 18),
+                const SizedBox(width: 8),
+                const Text('Live preview',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const Spacer(),
+                Flexible(
+                  child: Text(
+                    '${_paperFont.label} • ${_imageSize.label}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        color: Colors.blueGrey.shade500, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Container(
+              color: const Color(0xFFEDF0F5),
+              child: _buildPaperPreview(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The paper as the reader will get it.
+  ///
+  /// The browser studio hosts the exported HTML in an iframe; Linux now does
+  /// the same in an embedded Chromium view, so the pane shows the file itself.
+  /// The Flutter drawing below stays as the placeholder while Chromium starts
+  /// and as the fallback if it cannot.
+  Widget _buildPaperPreview() {
+    if (ExactHtmlPreview.supported && _selectedQuestions.isNotEmpty) {
+      return ExactHtmlPreview(
+        signature: _paperPreviewSignature,
+        buildHtml: _buildPaperHtml,
+        fileName: 'studio_live_preview.html',
+        placeholderBuilder: (_) => _buildNativePaperPreview(),
+        fallbackBuilder: (_) => _buildNativePaperPreview(),
+      );
+    }
+    return _buildNativePaperPreview();
+  }
+
+  /// A cheap value that moves whenever the exported sheet would change.
+  ///
+  /// The embedded browser reloads only when this moves, so a hover or a scroll
+  /// does not rebuild a megabyte of HTML.
+  String get _paperPreviewSignature {
+    final parts = <Object?>[
+      _schoolCtrl.text,
+      _examCtrl.text,
+      _subjectCtrl.text,
+      _classCtrl.text,
+      _timeCtrl.text,
+      _marksCtrl.text,
+      _cqInstruction,
+      _twoSets,
+      _twoSets ? _setLabels.join('|') : '',
+      _paperSectionOrder.join(','),
+      _imageSize.name,
+      _cqLayout.name,
+      _mcqLayout.name,
+      _rqLayout.name,
+      _mcqAnswerSheetStyle.name,
+      _fontStep,
+      _paperFont.name,
+      _paperFontsReady,
+      _printSettings.signature,
+    ];
+    for (final q in _selectedQuestions) {
+      parts.add('${q.id}:${q.setLabel}:${q.hashCode}:${q.isImportant}');
+    }
+    return parts.join('~');
+  }
+
+  /// The exact sheet the export writes, with the live preview's settings.
+  String _buildPaperHtml() => HighSchoolExportService.generateHtml(
+        schoolName: _schoolCtrl.text,
+        examName: _examCtrl.text,
+        subject: _subjectCtrl.text,
+        className: _classCtrl.text,
+        time: _timeCtrl.text,
+        totalMarks: _marksCtrl.text,
+        questions: _selectedQuestions,
+        cqInstruction: _cqInstruction,
+        printSettings: _printSettings,
+        setLabels: _twoSets ? _setLabels : const [],
+        sectionOrder: _paperSectionOrder,
+        imageSize: _imageSize,
+        cqLayout: _cqLayout,
+        mcqLayout: _mcqLayout,
+        rqLayout: _rqLayout,
+        mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
+        fontStep: _fontStep,
+        font: _paperFont,
+        desktopMode: true,
+        // The browser studio moves the toolbar into its settings rail; the
+        // pane is the paper, not the editor.
+        includeToolbar: false,
+      );
+
+  /// The same sheet drawn in Flutter: the placeholder and the fallback.
+  Widget _buildNativePaperPreview() {
+    final questions = _questionsForSet(0);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = min(constraints.maxWidth - 32, 780.0);
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: Container(
+              width: width,
+              constraints: BoxConstraints(minHeight: width * 1.414),
+              padding: EdgeInsets.fromLTRB(
+                  width * 0.06, width * 0.05, width * 0.06, width * 0.06),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                      color: Color(0x1F0F172A),
+                      blurRadius: 14,
+                      offset: Offset(0, 4)),
+                ],
+              ),
+              child: questions.isEmpty
+                  ? _buildEmptyPreview(width)
+                  : _buildPaperSheet(questions, width),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Text drawn on the preview sheet.
+  ///
+  /// The sheet is a document mock-up, so its wording is laid out as a
+  /// [RichText] span rather than as a [Text] label the app's own widgets answer
+  /// to. That keeps the paper's copy out of the widget tree the rest of the
+  /// screen is built and queried from.
+  Widget _sheetText(
+    String text, {
+    TextStyle? style,
+    TextAlign? textAlign,
+    int? maxLines,
+    TextOverflow? overflow,
+  }) {
+    // A [RichText] does not inherit the ambient style the way a [Text] does,
+    // so the paper is given the app's font by hand; otherwise the preview would
+    // fall back to the platform default and lose HindSiliguri.
+    final base = Theme.of(context).textTheme.bodyMedium ??
+        DefaultTextStyle.of(context).style;
+    return RichText(
+      text: TextSpan(
+        text: text,
+        style: base.merge(style).copyWith(
+              color: style?.color ?? const Color(0xFF1F2937),
+            ),
+      ),
+      textAlign: textAlign ?? TextAlign.start,
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: maxLines,
+      overflow: overflow ?? TextOverflow.clip,
+      softWrap: true,
+    );
+  }
+
+  Widget _buildEmptyPreview(double width) {
+    final scale = width / 780.0;
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.description_outlined,
+              size: 56 * scale, color: const Color(0xFFCBD5E1)),
+          SizedBox(height: 12 * scale),
+          _sheetText(
+            'প্রশ্ন বাছাই করলে এখানেই প্রশ্নপত্র দেখা যাবে',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                color: const Color(0xFF94A3B8), fontSize: 13 * scale),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaperSheet(List<HighSchoolQuestion> questions, double width) {
+    final scale = width / 780.0;
+    double s(double value) => value * scale;
+
+    final sections = _activeSections;
+    final subject = _subjectCtrl.text.trim();
+    final className = _classCtrl.text.trim();
+    final time = _timeCtrl.text.trim();
+    final totalMarks = _marksCtrl.text.trim();
+    final instruction = _cqInstruction;
+
+    final meta = <String>[
+      if (subject.isNotEmpty) 'বিষয়: $subject',
+      if (className.isNotEmpty) 'শ্রেণি: $className',
+      if (time.isNotEmpty) 'সময়: $time',
+      if (totalMarks.isNotEmpty) 'পূর্ণমান: $totalMarks',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_schoolCtrl.text.trim().isNotEmpty)
+          _sheetText(
+            _schoolCtrl.text.trim(),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: s(19), fontWeight: FontWeight.w800, height: 1.2),
+          ),
+        if (_examCtrl.text.trim().isNotEmpty) ...[
+          SizedBox(height: s(3)),
+          _sheetText(
+            _examCtrl.text.trim(),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: s(13.5), height: 1.2),
+          ),
+        ],
+        SizedBox(height: s(8)),
+        Container(
+          padding: EdgeInsets.symmetric(vertical: s(4)),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: const Color(0xFF1F2937), width: s(1.4)),
+              bottom: BorderSide(color: const Color(0xFF1F2937), width: s(1.4)),
+            ),
+          ),
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            spacing: s(10),
+            runSpacing: s(2),
+            children: [
+              for (final item in meta)
+                _sheetText(
+                  item,
+                  style: TextStyle(
+                      fontSize: s(12), fontWeight: FontWeight.w700),
+                ),
+            ],
+          ),
+        ),
+        if (instruction.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.only(top: s(4)),
+            child: _sheetText(
+              instruction,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: s(11),
+                  fontStyle: FontStyle.italic,
+                  height: 1.3),
+            ),
+          ),
+        SizedBox(height: s(14)),
+        if (sections.isEmpty)
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: s(20)),
+            child: _sheetText(
+              'কোনো প্রশ্ন নির্বাচন করা হয়নি।',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: const Color(0xFF94A3B8), fontSize: s(12)),
+            ),
+          ),
+        for (final kind in sections) ...[
+          Center(
+            child: _sheetText(
+              '${_sectionLetter(kind)}-বিভাগ: ${kind.title}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: s(13), fontWeight: FontWeight.w800, height: 1.2),
+            ),
+          ),
+          SizedBox(height: s(8)),
+          ..._buildPreviewSection(
+            kind,
+            questions
+                .where((q) => kind.isCq
+                    ? q.isCq
+                    : kind.isMcq
+                        ? q.isMcq
+                        : q.isShort)
+                .toList(),
+            s,
+          ),
+          SizedBox(height: s(14)),
+        ],
+      ],
+    );
+  }
+
+  List<Widget> _buildPreviewSection(
+    _SectionKind kind,
+    List<HighSchoolQuestion> questions,
+    double Function(double) s,
+  ) {
+    if (kind.isCq) {
+      final out = <Widget>[];
+      for (var i = 0; i < questions.length; i++) {
+        final q = questions[i];
+        out.addAll([
+          _sheetText(
+            '${_bengaliNumber(i + 1)}. ${q.paperStemText}',
+            style: TextStyle(fontSize: s(12), height: 1.45),
+          ),
+          if (q.stemImageUrl.trim().isNotEmpty && _imageSize.isVisible)
+            _buildPreviewImage(q.stemImageUrl, s),
+          for (final sub in q.cqSubQuestions)
+            Padding(
+              padding: EdgeInsets.only(top: s(2), left: s(10)),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _sheetText(
+                      '(${sub.label}) ${sub.text}',
+                      style: TextStyle(fontSize: s(11.5), height: 1.4),
+                    ),
+                  ),
+                  SizedBox(width: s(6)),
+                  _sheetText(
+                    _bengaliNumber(sub.mark),
+                    style: TextStyle(
+                        fontSize: s(11.5), fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          SizedBox(height: s(8)),
+        ]);
+      }
+      return out;
+    }
+
+    if (kind.isMcq) {
+      final out = <Widget>[];
+      for (var i = 0; i < questions.length; i++) {
+        final q = questions[i];
+        final mcq = q.mcqData;
+        final opens = q.opensMcqStemGroup(i == 0 ? null : questions[i - 1]);
+        out.addAll([
+          if (opens) ...[
+            _sheetText(
+              q.mcqStemText,
+              style: TextStyle(
+                  fontSize: s(12),
+                  height: 1.4,
+                  fontWeight: FontWeight.w600),
+            ),
+            if (q.stemImageUrl.trim().isNotEmpty && _imageSize.isVisible)
+              _buildPreviewImage(q.stemImageUrl, s),
+          ],
+          _sheetText(
+            '${_bengaliNumber(i + 1)}. ${mcq?.text ?? ''}',
+            style: TextStyle(fontSize: s(12), height: 1.45),
+          ),
+          if (mcq != null && mcq.options.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: s(3), left: s(14), bottom: s(6)),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final itemWidth = (constraints.maxWidth - s(10)) / 2;
+                  const letters = ['ক', 'খ', 'গ', 'ঘ'];
+                  return Wrap(
+                    spacing: s(10),
+                    runSpacing: s(2),
+                    children: [
+                      for (var o = 0; o < mcq.options.length; o++)
+                        SizedBox(
+                          width: itemWidth,
+                          child: _sheetText(
+                            '${o < letters.length ? letters[o] : o + 1}) '
+                            '${mcq.options[o]}',
+                            style:
+                                TextStyle(fontSize: s(11.5), height: 1.35),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+        ]);
+      }
+      return out;
+    }
+
+    return [
+      for (var i = 0; i < questions.length; i++)
+        Padding(
+          padding: EdgeInsets.only(bottom: s(5)),
+          child: _sheetText(
+            '${_bengaliNumber(i + 1)}. ${questions[i].shortData?.text ?? ''}',
+            style: TextStyle(fontSize: s(12), height: 1.45),
+          ),
+        ),
+    ];
+  }
+
+  Widget _buildPreviewImage(String rawUrl, double Function(double) s) {
+    final url = HighSchoolExportService.resolveImageUrl(rawUrl);
+    if (url.isEmpty) return const SizedBox.shrink();
+    final height = switch (_imageSize) {
+      StemImageSize.hidden => 0.0,
+      StemImageSize.small => s(90),
+      StemImageSize.medium => s(130),
+      StemImageSize.large => s(180),
+    };
+    if (height <= 0) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: s(5)),
+      child: Center(
+        child: Image.network(
+          url,
+          height: height,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        ),
+      ),
+    );
+  }
+
+  // ── Right-hand settings rail ───────────────────────────────────────────────
+
+  Widget _buildStudioSettingsRail() {
+    final marks = _marksBreakdown;
+    final selected = _selectedQuestions.length;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 18, 12, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD9E1EA)),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x0D0F172A), blurRadius: 14, offset: Offset(0, 5)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+            child: Row(
+              children: [
+                const Icon(Icons.tune_rounded, size: 17, color: _kPrimary),
+                const SizedBox(width: 7),
+                const Expanded(
+                  child: Text('সেটিংস',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 14)),
+                ),
+                IconButton(
+                  tooltip: 'সেটিংস গুটান',
+                  onPressed: () =>
+                      setState(() => _desktopSettingsOpen = false),
+                  icon: const Icon(Icons.tune, size: 19),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              key: const PageStorageKey('studio-settings-rail'),
+              padding: const EdgeInsets.all(10),
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF102F50)),
+                    onPressed: selected == 0 ? null : () => _exportHtml(),
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: const Text('HTML ডাউনলোড'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: selected == 0 ? null : _openLivePreview,
+                    icon: const Icon(Icons.print_outlined, size: 18),
+                    label: const Text('প্রিভিউ ও প্রিন্ট'),
+                  ),
+                ),
+                if (_currentStep >= 1) ...[
+                  _buildRailHeading('ফিল্টার'),
+                  _buildRailFilters(),
+                  const SizedBox(height: 8),
+                  _buildRailRandomSelector(),
+                  _buildRailHeading('নির্বাচন'),
+                  _buildPickerActions(),
+                ],
+                _buildRailHeading('সারসংক্ষেপ'),
+                _buildRailSummaryRow('CQ', _selectedCqs.length, marks.cq,
+                    _kCqColor),
+                _buildRailSummaryRow(
+                    'MCQ', _selectedMcqs.length, marks.mcq, _kMcqColor),
+                _buildRailSummaryRow(
+                    'RQ', _selectedShorts.length, marks.rq, _kRqColor),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text('মোট নম্বর',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: _kDarkText)),
+                      ),
+                      Text('$_totalSelectedMarks',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: _kPrimary)),
+                    ],
+                  ),
+                ),
+                _buildRailHeading('পরীক্ষার তথ্য'),
+                _buildRailPaperInfo(),
+                _buildRailHeading('বিভাগ ও কলাম'),
+                _buildSectionCard(),
+                _buildRailHeading('প্রিন্ট সেটিংস'),
+                _buildPrintSettings(),
+                _buildRailHeading('সেট'),
+                _buildRailSets(),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The picker's filters, sized for the settings rail.
+  ///
+  /// The wizard keeps these above the list; the desktop studio moves them here
+  /// so the left pane is nothing but the questions being chosen.
+  Widget _buildRailFilters() {
+    int countOf(_PickFilter f) => _fetchedQuestions.where(f.matches).length;
+    final chapterNumbers = _pickerChapterNumbers;
+    final allChapters = _pickerChapterFilter.isEmpty ||
+        _pickerChapterFilter.containsAll(chapterNumbers);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ফিল্টার',
+            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700,
+                color: _kSubText)),
+        const SizedBox(height: 5),
+        SizedBox(
+          height: 30,
+          child: TextField(
+            controller: _pickSearchCtrl,
+            onChanged: (v) => setState(() => _pickSearchQuery = v),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              prefixIcon: const Icon(Icons.search, size: 16),
+              hintText: 'অনুসন্ধান…',
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(9),
+                borderSide: BorderSide.none,
+              ),
+              suffixIcon: _pickSearchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed: () {
+                        _pickSearchCtrl.clear();
+                        setState(() => _pickSearchQuery = '');
+                      },
+                    ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Wrap(
+          spacing: 5,
+          runSpacing: 5,
+          children: [
+            for (final f in _PickFilter.values)
+              _PickFilterChip(
+                label: f.badge,
+                title: f.title,
+                count: countOf(f),
+                color: f.color,
+                selected: _pickFilter == f,
+                onTap: () => setState(() => _pickFilter = f),
+              ),
+          ],
+        ),
+        if (_pickIsNarrowed) ...[
+          const SizedBox(height: 3),
+          Text('${_visibleQuestions.length} টি দেখানো হচ্ছে',
+              style: const TextStyle(fontSize: 10, color: _kSubText)),
+        ],
+        const SizedBox(height: 5),
+        Wrap(
+          spacing: 5,
+          runSpacing: 5,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const Text('ছবি:',
+                style: TextStyle(fontSize: 10, color: _kSubText)),
+            for (final f in _ImageFilter.values)
+              _PickFilterChip(
+                label: f.badge,
+                title: f.title,
+                count: _fetchedQuestions.where(f.matches).length,
+                color: f.color,
+                selected: _imageFilter == f,
+                onTap: () => setState(() => _imageFilter = f),
+              ),
+          ],
+        ),
+        if (chapterNumbers.length >= 2) ...[
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              const Icon(Icons.filter_alt_outlined,
+                  size: 13, color: _kSubText),
+              const SizedBox(width: 4),
+              const Text('অধ্যায়',
+                  style: TextStyle(fontSize: 10, color: _kSubText)),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => setState(() {
+                  if (allChapters) {
+                    _pickerChapterFilter.clear();
+                  } else {
+                    _pickerChapterFilter
+                      ..clear()
+                      ..addAll(chapterNumbers);
+                  }
+                }),
+                child: Text(
+                  allChapters ? 'সব দেখান' : 'শুধু এগুলো',
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: _kPrimary,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: [
+              for (final c in chapterNumbers)
+                _PickerChapterChip(
+                  chapterNumber: c,
+                  count:
+                      _fetchedQuestions.where((q) => q.chapterNumber == c).length,
+                  selected: _pickerChapterFilter.isEmpty ||
+                      _pickerChapterFilter.contains(c),
+                  onTap: () => setState(() {
+                    if (_pickerChapterFilter.isEmpty) {
+                      // First tap after "all" narrows to just this one.
+                      _pickerChapterFilter
+                        ..clear()
+                        ..add(c);
+                    } else if (_pickerChapterFilter.contains(c)) {
+                      _pickerChapterFilter.remove(c);
+                    } else {
+                      _pickerChapterFilter.add(c);
+                    }
+                  }),
+                ),
+            ],
+          ),
+        ],
+        if (_marksBreakdown.hidden > 0) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.amber.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info_outline_rounded,
+                    size: 14, color: Colors.amber),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'ফিল্টারের বাইরে ${_marksBreakdown.hidden} নম্বরের নির্বাচিত '
+                    'প্রশ্ন আছে — মোট নম্বরে ধরা হয়েছে।',
+                    style:
+                        const TextStyle(fontSize: 10.5, color: Colors.amber),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// The random draw, stacked for the rail rather than one long row.
+  Widget _buildRailRandomSelector() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      decoration: BoxDecoration(
+        color: _kPrimary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: _kPrimary.withOpacity(0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.casino_outlined, size: 16, color: _kPrimary),
+              const SizedBox(width: 6),
+              const Text('এলোমেলো নির্বাচন',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: _RandomCountField(
+                  controller: _randomCqCtrl,
+                  label: 'CQ',
+                  max: _totalCqs,
+                  color: _kCqColor,
+                  fieldKey: const ValueKey('cq-count-field'),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _RandomCountField(
+                  controller: _randomMcqCtrl,
+                  label: 'MCQ',
+                  max: _totalMcqs,
+                  color: _kMcqColor,
+                  fieldKey: const ValueKey('mcq-count-field'),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _RandomCountField(
+                  controller: _randomRqCtrl,
+                  label: 'RQ',
+                  max: _totalShorts,
+                  color: _kRqColor,
+                  fieldKey: const ValueKey('rq-count-field'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 32,
+            child: ElevatedButton(
+              onPressed: _pickRandomQuestions,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kPrimary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9)),
+              ),
+              child: const Text('বাছাই',
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollapsedSettingsRail() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 18, 12, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD9E1EA)),
+      ),
+      child: Column(
+        children: [
+          IconButton(
+            tooltip: 'সেটিংস খুলুন',
+            onPressed: () => setState(() => _desktopSettingsOpen = true),
+            icon: const Icon(Icons.tune_outlined),
+          ),
+          const Divider(height: 1),
+          IconButton(
+            tooltip: 'প্রিভিউ ও প্রিন্ট',
+            onPressed: _selectedQuestions.isEmpty ? null : _openLivePreview,
+            icon: const Icon(Icons.print_outlined),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The mint heading the browser rail uses to separate its groups.
+  Widget _buildRailHeading(String text) {
+    return Container(
+      margin: const EdgeInsets.only(top: 12, bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFE8F8F1),
+        border: Border(top: BorderSide(color: Color(0xFF0F9F70))),
+      ),
+      child: Text(text,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+    );
+  }
+
+  Widget _buildRailSummaryRow(
+      String label, int count, int marks, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12.5, color: _kDarkText)),
+          ),
+          Text('$countটি · $marks নম্বর',
+              style: const TextStyle(fontSize: 12, color: _kSubText)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRailPaperInfo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildTextField(
+            ctrl: _schoolCtrl,
+            label: 'শিক্ষা প্রতিষ্ঠানের নাম',
+            onChanged: (_) => setState(() {})),
+        const SizedBox(height: 8),
+        _buildTextField(
+            ctrl: _examCtrl,
+            label: 'পরীক্ষার নাম',
+            onChanged: (_) => setState(() {})),
+        const SizedBox(height: 8),
+        _buildTextField(
+            ctrl: _subjectCtrl,
+            label: 'বিষয়',
+            onChanged: (_) => setState(() {})),
+        const SizedBox(height: 8),
+        _buildTextField(
+            ctrl: _classCtrl,
+            label: 'শ্রেণি ও শাখা',
+            onChanged: (_) => setState(() {})),
+        const SizedBox(height: 8),
+        _buildTextField(
+            ctrl: _timeCtrl,
+            label: 'সময়',
+            onChanged: (_) => setState(() {})),
+        const SizedBox(height: 8),
+        _buildTextField(
+          ctrl: _marksCtrl,
+          label: 'পূর্ণমান',
+          keyboardType: TextInputType.number,
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 8),
+        _buildTextField(
+          ctrl: _cqAnswerAnyCtrl,
+          label: 'যেকোনো কয়টি CQ-র উত্তর দিতে হবে',
+          keyboardType: TextInputType.text,
+          hintText: 'যেমন: ৫ অথবা নিজের নির্দেশনা',
+          helperText: 'খালি রাখলে লেখা হবে না।'
+              '${_selectedCqs.isEmpty ? '' : ' সর্বোচ্চ ${_selectedCqs.length}টি দেওয়া যাবে।'}',
+          onChanged: (_) => setState(() {}),
+        ),
+      ],
+    );
+  }
+
+  /// The reference panel's A button: add one free line under the exam title.
+  Future<void> _editHeaderNote() async {
+    final ctrl = TextEditingController(text: _headerNoteCtrl.text);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('অতিরিক্ত হেডার লাইন'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'যেমন: শিক্ষা সপ্তাহ ২০২৬',
+          ),
+          onSubmitted: (value) => Navigator.of(context).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('বাতিল'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(ctrl.text),
+            child: const Text('যোগ করুন'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (result == null) return;
+    setState(() => _headerNoteCtrl.text = result.trim());
+  }
+
+  /// Pick a logo for the branding band and carry it as a data URI, so the
+  /// exported HTML is a single self-contained file.
+  Future<void> _pickLogo() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) {
+      _showError('লোগোর ছবিটি পড়া যায়নি।');
+      return;
+    }
+    final ext = (file.extension ?? 'png').toLowerCase();
+    final mime = switch (ext) {
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      _ => 'image/png',
+    };
+    setState(() {
+      _logoDataUri = 'data:$mime;base64,${base64Encode(bytes)}';
+      _logoName = file.name;
+      _showLogo = true;
+    });
+  }
+
+  /// The desktop settings panel: the same choices the browser studio's rail
+  /// offers, grouped the way the reference panel groups them.
+  Widget _buildPrintSettings() {
+    final repeated = _repeatedQuestions;
+    final globalColumns = _cqLayout == _mcqLayout && _mcqLayout == _rqLayout
+        ? _cqLayout
+        : _mcqLayout;
+    final fontSize = (14 + _fontStep).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _railSubheading('প্রশ্ন সংযুক্তি'),
+        _railSwitch(
+          'উত্তরপত্র',
+          _mcqAnswerSheetStyle == McqAnswerSheetStyle.serialAnswer,
+          (value) => setState(() => _mcqAnswerSheetStyle = value
+              ? McqAnswerSheetStyle.serialAnswer
+              : McqAnswerSheetStyle.none),
+        ),
+        _railSwitch(
+          'OMR সংযুক্ত',
+          _mcqAnswerSheetStyle == McqAnswerSheetStyle.omr,
+          (value) => setState(() => _mcqAnswerSheetStyle =
+              value ? McqAnswerSheetStyle.omr : McqAnswerSheetStyle.none),
+        ),
+        _railSwitch(
+          'গুরুত্বপূর্ণ প্রশ্ন',
+          _showImportant,
+          (value) => setState(() => _showImportant = value),
+        ),
+        _railSwitch(
+          'প্রশ্নের তথ্য',
+          _showQuestionInfo,
+          (value) => setState(() => _showQuestionInfo = value),
+        ),
+        _railSwitch(
+          'শিক্ষার্থীর তথ্য',
+          _showStudentInfo,
+          (value) => setState(() => _showStudentInfo = value),
+        ),
+        _railSwitch(
+          'বিষয় কোড',
+          _showSubjectCode,
+          (value) => setState(() => _showSubjectCode = value),
+        ),
+        if (_showSubjectCode) ...[
+          const SizedBox(height: 4),
+          _buildTextField(
+            ctrl: _subjectCodeCtrl,
+            label: 'বিষয় কোড',
+            hintText: 'যেমন: ১০১',
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+        _railSwitch(
+          'প্রাপ্ত নম্বর ঘর',
+          _showObtainedMarks,
+          (value) => setState(() => _showObtainedMarks = value),
+        ),
+        _railSubheading('প্রশ্নের মেটাডেটা (হেডার)'),
+        _railSwitch(
+          'প্রতিষ্ঠানের নাম',
+          _showSchool,
+          (value) => setState(() => _showSchool = value),
+          trailing: IconButton(
+            tooltip: 'অতিরিক্ত হেডার লাইন যোগ করুন',
+            onPressed: _editHeaderNote,
+            icon: const Text(
+              'A',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          ),
+        ),
+        _railSwitch('শ্রেণির নাম', _showClass,
+            (value) => setState(() => _showClass = value)),
+        _railSwitch('বিষয়ের নাম', _showSubject,
+            (value) => setState(() => _showSubject = value)),
+        _railSwitch('অধ্যায়ের নাম', _showChapter,
+            (value) => setState(() => _showChapter = value)),
+        _railSwitch('সেট কোড', _showSet,
+            (value) => setState(() => _showSet = value)),
+        _railSwitch('প্রোগ্রাম/পরীক্ষার নাম', _showExam,
+            (value) => setState(() => _showExam = value)),
+        _railSwitch('নির্দেশনা', _showInstructions,
+            (value) => setState(() => _showInstructions = value)),
+        _railSubheading('ডকুমেন্ট কাস্টমাইজেশন'),
+        _railSwitch('এডিটিং মোড', _editingMode,
+            (value) => setState(() => _editingMode = value)),
+        _railSegmented<PaperTextAlign>(
+          label: 'টেক্সট এলাইনমেন্ট',
+          value: _textAlign,
+          items: PaperTextAlign.values,
+          itemLabel: (align) => align.label,
+          onChanged: (value) => setState(() => _textAlign = value),
+        ),
+        _railSegmented<PaperSize>(
+          label: 'পেপার সাইজ',
+          value: _paperSize,
+          items: PaperSize.values,
+          itemLabel: (size) => size.label,
+          onChanged: (value) => setState(() => _paperSize = value),
+        ),
+        _railButton(
+          label: 'পেজ সেটআপ (প্রিভিউ)',
+          icon: Icons.tune_rounded,
+          onPressed: _selectedQuestions.isEmpty ? null : _openLivePreview,
+        ),
+        _railSwitch('পৃষ্ঠা নম্বর', _pageNumbers,
+            (value) => setState(() => _pageNumbers = value)),
+        _railSubheading('টাইপোগ্রাফি ও কলাম'),
+        _railSegmented<McqOptionStyle>(
+          label: 'অপশন স্টাইল',
+          value: _optionStyle,
+          items: McqOptionStyle.values,
+          itemLabel: (style) => style.label,
+          onChanged: (value) => setState(() => _optionStyle = value),
+        ),
+        _buildRailDropdown<PaperFont>(
+          label: 'ফন্ট পরিবর্তন',
+          value: _paperFont,
+          items: PaperFont.values,
+          itemLabel: (font) => font.label,
+          onChanged: (value) {
+            if (value != null) setState(() => _paperFont = value);
+          },
+        ),
+        _railStepper(
+          label: 'ফন্ট সাইজ',
+          value: fontSize,
+          min: (14 + _fontStepMin).round(),
+          max: (14 + _fontStepMax).round(),
+          onChanged: (value) => setState(() => _fontStep = value - 14.0),
+        ),
+        _railSegmented<QuestionLayout>(
+          label: 'কলাম (সব বিভাগে)',
+          value: globalColumns,
+          items: const [
+            QuestionLayout.single,
+            QuestionLayout.doubleColumn,
+            QuestionLayout.tripleColumn,
+          ],
+          itemLabel: (layout) => layout.mcqColumns.toString(),
+          onChanged: (value) => setState(() {
+            _cqLayout = value;
+            _mcqLayout = value;
+            _rqLayout = value;
+          }),
+        ),
+        _railSwitch('কলাম ডিভাইডার', _columnDivider,
+            (value) => setState(() => _columnDivider = value)),
+        _railSlider(
+          label: 'প্রশ্নের নিচের গ্যাপ',
+          value: _questionGap,
+          min: 0,
+          max: 24,
+          onChanged: (value) => setState(() => _questionGap = value),
+        ),
+        _railSlider(
+          label: 'কলামের গ্যাপ',
+          value: _columnGap,
+          min: 0,
+          max: 40,
+          onChanged: (value) => setState(() => _columnGap = value),
+        ),
+        _buildRailDropdown<StemImageSize>(
+          label: 'ছবির আকার',
+          value: _imageSize,
+          items: StemImageSize.values,
+          itemLabel: (size) =>
+              size == StemImageSize.hidden ? 'বন্ধ' : size.label,
+          onChanged: (value) {
+            if (value != null) setState(() => _imageSize = value);
+          },
+        ),
+        if (_selectedMcqs.isNotEmpty)
+          _buildRailDropdown<McqAnswerSheetStyle>(
+            label: 'MCQ উত্তরপত্র',
+            value: _mcqAnswerSheetStyle,
+            items: McqAnswerSheetStyle.values,
+            itemLabel: (style) => style.label,
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _mcqAnswerSheetStyle = value);
+              }
+            },
+          ),
+        _railSubheading('সহায়ক টুলস'),
+        _railSwitch('পুনরাবৃত্ত প্রশ্ন শনাক্ত', _detectRepeated,
+            (value) => setState(() => _detectRepeated = value)),
+        if (_detectRepeated)
+          Container(
+            margin: const EdgeInsets.only(bottom: 5),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: repeated.isEmpty
+                  ? const Color(0xFFECFDF5)
+                  : const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              repeated.isEmpty
+                  ? 'কোনো পুনরাবৃত্ত প্রশ্ন পাওয়া যায়নি।'
+                  : '${repeated.length}টি প্রশ্নের পাঠ একই — এগুলো একবারই রাখুন।',
+              style: const TextStyle(fontSize: 11.5, color: _kSubText),
+            ),
+          ),
+        _railSwitch('শর্টকাট', _shortcutHints,
+            (value) => setState(() => _shortcutHints = value)),
+        if (_shortcutHints)
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              TextButton.icon(
+                onPressed: _selectAll,
+                icon: const Icon(Icons.done_all_rounded, size: 16),
+                label:
+                    const Text('সব নির্বাচন', style: TextStyle(fontSize: 11.5)),
+              ),
+              TextButton.icon(
+                onPressed: _pickRandomQuestions,
+                icon: const Icon(Icons.shuffle_rounded, size: 16),
+                label:
+                    const Text('এলোমেলো', style: TextStyle(fontSize: 11.5)),
+              ),
+            ],
+          ),
+        _railButton(
+          label: 'শাফল (সেট কোড তৈরি)',
+          icon: Icons.shuffle_rounded,
+          onPressed:
+              _selectedQuestions.length < 2 ? null : _shuffleIntoTwoSets,
+        ),
+        _railSubheading('ব্র্যান্ডিং'),
+        _railSwitch('লোগো', _showLogo,
+            (value) => setState(() => _showLogo = value)),
+        if (_showLogo)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickLogo,
+                  icon: const Icon(Icons.image_outlined, size: 16),
+                  label: Text(
+                    _logoName.isEmpty ? 'লোগো নির্বাচন' : _logoName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                ),
+              ),
+              if (_logoDataUri.isNotEmpty)
+                IconButton(
+                  tooltip: 'লোগো সরান',
+                  onPressed: () => setState(() {
+                    _logoDataUri = '';
+                    _logoName = '';
+                  }),
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                ),
+            ],
+          ),
+        _railSwitch('হেডার', _showHeader,
+            (value) => setState(() => _showHeader = value)),
+        _railSwitch('ফুটার', _showFooter,
+            (value) => setState(() => _showFooter = value)),
+        _railSwitch('জলছাপ', _showWatermark,
+            (value) => setState(() => _showWatermark = value)),
+        if (_showWatermark) ...[
+          const SizedBox(height: 4),
+          _buildTextField(
+            ctrl: _watermarkCtrl,
+            label: 'জলছাপের লেখা',
+            hintText: 'যেমন: নমুনা',
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+        _railSwitch('ঠিকানা', _showAddress,
+            (value) => setState(() => _showAddress = value)),
+        if (_showAddress) ...[
+          const SizedBox(height: 4),
+          _buildTextField(
+            ctrl: _addressCtrl,
+            label: 'প্রতিষ্ঠানের ঠিকানা',
+            hintText: 'গ্রাম/শহর, উপজেলা',
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _railSubheading(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          color: _kSubText,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _railSwitch(
+    String label,
+    bool value,
+    ValueChanged<bool> onChanged, {
+    Widget? trailing,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12.5, color: _kDarkText),
+            ),
+          ),
+          if (trailing != null) trailing,
+          Transform.scale(
+            scale: 0.78,
+            child: Switch.adaptive(
+              value: value,
+              onChanged: onChanged,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _railSegmented<T>({
+    required String label,
+    required T value,
+    required List<T> items,
+    required String Function(T) itemLabel,
+    required ValueChanged<T> onChanged,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F3F6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12.5, color: _kDarkText),
+          ),
+          const SizedBox(height: 5),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (final item in items)
+                InkWell(
+                  onTap: () => onChanged(item),
+                  borderRadius: BorderRadius.circular(5),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: item == value ? _kPrimary : Colors.white,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: item == value
+                            ? _kPrimary
+                            : const Color(0xFFD9E1EA),
+                      ),
+                    ),
+                    child: Text(
+                      itemLabel(item),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: item == value ? Colors.white : _kDarkText,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _railSlider({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 12.5, color: _kDarkText),
+              ),
+            ),
+            Text(
+              '${value.round()}px',
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: _kPrimary,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(
+          height: 28,
+          child: Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: (max - min).round(),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _railStepper({
+    required String label,
+    required int value,
+    required int min,
+    required int max,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F3F6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12.5, color: _kDarkText),
+            ),
+          ),
+          IconButton(
+            onPressed: value > min ? () => onChanged(value - 1) : null,
+            icon: const Icon(Icons.remove_circle_outline, size: 18),
+            visualDensity: VisualDensity.compact,
+          ),
+          SizedBox(
+            width: 28,
+            child: Text(
+              '$value',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: _kPrimary,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: value < max ? () => onChanged(value + 1) : null,
+            icon: const Icon(Icons.add_circle_outline, size: 18),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _railButton({
+    required String label,
+    required IconData icon,
+    VoidCallback? onPressed,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 16),
+          label: Text(label, style: const TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRailDropdown<T>({
+    required String label,
+    required T value,
+    required List<T> items,
+    required String Function(T) itemLabel,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F3F6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label,
+                style: const TextStyle(fontSize: 12.5, color: _kDarkText)),
+          ),
+          SizedBox(
+            width: 130,
+            child: DropdownButton<T>(
+              value: value,
+              isExpanded: true,
+              underline: const SizedBox.shrink(),
+              iconSize: 19,
+              style: const TextStyle(fontSize: 12.5, color: _kDarkText),
+              items: [
+                for (final item in items)
+                  DropdownMenuItem<T>(
+                    value: item,
+                    child: Text(itemLabel(item),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRailSets() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F3F6),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 9),
+                  child: Text('দুইটি সেটে প্রশ্নপত্র',
+                      style: TextStyle(fontSize: 12.5, color: _kDarkText)),
+                ),
+              ),
+              Transform.scale(
+                scale: 0.8,
+                child: Switch(
+                  value: _twoSets,
+                  activeColor: _kPrimary,
+                  onChanged: (v) => setState(() {
+                    _twoSets = v;
+                    if (!v) _assignAllToFirstSet();
+                  }),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'ক ও খ একই পেজে তৈরি হবে — আলাদা করে তৈরি করলে প্রতিটির একটা পেজ নষ্ট হয়।',
+          style: TextStyle(fontSize: 11, color: _kSubText),
+        ),
+        if (_twoSets) ...[
+          const SizedBox(height: 8),
+          _buildTextField(
+            ctrl: _setLabelControllers[0],
+            label: 'প্রথম সেটের নাম',
+            icon: Icons.looks_one,
+          ),
+          const SizedBox(height: 8),
+          _buildTextField(
+            ctrl: _setLabelControllers[1],
+            label: 'দ্বিতীয় সেটের নাম',
+            icon: Icons.looks_two,
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed:
+                _selectedQuestions.length < 2 ? null : _splitSelectedEvenly,
+            icon: const Icon(Icons.balance, size: 16),
+            label: Text('অর্ধেক ভাগ করো (${_selectedQuestions.length} টি)'),
+          ),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: _assignAllToFirstSet,
+            icon: const Icon(Icons.merge_type, size: 16),
+            label: const Text('সব প্রশ্ন প্রথম সেটে'),
+          ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < 2; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: i == 0
+                          ? _kPrimary.withOpacity(0.10)
+                          : Colors.teal.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _setLabels[i].isEmpty
+                          ? (i == 0 ? 'ক' : 'খ')
+                          : _setLabels[i],
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: i == 0 ? _kPrimary : Colors.teal.shade700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${_questionsForSet(i).length} টি প্রশ্ন'
+                      '  ·  ${_questionsForSet(i).fold(0, (s, q) => s + q.totalMarks)} নম্বর',
+                      style: const TextStyle(fontSize: 11, color: _kSubText),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 4),
+          const Text(
+            'প্রতিটি প্রশ্নের কার্ডে সেট বদলাতে পারেন।',
+            style: TextStyle(fontSize: 11, color: _kSubText),
+          ),
+        ],
+      ],
+    );
+  }
+
 
   Widget _buildCurrentStep() {
     switch (_currentStep) {
@@ -1490,12 +3458,15 @@ class _HighSchoolQPaperGeneratorPageState
           children: [
             const Icon(Icons.menu_book_rounded, color: _kPrimary, size: 20),
             const SizedBox(width: 8),
-            const Text('অধ্যায় নির্বাচন করুন',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: _kDarkText)),
-            const Spacer(),
+            const Expanded(
+              child: Text('অধ্যায় নির্বাচন করুন',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: _kDarkText)),
+            ),
             if (chapters.isNotEmpty) ...[
               TextButton(
                 onPressed: () => setState(() {
@@ -1753,7 +3724,76 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
+  /// Step 2 of the wizard: the filters, the actions and the question list.
+  ///
+  /// The desktop studio splits this apart — the list keeps the left pane and
+  /// the filters move into the settings rail — but the wizard needs it whole.
   Widget _buildStep2() {
+    final visible = _visibleQuestions;
+    return Column(
+      children: [
+        // Sticky counter bar
+        _buildStickyBar(),
+        // Chapter filter, when the paper draws on more than one
+        _buildPickerChapterBar(_pickerChapterNumbers),
+        // Type filter + search
+        _buildPickFilterBar(visible.length),
+        // Select all / none, plus hand entry. A Wrap so the three actions
+        // stack onto a second line on a phone rather than overflowing.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _buildPickerActions(),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+          child: _buildRandomSelectorBar(),
+        ),
+        Expanded(child: _buildPickerList()),
+      ],
+    );
+  }
+
+  /// Every chapter the fetched questions come from, in paper order.
+  List<String> get _pickerChapterNumbers => [
+        for (final c in _fetchedQuestions.map((q) => q.chapterNumber).toSet())
+          c
+      ]..sort(compareChapterNumbers);
+
+  /// Select all / none, plus hand entry.
+  Widget _buildPickerActions() {
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        TextButton.icon(
+          icon: const Icon(Icons.done_all_rounded, size: 18),
+          label: Text(_pickIsNarrowed ? 'এই তালিকার সব' : 'সব নির্বাচন'),
+          onPressed: _selectAll,
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.remove_done_rounded, size: 18),
+          label: Text(_pickIsNarrowed ? 'এই তালিকা বাদ' : 'বাদ দিন'),
+          style: TextButton.styleFrom(foregroundColor: Colors.grey),
+          onPressed: _deselectAll,
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.edit_note_rounded, size: 18),
+          label: const Text('নিজে প্রশ্ন লিখুন'),
+          style: TextButton.styleFrom(foregroundColor: _kPrimary),
+          onPressed: _openManualQuestion,
+        ),
+      ],
+    );
+  }
+
+  /// The scrolling question list, on the same light panel the browser studio
+  /// uses. It is the whole left pane of the desktop studio, and the bottom half
+  /// of step 2 in the wizard.
+  Widget _buildPickerList() {
     final visible = _visibleQuestions;
     final byChapter = <String, List<HighSchoolQuestion>>{};
     for (final q in visible) {
@@ -1765,98 +3805,63 @@ class _HighSchoolQPaperGeneratorPageState
     // on it can take the pair along.
     final stemRuns = _mcqStemRuns();
 
-    return Column(
-      children: [
-        // Sticky counter bar
-        _buildStickyBar(),
-        // Chapter filter, when the paper draws on more than one
-        _buildPickerChapterBar([
-          for (final c in _fetchedQuestions.map((q) => q.chapterNumber).toSet())
-            c
-        ]..sort(compareChapterNumbers)),
-        // Type filter + search
-        _buildPickFilterBar(visible.length),
-        // Question list
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-            children: [
-              // Select all / none, plus hand entry. A Wrap so the three actions
-              // stack onto a second line on a phone rather than overflowing.
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  TextButton.icon(
-                    icon: const Icon(Icons.done_all_rounded, size: 18),
-                    label:
-                        Text(_pickIsNarrowed ? 'এই তালিকার সব' : 'সব নির্বাচন'),
-                    onPressed: _selectAll,
-                  ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.remove_done_rounded, size: 18),
-                    label: Text(_pickIsNarrowed ? 'এই তালিকা বাদ' : 'বাদ দিন'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.grey),
-                    onPressed: _deselectAll,
-                  ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.edit_note_rounded, size: 18),
-                    label: const Text('নিজে প্রশ্ন লিখুন'),
-                    style: TextButton.styleFrom(foregroundColor: _kPrimary),
-                    onPressed: _openManualQuestion,
-                  ),
-                ],
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F4F8),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD9E1EA)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(13),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 100),
+          children: [
+            // Chapter groups
+            for (final chNum in chapterNumbers) ...[
+              _ChapterGroupHeader(
+                key: ValueKey('chapter-header-$chNum'),
+                chapterNumber: chNum,
+                chapterName: byChapter[chNum]!.first.chapterName,
+                total: byChapter[chNum]!.length,
+                selected: byChapter[chNum]!.where((q) => q.isSelected).length,
+                collapsed: _collapsedChapters.contains(chNum),
+                onToggle: () => _toggleChapter(chNum),
               ),
               const SizedBox(height: 8),
-              _buildRandomSelectorBar(),
-              const SizedBox(height: 8),
-              // Chapter groups
-              for (final chNum in chapterNumbers) ...[
-                _ChapterGroupHeader(
-                  key: ValueKey('chapter-header-$chNum'),
-                  chapterNumber: chNum,
-                  chapterName: byChapter[chNum]!.first.chapterName,
-                  total: byChapter[chNum]!.length,
-                  selected: byChapter[chNum]!.where((q) => q.isSelected).length,
-                  collapsed: _collapsedChapters.contains(chNum),
-                  onToggle: () => _toggleChapter(chNum),
-                ),
-                const SizedBox(height: 8),
-                // A folded chapter shows its header and nothing else.
-                if (!_collapsedChapters.contains(chNum)) ...[
-                  for (final q in _pickerOrder(byChapter[chNum]!))
-                    _buildQuestionCard(
-                        q, _cardKey(q, _fetchedQuestions.indexOf(q)),
-                        run: stemRuns[q.id]),
-                ],
-                const SizedBox(height: 16),
+              // A folded chapter shows its header and nothing else.
+              if (!_collapsedChapters.contains(chNum)) ...[
+                for (final q in _pickerOrder(byChapter[chNum]!))
+                  _buildQuestionCard(
+                      q, _cardKey(q, _fetchedQuestions.indexOf(q)),
+                      run: stemRuns[q.id]),
               ],
-              if (visible.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: Column(
-                    children: [
-                      Text(
-                        _pickIsNarrowed
-                            ? 'কোনো প্রশ্ন মেলেনি। ফিল্টার বা সার্চ বদলে দেখুন।'
-                            : 'কোনো প্রশ্ন পাওয়া যায়নি।',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: _kSubText),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.edit_note_rounded, size: 18),
-                        label: const Text('নিজে প্রশ্ন লিখুন'),
-                        onPressed: _openManualQuestion,
-                      ),
-                    ],
-                  ),
-                ),
+              const SizedBox(height: 12),
             ],
-          ),
+            if (visible.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Column(
+                  children: [
+                    Text(
+                      _pickIsNarrowed
+                          ? 'কোনো প্রশ্ন মেলেনি। ফিল্টার বা সার্চ বদলে দেখুন।'
+                          : 'কোনো প্রশ্ন পাওয়া যায়নি।',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: _kSubText),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.edit_note_rounded, size: 18),
+                      label: const Text('নিজে প্রশ্ন লিখুন'),
+                      onPressed: _openManualQuestion,
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -2080,14 +4085,18 @@ class _HighSchoolQPaperGeneratorPageState
 
   Widget _buildStickyBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: _kPrimary,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF5C35E3), Color(0xFF7C5CF0)],
+        ),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-              color: _kPrimary.withOpacity(0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
+              color: _kPrimary.withOpacity(0.28),
+              blurRadius: 14,
+              offset: const Offset(0, 5))
         ],
       ),
       child: Row(
@@ -2095,7 +4104,8 @@ class _HighSchoolQPaperGeneratorPageState
           Expanded(
             child: Wrap(
               spacing: 12,
-              runSpacing: 4,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 _CountBadge(
                     label: 'CQ',
@@ -2115,7 +4125,9 @@ class _HighSchoolQPaperGeneratorPageState
                       color: _kRqColor),
                 Text('মোট নম্বর: $_totalSelectedMarks',
                     style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -2123,8 +4135,9 @@ class _HighSchoolQPaperGeneratorPageState
           ElevatedButton(
             onPressed: _proceedToGenerate,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _kAccent,
-              foregroundColor: Colors.white,
+              backgroundColor: Colors.white,
+              foregroundColor: _kPrimary,
+              elevation: 0,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -2146,40 +4159,54 @@ class _HighSchoolQPaperGeneratorPageState
     return q.mcqData?.text ?? '';
   }
 
+  /// One question in the picker.
+  ///
+  /// Laid out like the browser studio's card: the question text leads, the type
+  /// sits as a pill on the right, and the options or sub-questions are shown
+  /// inline so the reader can tell what a tick would put on the paper without
+  /// opening anything. Tapping anywhere on the card ticks it; tapping the
+  /// figure opens the figure instead.
   Widget _buildQuestionCard(HighSchoolQuestion q, String cardKey,
       {List<HighSchoolQuestion>? run}) {
-    final isExpanded = _expandedCards[cardKey] == true;
     final typeColor = q.isCq ? _kCqColor : (q.isShort ? _kRqColor : _kMcqColor);
+    // An MCQ's shared উদ্দীপক is worth reading before ticking, so it rides
+    // above the question rather than being hidden behind a disclosure.
+    final intro = q.isMcq ? q.mcqStemText.trim() : '';
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      key: ValueKey('question-card-$cardKey'),
+      duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: q.isSelected ? _kPrimary.withOpacity(0.035) : _kCardBg,
-        borderRadius: BorderRadius.circular(14),
+        color: q.isSelected ? const Color(0xFFF7F5FF) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: q.isSelected ? _kPrimary.withOpacity(0.5) : Colors.transparent,
-          width: 1.5,
+          color: q.isSelected ? _kPrimary : const Color(0xFFD9E1EA),
+          width: q.isSelected ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: q.isSelected
-                ? _kPrimary.withOpacity(0.12)
-                : Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+                ? _kPrimary.withOpacity(0.10)
+                : Colors.black.withOpacity(0.035),
+            blurRadius: 12,
             offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // Header row
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => setState(() => _expandedCards[cardKey] = !isExpanded),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            // Anywhere on the card ticks it, the way the browser studio does.
+            // The figure keeps its own tap, so a click there opens the image
+            // instead of selecting the question.
+            onTap: () => _toggleQuestion(q),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(10, 10, 6, 8),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Checkbox(
                     value: q.isSelected,
@@ -2188,334 +4215,361 @@ class _HighSchoolQPaperGeneratorPageState
                         borderRadius: BorderRadius.circular(5)),
                     onChanged: (_) => _toggleQuestion(q),
                   ),
-                  const SizedBox(width: 4),
-                  // Type badge
-                  _TypeBadge(type: q.questionType, color: typeColor),
-                  const SizedBox(width: 8),
-                  // Preview text
+                  const SizedBox(width: 2),
                   Expanded(
-                    child: Text(
-                      _previewText(q),
-                      maxLines: isExpanded ? 10 : 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: _kDarkText),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        if (intro.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 5),
+                            child: Text(
+                              intro,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  height: 1.3,
+                                  color: _kSubText),
+                            ),
+                          ),
+                        Text(
+                          _previewText(q),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            height: 1.35,
+                            fontWeight: FontWeight.w700,
+                            color: _kDarkText,
+                          ),
+                        ),
+                        if (q.isMcq) _buildCardOptions(q),
+                        if (q.isCq) _buildCardSubQuestions(q),
+                        if (q.stemImageUrl.trim().isNotEmpty)
+                          _buildCardThumbnail(q),
+                        const SizedBox(height: 7),
+                        _buildCardTags(q, run),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),
                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('${q.totalMarks}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: _kPrimary,
-                              fontSize: 15)),
-                      const Text('নম্বর',
-                          style: TextStyle(fontSize: 10, color: _kSubText)),
+                      _TypeBadge(type: q.questionType, color: typeColor),
+                      const SizedBox(height: 8),
+                      _MarksBadge(marks: q.totalMarks),
                     ],
                   ),
-                  const SizedBox(width: 4),
-                  Icon(isExpanded ? Icons.expand_less : Icons.expand_more,
-                      color: _kSubText),
+                  if (_showImportant)
+                    IconButton(
+                      tooltip: q.isImportant
+                          ? 'গুরুত্বপূর্ণ চিহ্ন সরান'
+                          : 'গুরুত্বপূর্ণ হিসেবে চিহ্নিত করুন',
+                      onPressed: () =>
+                          setState(() => q.isImportant = !q.isImportant),
+                      icon: Icon(
+                        q.isImportant
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        size: 18,
+                      ),
+                      color: q.isImportant
+                          ? const Color(0xFFD97706)
+                          : _kSubText,
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                  IconButton(
+                    tooltip: 'সম্পাদনা করুন',
+                    onPressed: () => _openEditQuestion(q),
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    color: _kPrimary,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                  ),
                 ],
               ),
             ),
           ),
-          // Tags row
-          Padding(
-            padding: const EdgeInsets.only(left: 56, right: 12, bottom: 8),
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (q.stemImageUrl.trim().isNotEmpty)
-                  _TagChip(
-                      label: 'ছবি আছে',
-                      color: Colors.blue.shade50,
-                      textColor: Colors.blue.shade700),
-                if (q.boardYearTag.isNotEmpty)
-                  _TagChip(
-                      label: q.boardYearTag,
-                      color: Colors.purple.shade100,
-                      textColor: Colors.purple.shade800),
-                // Where the row came from, so a hand-typed question is not
-                // mistaken for one that is in the bank.
-                if (q.isManual)
-                  _TagChip(
-                      label: 'নিজে লেখা',
-                      color: Colors.amber.shade100,
-                      textColor: Colors.amber.shade900),
-                // Corrected here without touching the sheet, so it is worth
-                // saying which rows differ from the bank.
-                if (q.isEdited)
-                  _TagChip(
-                      label: 'সম্পাদিত',
-                      color: Colors.deepOrange.shade50,
-                      textColor: Colors.deepOrange.shade700),
-                // One উদ্দীপক over several questions: the run is selected whole,
-                // so say which run this card is part of rather than letting a
-                // second question tick itself without explanation.
-                if (run != null && run.length > 1)
-                  _TagChip(
-                      label: 'একই উদ্দীপক · ${run.length}টি',
-                      color: Colors.indigo.shade50,
-                      textColor: Colors.indigo.shade700),
-                _TagChip(
-                    label: 'অধ্যায় ${q.chapterNumber}: ${q.chapterName}',
-                    color: Colors.teal.shade50,
-                    textColor: Colors.teal.shade700),
-                // Only meaningful once the paper is being printed as two sets.
-                if (_twoSets)
-                  for (var i = 0; i < 2; i++)
-                    _SetChip(
-                      label: _setLabels[i].isEmpty
-                          ? (i == 0 ? 'ক' : 'খ')
-                          : _setLabels[i],
-                      active: q.setLabel == _setLabels[i],
-                      selected: q.isSelected,
-                      onTap: () {
-                        _toggleQuestion(q);
-                        _toggleQuestionSet(q, i);
-                      },
+        ),
+      ),
+    );
+  }
+
+  /// The four options, in the two-column grid the browser studio uses.
+  Widget _buildCardOptions(HighSchoolQuestion q) {
+    final mcq = q.mcqData;
+    if (mcq == null || mcq.options.isEmpty) return const SizedBox.shrink();
+    const letters = ['ক', 'খ', 'গ', 'ঘ'];
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth <= 8
+              ? constraints.maxWidth
+              : (constraints.maxWidth - 8) / 2;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              for (var i = 0; i < mcq.options.length; i++)
+                Builder(builder: (context) {
+                  final isCorrect = mcq.options[i] == mcq.correctAns;
+                  return Container(
+                    width: itemWidth,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isCorrect
+                          ? _kRqColor.withOpacity(0.10)
+                          : const Color(0xFFF1F3F6),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isCorrect
+                            ? _kRqColor.withOpacity(0.55)
+                            : Colors.transparent,
+                      ),
                     ),
-              ],
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 18,
+                          height: 18,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: isCorrect ? _kRqColor : Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: isCorrect
+                                  ? _kRqColor
+                                  : const Color(0xFFD9E1EA),
+                            ),
+                          ),
+                          child: Text(
+                            i < letters.length ? letters[i] : '${i + 1}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color:
+                                  isCorrect ? Colors.white : _kSubText,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            mcq.options[i],
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.2,
+                              fontWeight:
+                                  isCorrect ? FontWeight.w700 : FontWeight.w400,
+                              color:
+                                  isCorrect ? _kRqColor : _kDarkText,
+                            ),
+                          ),
+                        ),
+                        if (isCorrect)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 4),
+                            child: Icon(Icons.check_circle,
+                                size: 14, color: _kRqColor),
+                          ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// A CQ's sub-questions, with their marks, under the উদ্দীপক.
+  Widget _buildCardSubQuestions(HighSchoolQuestion q) {
+    final subs = q.cqSubQuestions;
+    if (subs.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final sub in subs)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 18,
+                    height: 18,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _kCqColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      sub.label,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: _kCqColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      sub.text,
+                      style: const TextStyle(fontSize: 13, height: 1.3),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text('[${sub.mark}]',
+                      style:
+                          const TextStyle(fontSize: 11, color: _kSubText)),
+                ],
+              ),
             ),
-          ),
-          // Expanded detail
-          if (isExpanded) _buildExpandedDetail(q),
         ],
       ),
     );
   }
 
-  /// What an expanded card shows: the question as the paper will print it, and
-  /// the way to correct it.
-  ///
-  /// The edit button lives here rather than on the collapsed row because what is
-  /// being corrected is the text in front of the reader — and because a card has
-  /// to be opened to see what is wrong with it.
-  Widget _buildExpandedDetail(HighSchoolQuestion q) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: TextButton.icon(
-              onPressed: () => _openEditQuestion(q),
-              icon: const Icon(Icons.edit_outlined, size: 15),
-              label:
-                  const Text('সম্পাদনা করুন', style: TextStyle(fontSize: 12.5)),
-              style: TextButton.styleFrom(
-                foregroundColor: _kPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(0, 30),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  /// A small figure on the card, the way the browser studio shows one.
+  Widget _buildCardThumbnail(HighSchoolQuestion q) {
+    final imageUrl = HighSchoolExportService.resolveImageUrl(q.stemImageUrl);
+    if (imageUrl.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => _showCardImage(imageUrl),
+          child: Container(
+            height: 120,
+            width: 200,
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image_outlined,
+                    color: Colors.grey, size: 20),
               ),
             ),
           ),
         ),
-        _buildExpandedBody(q),
+      ),
+    );
+  }
+
+  /// Chapter, source and set chips under the question text.
+  Widget _buildCardTags(HighSchoolQuestion q, List<HighSchoolQuestion>? run) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (q.stemImageUrl.trim().isNotEmpty)
+          _TagChip(
+              label: 'ছবি আছে',
+              color: Colors.blue.shade50,
+              textColor: Colors.blue.shade700),
+        if (q.boardYearTag.isNotEmpty)
+          _TagChip(
+              label: q.boardYearTag,
+              color: Colors.purple.shade100,
+              textColor: Colors.purple.shade800),
+        // Where the row came from, so a hand-typed question is not mistaken
+        // for one that is in the bank.
+        if (q.isManual)
+          _TagChip(
+              label: 'নিজে লেখা',
+              color: Colors.amber.shade100,
+              textColor: Colors.amber.shade900),
+        // Corrected here without touching the sheet, so it is worth saying
+        // which rows differ from the bank.
+        if (q.isEdited)
+          _TagChip(
+              label: 'সম্পাদিত',
+              color: Colors.deepOrange.shade50,
+              textColor: Colors.deepOrange.shade700),
+        // One উদ্দীপক over several questions: the run is selected whole, so say
+        // which run this card is part of rather than letting a second question
+        // tick itself without explanation.
+        if (run != null && run.length > 1)
+          _TagChip(
+              label: 'একই উদ্দীপক · ${run.length}টি',
+              color: Colors.indigo.shade50,
+              textColor: Colors.indigo.shade700),
+        _TagChip(
+            label: 'অধ্যায় ${q.chapterNumber}: ${q.chapterName}',
+            color: Colors.teal.shade50,
+            textColor: Colors.teal.shade700),
+        // Only meaningful once the paper is being printed as two sets.
+        if (_twoSets)
+          for (var i = 0; i < 2; i++)
+            _SetChip(
+              label: _setLabels[i].isEmpty
+                  ? (i == 0 ? 'ক' : 'খ')
+                  : _setLabels[i],
+              active: q.setLabel == _setLabels[i],
+              selected: q.isSelected,
+              onTap: () {
+                _toggleQuestion(q);
+                _toggleQuestionSet(q, i);
+              },
+            ),
       ],
     );
   }
 
-  Widget _buildExpandedBody(HighSchoolQuestion q) {
-    if (q.isShort) {
-      final data = q.shortData;
-      return Container(
-        margin: const EdgeInsets.fromLTRB(56, 0, 12, 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.teal.shade50,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  /// The sheet that opens when a card's figure is tapped.
+  void _showCardImage(String imageUrl) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(24),
+        child: Stack(
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                    child: Text(data?.text ?? '',
-                        style: const TextStyle(fontSize: 13))),
-                const SizedBox(width: 8),
-                Text('[${data?.mark ?? q.totalMarks}]',
-                    style: const TextStyle(color: _kSubText, fontSize: 12)),
-              ],
-            ),
-            if (q.stemImageUrl.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _buildQuestionImage(q.stemImageUrl),
-            ],
-          ],
-        ),
-      );
-    }
-    if (q.isCq) {
-      return Container(
-        margin: const EdgeInsets.fromLTRB(56, 0, 12, 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (q.stemImageUrl.trim().isNotEmpty) ...[
-              _buildQuestionImage(q.stemImageUrl),
-              const SizedBox(height: 8),
-            ],
-            ...q.cqSubQuestions.map((sq) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                            color: _kCqColor,
-                            borderRadius: BorderRadius.circular(4)),
-                        child: Text(sq.label,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold)),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: Text(sq.text,
-                              style: const TextStyle(fontSize: 13))),
-                      const SizedBox(width: 8),
-                      Text('[${sq.mark}]',
-                          style:
-                              const TextStyle(color: _kSubText, fontSize: 12)),
-                    ],
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900, maxHeight: 680),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.grey),
                   ),
-                )),
-          ],
-        ),
-      );
-    } else {
-      final mcq = q.mcqData;
-      if (mcq == null) return const SizedBox.shrink();
-      final letters = ['ক', 'খ', 'গ', 'ঘ'];
-      final stem = q.mcqStemText;
-      return Container(
-        margin: const EdgeInsets.fromLTRB(56, 0, 12, 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // The intro and its figure, when the question carries them. A
-            // group of MCQs shares one উদ্দীপক, so what is shown here is what
-            // prints over the first question of that group.
-            if (stem.isNotEmpty) ...[
-              Text(stem, style: const TextStyle(fontSize: 13)),
-              const SizedBox(height: 6),
-            ],
-            if (q.stemImageUrl.trim().isNotEmpty) ...[
-              _buildQuestionImage(q.stemImageUrl),
-              const SizedBox(height: 8),
-            ],
-            ...List.generate(mcq.options.length, (i) {
-              final letter = i < letters.length ? letters[i] : '${i + 1}';
-              final isCorrect = mcq.options[i] == mcq.correctAns;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 22,
-                      height: 22,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isCorrect
-                            ? Colors.green.shade400
-                            : Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(letter,
-                          style: TextStyle(
-                              color: isCorrect ? Colors.white : Colors.black87,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                        child: Text(mcq.options[i],
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: isCorrect
-                                    ? Colors.green.shade700
-                                    : Colors.black87))),
-                    if (isCorrect)
-                      const Icon(Icons.check_circle,
-                          size: 16, color: Colors.green),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      );
-    }
-  }
-
-  Widget _buildQuestionImage(String rawUrl) {
-    final imageUrl = HighSchoolExportService.resolveImageUrl(rawUrl);
-    if (imageUrl.isEmpty) return const SizedBox.shrink();
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(maxHeight: 190),
-        color: Colors.white,
-        alignment: Alignment.center,
-        child: Image.network(
-          imageUrl,
-          height: 180,
-          fit: BoxFit.contain,
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            final expected = progress.expectedTotalBytes;
-            final value = expected == null
-                ? null
-                : progress.cumulativeBytesLoaded / expected;
-            return SizedBox(
-              height: 120,
-              child: Center(
-                child: CircularProgressIndicator(
-                  value: value,
-                  strokeWidth: 2,
-                  color: _kPrimary,
                 ),
               ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) => Container(
-            height: 90,
-            alignment: Alignment.center,
-            color: Colors.grey.shade100,
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.broken_image_outlined, color: Colors.grey),
-                SizedBox(height: 4),
-                Text('ছবি দেখানো যায়নি',
-                    style: TextStyle(fontSize: 11, color: _kSubText)),
-              ],
             ),
-          ),
+            Positioned(
+              top: 6,
+              right: 6,
+              child: IconButton(
+                tooltip: 'বন্ধ করুন',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2915,13 +4969,11 @@ class _HighSchoolQPaperGeneratorPageState
   /// contradict it. Here, top to bottom *is* the order on the page, so the letter
   /// a block is headed with reads straight off its row.
   Widget _buildSectionCard() {
-    final merged = _mergesCqAndShorts;
-
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: BoxDecoration(
         color: _kCardBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
@@ -2932,17 +4984,25 @@ class _HighSchoolQPaperGeneratorPageState
               const Icon(Icons.view_column_outlined,
                   size: 17, color: _kPrimary),
               const SizedBox(width: 7),
-              const Text('বিভাগ ও কলাম',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13.5,
-                      color: _kDarkText)),
-              const Spacer(),
-              Text('ধরে টেনে ক্রম বদলাও',
-                  style: TextStyle(fontSize: 11, color: _kSubText)),
+              const Expanded(
+                child: Text('বিভাগ ও কলাম',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                        color: _kDarkText)),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text('ধরে টেনে ক্রম বদলাও',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: _kSubText)),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           ReorderableListView.builder(
             shrinkWrap: true,
             buildDefaultDragHandles: false,
@@ -2977,44 +5037,11 @@ class _HighSchoolQPaperGeneratorPageState
               );
             },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           const Text(
             'প্রতিটি বিভাগ আলাদাভাবে এক বা দুই কলামে বসানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
             style: TextStyle(fontSize: 11, color: _kSubText),
           ),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            decoration: BoxDecoration(
-              color: _kPrimary.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _kPrimary.withOpacity(0.16)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.merge_type_rounded,
-                    size: 14, color: _kPrimary.withOpacity(0.7)),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    merged
-                        ? 'সৃজনশীল ও সংক্ষিপ্ত প্রশ্ন পরপর আছে, তাই দুটি একটিই '
-                            'প্রবাহে একসাথে বসবে। মাঝে কোনো বিভাগ না সরালে এই যুক্ত '
-                            'বিন্যাস থাকবে।'
-                        : 'সৃজনশীল ও সংক্ষিপ্ত প্রশ্ন পরপর নেই, তাই এরা আলাদা বিভাগ হিসেবে '
-                            'বসবে। দুটি পরপর করলে আবার একটিই প্রবাহে জুটে যাবে।',
-                    style: const TextStyle(fontSize: 11, color: _kSubText),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 10),
-          _buildSetControls(),
         ],
       ),
     );
@@ -3037,130 +5064,6 @@ class _HighSchoolQPaperGeneratorPageState
     }
   }
 
-  /// Controls for printing the paper as two variants in one document.
-  Widget _buildSetControls() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('দুইটি সেটে প্রশ্নপত্র',
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: _kDarkText)),
-                  const SizedBox(height: 3),
-                  Text(
-                    'ক ও খ একই পেজে তৈরি হবে — আলাদা করে তৈরি করলে '
-                    'প্রতিটির একটা পেজ নষ্ট হয়।',
-                    style: TextStyle(fontSize: 11, color: _kSubText),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: _twoSets,
-              activeColor: _kPrimary,
-              onChanged: (v) => setState(() {
-                _twoSets = v;
-                if (!v) _assignAllToFirstSet();
-              }),
-            ),
-          ],
-        ),
-        if (_twoSets) ...[
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              for (var i = 0; i < 2; i++) ...[
-                if (i > 0) const SizedBox(width: 12),
-                Expanded(
-                  child: _buildTextField(
-                    ctrl: _setLabelControllers[i],
-                    label: i == 0 ? 'প্রথম সেটের নাম' : 'দ্বিতীয় সেটের নাম',
-                    icon: i == 0 ? Icons.looks_one : Icons.looks_two,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _selectedQuestions.length < 2
-                      ? null
-                      : _splitSelectedEvenly,
-                  icon: const Icon(Icons.balance, size: 17),
-                  label: Text(
-                      'অর্ধেক করে ভাগ করো (${_selectedQuestions.length} টি)'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _assignAllToFirstSet,
-                  icon: const Icon(Icons.merge_type, size: 17),
-                  label: const Text('সব প্রশ্ন প্রথম সেটে'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          for (var i = 0; i < 2; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: i == 0
-                          ? _kPrimary.withOpacity(0.10)
-                          : Colors.teal.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      _setLabels[i].isEmpty
-                          ? (i == 0 ? 'ক' : 'খ')
-                          : _setLabels[i],
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: i == 0 ? _kPrimary : Colors.teal.shade700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_questionsForSet(i).length} টি প্রশ্ন'
-                    '  ·  ${_questionsForSet(i).fold(0, (s, q) => s + q.totalMarks)} নম্বর',
-                    style: const TextStyle(fontSize: 11, color: _kSubText),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 6),
-          const Text(
-            'প্রতিটি প্রশ্নের কার্ডে সেট বদলাতে পারেন।',
-            style: TextStyle(fontSize: 11, color: _kSubText),
-          ),
-          const SizedBox(height: 3),
-          const Text(
-            'কোনো সেটে নিজের প্রশ্ন না থাকলে সেটিও প্রথম সেটের সব প্রশ্ন ছাপে — শুধু MCQ-এর ক্রম বদলে যায়।',
-            style: TextStyle(fontSize: 11, color: _kSubText),
-          ),
-        ],
-      ],
-    );
-  }
-
   Widget _buildTextField({
     required TextEditingController ctrl,
     required String label,
@@ -3168,10 +5071,12 @@ class _HighSchoolQPaperGeneratorPageState
     TextInputType? keyboardType,
     String? hintText,
     String? helperText,
+    ValueChanged<String>? onChanged,
   }) {
     return TextField(
       controller: ctrl,
       keyboardType: keyboardType,
+      onChanged: onChanged,
       style: const TextStyle(color: _kDarkText, fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
@@ -3537,6 +5442,7 @@ class _ChapterGroupHeader extends StatelessWidget {
       );
 }
 
+/// The CQ / MCQ / RQ pill on a picker card.
 class _TypeBadge extends StatelessWidget {
   final String type;
   final Color color;
@@ -3544,15 +5450,47 @@ class _TypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withOpacity(0.4)),
+          color: color.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.22)),
         ),
         child: Text(type,
             style: TextStyle(
-                color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+                color: color,
+                fontSize: 10.5,
+                letterSpacing: .3,
+                fontWeight: FontWeight.w800)),
+      );
+}
+
+/// The mark a card carries, in a quiet little box beside the type pill.
+class _MarksBadge extends StatelessWidget {
+  final int marks;
+  const _MarksBadge({required this.marks});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F4F8),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$marks',
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: _kPrimary)),
+            const SizedBox(width: 3),
+            const Text('নম্বর',
+                style: TextStyle(fontSize: 9.5, color: _kSubText)),
+          ],
+        ),
       );
 }
 
@@ -3700,14 +5638,14 @@ class _PickFilterChip extends StatelessWidget {
       message: title,
       child: Material(
         color: selected ? color : color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: selected ? color : color.withOpacity(0.35),
               ),
@@ -3718,16 +5656,16 @@ class _PickFilterChip extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: fg,
                   ),
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(width: 4),
                 Text(
                   '$count',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: selected ? FontWeight.bold : FontWeight.w400,
                     color: selected ? Colors.white : _kSubText,
                   ),
@@ -3747,11 +5685,12 @@ class _PickFilterChip extends StatelessWidget {
 /// short questions were merged, so there was no way to print the sections in
 /// the order a particular exam wanted.
 enum _SectionKind {
-  cq('সৃজনশীল প্রশ্ন (CQ)', 'সৃজনশীল প্রশ্ন', _kCqColor),
-  rq('সংক্ষিপ্ত প্রশ্ন (SQ)', 'সংক্ষিপ্ত প্রশ্ন', _kRqColor),
-  mcq('বহুনির্বাচনী প্রশ্ন (MCQ)', 'বহুনির্বাচনী প্রশ্ন', _kMcqColor);
+  cq('সৃজনশীল প্রশ্ন (CQ)', 'সৃজনশীল প্রশ্ন', 'সৃজনশীল (CQ)', _kCqColor),
+  rq('সংক্ষিপ্ত প্রশ্ন (SQ)', 'সংক্ষিপ্ত প্রশ্ন', 'সংক্ষিপ্ত (SQ)', _kRqColor),
+  mcq('বহুনির্বাচনী প্রশ্ন (MCQ)', 'বহুনির্বাচনী প্রশ্ন', 'বহুনির্বাচনী (MCQ)', _kMcqColor);
 
-  const _SectionKind(this.title, this.shortName, this.color);
+  const _SectionKind(
+      this.title, this.shortName, this.compactTitle, this.color);
 
   /// The block's name as the printed banner spells it, minus the `ক-বিভাগ:`
   /// prefix. The letter comes from the block's *place* in the printed order, so
@@ -3760,6 +5699,10 @@ enum _SectionKind {
 
   /// Compact name, for a row that has no questions to count.
   final String shortName;
+
+  /// One-line name for the narrow settings rail, where the full title would
+  /// wrap onto three lines and make every row needlessly tall.
+  final String compactTitle;
 
   final Color color;
 
@@ -3800,17 +5743,17 @@ class _SectionCardRow extends StatelessWidget {
     final empty = questionCount == 0;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Container(
         decoration: BoxDecoration(
           color: empty ? Colors.grey.shade50 : Colors.white,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: empty ? Colors.grey.shade300 : kind.color.withOpacity(0.35),
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
+          padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
           child: Row(
             children: [
               // The drag area stops short of the column toggle: a pill inside
@@ -3824,28 +5767,35 @@ class _SectionCardRow extends StatelessWidget {
                     child: Row(
                       children: [
                         Icon(Icons.drag_indicator_rounded,
-                            size: 18,
+                            size: 16,
                             color: empty ? Colors.grey.shade400 : kind.color),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 letter.isEmpty
-                                    ? kind.title
-                                    : '$letter-বিভাগ: ${kind.title}',
+                                    ? kind.compactTitle
+                                    : '$letter-বিভাগ: ${kind.compactTitle}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                    fontSize: 12.5,
+                                    fontSize: 11.5,
+                                    height: 1.15,
                                     fontWeight: FontWeight.bold,
                                     color: empty ? _kSubText : _kDarkText),
                               ),
                               Text(
                                 empty
                                     ? 'কোনো ${kind.shortName} নেই'
-                                    : '$questionCount টি প্রশ্ন  ·  $marks নম্বর',
+                                    : '$questionCount টি · $marks নম্বর',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    fontSize: 11, color: _kSubText),
+                                    fontSize: 10.5, height: 1.2,
+                                    color: _kSubText),
                               ),
                             ],
                           ),
@@ -3883,7 +5833,7 @@ class _ColumnToggle extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < QuestionLayout.values.length; i++) ...[
-          if (i > 0) const SizedBox(width: 6),
+          if (i > 0) const SizedBox(width: 4),
           // Labelled for the pointer and the screen reader: the pill itself is
           // two bars and no words, which is all that fits beside a section name.
           Tooltip(
@@ -3893,7 +5843,7 @@ class _ColumnToggle extends StatelessWidget {
               onTap: () => onChanged(QuestionLayout.values[i]),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 decoration: BoxDecoration(
                   color: value == QuestionLayout.values[i]
                       ? _kPrimary.withOpacity(0.10)
@@ -3912,8 +5862,8 @@ class _ColumnToggle extends StatelessWidget {
                   children: List.generate(
                     QuestionLayout.values[i].mcqColumns,
                     (_) => Container(
-                      width: 7,
-                      height: 14,
+                      width: 6,
+                      height: 12,
                       margin: const EdgeInsets.symmetric(horizontal: 1),
                       decoration: BoxDecoration(
                         color: value == QuestionLayout.values[i]
@@ -3957,9 +5907,9 @@ class _PickerChapterChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected ? _kPrimary : Colors.grey.shade300,
             ),
@@ -3969,19 +5919,19 @@ class _PickerChapterChip extends StatelessWidget {
             children: [
               Text('অধ্যায় $chapterNumber',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                     color: selected ? _kPrimary : _kSubText,
                   )),
-              const SizedBox(width: 5),
+              const SizedBox(width: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
                   color: _kSubText.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(7),
                 ),
                 child: Text('$count',
-                    style: const TextStyle(fontSize: 10, color: _kSubText)),
+                    style: const TextStyle(fontSize: 9.5, color: _kSubText)),
               ),
             ],
           ),
@@ -4020,15 +5970,27 @@ class _CountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
         decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
+            color: Colors.white.withOpacity(0.16),
             borderRadius: BorderRadius.circular(20)),
-        child: Text('$label: $selected/$total',
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration:
+                  BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 5),
+            Text('$label: $selected/$total',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700)),
+          ],
+        ),
       );
 }
 

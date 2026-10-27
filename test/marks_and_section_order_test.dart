@@ -198,7 +198,9 @@ final String _payload = jsonEncode({
 });
 
 Future<void> _openPicker(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(1000, 2400);
+  // Under the desktop breakpoint, so this exercises the three-step wizard and
+  // its compact step-3 layout rather than the desktop studio.
+  tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
@@ -391,8 +393,6 @@ void main() {
       await _openPicker(tester);
       await _toLastStep(tester);
 
-      expect(find.textContaining('একটিই প্রবাহে একসাথে বসবে'), findsOneWidget);
-
       // MCQ (last) up one slot: between CQ and RQ.
       final delta = _dragDelta(tester, 2, 1);
       await tester.drag(
@@ -404,7 +404,6 @@ void main() {
         'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
         'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
       ]);
-      expect(find.textContaining('আলাদা বিভাগ হিসেবে'), findsOneWidget);
     });
 
     testWidgets('an empty section is still listed, with nothing in it',

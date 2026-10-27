@@ -156,6 +156,200 @@ extension McqAnswerSheetStyleLabels on McqAnswerSheetStyle {
       };
 }
 
+/// The paper stock a sheet is laid out on.
+enum PaperSize { a4, letter, legal, a5 }
+
+extension PaperSizeMetrics on PaperSize {
+  String get label => switch (this) {
+        PaperSize.a4 => 'A4',
+        PaperSize.letter => 'Letter',
+        PaperSize.legal => 'Legal',
+        PaperSize.a5 => 'A5',
+      };
+
+  double get widthMm => switch (this) {
+        PaperSize.a4 => 210,
+        PaperSize.letter => 215.9,
+        PaperSize.legal => 215.9,
+        PaperSize.a5 => 148,
+      };
+
+  double get heightMm => switch (this) {
+        PaperSize.a4 => 297,
+        PaperSize.letter => 279.4,
+        PaperSize.legal => 355.6,
+        PaperSize.a5 => 210,
+      };
+
+  /// The margin down each side of the sheet. A5 is narrow enough that the A4
+  /// gutter would leave too little room for a line of Bengali text.
+  double get sidePaddingPt => this == PaperSize.a5 ? 20 : 28;
+
+  String get widthCss => '${_mm(widthMm)}mm';
+  String get heightCss => '${_mm(heightMm)}mm';
+  String get cssSize => '$widthCss $heightCss';
+
+  static String _mm(double value) => value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(1);
+}
+
+/// How the body of the sheet lines up.
+enum PaperTextAlign { left, center, right, justify }
+
+extension PaperTextAlignLabels on PaperTextAlign {
+  String get label => switch (this) {
+        PaperTextAlign.left => 'বাম',
+        PaperTextAlign.center => 'মাঝ',
+        PaperTextAlign.right => 'ডান',
+        PaperTextAlign.justify => 'সমান্তরাল',
+      };
+
+  String get css => name;
+}
+
+/// How an MCQ option's letter is written.
+enum McqOptionStyle { circle, parentheses, dot, closeParenthesis }
+
+extension McqOptionStyleLabels on McqOptionStyle {
+  String get label => switch (this) {
+        McqOptionStyle.circle => '○',
+        McqOptionStyle.parentheses => '()',
+        McqOptionStyle.dot => '.',
+        McqOptionStyle.closeParenthesis => ')',
+      };
+
+  String prefix(String letter) => switch (this) {
+        McqOptionStyle.circle => '$letter ○',
+        McqOptionStyle.parentheses => '($letter)',
+        McqOptionStyle.dot => '$letter.',
+        McqOptionStyle.closeParenthesis => '$letter)',
+      };
+}
+
+/// The print-settings panel's choices that are not already named arguments of
+/// [HighSchoolExportService.generateHtml].
+///
+/// The defaults reproduce the sheet as it was before the panel existed, so a
+/// caller that does not pass these settings gets the same HTML it used to.
+class PaperPrintSettings {
+  const PaperPrintSettings({
+    this.paperSize = PaperSize.a4,
+    this.textAlign = PaperTextAlign.left,
+    this.pageNumbers = false,
+    this.optionStyle = McqOptionStyle.parentheses,
+    this.columnDivider = true,
+    this.questionGap = 0,
+    this.columnGap = 22,
+    this.showSchool = true,
+    this.showExam = true,
+    this.showSubject = true,
+    this.showClass = true,
+    this.showSet = true,
+    this.showInstructions = true,
+    this.showChapter = false,
+    this.showSubjectCode = false,
+    this.showStudentInfo = false,
+    this.showObtainedMarks = false,
+    this.showQuestionInfo = false,
+    this.showImportant = false,
+    this.editingMode = false,
+    this.showLogo = false,
+    this.showHeader = false,
+    this.showFooter = false,
+    this.showWatermark = false,
+    this.showAddress = false,
+    this.chapter = '',
+    this.subjectCode = '',
+    this.address = '',
+    this.headerNote = '',
+    this.watermarkText = '',
+    this.logoDataUri = '',
+  });
+
+  final PaperSize paperSize;
+  final PaperTextAlign textAlign;
+  final bool pageNumbers;
+  final McqOptionStyle optionStyle;
+  final bool columnDivider;
+  final double questionGap;
+  final double columnGap;
+
+  final bool showSchool;
+  final bool showExam;
+  final bool showSubject;
+  final bool showClass;
+  final bool showSet;
+  final bool showInstructions;
+  final bool showChapter;
+  final bool showSubjectCode;
+  final bool showStudentInfo;
+  final bool showObtainedMarks;
+  final bool showQuestionInfo;
+  final bool showImportant;
+
+  /// Starts the preview with the sheet editable, the same state the toolbar's
+  /// edit button switches on.
+  final bool editingMode;
+
+  final bool showLogo;
+  final bool showHeader;
+  final bool showFooter;
+  final bool showWatermark;
+  final bool showAddress;
+
+  final String chapter;
+  final String subjectCode;
+  final String address;
+
+  /// An extra line the panel's A button adds under the exam title.
+  final String headerNote;
+
+  final String watermarkText;
+
+  /// A `data:image/...;base64,...` URI for the school logo, or empty.
+  final String logoDataUri;
+
+  /// A cheap value that moves whenever the sheet would change.
+  ///
+  /// The live preview reloads only when its signature moves; without this the
+  /// panel's switches would update the export but leave the pane on the old
+  /// sheet.
+  String get signature => [
+        paperSize.name,
+        textAlign.name,
+        pageNumbers,
+        optionStyle.name,
+        columnDivider,
+        questionGap,
+        columnGap,
+        showSchool,
+        showExam,
+        showSubject,
+        showClass,
+        showSet,
+        showInstructions,
+        showChapter,
+        showSubjectCode,
+        showStudentInfo,
+        showObtainedMarks,
+        showQuestionInfo,
+        showImportant,
+        editingMode,
+        showLogo,
+        showHeader,
+        showFooter,
+        showWatermark,
+        showAddress,
+        chapter,
+        subjectCode,
+        address,
+        headerNote,
+        watermarkText,
+        logoDataUri,
+      ].join('~');
+}
+
 /// A Bangla face a paper can be printed in.
 ///
 /// The PDF stands apart: it sets Bangla through SutonnyMJ, a Bijoy-ANSI face
@@ -443,6 +637,7 @@ class HighSchoolExportService {
     final maxW = usePoints ? size.maxWidthPt : size.maxWidthPt * 1.333;
 
     return '<img class="paper-image" src="$src" alt="উদ্দীপক চিত্র" '
+        'contenteditable="false" draggable="true" '
         'data-base-max-width="${_trimNum(maxW)}" '
         'data-base-max-height="${_trimNum(maxH)}" data-base-unit="$unit" '
         'style="display:block; margin:4pt 0 6pt 0; '
@@ -470,6 +665,13 @@ class HighSchoolExportService {
 
   /// The shipped faces, as data URIs, filled by [preloadPaperFonts].
   static final Map<PaperFont, String> _embeddedFaces = {};
+
+  /// The print settings of the sheet being written.
+  ///
+  /// [generateHtml] is synchronous and the writers below only run from it, so
+  /// one field carries the panel's choices through the nested helpers instead
+  /// of threading another parameter through every one of them.
+  static PaperPrintSettings _print = const PaperPrintSettings();
 
   /// Whether [font]'s face is in hand and can be written into a sheet.
   static bool carriesPaperFont(PaperFont font) =>
@@ -1386,6 +1588,11 @@ class HighSchoolExportService {
     /// font, and fallen back on when it is not; see [PaperFont].
     PaperFont font = PaperFont.kalpurush,
 
+    /// The choices the print-settings panel adds on top of the arguments above:
+    /// paper stock, header toggles, watermark, page numbers, and so on. The
+    /// defaults keep the sheet exactly as it was before the panel existed.
+    PaperPrintSettings printSettings = const PaperPrintSettings(),
+
     /// Lay the sheet out for a desktop-width window instead of the device's own
     /// width. The live preview asks for this; see [desktopViewport] below.
     bool desktopMode = false,
@@ -1397,6 +1604,16 @@ class HighSchoolExportService {
     /// moves these controls into its own settings rail.
     bool includeToolbar = true,
   }) {
+    _print = printSettings;
+
+    // The page box. Page numbers need a foot of room for the margin box; the
+    // sheet itself keeps its own side padding either way.
+    final pageMargin = _print.pageNumbers ? '0 0 10mm 0' : '0';
+    final pageNumberRule = _print.pageNumbers
+        ? ' @bottom-center { content: "পৃষ্ঠা " counter(page, bengali);'
+            ' font-size: 9pt; color: #64748b; }'
+        : '';
+
     // A two-set paper prints as two papers in one file. A question belongs to a
     // set through [HighSchoolQuestion.setLabel], and a question the reader never
     // filed into a set belongs to both — dropping it would silently lose a
@@ -1662,6 +1879,10 @@ $paperFontBlock    :root {
         outline: 2px solid #6366f1;
         outline-offset: 3px;
       }
+      .editing .paper-image:hover {
+        outline: 1px dashed #a5b4fc;
+        outline-offset: 2px;
+      }
     }
     .edit-hint { font-size: 12px; color: var(--muted); }
     .edit-hint[hidden] { display: none; }
@@ -1814,15 +2035,16 @@ $paperFontBlock    :root {
        Same paper, same text width, so a line that wraps here wraps the same way
        in the PDF: the canvas on screen is what the printer produces. */
     .paper-sheet {
-      width: 210mm;
+      width: ${_print.paperSize.widthCss};
       max-width: 100%;
-      min-height: 297mm;
+      min-height: ${_print.paperSize.heightCss};
       margin: 0 auto;
       background: white;
-      padding: 18pt 28pt 18px;
+      padding: 18pt ${_print.paperSize.sidePaddingPt.round()}pt 18px;
       border-radius: 8px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
       zoom: var(--paper-scale, 1);
+      text-align: ${_print.textAlign.css};
       /* The paper's base size, set where the PDF sets its body style. Text with
          no size of its own — an MCQ stem, for one — has to move with the
          font-size control too, and 16px is what it inherited before. */
@@ -1846,6 +2068,86 @@ $paperFontBlock    :root {
     }
     .school-title { font-size: ${_cssFontSize(24, fontStep)}; font-weight: 700; text-align: center; margin-bottom: 4px; }
     .exam-title { font-size: ${_cssFontSize(18, fontStep)}; font-weight: 600; text-align: center; }
+    .header-note { font-size: ${_cssFontSize(12, fontStep)}; color: var(--muted); text-align: center; margin-top: 2px; }
+    /* The optional branding band above the masthead. */
+    .brand-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding-bottom: 6px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    .brand-header-text {
+      display: flex;
+      flex-direction: column;
+      font-size: ${_cssFontSize(11, fontStep)};
+      color: var(--muted);
+    }
+    .brand-logo {
+      max-height: 44px;
+      max-width: 130px;
+      object-fit: contain;
+    }
+    .brand-logo-row {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    .school-address {
+      text-align: center;
+      font-size: ${_cssFontSize(11, fontStep)};
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+    .student-info {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 4px 14px;
+      font-size: ${_cssFontSize(11, fontStep)};
+      color: var(--muted);
+      padding: 4px 0 2px;
+    }
+    .obtained-marks {
+      text-align: right;
+      font-size: ${_cssFontSize(11, fontStep)};
+      color: var(--muted);
+      padding: 2px 0;
+    }
+    .question-info {
+      font-size: ${_cssFontSize(10, fontStep)};
+      color: var(--muted);
+      margin-top: 1px;
+    }
+    .important-star {
+      color: #d97706;
+      margin-right: 3px;
+    }
+    /* A fixed watermark repeats on every printed page. */
+    .watermark {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-32deg);
+      font-size: 70px;
+      font-weight: 800;
+      color: rgba(15, 23, 42, 0.06);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 0;
+      user-select: none;
+    }
+    .brand-footer {
+      margin-top: 14pt;
+      padding-top: 5px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: ${_cssFontSize(10, fontStep)};
+      color: var(--muted);
+    }
     .meta-bar {
       display: flex;
       justify-content: space-between;
@@ -1922,7 +2224,7 @@ $paperFontBlock    :root {
        number on the continuation — is what lets the two sides finish level.
        `widows`/`orphans` keep a split from leaving one line behind. */
     .cq-card {
-      margin-bottom: 10px;
+      margin-bottom: ${(10 + _print.questionGap).round()}px;
       orphans: 2;
       widows: 2;
     }
@@ -1953,19 +2255,20 @@ $paperFontBlock    :root {
        needs and the next one continues below it in the same column. A grid
        would instead stretch every pair in a row to the taller of the two, so a
        one-line question beside a diagram sat in a card half full of white. */
-    .cq-grid {${cqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${cqLayout.mcqColumns};\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    .cq-grid {${cqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${cqLayout.mcqColumns};\n      column-gap: ${_print.columnGap.round()}px;\n      column-rule: ${_print.columnDivider ? '1px solid var(--border)' : 'none'};' : ''}
     }
     /* A merged CQ + short-question run: one continuous pair of columns, so the
        short questions begin exactly where the creative questions run out —
        mid-column or at the head of the next one. The gap above the run sits on
        the container, not on the heading inside it, so both columns start level. */
-    .flow-grid {${mergeCqAndShort ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    .flow-grid {${mergeCqAndShort ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: ${_print.columnGap.round()}px;\n      column-rule: ${_print.columnDivider ? '1px solid var(--border)' : 'none'};' : ''}
     }
-    .mcq-grid {${mcqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${mcqLayout.mcqColumns};\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    .mcq-grid {${mcqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${mcqLayout.mcqColumns};\n      column-gap: ${_print.columnGap.round()}px;\n      column-rule: ${_print.columnDivider ? '1px solid var(--border)' : 'none'};' : ''}
     }
     /* The card is the question and nothing else: no padding, no margin of its
        own and no rule under it. */
     .mcq-card {
+      ${_print.questionGap > 0 ? 'margin-bottom: ${_print.questionGap.round()}px;' : ''}
       orphans: 2;
       widows: 2;
     }
@@ -2069,7 +2372,7 @@ $paperFontBlock    :root {
     @media screen and (max-width: 700px) {
       .omr-grid { grid-template-columns: repeat(2, 1fr); }
     }
-    .rq-grid {${rqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${rqLayout.mcqColumns};\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    .rq-grid {${rqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${rqLayout.mcqColumns};\n      column-gap: ${_print.columnGap.round()}px;\n      column-rule: ${_print.columnDivider ? '1px solid var(--border)' : 'none'};' : ''}
     }
     /* Short questions are a single line each, as in the PDF: no padding and no
        gap of their own — the line box is the whole of the row, and the mark is
@@ -2082,6 +2385,7 @@ $paperFontBlock    :root {
       align-items: flex-start;
       gap: 8px;
       font-size: ${_cssFontSize(15, fontStep)};
+      ${_print.questionGap > 0 ? 'margin-bottom: ${_print.questionGap.round()}px;' : ''}
       page-break-inside: avoid;
       break-inside: avoid;
     }
@@ -2090,11 +2394,11 @@ $paperFontBlock    :root {
     }
     .rq-mark { font-weight: 400; white-space: nowrap; color: var(--muted); }
 
-    @page { size: A4; margin: 0; }
+    @page { size: ${_print.paperSize.label}; margin: $pageMargin;$pageNumberRule }
 
     @media print {
       body { background: white; padding: 0; }
-      .no-print-toolbar { display: none !important; }
+      .no-print-toolbar, #imageEditorFloat { display: none !important; }
       /* No margin on the page box: the sheet carries the page's own margins, so
          a printed page breaks where the exported PDF page breaks. */
       .paper-sheet {
@@ -2103,7 +2407,7 @@ $paperFontBlock    :root {
         min-height: 0;
         box-shadow: none;
         border-radius: 0;
-        padding: 18pt 28pt 18px;
+        padding: 18pt ${_print.paperSize.sidePaddingPt.round()}pt 18px;
       }
       .paper-sheet + .paper-sheet { break-before: page; margin-top: 0; }
     }
@@ -2115,13 +2419,13 @@ $paperFontBlock    :root {
        used to leave the union drawn by a different face than the intersection. */
     .m { font-family: $kMathFontStack; font-style: normal; }
   </style>
-  <style id="runtimePrintStyle">@page { size: A4 portrait; margin: 0; }</style>
+  <style id="runtimePrintStyle">@page { size: ${_print.paperSize.label} portrait; margin: $pageMargin;$pageNumberRule }</style>
 </head>
-<body class="${compactToolbar ? 'compact-toolbar' : desktopMode ? 'desktop-toolbar' : ''}${includeToolbar ? '' : ' toolbar-hidden'}">
+<body class="${compactToolbar ? 'compact-toolbar' : desktopMode ? 'desktop-toolbar' : ''}${includeToolbar ? '' : ' toolbar-hidden'}${_print.editingMode ? ' editing' : ''}">
   <div class="no-print-toolbar">
     <div class="toolbar-brand"><b>Pi-QBank</b> প্রশ্নপত্র প্রিভিউ</div>
     <div class="toolbar-actions">
-      <span class="edit-hint" id="editHint" hidden>যা লিখবেন সেটাই প্রিন্ট হবে</span>
+      <span class="edit-hint" id="editHint"${_print.editingMode ? '' : ' hidden'}>যা লিখবেন সেটাই প্রিন্ট হবে</span>
       <div class="toolbar-group demo-menu-wrap">
         <button class="btn btn-outline" id="demoQuestionBtn">➕ ডেমো প্রশ্ন</button>
         <div class="demo-menu" id="demoQuestionMenu">
@@ -2172,11 +2476,11 @@ $paperFontBlock    :root {
       $previewAnswerSheetControl
       <div class="toolbar-group print-options">
         <select class="preview-select" id="printPaperSize" aria-label="কাগজের আকার">
-          <option value="A4" selected>A4</option>
-          <option value="Letter">Letter</option>
-          <option value="Legal">Legal</option>
+          <option value="A4" ${_print.paperSize == PaperSize.a4 ? 'selected' : ''}>A4</option>
+          <option value="Letter" ${_print.paperSize == PaperSize.letter ? 'selected' : ''}>Letter</option>
+          <option value="Legal" ${_print.paperSize == PaperSize.legal ? 'selected' : ''}>Legal</option>
           <option value="A3">A3</option>
-          <option value="A5">A5</option>
+          <option value="A5" ${_print.paperSize == PaperSize.a5 ? 'selected' : ''}>A5</option>
         </select>
         <select class="preview-select" id="printOrientation" aria-label="প্রিন্ট দিক">
           <option value="portrait">পোর্ট্রেট</option>
@@ -2197,13 +2501,14 @@ $paperFontBlock    :root {
           <option value="15mm">বড় মার্জিন</option>
         </select>
       </div>
-      <button class="btn btn-outline" id="editBtn">✏️ লাইভ এডিট</button>
+      <button class="btn btn-outline" id="editBtn">${_print.editingMode ? '✅ এডিট শেষ' : '✏️ লাইভ এডিট'}</button>
       </div>
       <button class="btn btn-primary" id="printBtn">🖨️ প্রিন্ট করুন</button>
     </div>
   </div>
 
-  <div class="paper-sheet">
+  <div class="paper-sheet"${_print.editingMode ? ' contenteditable="true"' : ''}>
+    ${_print.showWatermark && _print.watermarkText.trim().isNotEmpty ? '<div class="watermark">${_escapeXml(_print.watermarkText.trim())}</div>' : ''}
 ''');
 
     // Every set goes on one sheet. Whether the sets stay together or get a sheet
@@ -2239,6 +2544,15 @@ $paperFontBlock    :root {
     buffer.write('''
   </div>
 
+  <div id="imageEditorFloat" style="display:none; position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:white; border:1px solid #cbd5e1; border-radius:10px; padding:8px 14px; box-shadow:0 4px 16px rgba(0,0,0,0.18); z-index:1000; align-items:center; gap:8px; font-size:13px;">
+    <span style="color:#475569; font-weight:600;">ছবির আকার:</span>
+    <input type="range" id="floatImageSize" min="25" max="200" step="1" value="100" style="width:120px;">
+    <input type="number" id="floatImageSizeCustom" min="25" max="200" step="1" value="100" style="width:52px; text-align:center; border:1px solid #cbd5e1; border-radius:6px; padding:4px;">
+    <span>%</span>
+    <input type="text" id="floatImageUrl" placeholder="নতুন ছবির URL" aria-label="নতুন ছবির URL" style="width:190px; border:1px solid #cbd5e1; border-radius:6px; padding:4px 6px; font-size:12px;">
+    <button id="floatImageApply" title="নতুন ছবি বসান" style="background:#e0e7ff; border:1px solid #c7d2fe; border-radius:6px; padding:4px 8px; cursor:pointer; color:#4338ca;">বসান</button>
+    <button id="floatImageDelete" title="নির্বাচিত ছবি মুছুন" style="background:#fee2e2; border:1px solid #fecaca; border-radius:6px; padding:4px 8px; cursor:pointer; color:#dc2626;">🗑️</button>
+  </div>
   <script>
     /* Two sets share the sheet while the pair fits on a single A4 page; when it
        does not, the second set moves into a sheet of its own and the printer —
@@ -2391,6 +2705,10 @@ $paperFontBlock    :root {
           selectedImage.classList.remove('image-selected');
           selectedImage = null;
         }
+        var floatEditor = document.getElementById('imageEditorFloat');
+        if (floatEditor) floatEditor.style.display = 'none';
+        var floatUrl = document.getElementById('floatImageUrl');
+        if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
         var imageSize = document.getElementById('imageSizeEditor');
         var imageSizeCustom = document.getElementById('imageSizeCustom');
         if (imageSize) imageSize.disabled = !on || !selectedImage;
@@ -2493,6 +2811,8 @@ $paperFontBlock    :root {
         demo.focus();
       }
 
+      var pageNumbersOn = ${_print.pageNumbers ? 'true' : 'false'};
+
       function setPrintOptions() {
         var paper = document.getElementById('printPaperSize');
         var orientation = document.getElementById('printOrientation');
@@ -2505,9 +2825,13 @@ $paperFontBlock    :root {
         document.documentElement.dataset.paperSize = paperSize;
         document.documentElement.style.setProperty('--paper-scale',
             String(paperScale / 100));
+        var pageMargin = margin ? margin.value : '0';
+        if (pageNumbersOn && pageMargin === '0') pageMargin = '0 0 10mm 0';
         style.textContent = '@page { size: ' + paperSize + ' ' +
             (orientation ? orientation.value : 'portrait') + '; margin: ' +
-            (margin ? margin.value : '0') + '; }';
+            pageMargin + ';' + (pageNumbersOn
+                ? ' @bottom-center { content: "পৃষ্ঠা " counter(page, bengali); font-size: 9pt; color: #64748b; }'
+                : '') + ' }';
       }
 
       function setPreviewImagePreset(value) {
@@ -2625,6 +2949,20 @@ $paperFontBlock    :root {
         }
       }
 
+      function removeSelectedImage() {
+        if (!selectedImage) return;
+        selectedImage.remove();
+        selectedImage = null;
+        var imageSize = document.getElementById('imageSizeEditor');
+        var imageSizeCustom = document.getElementById('imageSizeCustom');
+        if (imageSize) imageSize.disabled = true;
+        if (imageSizeCustom) imageSizeCustom.disabled = true;
+        var floatEditor = document.getElementById('imageEditorFloat');
+        if (floatEditor) floatEditor.style.display = 'none';
+        var floatUrl = document.getElementById('floatImageUrl');
+        if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
+        relayoutSoon();
+      }
       function selectImage(image) {
         if (!isEditing()) return;
         if (selectedImage) selectedImage.classList.remove('image-selected');
@@ -2640,6 +2978,14 @@ $paperFontBlock    :root {
           imageSizeCustom.disabled = false;
           imageSizeCustom.value = '100';
         }
+        var floatEditor = document.getElementById('imageEditorFloat');
+        var floatSize = document.getElementById('floatImageSize');
+        var floatCustom = document.getElementById('floatImageSizeCustom');
+        if (floatEditor) floatEditor.style.display = 'flex';
+        if (floatSize) { floatSize.disabled = false; floatSize.value = '100'; }
+        if (floatCustom) { floatCustom.disabled = false; floatCustom.value = '100'; }
+        var floatUrl = document.getElementById('floatImageUrl');
+        if (floatUrl) { floatUrl.disabled = false; floatUrl.value = ''; }
       }
 
       function resizeSelectedImage(value) {
@@ -2653,6 +2999,10 @@ $paperFontBlock    :root {
         var imageSizeCustom = document.getElementById('imageSizeCustom');
         if (imageSize) imageSize.value = String(percent);
         if (imageSizeCustom) imageSizeCustom.value = String(percent);
+        var floatSize = document.getElementById('floatImageSize');
+        var floatCustom = document.getElementById('floatImageSizeCustom');
+        if (floatSize) floatSize.value = String(percent);
+        if (floatCustom) floatCustom.value = String(percent);
       }
 
       function wireEditor() {
@@ -2794,6 +3144,38 @@ $paperFontBlock    :root {
         if (imageSizeCustom) imageSizeCustom.addEventListener('input', function () {
           resizeSelectedImage(imageSizeCustom.value);
         });
+        var floatImageSize = document.getElementById('floatImageSize');
+        if (floatImageSize) floatImageSize.addEventListener('input', function () {
+          resizeSelectedImage(floatImageSize.value);
+          var fc = document.getElementById('floatImageSizeCustom');
+          if (fc) fc.value = floatImageSize.value;
+        });
+        var floatImageSizeCustom = document.getElementById('floatImageSizeCustom');
+        if (floatImageSizeCustom) floatImageSizeCustom.addEventListener('input', function () {
+          resizeSelectedImage(floatImageSizeCustom.value);
+          var fr = document.getElementById('floatImageSize');
+          if (fr) fr.value = floatImageSizeCustom.value;
+        });
+        var floatImageDelete = document.getElementById('floatImageDelete');
+        if (floatImageDelete) floatImageDelete.addEventListener('click', function () {
+          removeSelectedImage();
+        });
+        var floatImageApply = document.getElementById('floatImageApply');
+        var floatImageUrl = document.getElementById('floatImageUrl');
+        function applyImageUrl() {
+          if (!selectedImage || !floatImageUrl) return;
+          var next = floatImageUrl.value.trim();
+          if (!next) return;
+          selectedImage.setAttribute('src', next);
+          selectedImage.style.maxWidth = 'none';
+          selectedImage.style.maxHeight = 'none';
+          floatImageUrl.value = '';
+          relayoutSoon();
+        }
+        if (floatImageApply) floatImageApply.addEventListener('click', applyImageUrl);
+        if (floatImageUrl) floatImageUrl.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') { applyImageUrl(); event.preventDefault(); }
+        });
         document.addEventListener('click', function (event) {
           var image = event.target;
           if (image && image.classList && image.classList.contains('paper-image')) {
@@ -2806,12 +3188,32 @@ $paperFontBlock    :root {
             menu.hidden = true;
           }
         });
+        // Double-clicking an image jumps to the replacement field, so swapping
+        // the picture is one click away instead of hidden in the toolbar.
+        document.addEventListener('dblclick', function (event) {
+          var image = event.target;
+          if (image && image.classList && image.classList.contains('paper-image') && isEditing()) {
+            selectImage(image);
+            var urlInput = document.getElementById('floatImageUrl');
+            if (urlInput) urlInput.focus();
+          }
+        });
         // One listener on the document rather than one per sheet: a split
         // makes a sheet that was not there when this ran, and the delegate does
         // not care which sheet the typing landed in.
         document.addEventListener('input', function (event) {
           var node = event.target;
           if (node && node.closest && node.closest('.paper-sheet')) relayoutSoon();
+        });
+        // Delete/Backspace removes the selected image as one unit, so an
+        // image that no longer belongs is gone with a single keypress instead
+        // of leaving a stray cursor behind.
+        document.addEventListener('keydown', function (event) {
+          if (!isEditing() || !selectedImage) return;
+          if (event.key === 'Delete' || event.key === 'Backspace') {
+            removeSelectedImage();
+            event.preventDefault();
+          }
         });
         // Escape closes the editor the way it closes anything else.
         document.addEventListener('keydown', function (event) {
@@ -3014,20 +3416,60 @@ $paperFontBlock    :root {
     String cqInstruction = '',
     required McqAnswerSheetStyle mcqAnswerSheetStyle,
   }) {
+    final logo = _print.showLogo && _print.logoDataUri.trim().isNotEmpty
+        ? '<img class="brand-logo" src="${_print.logoDataUri}" alt="লোগো">'
+        : '';
+    final headerAddress =
+        _print.showAddress && _print.address.trim().isNotEmpty
+            ? '<span>${_escapeXml(_print.address.trim())}</span>'
+            : '';
+    // The masthead already carries the school name; the band is the letterhead
+    // — a logo and the address — so it does not repeat it.
+    final brandHeader = _print.showHeader && (logo.isNotEmpty || headerAddress.isNotEmpty)
+        ? '<div class="brand-header">$logo'
+            '${headerAddress.isNotEmpty ? '<div class="brand-header-text">$headerAddress</div>' : ''}'
+            '</div>'
+        : logo.isNotEmpty
+            ? '<div class="brand-logo-row">$logo</div>'
+            : '';
+    final addressLine = _print.showAddress &&
+            _print.address.trim().isNotEmpty &&
+            !_print.showHeader
+        ? '<div class="school-address">${_escapeXml(_print.address.trim())}</div>'
+        : '';
+    final footerText = _print.showAddress && _print.address.trim().isNotEmpty
+        ? _print.address.trim()
+        : (_print.showSchool ? schoolName.trim() : '');
+    final footerBand = _print.showFooter && footerText.isNotEmpty
+        ? '<div class="brand-footer">${_escapeXml(footerText)}</div>'
+        : '';
+
     buffer.write('''
     <div class="paper-set">
       <div class="set-head">
-        ${schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
-        ${examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
+        $brandHeader
+        ${_print.showSchool && schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
+        $addressLine
+        ${_print.showExam && examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
+        ${_print.headerNote.trim().isNotEmpty ? '<div class="header-note">${_escapeXml(_print.headerNote.trim())}</div>' : ''}
 
         <div class="meta-bar">
-          ${setLabel.isNotEmpty ? '<div>সেট: ${_escapeXml(setLabel)}</div>' : ''}
-          <div>বিষয়: ${_escapeXml(subject)}</div>
-          <div>শ্রেণি: ${_escapeXml(className)}</div>
+          ${_print.showSet && setLabel.isNotEmpty ? '<div>সেট: ${_escapeXml(setLabel)}</div>' : ''}
+          ${_print.showSubject ? '<div>বিষয়: ${_escapeXml(subject)}</div>' : ''}
+          ${_print.showClass ? '<div>শ্রেণি: ${_escapeXml(className)}</div>' : ''}
           <div>সময়: ${_escapeXml(time)}</div>
           <div>পূর্ণমান: ${_escapeXml(totalMarks)}</div>
-          ${cqInstruction.trim().isNotEmpty ? '<div class="meta-note">[ ${_escapeXml(cqInstruction.trim())} ]</div>' : ''}
+          ${_print.showSubjectCode && _print.subjectCode.trim().isNotEmpty ? '<div>বিষয় কোড: ${_escapeXml(_print.subjectCode.trim())}</div>' : ''}
+          ${_print.showChapter && _print.chapter.trim().isNotEmpty ? '<div>অধ্যায়: ${_escapeXml(_print.chapter.trim())}</div>' : ''}
+          ${_print.showInstructions && cqInstruction.trim().isNotEmpty ? '<div class="meta-note">[ ${_escapeXml(cqInstruction.trim())} ]</div>' : ''}
         </div>
+        ${_print.showStudentInfo ? '''
+        <div class="student-info">
+          <span>শিক্ষার্থীর নাম: ................................................</span>
+          <span>রোল: ................</span>
+          <span>শ্রেণি: ................</span>
+        </div>''' : ''}
+        ${_print.showObtainedMarks ? '<div class="obtained-marks">প্রাপ্ত নম্বর: ................</div>' : ''}
       </div>
 ''');
 
@@ -3115,6 +3557,7 @@ $paperFontBlock    :root {
     } else {
       _writeHtmlManualMcqAnswerSheet(buffer);
     }
+    if (footerBand.isNotEmpty) buffer.write(footerBand);
   }
 
   static void _writeHtmlManualMcqAnswerSheet(StringBuffer buffer) {
@@ -3326,8 +3769,9 @@ $paperFontBlock    :root {
       buffer.write('''
     <div class="cq-card" title="${_idTooltip(q)}">
       <div class="cq-stem">
-        <b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
+        ${_importantStar(q)}<b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
       </div>
+      ${_questionInfoMarkup(q)}
       ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: false)}
 ''');
       for (final sq in q.cqSubQuestions) {
@@ -3400,7 +3844,8 @@ $paperFontBlock    :root {
 ''');
       }
       buffer.write('''
-          <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
+          <div class="mcq-question">${_importantStar(q)}<b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
+          ${_questionInfoMarkup(q)}
           $questionImageHtml
         </div>
         <div class="mcq-options" data-fit="1">
@@ -3410,7 +3855,7 @@ $paperFontBlock    :root {
         final l =
             opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
         buffer.write('''
-          <div>($l) ${_htmlText(options[opt])}</div>
+          <div>${_print.optionStyle.prefix(l)} ${_htmlText(options[opt])}</div>
 ''');
       }
       buffer.write('''
@@ -3430,6 +3875,24 @@ $paperFontBlock    :root {
   /// from. Hand-typed questions have a local `manual-…` id, which is exactly
   /// right: it says the row is not in the bank.
   static String _idTooltip(HighSchoolQuestion q) => 'আইডি: ${_escapeXml(q.id)}';
+
+  /// The gold star the important-question toggle prints beside a marked row.
+  static String _importantStar(HighSchoolQuestion q) =>
+      _print.showImportant && q.isImportant
+          ? '<span class="important-star">★</span>'
+          : '';
+
+  /// The small chapter/board line the question-info toggle adds under a row.
+  static String _questionInfoMarkup(HighSchoolQuestion q) {
+    if (!_print.showQuestionInfo) return '';
+    final parts = <String>[
+      if (q.chapterName.trim().isNotEmpty)
+        'অধ্যায়: ${_escapeXml(q.chapterName.trim())}',
+      if (q.boardYearTag.trim().isNotEmpty) _escapeXml(q.boardYearTag.trim()),
+    ];
+    if (parts.isEmpty) return '';
+    return '<div class="question-info">[${parts.join(' · ')}]</div>';
+  }
 
   /// The সংক্ষিপ্ত প্রশ্ন block.
   static void _writeHtmlRqSection(
@@ -3474,7 +3937,8 @@ $paperFontBlock    :root {
       buffer.write('''
         <div class="rq-item" title="${_idTooltip(q)}">
           <div class="rq-content">
-            <div><b>${i + 1}.</b> ${_htmlText(data.text)}</div>
+            <div>${_importantStar(q)}<b>${i + 1}.</b> ${_htmlText(data.text)}</div>
+            ${_questionInfoMarkup(q)}
             $imageHtml
           </div>
           <div class="rq-mark">[${data.mark}]</div>

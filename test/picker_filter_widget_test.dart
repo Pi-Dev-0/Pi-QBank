@@ -240,18 +240,31 @@ Finder _checkboxFor(String text) => find.descendant(
 Future<void> _openPicker(WidgetTester tester) async {
   // Tall enough that the lazy ListView builds every card, so assertions are
   // about the data rather than about what happens to be on screen.
-  tester.view.physicalSize = const Size(1000, 2400);
+  tester.view.physicalSize = const Size(1600, 2400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
   await tester.pumpWidget(
     const MaterialApp(home: HighSchoolQPaperGeneratorPage()),
   );
-  await tester.tap(find.text('ক্লাস নির্বাচন করুন'));
+
+  // At this width the page draws the desktop studio, whose pickers are the
+  // compact `শ্রেণি` / `বিষয়` fields. The wizard's own labels stay as a
+  // fallback, so this helper still works if the window is narrowed.
+  final classField = find.byKey(const ValueKey('studio-class-field'));
+  final subjectField = find.byKey(const ValueKey('studio-subject-field'));
+
+  await tester.tap(
+      classField.evaluate().isNotEmpty
+          ? classField
+          : find.text('ক্লাস নির্বাচন করুন'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('Class (9-10) SSC').last);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('বিষয় নির্বাচন করুন'));
+  await tester.tap(
+      subjectField.evaluate().isNotEmpty
+          ? subjectField
+          : find.text('বিষয় নির্বাচন করুন'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('উচ্চতর গণিত').last);
   await tester.pumpAndSettle();

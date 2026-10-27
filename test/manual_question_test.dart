@@ -216,7 +216,7 @@ final Finder _markFields = find.byWidgetPredicate(
 /// Pick the class and subject, but do not load anything yet.
 Future<void> _openStep1(
   WidgetTester tester, {
-  Size size = const Size(1000, 2400),
+  Size size = const Size(1600, 2400),
 }) async {
   // Tall enough that the lazy list builds every card, so assertions are about
   // the data rather than about what happens to be on screen.
@@ -227,11 +227,24 @@ Future<void> _openStep1(
   await tester.pumpWidget(
     const MaterialApp(home: HighSchoolQPaperGeneratorPage()),
   );
-  await tester.tap(find.text('ক্লাস নির্বাচন করুন'));
+
+  // At this width the page draws the desktop studio, whose pickers are the
+  // compact `শ্রেণি` / `বিষয়` fields. The wizard's own labels stay as a
+  // fallback, so this helper still works if the window is narrowed.
+  final classField = find.byKey(const ValueKey('studio-class-field'));
+  final subjectField = find.byKey(const ValueKey('studio-subject-field'));
+
+  await tester.tap(
+      classField.evaluate().isNotEmpty
+          ? classField
+          : find.text('ক্লাস নির্বাচন করুন'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('Class (9-10) SSC').last);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('বিষয় নির্বাচন করুন'));
+  await tester.tap(
+      subjectField.evaluate().isNotEmpty
+          ? subjectField
+          : find.text('বিষয় নির্বাচন করুন'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('উচ্চতর গণিত').last);
   await tester.pumpAndSettle();
@@ -295,11 +308,15 @@ Future<void> _saveEdit(WidgetTester tester) async {
 String _boxText(WidgetTester tester, String label) =>
     tester.widget<TextField>(_field(label)).controller!.text;
 
-/// Open a card and start editing the question on it.
+/// Open the edit sheet from the card whose text contains [title].
 Future<void> _openEdit(WidgetTester tester, String title) async {
-  await tester.tap(find.text(title));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('সম্পাদনা করুন'));
+  final card = find
+      .ancestor(
+          of: find.textContaining(title),
+          matching: find.byType(AnimatedContainer))
+      .first;
+  await tester.tap(
+      find.descendant(of: card, matching: find.byIcon(Icons.edit_outlined)));
   await tester.pumpAndSettle();
 }
 
@@ -503,12 +520,10 @@ void main() {
       }
       await _saveSheet(tester);
 
-      // The card's one-line summary is the question; the intro is kept apart
-      // from it, and shown with the options when the card is opened.
-      expect(find.text('নিজে লেখা উদ্দীপক'), findsNothing);
-      await tester.tap(find.text('নিজে লেখা বহুনির্বাচনি'));
-      await tester.pumpAndSettle();
+      // The intro rides above the question, so it is readable without opening
+      // anything; the question line stays the card's summary.
       expect(find.text('নিজে লেখা উদ্দীপক'), findsOneWidget);
+      expect(find.text('নিজে লেখা বহুনির্বাচনি'), findsOneWidget);
     });
 
     testWidgets('a CQ totals only the sub-questions that were filled in',
@@ -792,9 +807,17 @@ void main() {
       await _saveEdit(tester);
 
       // The card stays open on the question it was showing, so the corrected
-      // option is there to be read.
-      expect(find.text('সম্পাদিত অপশন'), findsWidgets);
-      expect(find.text('১'), findsNothing);
+      // option is there to be read. Every card lists its options, so the check
+      // is scoped to the card that was edited.
+      final editedCard = find.byKey(const ValueKey('question-card-m1'));
+      expect(
+        find.descendant(of: editedCard, matching: find.text('সম্পাদিত অপশন')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: editedCard, matching: find.text('১')),
+        findsNothing,
+      );
     });
 
     testWidgets('a corrected question survives going back and loading again',

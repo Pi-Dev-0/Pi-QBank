@@ -7,16 +7,18 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../models/highschool_question.dart';
 import '../services/highschool_export_service.dart';
+import '../services/highschool_file_export_service.dart';
+import '../widgets/exact_html_preview.dart';
 
 /// Full-fidelity, live preview of the generated question-paper HTML.
 ///
-/// This renders the *same* HTML that the .html export writes, inside a WebView,
-/// so what you see here is what the student gets — including stem images and the
-/// print stylesheet.
+/// This renders the *same* HTML that the .html export writes, so what you see
+/// here is what the student gets — including stem images and the print
+/// stylesheet.
 ///
-/// The WebView is hidden (not rebuilt) on unsupported platforms such as Linux
-/// desktop and web, because a WebView cannot be hosted there. Callers should
-/// check [supportsWebView] first and offer "open externally" instead.
+/// Linux hosts the file in an embedded Chromium (CEF) view; Android, iOS and
+/// macOS use `webview_flutter`. Callers should check [supportsWebView] first
+/// and offer "open externally" instead.
 class QuestionPaperPreviewPage extends StatefulWidget {
   const QuestionPaperPreviewPage({
     super.key,
@@ -37,6 +39,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
     this.fontStep = 0,
     this.font = PaperFont.kalpurush,
+    this.printSettings = const PaperPrintSettings(),
   });
 
   final String schoolName;
@@ -71,11 +74,14 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   /// The face the sheet is set in; see [PaperFont].
   final PaperFont font;
 
+  /// The desktop settings panel's choices: paper stock, header toggles,
+  /// watermark, page numbers, and so on.
+  final PaperPrintSettings printSettings;
+
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
       !kIsWeb &&
-      defaultTargetPlatform != TargetPlatform.linux &&
-      WebViewPlatform.instance != null;
+      (ExactHtmlPreview.supported || WebViewPlatform.instance != null);
 
   @override
   State<QuestionPaperPreviewPage> createState() =>
@@ -94,6 +100,10 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   bool _preparing = true;
 
   Map<String, Uint8List> _stemImages = const {};
+
+  /// The finished sheet. Linux hands it to the embedded Chromium; the other
+  /// platforms load it into `webview_flutter` directly.
+  String? _cachedHtml;
 
   String get _html => HighSchoolExportService.generateHtml(
         schoolName: widget.schoolName,
@@ -114,6 +124,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         mcqAnswerSheetStyle: widget.mcqAnswerSheetStyle,
         fontStep: widget.fontStep,
         font: widget.font,
+        printSettings: widget.printSettings,
         // The preview shows the page as a desktop browser lays it out, not as a
         // phone-width WebView reflows it.
         desktopMode: true,
@@ -139,6 +150,15 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
       );
     }
     if (!mounted) return;
+    if (ExactHtmlPreview.supported) {
+      // Embedded Chromium shows the file itself, so it only needs the finished
+      // markup; it loads and reloads the sheet on its own.
+      setState(() {
+        _cachedHtml = _html;
+        _preparing = false;
+      });
+      return;
+    }
     if (!QuestionPaperPreviewPage.supportsWebView) {
       setState(() => _preparing = false);
       return;
@@ -169,12 +189,27 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
 
   /// Re-render with the current header values (used after returning from edit).
   void _reload() {
+    if (ExactHtmlPreview.supported) {
+      setState(() => _cachedHtml = _html);
+      return;
+    }
     _controller?.loadHtmlString(_html);
     setState(() => _isLoading = true);
   }
 
-  /// Open the Android WebView's native print flow from the preview AppBar.
+  /// Open the platform's print flow from the preview AppBar.
   Future<void> _printPreview() async {
+    if (ExactHtmlPreview.supported) {
+      // CEF does not implement `window.print()`; hand the same file to the
+      // browser, whose print dialog is the real one.
+      final file = await HighSchoolFileExportService.saveFile(
+        content: _cachedHtml ?? _html,
+        fileName: 'question_paper_print.html',
+      );
+      if (!mounted) return;
+      await HighSchoolFileExportService.openExportedFile(context, file);
+      return;
+    }
     final controller = _controller;
     if (controller == null) return;
     if (defaultTargetPlatform == TargetPlatform.android) {
@@ -240,12 +275,16 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           IconButton(
             icon: const Icon(Icons.print_rounded),
             tooltip: 'প্রিন্ট করুন',
-            onPressed: _controller == null ? null : _printPreview,
+            onPressed: (_controller == null && !ExactHtmlPreview.supported)
+                ? null
+                : _printPreview,
           ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'প্রিভিউ রিফ্রেশ করুন',
-            onPressed: _controller == null ? null : _reload,
+            onPressed: (_controller == null && !ExactHtmlPreview.supported)
+                ? null
+                : _reload,
           ),
         ],
       ),
@@ -286,6 +325,22 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   }
 
   Widget _buildPreviewBody() {
+    if (ExactHtmlPreview.supported) {
+      final html = _cachedHtml;
+      if (html == null) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: CircularProgressIndicator(color: Color(0xFF5C35E3)),
+          ),
+        );
+      }
+      return ExactHtmlPreview(
+        signature: html,
+        buildHtml: () => html,
+        fileName: 'question_paper_preview.html',
+      );
+    }
     if (_controller == null) {
       if (_preparing) {
         return const Center(
