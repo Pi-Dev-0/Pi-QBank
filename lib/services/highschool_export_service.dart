@@ -1,12 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:open_file/open_file.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/highschool_question.dart';
 import '../utils/math_text.dart';
 
@@ -107,19 +103,35 @@ enum QuestionLayout {
 
   /// Two questions per row — the usual exam-paper layout, and much more compact.
   doubleColumn,
+
+  /// Three questions per row for compact MCQ papers.
+  tripleColumn,
 }
 
 extension QuestionLayoutMetrics on QuestionLayout {
   /// How many MCQs sit side by side.
-  int get mcqColumns => this == QuestionLayout.doubleColumn ? 2 : 1;
+  int get mcqColumns => switch (this) {
+        QuestionLayout.single => 1,
+        QuestionLayout.doubleColumn => 2,
+        QuestionLayout.tripleColumn => 3,
+      };
 
   bool get isDouble => this == QuestionLayout.doubleColumn;
 
-  String get label => isDouble ? 'দুই কলাম' : 'এক কলাম';
+  String get label => switch (this) {
+        QuestionLayout.single => 'এক কলাম',
+        QuestionLayout.doubleColumn => 'দুই কলাম',
+        QuestionLayout.tripleColumn => 'তিন কলাম',
+      };
 
-  String get description => isDouble
-      ? 'প্রতি সারিতে দুটি MCQ — কম পেজ, ছোট প্রশ্নপত্র'
-      : 'প্রতি সারিতে একটি MCQ — প্রশ্ন ও অপশন সরল দেখা যায়';
+  String get description => switch (this) {
+        QuestionLayout.single =>
+          'প্রতি সারিতে একটি MCQ — প্রশ্ন ও অপশন সরল দেখা যায়',
+        QuestionLayout.doubleColumn =>
+          'প্রতি সারিতে দুটি MCQ — কম পেজ, ছোট প্রশ্নপত্র',
+        QuestionLayout.tripleColumn =>
+          'প্রতি সারিতে তিনটি MCQ — খুব কম পেজে ছাপা যায়',
+      };
 }
 
 /// Optional answer sheet printed after the generated MCQ paper.
@@ -139,7 +151,8 @@ extension McqAnswerSheetStyleLabels on McqAnswerSheetStyle {
   String get description => switch (this) {
         McqAnswerSheetStyle.none => 'কোনো আলাদা MCQ উত্তরপত্র নয়',
         McqAnswerSheetStyle.omr => 'ক–ঘ বৃত্তে টিক বা চিহ্ন দেওয়ার গ্রিড',
-        McqAnswerSheetStyle.serialAnswer => 'প্রশ্ন নম্বরের পাশে হাতে উত্তর লেখার ঘর',
+        McqAnswerSheetStyle.serialAnswer =>
+          'প্রশ্ন নম্বরের পাশে হাতে উত্তর লেখার ঘর',
       };
 }
 
@@ -429,7 +442,9 @@ class HighSchoolExportService {
     final maxH = usePoints ? size.maxHeightPt : size.maxHeightPx;
     final maxW = usePoints ? size.maxWidthPt : size.maxWidthPt * 1.333;
 
-    return '<img src="$src" alt="উদ্দীপক চিত্র" '
+    return '<img class="paper-image" src="$src" alt="উদ্দীপক চিত্র" '
+        'data-base-max-width="${_trimNum(maxW)}" '
+        'data-base-max-height="${_trimNum(maxH)}" data-base-unit="$unit" '
         'style="display:block; margin:4pt 0 6pt 0; '
         'max-width:${_trimNum(maxW)}$unit; max-height:${_trimNum(maxH)}$unit; '
         'object-fit:contain; '
@@ -630,7 +645,7 @@ class HighSchoolExportService {
     required String time,
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
-    StemImageSize imageSize = StemImageSize.medium,
+    StemImageSize imageSize = StemImageSize.small,
     List<String> setLabels = const [],
     List<PaperSection> sectionOrder = PaperSection.defaultOrder,
   }) {
@@ -816,7 +831,7 @@ class HighSchoolExportService {
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
     Map<String, Uint8List>? imageBytes,
-    StemImageSize imageSize = StemImageSize.medium,
+    StemImageSize imageSize = StemImageSize.small,
     List<String> setLabels = const [],
     List<PaperSection> sectionOrder = PaperSection.defaultOrder,
     QuestionLayout cqLayout = QuestionLayout.single,
@@ -824,7 +839,7 @@ class HighSchoolExportService {
     QuestionLayout rqLayout = QuestionLayout.single,
 
     /// The face the document is set in, as in the HTML sheet; see [PaperFont].
-    PaperFont font = PaperFont.hindSiliguri,
+    PaperFont font = PaperFont.kalpurush,
   }) {
     final labels = _setLabelsOf(setLabels);
 
@@ -935,12 +950,12 @@ class HighSchoolExportService {
       table-layout: fixed;
     }
     .cq-col-cell {
-      width: ${cqLayout.isDouble ? '50%' : '100%'};
+      width: ${100 / cqLayout.mcqColumns}%;
       vertical-align: top;
       padding: 0pt 4pt 8pt 0pt;
     }
     .mcq-col-cell {
-      width: ${mcqLayout.isDouble ? '50%' : '100%'};
+      width: ${100 / mcqLayout.mcqColumns}%;
       vertical-align: top;
       padding: 0pt 4pt 8pt 0pt;
     }
@@ -965,7 +980,7 @@ class HighSchoolExportService {
       vertical-align: top;
     }
     .rq-col-cell {
-      width: ${rqLayout.isDouble ? '50%' : '100%'};
+      width: ${100 / rqLayout.mcqColumns}%;
       vertical-align: top;
       padding: 0pt 4pt 0pt 0pt;
     }
@@ -1359,7 +1374,7 @@ class HighSchoolExportService {
     String cqInstruction = '',
     List<String> setLabels = const [],
     List<PaperSection> sectionOrder = PaperSection.defaultOrder,
-    StemImageSize imageSize = StemImageSize.medium,
+    StemImageSize imageSize = StemImageSize.small,
     QuestionLayout cqLayout = QuestionLayout.single,
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
@@ -1369,11 +1384,18 @@ class HighSchoolExportService {
 
     /// The face the sheet is set in. Fetched from Google Fonts when it is a web
     /// font, and fallen back on when it is not; see [PaperFont].
-    PaperFont font = PaperFont.hindSiliguri,
+    PaperFont font = PaperFont.kalpurush,
 
     /// Lay the sheet out for a desktop-width window instead of the device's own
     /// width. The live preview asks for this; see [desktopViewport] below.
     bool desktopMode = false,
+
+    /// Use the compact toolbar arrangement for the Android embedded preview.
+    bool compactToolbar = false,
+
+    /// Keep the editor toolbar in the generated document. The browser app
+    /// moves these controls into its own settings rail.
+    bool includeToolbar = true,
   }) {
     // A two-set paper prints as two papers in one file. A question belongs to a
     // set through [HighSchoolQuestion.setLabel], and a question the reader never
@@ -1400,11 +1422,11 @@ class HighSchoolExportService {
     // are two-column. MCQ never joins the flow — its options lay out
     // differently, and it wants a fresh pair of columns.
     final twoColumnBlocks = <PaperSection>{
-      if (cqLayout.isDouble) PaperSection.cq,
-      if (rqLayout.isDouble) PaperSection.rq,
-      if (mcqLayout.isDouble) PaperSection.mcq,
+      if (cqLayout.mcqColumns > 1) PaperSection.cq,
+      if (rqLayout.mcqColumns > 1) PaperSection.rq,
+      if (mcqLayout.mcqColumns > 1) PaperSection.mcq,
     };
-    final mergeCqAndShort = cqLayout.isDouble && rqLayout.isDouble;
+    final mergeCqAndShort = cqLayout.mcqColumns > 1 && rqLayout.mcqColumns > 1;
 
     // A face the app ships goes into the file, so the sheet prints the same on a
     // phone as on the machine it was written on; see [_paperFontBlock]. The
@@ -1427,6 +1449,32 @@ class HighSchoolExportService {
     final fontQuery = [
       for (final family in PaperFont.webFamiliesOf(font)) 'family=$family',
     ].join('&');
+
+    final previewFontOptions = [
+      for (final option in PaperFont.values)
+        '<option value="${_escapeXml(option.cssStack)}" ${option == font ? 'selected' : ''}>${_escapeXml(option.label)}</option>',
+    ].join();
+    final previewFontStepOptions = [
+      for (var step = -3; step <= 6; step++)
+        '<option value="$step" ${fontStep.round() == step ? 'selected' : ''}>${step == 0 ? 'স্বাভাবিক' : '${step > 0 ? '+' : ''}$step pt'}</option>',
+    ].join();
+    final previewImageOptions = [
+      for (final option in StemImageSize.values)
+        '<option value="${option.name}" ${option == imageSize ? 'selected' : ''}>${_escapeXml(option.label)}</option>',
+    ].join();
+    final previewAnswerSheetOptions = [
+      for (final option in McqAnswerSheetStyle.values)
+        '<option value="${option.name}" ${option == mcqAnswerSheetStyle ? 'selected' : ''}>${_escapeXml(option.label)}</option>',
+    ].join();
+    final hasMcq = questions.any((q) => q.isMcq);
+    final previewAnswerSheetControl = '''
+      <div class="toolbar-group answer-group">
+        <span class="toolbar-group-label">MCQ উত্তরপত্র</span>
+        <select class="preview-select" id="previewAnswerSheet" aria-label="MCQ উত্তরপত্র">
+          $previewAnswerSheetOptions
+        </select>
+        ${hasMcq ? '' : '<input class="preview-number answer-item-count" id="answerItemCount" type="number" min="1" max="200" value="30" aria-label="MCQ উত্তর আইটেম সংখ্যা" title="MCQ না থাকলে উত্তর আইটেম সংখ্যা">'}
+      </div>''';
 
     final buffer = StringBuffer();
     buffer.write('''
@@ -1459,16 +1507,125 @@ $paperFontBlock    :root {
       max-width: 210mm;
       margin: 0 auto 20px auto;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
       background: white;
       padding: 14px 20px;
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
+    .toolbar-hidden .no-print-toolbar { display: none !important; }
+    .toolbar-brand {
+      width: 100%;
+      font-size: 14px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .toolbar-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas:
+        "column column"
+        "demo image"
+        "typography answer"
+        "options edit"
+        "print print";
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+      width: 100%;
+      max-width: none;
+      align-self: center;
+    }
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex-wrap: wrap;
+      padding: 5px 7px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+    .demo-menu-wrap { position: relative; grid-area: demo; }
+    .demo-menu {
+      position: static;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      box-shadow: none;
+    }
+    .demo-menu[hidden] { display: flex; }
+    .demo-menu button {
+      display: inline-flex;
+      width: auto;
+      padding: 7px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: white;
+      color: var(--text);
+      text-align: center;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .demo-menu button:hover { background: #eef2ff; color: var(--primary); }
+    .demo-menu button.selected {
+      border-color: var(--primary);
+      background: #ede9fe;
+      color: var(--primary);
+      font-weight: 700;
+    }
+    .toolbar-group-label {
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+      text-align: center;
+    }
+    .column-group { grid-area: column; justify-content: space-between; }
+    .column-control {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .column-buttons { display: flex; gap: 3px; }
+    .column-choice {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 4px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: #e5e7eb;
+      cursor: pointer;
+    }
+    .column-choice:hover { border-color: #a5b4fc; }
+    .column-choice.active {
+      background: #ede9fe;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px #c4b5fd;
+    }
+    .column-choice i {
+      display: block;
+      width: 5px;
+      height: 15px;
+      border-radius: 2px;
+      background: #9ca3af;
+    }
+    .column-choice.active i { background: var(--primary); }
     .btn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
       padding: 10px 18px;
       font-size: 14px;
@@ -1477,6 +1634,7 @@ $paperFontBlock    :root {
       border: none;
       cursor: pointer;
       text-decoration: none;
+      text-align: center;
       transition: all 0.2s;
     }
     .btn-primary { background: var(--primary); color: white; }
@@ -1497,9 +1655,159 @@ $paperFontBlock    :root {
         outline: 1px solid #a5b4fc;
         background: #eef2ff;
       }
+      .editing .paper-image {
+        cursor: pointer;
+      }
+      .editing .paper-image.image-selected {
+        outline: 2px solid #6366f1;
+        outline-offset: 3px;
+      }
     }
     .edit-hint { font-size: 12px; color: var(--muted); }
     .edit-hint[hidden] { display: none; }
+    .preview-select {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: white;
+      color: var(--text);
+      padding: 9px 10px;
+      font-size: 13px;
+      min-width: 0;
+      max-width: 100%;
+      text-align: center;
+      text-align-last: center;
+    }
+    .preview-range {
+      width: 100px;
+      accent-color: var(--primary);
+    }
+    .preview-number {
+      width: 58px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px 6px;
+      font-size: 13px;
+      text-align: center;
+    }
+    .demo-question {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+    .image-group { grid-area: answer; }
+    .image-group .preview-select { width: 82px; }
+    .image-group .preview-range { width: 72px; }
+    .typography-group { grid-area: typography; }
+    .typography-group .preview-select { flex: 1 1 86px; width: 86px; }
+    .answer-group { grid-area: image; }
+    .print-options { grid-area: options; }
+    #editBtn { grid-area: edit; }
+    #printBtn { grid-area: print; }
+    .desktop-toolbar .no-print-toolbar {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .desktop-toolbar .toolbar-brand {
+      width: 100%;
+      padding-top: 0;
+      text-align: center;
+    }
+    .desktop-toolbar .toolbar-actions {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      width: 100%;
+      max-width: none;
+      justify-self: stretch;
+    }
+    .compact-toolbar .no-print-toolbar {
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+    .compact-toolbar .toolbar-brand { width: 100%; }
+    .compact-toolbar .toolbar-actions {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      width: 100%;
+      max-width: none;
+      justify-self: stretch;
+    }
+    @media screen and (max-width: 700px) {
+      .no-print-toolbar {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+      .toolbar-brand { width: 100%; }
+      .toolbar-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas:
+          "column column"
+          "demo image"
+          "typography answer"
+          "options edit"
+          "print print";
+        width: 100%;
+        max-width: none;
+        justify-self: stretch;
+      }
+    }
+    @media screen and (max-width: 600px) {
+      .toolbar-actions {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "demo"
+          "column"
+          "image"
+          "typography"
+          "answer"
+          "options"
+          "edit"
+          "print";
+      }
+      .toolbar-group { width: 100%; justify-content: space-between; }
+      .column-group { align-items: flex-start; flex-wrap: wrap; }
+      .column-control { flex: 1 1 auto; justify-content: space-between; }
+      .btn { justify-content: center; width: 100%; }
+    }
+
+    #quickFixBtn { grid-area: quick; }
+    .quick-fix-panel { display: none; }
+    .toolbar-actions.quick-fix-open .quick-fix-panel { display: contents; }
+    .toolbar-actions {
+      grid-template-areas:
+        "column column"
+        "demo quick"
+        "print print";
+    }
+    .toolbar-actions.quick-fix-open {
+      grid-template-areas:
+        "column column"
+        "demo quick"
+        "typography image"
+        "answer options"
+        "edit edit"
+        "print print";
+    }
+    @media screen and (max-width: 600px) {
+      .toolbar-actions {
+        grid-template-areas:
+          "demo"
+          "column"
+          "quick"
+          "print";
+      }
+      .toolbar-actions.quick-fix-open {
+        grid-template-areas:
+          "demo"
+          "column"
+          "quick"
+          "typography"
+          "image"
+          "answer"
+          "options"
+          "edit"
+          "print";
+      }
+    }
 
     /* The sheet *is* an A4 page: the same 210×297mm canvas the PDF export uses,
        the same 18pt at the head and 40pt down each side, and a foot of 18px.
@@ -1514,6 +1822,7 @@ $paperFontBlock    :root {
       padding: 18pt 28pt 18px;
       border-radius: 8px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      zoom: var(--paper-scale, 1);
       /* The paper's base size, set where the PDF sets its body style. Text with
          no size of its own — an MCQ stem, for one — has to move with the
          font-size control too, and 16px is what it inherited before. */
@@ -1644,7 +1953,7 @@ $paperFontBlock    :root {
        needs and the next one continues below it in the same column. A grid
        would instead stretch every pair in a row to the taller of the two, so a
        one-line question beside a diagram sat in a card half full of white. */
-    .cq-grid {${cqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    .cq-grid {${cqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${cqLayout.mcqColumns};\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
     /* A merged CQ + short-question run: one continuous pair of columns, so the
        short questions begin exactly where the creative questions run out —
@@ -1652,7 +1961,7 @@ $paperFontBlock    :root {
        the container, not on the heading inside it, so both columns start level. */
     .flow-grid {${mergeCqAndShort ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
-    .mcq-grid {${mcqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    .mcq-grid {${mcqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${mcqLayout.mcqColumns};\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
     /* The card is the question and nothing else: no padding, no margin of its
        own and no rule under it. */
@@ -1683,7 +1992,7 @@ $paperFontBlock    :root {
          full-width block. This is what prints if the file is opened with scripts
          turned off: two per row where there is a page's width, one per row where
          the block sits inside a half-page column. */
-      grid-template-columns: ${mcqLayout.isDouble ? '1fr' : '1fr 1fr'};
+      grid-template-columns: ${mcqLayout == QuestionLayout.single ? '1fr 1fr' : '1fr'};
       /* No gap between the rows of options, so they sit as one tight stack
          under their question. The columns keep a small gutter, 6px, and the
          indent under the question number is 8px. Both are read back by the
@@ -1736,7 +2045,11 @@ $paperFontBlock    :root {
       font-size: 11px;
     }
     .serial-answer-table {
-      width: 100%;
+      width: auto;
+      max-width: none;
+      display: table;
+      margin-left: auto;
+      margin-right: auto;
       border-collapse: collapse;
       table-layout: fixed;
       font-size: ${_cssFontSize(13, fontStep)};
@@ -1744,17 +2057,19 @@ $paperFontBlock    :root {
     .serial-answer-table th,
     .serial-answer-table td {
       border: 1px solid #94a3b8;
-      height: 28px;
+      height: 6.5mm;
+      width: 6.5mm;
+      min-width: 6.5mm;
       padding: 3px 2px;
       text-align: center;
     }
     .serial-answer-table th { font-weight: 700; }
-    .serial-answer-table td { height: 34px; }
+    .serial-answer-table td { height: 6.5mm; }
     .serial-answer-table + .serial-answer-table { margin-top: 8px; }
     @media screen and (max-width: 700px) {
       .omr-grid { grid-template-columns: repeat(2, 1fr); }
     }
-    .rq-grid {${rqLayout.isDouble ? '\n      margin-top: 5pt;\n      column-count: 2;\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
+    .rq-grid {${rqLayout.mcqColumns > 1 ? '\n      margin-top: 5pt;\n      column-count: ${rqLayout.mcqColumns};\n      column-gap: 22px;\n      column-rule: 1px solid var(--border);' : ''}
     }
     /* Short questions are a single line each, as in the PDF: no padding and no
        gap of their own — the line box is the whole of the row, and the mark is
@@ -1800,13 +2115,90 @@ $paperFontBlock    :root {
        used to leave the union drawn by a different face than the intersection. */
     .m { font-family: $kMathFontStack; font-style: normal; }
   </style>
+  <style id="runtimePrintStyle">@page { size: A4 portrait; margin: 0; }</style>
 </head>
-<body>
+<body class="${compactToolbar ? 'compact-toolbar' : desktopMode ? 'desktop-toolbar' : ''}${includeToolbar ? '' : ' toolbar-hidden'}">
   <div class="no-print-toolbar">
-    <div><b>Pi-QBank</b> প্রশ্নপত্র প্রিভিউ</div>
-    <div style="display:flex; gap:10px; align-items:center;">
+    <div class="toolbar-brand"><b>Pi-QBank</b> প্রশ্নপত্র প্রিভিউ</div>
+    <div class="toolbar-actions">
       <span class="edit-hint" id="editHint" hidden>যা লিখবেন সেটাই প্রিন্ট হবে</span>
+      <div class="toolbar-group demo-menu-wrap">
+        <button class="btn btn-outline" id="demoQuestionBtn">➕ ডেমো প্রশ্ন</button>
+        <div class="demo-menu" id="demoQuestionMenu">
+          <button data-demo-type="cq">CQ</button>
+          <button data-demo-type="mcq">MCQ</button>
+          <button data-demo-type="rq">RQ</button>
+        </div>
+      </div>
+      <div class="toolbar-group column-group">
+        <span class="toolbar-group-label">কলাম</span>
+        <div class="column-control"><span class="toolbar-group-label">CQ</span><div class="column-buttons">
+          <button class="column-choice ${cqLayout.mcqColumns == 1 ? 'active' : ''}" data-column-kind="cq" data-columns="1" title="CQ এক কলাম"><i></i></button>
+          <button class="column-choice ${cqLayout.mcqColumns == 2 ? 'active' : ''}" data-column-kind="cq" data-columns="2" title="CQ দুই কলাম"><i></i><i></i></button>
+          <button class="column-choice ${cqLayout.mcqColumns == 3 ? 'active' : ''}" data-column-kind="cq" data-columns="3" title="CQ তিন কলাম"><i></i><i></i><i></i></button>
+        </div></div>
+        <div class="column-control"><span class="toolbar-group-label">MCQ</span><div class="column-buttons">
+          <button class="column-choice ${mcqLayout.mcqColumns == 1 ? 'active' : ''}" data-column-kind="mcq" data-columns="1" title="MCQ এক কলাম"><i></i></button>
+          <button class="column-choice ${mcqLayout.mcqColumns == 2 ? 'active' : ''}" data-column-kind="mcq" data-columns="2" title="MCQ দুই কলাম"><i></i><i></i></button>
+          <button class="column-choice ${mcqLayout.mcqColumns == 3 ? 'active' : ''}" data-column-kind="mcq" data-columns="3" title="MCQ তিন কলাম"><i></i><i></i><i></i></button>
+        </div></div>
+        <div class="column-control"><span class="toolbar-group-label">RQ</span><div class="column-buttons">
+          <button class="column-choice ${rqLayout.mcqColumns == 1 ? 'active' : ''}" data-column-kind="rq" data-columns="1" title="RQ এক কলাম"><i></i></button>
+          <button class="column-choice ${rqLayout.mcqColumns == 2 ? 'active' : ''}" data-column-kind="rq" data-columns="2" title="RQ দুই কলাম"><i></i><i></i></button>
+          <button class="column-choice ${rqLayout.mcqColumns == 3 ? 'active' : ''}" data-column-kind="rq" data-columns="3" title="RQ তিন কলাম"><i></i><i></i><i></i></button>
+        </div></div>
+      </div>
+      <button class="btn btn-outline quick-fix-toggle" id="quickFixBtn" aria-expanded="false">⚡ Quick Fix</button>
+      <div class="quick-fix-panel">
+      <div class="toolbar-group image-group">
+        <span class="toolbar-group-label">ছবির আকার</span>
+        <select class="preview-select" id="previewImagePreset" aria-label="ছবির আকার">
+          $previewImageOptions
+        </select>
+        <input class="preview-range" id="imageSizeEditor" type="range" min="25" max="200" step="1" value="100" disabled aria-label="ছবির আকার শতাংশ">
+        <input class="preview-number" id="imageSizeCustom" type="number" min="25" max="200" step="1" value="100" disabled aria-label="ছবির আকার শতাংশ">
+        <span>%</span>
+      </div>
+      <div class="toolbar-group typography-group">
+        <span class="toolbar-group-label">লেখার আকার</span>
+        <select class="preview-select" id="previewFontStep" aria-label="লেখার আকার">
+          $previewFontStepOptions
+        </select>
+        <span class="toolbar-group-label">ফন্ট</span>
+        <select class="preview-select" id="previewFont" aria-label="ফন্ট">
+          $previewFontOptions
+        </select>
+      </div>
+      $previewAnswerSheetControl
+      <div class="toolbar-group print-options">
+        <select class="preview-select" id="printPaperSize" aria-label="কাগজের আকার">
+          <option value="A4" selected>A4</option>
+          <option value="Letter">Letter</option>
+          <option value="Legal">Legal</option>
+          <option value="A3">A3</option>
+          <option value="A5">A5</option>
+        </select>
+        <select class="preview-select" id="printOrientation" aria-label="প্রিন্ট দিক">
+          <option value="portrait">পোর্ট্রেট</option>
+          <option value="landscape">ল্যান্ডস্কেপ</option>
+        </select>
+        <select class="preview-select" id="printScale" aria-label="প্রিন্ট স্কেল">
+          <option value="50">50%</option>
+          <option value="75">75%</option>
+          <option value="90">90%</option>
+          <option value="100" selected>100%</option>
+          <option value="110">110%</option>
+          <option value="125">125%</option>
+          <option value="150">150%</option>
+        </select>
+        <select class="preview-select" id="printMargin" aria-label="প্রিন্ট মার্জিন">
+          <option value="0">মার্জিন নেই</option>
+          <option value="8mm">স্বাভাবিক মার্জিন</option>
+          <option value="15mm">বড় মার্জিন</option>
+        </select>
+      </div>
       <button class="btn btn-outline" id="editBtn">✏️ লাইভ এডিট</button>
+      </div>
       <button class="btn btn-primary" id="printBtn">🖨️ প্রিন্ট করুন</button>
     </div>
   </div>
@@ -1995,10 +2387,43 @@ $paperFontBlock    :root {
         if (hint) hint.hidden = !on;
         var button = document.getElementById('editBtn');
         if (button) button.textContent = on ? '✅ এডিট শেষ' : '✏️ লাইভ এডিট';
+        if (!on && selectedImage) {
+          selectedImage.classList.remove('image-selected');
+          selectedImage = null;
+        }
+        var imageSize = document.getElementById('imageSizeEditor');
+        var imageSizeCustom = document.getElementById('imageSizeCustom');
+        if (imageSize) imageSize.disabled = !on || !selectedImage;
+        if (imageSizeCustom) imageSizeCustom.disabled = !on || !selectedImage;
       }
 
       function isEditing() {
         return document.body.classList.contains('editing');
+      }
+
+      function formatSelection(command, value) {
+        if (!isEditing()) return;
+        document.execCommand(command, false, value || null);
+        relayoutSoon();
+      }
+
+      function changeSelectionFontSize(delta) {
+        if (!isEditing()) return;
+        var selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+        var range = selection.getRangeAt(0);
+        var parent = range.commonAncestorContainer.nodeType === 3
+            ? range.commonAncestorContainer.parentElement
+            : range.commonAncestorContainer;
+        var current = parseFloat(getComputedStyle(parent).fontSize) || 16;
+        var span = document.createElement('span');
+        span.style.fontSize = Math.max(8, Math.min(48, current + Number(delta || 0))) + 'px';
+        try {
+          range.surroundContents(span);
+        } catch (error) {
+          document.execCommand('fontSize', false, delta > 0 ? '5' : '2');
+        }
+        relayoutSoon();
       }
 
       var relayout = null;
@@ -2015,13 +2440,372 @@ $paperFontBlock    :root {
         }, 260);
       }
 
+      var selectedImage = null;
+      var selectedDemoType = 'cq';
+
+      function nextQuestionNumber() {
+        var set = document.querySelector('.paper-set');
+        if (!set) return 1;
+        var nodes = set.querySelectorAll('*');
+        var max = 0;
+        var bengaliDigits = '০১২৩৪৫৬৭৮৯';
+        var numberPattern = /([0-9০-৯]+)\s*[.)]/g;
+        for (var i = 0; i < nodes.length; i++) {
+          var text = nodes[i].textContent || '';
+          var match;
+          numberPattern.lastIndex = 0;
+          while ((match = numberPattern.exec(text)) !== null) {
+            var latin = match[1].replace(/[০-৯]/g, function (digit) {
+              return String(bengaliDigits.indexOf(digit));
+            });
+            max = Math.max(max, Number(latin) || 0);
+          }
+        }
+        return max + 1;
+      }
+
+      function addDemoQuestion(type) {
+        var set = document.querySelector('.paper-set');
+        if (!set) return;
+        var demo = document.createElement('div');
+        demo.className = 'demo-question';
+        var number = nextQuestionNumber();
+        if (type === 'mcq') {
+          demo.innerHTML = '<b>' + number + '. </b>নিচের কোনটি সঠিক?<br>' +
+              '<span>(ক) প্রথম বিকল্প</span> &nbsp; ' +
+              '<span>(খ) দ্বিতীয় বিকল্প</span> &nbsp; ' +
+              '<span>(গ) তৃতীয় বিকল্প</span> &nbsp; ' +
+              '<span>(ঘ) চতুর্থ বিকল্প</span>';
+        } else if (type === 'rq') {
+          demo.innerHTML = '<b>' + number + '. </b>সংক্ষেপে উত্তর দাও।';
+        } else {
+          demo.innerHTML = '<b>' + number + '. </b>এখানে উদ্দীপক লিখুন।<br>' +
+              '<span>(ক) প্রথম উপ-প্রশ্ন লিখুন।</span><br>' +
+              '<span>(খ) দ্বিতীয় উপ-প্রশ্ন লিখুন।</span><br>' +
+              '<span>(গ) তৃতীয় উপ-প্রশ্ন লিখুন।</span><br>' +
+              '<span>(ঘ) চতুর্থ উপ-প্রশ্ন লিখুন।</span>';
+        }
+        var answerSheet = set.querySelector('.mcq-answer-sheet');
+        if (answerSheet) set.insertBefore(demo, answerSheet);
+        else set.appendChild(demo);
+        document.getElementById('demoQuestionMenu').hidden = true;
+        setEditing(true);
+        demo.focus();
+      }
+
+      function setPrintOptions() {
+        var paper = document.getElementById('printPaperSize');
+        var orientation = document.getElementById('printOrientation');
+        var scale = document.getElementById('printScale');
+        var margin = document.getElementById('printMargin');
+        var style = document.getElementById('runtimePrintStyle');
+        if (!style) return;
+        var paperSize = paper ? paper.value : 'A4';
+        var paperScale = scale ? Number(scale.value) : 100;
+        document.documentElement.dataset.paperSize = paperSize;
+        document.documentElement.style.setProperty('--paper-scale',
+            String(paperScale / 100));
+        style.textContent = '@page { size: ' + paperSize + ' ' +
+            (orientation ? orientation.value : 'portrait') + '; margin: ' +
+            (margin ? margin.value : '0') + '; }';
+      }
+
+      function setPreviewImagePreset(value) {
+        var scales = { hidden: 0, small: 0.72, medium: 1, large: 1.35 };
+        var scale = Object.prototype.hasOwnProperty.call(scales, value)
+            ? scales[value] : 1;
+        var images = document.querySelectorAll('.paper-image');
+        for (var i = 0; i < images.length; i++) {
+          var image = images[i];
+          if (scale === 0) {
+            image.style.display = 'none';
+            continue;
+          }
+          image.style.display = 'block';
+          image.style.maxWidth = (Number(image.dataset.baseMaxWidth) * scale) +
+              image.dataset.baseUnit;
+          image.style.maxHeight = (Number(image.dataset.baseMaxHeight) * scale) +
+              image.dataset.baseUnit;
+        }
+        relayoutSoon();
+      }
+
+      function setPreviewFontStep(value) {
+        var scale = 1 + (Number(value) || 0) * 0.05;
+        var sheets = document.querySelectorAll('.paper-sheet');
+        for (var i = 0; i < sheets.length; i++) sheets[i].style.zoom = String(scale);
+        relayoutSoon();
+      }
+
+      function setPreviewFont(value) {
+        var sheets = document.querySelectorAll('.paper-sheet');
+        for (var i = 0; i < sheets.length; i++) sheets[i].style.fontFamily = value;
+        relayoutSoon();
+      }
+
+      function rebuildManualAnswerSheet() {
+        var countInput = document.getElementById('answerItemCount');
+        var count = countInput ? Math.max(1, Math.min(200, Number(countInput.value) || 1)) : 0;
+        var sheets = document.querySelectorAll('[data-manual-answer-sheet="true"]');
+        var letters = ['ক', 'খ', 'গ', 'ঘ'];
+        for (var s = 0; s < sheets.length; s++) {
+          var sheet = sheets[s];
+          var omrGrid = sheet.querySelector('.omr-grid');
+          if (omrGrid) {
+            omrGrid.innerHTML = '';
+            var columns = [[], [], [], []];
+            var rowsPerColumn = Math.ceil(count / 4);
+            for (var n = 1; n <= count; n++) {
+              columns[Math.min(3, Math.floor((n - 1) / rowsPerColumn))].push(n);
+            }
+            for (var c = 0; c < columns.length; c++) {
+              var column = document.createElement('div');
+              column.className = 'omr-column';
+              for (var r = 0; r < columns[c].length; r++) {
+                var row = document.createElement('div');
+                row.className = 'omr-row';
+                row.innerHTML = '<span class="omr-number">' + columns[c][r] + '</span>' +
+                    letters.map(function (letter) {
+                      return '<span class="omr-bubble">' + letter + '</span>';
+                    }).join('');
+                column.appendChild(row);
+              }
+              omrGrid.appendChild(column);
+            }
+          }
+          var serial = sheet.querySelector('.answer-sheet-serial');
+          if (serial) {
+            serial.innerHTML = '';
+            for (var start = 1; start <= count; start += 30) {
+              var end = Math.min(count, start + 29);
+              var table = document.createElement('table');
+              table.className = 'serial-answer-table';
+              table.style.width = ((end - start) * 6.5) + 'mm';
+              table.innerHTML = '<tbody><tr></tr><tr class="serial-answer-row"></tr></tbody>';
+              var heads = table.querySelector('tr');
+              var answers = table.querySelector('.serial-answer-row');
+              for (var number = start; number <= end; number++) {
+                var head = document.createElement('th');
+                head.textContent = number;
+                heads.appendChild(head);
+                answers.appendChild(document.createElement('td'));
+              }
+              serial.appendChild(table);
+            }
+          }
+        }
+      }
+
+      function setPreviewAnswerSheet(value) {
+        rebuildManualAnswerSheet();
+        var sheets = document.querySelectorAll('.mcq-answer-sheet');
+        for (var i = 0; i < sheets.length; i++) {
+          var sheet = sheets[i];
+          sheet.style.display = value === 'none' ? 'none' : '';
+          var variants = sheet.querySelectorAll('[data-answer-style]');
+          for (var j = 0; j < variants.length; j++) {
+            variants[j].style.display = variants[j].getAttribute('data-answer-style') === value
+                ? '' : 'none';
+          }
+        }
+        relayoutSoon();
+      }
+
+      function setPreviewColumns(kind, value) {
+        var count = Math.max(1, Math.min(3, Number(value) || 1));
+        var grids = document.querySelectorAll('.' + kind + '-grid');
+        for (var i = 0; i < grids.length; i++) {
+          grids[i].style.columnCount = String(count);
+        }
+        // CQ and RQ can share one continuous two-column flow. In that case
+        // either control updates the shared flow instead of doing nothing.
+        if ((kind === 'cq' || kind === 'rq') &&
+            document.querySelector('.flow-grid')) {
+          document.querySelector('.flow-grid').style.columnCount = String(count);
+        }
+      }
+
+      function selectImage(image) {
+        if (!isEditing()) return;
+        if (selectedImage) selectedImage.classList.remove('image-selected');
+        selectedImage = image;
+        selectedImage.classList.add('image-selected');
+        var imageSize = document.getElementById('imageSizeEditor');
+        var imageSizeCustom = document.getElementById('imageSizeCustom');
+        if (imageSize) {
+          imageSize.disabled = false;
+          imageSize.value = '100';
+        }
+        if (imageSizeCustom) {
+          imageSizeCustom.disabled = false;
+          imageSizeCustom.value = '100';
+        }
+      }
+
+      function resizeSelectedImage(value) {
+        if (!selectedImage || value === '') return;
+        var percent = Math.max(25, Math.min(200, Number(value) || 100));
+        selectedImage.style.maxWidth = 'none';
+        selectedImage.style.maxHeight = 'none';
+        selectedImage.style.width = percent + '%';
+        selectedImage.style.height = 'auto';
+        var imageSize = document.getElementById('imageSizeEditor');
+        var imageSizeCustom = document.getElementById('imageSizeCustom');
+        if (imageSize) imageSize.value = String(percent);
+        if (imageSizeCustom) imageSizeCustom.value = String(percent);
+      }
+
       function wireEditor() {
+        // The browser edition renders this same toolbar as a native settings
+        // rail outside the iframe. Keep one source of truth by routing those
+        // commands through the editor functions below.
+        window.addEventListener('message', function (event) {
+          var data = event.data || {};
+          if (!data || data.source !== 'pi-qbank-web-settings') return;
+          if (data.action === 'demo') {
+            addDemoQuestion(data.value || 'cq');
+          } else if (data.action === 'columns') {
+            var choices = document.querySelectorAll('[data-column-kind="' + data.kind + '"]');
+            for (var ci = 0; ci < choices.length; ci++) {
+              var choice = choices[ci];
+              var active = choice.getAttribute('data-columns') === String(data.value);
+              choice.classList.toggle('active', active);
+            }
+            setPreviewColumns(data.kind, data.value);
+          } else if (data.action === 'quickFix') {
+            var quick = document.getElementById('quickFixBtn');
+            if (quick) quick.click();
+          } else if (data.action === 'edit') {
+            var edit = document.getElementById('editBtn');
+            if (edit) edit.click();
+          } else if (data.action === 'print') {
+            var print = document.getElementById('printBtn');
+            if (print) print.click();
+          } else if (data.action === 'imagePreset') {
+            setPreviewImagePreset(data.value || 'small');
+          } else if (data.action === 'imageSize') {
+            resizeSelectedImage(data.value || 100);
+          } else if (data.action === 'fontStep') {
+            setPreviewFontStep(data.value || 0);
+          } else if (data.action === 'font') {
+            setPreviewFont(data.value || '');
+          } else if (data.action === 'answerSheet') {
+            setPreviewAnswerSheet(data.value || 'none');
+          } else if (data.action === 'answerCount') {
+            var answerCount = document.getElementById('answerItemCount');
+            if (answerCount) {
+              answerCount.value = String(data.value || 30);
+              answerCount.dispatchEvent(new Event('input'));
+            }
+          } else if (data.action === 'format') {
+            formatSelection(data.command, data.value);
+          } else if (data.action === 'fontSizeDelta') {
+            changeSelectionFontSize(data.value);
+          } else if (data.action === 'toggle') {
+            var toggles = document.querySelectorAll(data.selector || '');
+            for (var ti = 0; ti < toggles.length; ti++) {
+              toggles[ti].style.display = data.value ? '' : 'none';
+            }
+          } else if (data.action === 'printOption') {
+            var option = document.getElementById(data.id);
+            if (option) option.value = data.value;
+            setPrintOptions();
+          }
+        });
+        var quickFixButton = document.getElementById('quickFixBtn');
+        var toolbarActions = document.querySelector('.toolbar-actions');
+        if (quickFixButton && toolbarActions) {
+          quickFixButton.addEventListener('click', function () {
+            var open = toolbarActions.classList.toggle('quick-fix-open');
+            quickFixButton.setAttribute('aria-expanded', String(open));
+            quickFixButton.textContent = open ? '✕ Close Quick Fix' : '⚡ Quick Fix';
+          });
+        }
         var button = document.getElementById('editBtn');
         if (button) {
           button.addEventListener('click', function () {
             setEditing(!isEditing());
           });
         }
+        var demoButton = document.getElementById('demoQuestionBtn');
+        var demoMenu = document.getElementById('demoQuestionMenu');
+        if (demoButton) demoButton.addEventListener('click', function () {
+          addDemoQuestion(selectedDemoType);
+        });
+        if (demoMenu) {
+          var demoChoices = demoMenu.querySelectorAll('[data-demo-type]');
+          for (var d = 0; d < demoChoices.length; d++) {
+            demoChoices[d].addEventListener('click', function () {
+              selectedDemoType = this.getAttribute('data-demo-type');
+              for (var option = 0; option < demoChoices.length; option++) {
+                demoChoices[option].classList.toggle(
+                    'selected', demoChoices[option] === this);
+              }
+            });
+          }
+          var defaultDemoChoice = demoMenu.querySelector('[data-demo-type="cq"]');
+          if (defaultDemoChoice) defaultDemoChoice.classList.add('selected');
+        }
+        var orientation = document.getElementById('printOrientation');
+        var paper = document.getElementById('printPaperSize');
+        var scale = document.getElementById('printScale');
+        var margin = document.getElementById('printMargin');
+        if (paper) paper.addEventListener('change', setPrintOptions);
+        if (orientation) orientation.addEventListener('change', setPrintOptions);
+        if (scale) scale.addEventListener('change', setPrintOptions);
+        if (margin) margin.addEventListener('change', setPrintOptions);
+        var imagePreset = document.getElementById('previewImagePreset');
+        if (imagePreset) imagePreset.addEventListener('change', function () {
+          setPreviewImagePreset(imagePreset.value);
+        });
+        var fontStep = document.getElementById('previewFontStep');
+        if (fontStep) fontStep.addEventListener('change', function () {
+          setPreviewFontStep(fontStep.value);
+        });
+        var font = document.getElementById('previewFont');
+        if (font) font.addEventListener('change', function () {
+          setPreviewFont(font.value);
+        });
+        var answerSheet = document.getElementById('previewAnswerSheet');
+        if (answerSheet) answerSheet.addEventListener('change', function () {
+          setPreviewAnswerSheet(answerSheet.value);
+        });
+        var answerItemCount = document.getElementById('answerItemCount');
+        if (answerItemCount) answerItemCount.addEventListener('input', function () {
+          rebuildManualAnswerSheet();
+          if (answerSheet) setPreviewAnswerSheet(answerSheet.value);
+        });
+        var columnChoices = document.querySelectorAll('[data-column-kind]');
+        for (var c = 0; c < columnChoices.length; c++) {
+          columnChoices[c].addEventListener('click', function () {
+            var kind = this.getAttribute('data-column-kind');
+            var count = this.getAttribute('data-columns');
+            var siblings = this.parentNode.querySelectorAll('.column-choice');
+            for (var s = 0; s < siblings.length; s++) siblings[s].classList.remove('active');
+            this.classList.add('active');
+            setPreviewColumns(kind, count);
+          });
+        }
+        var imageSize = document.getElementById('imageSizeEditor');
+        if (imageSize) imageSize.addEventListener('input', function () {
+          resizeSelectedImage(imageSize.value);
+        });
+        var imageSizeCustom = document.getElementById('imageSizeCustom');
+        if (imageSizeCustom) imageSizeCustom.addEventListener('input', function () {
+          resizeSelectedImage(imageSizeCustom.value);
+        });
+        document.addEventListener('click', function (event) {
+          var image = event.target;
+          if (image && image.classList && image.classList.contains('paper-image')) {
+            selectImage(image);
+          }
+          var menu = document.getElementById('demoQuestionMenu');
+          var demoButton = document.getElementById('demoQuestionBtn');
+          if (menu && !menu.hidden && image !== demoButton &&
+              !(image && image.closest && image.closest('#demoQuestionMenu'))) {
+            menu.hidden = true;
+          }
+        });
         // One listener on the document rather than one per sheet: a split
         // makes a sheet that was not there when this ran, and the delegate does
         // not care which sheet the typing landed in.
@@ -2295,9 +3079,8 @@ $paperFontBlock    :root {
         if (hasPreviousSection) 'top',
         if (hasNextSection) 'bottom',
       ];
-      final wrapMcq = kind == PaperSection.mcq &&
-          declares &&
-          mcqClasses.isNotEmpty;
+      final wrapMcq =
+          kind == PaperSection.mcq && declares && mcqClasses.isNotEmpty;
       if (wrapMcq) {
         buffer.write(
             '    <div class="mcq-section-separator ${mcqClasses.join(' ')}">\n');
@@ -2323,13 +3106,27 @@ $paperFontBlock    :root {
     </div>
 ''');
 
-    if (mcqAnswerSheetStyle != McqAnswerSheetStyle.none) {
+    if (questions.any((q) => q.isMcq)) {
       _writeHtmlMcqAnswerSheet(
         buffer,
         questions.where((q) => q.isMcq).toList(),
         mcqAnswerSheetStyle,
       );
+    } else {
+      _writeHtmlManualMcqAnswerSheet(buffer);
     }
+  }
+
+  static void _writeHtmlManualMcqAnswerSheet(StringBuffer buffer) {
+    buffer.write('''
+    <section class="mcq-answer-sheet" data-manual-answer-sheet="true" style="display:none;">
+      <div class="answer-sheet-title">MCQ উত্তরপত্র</div>
+      <div class="answer-sheet-variant answer-sheet-omr" data-answer-style="omr" style="display:none;">
+        <div class="omr-grid"></div>
+      </div>
+      <div class="answer-sheet-variant answer-sheet-serial" data-answer-style="serialAnswer" style="display:none;"></div>
+    </section>
+''');
   }
 
   /// Adds an optional answer sheet after one generated paper set.
@@ -2339,15 +3136,20 @@ $paperFontBlock    :root {
     McqAnswerSheetStyle style,
   ) {
     if (mcqs.isEmpty) return;
+    final visible = style == McqAnswerSheetStyle.none ? 'display:none;' : '';
     buffer.write('''
-    <section class="mcq-answer-sheet">
+    <section class="mcq-answer-sheet" style="$visible">
       <div class="answer-sheet-title">MCQ উত্তরপত্র</div>
 ''');
 
-    if (style == McqAnswerSheetStyle.omr) {
+    final omrVisible = style == McqAnswerSheetStyle.omr ? '' : 'display:none;';
+    buffer.write(
+        '<div class="answer-sheet-variant answer-sheet-omr" data-answer-style="omr" style="$omrVisible">');
+    {
       const letters = ['ক', 'খ', 'গ', 'ঘ'];
       final columns = <List<int>>[[], [], [], []];
-      final rowsPerColumn = (mcqs.length + columns.length - 1) ~/ columns.length;
+      final rowsPerColumn =
+          (mcqs.length + columns.length - 1) ~/ columns.length;
       for (var i = 0; i < mcqs.length; i++) {
         final column = (i ~/ rowsPerColumn).clamp(0, columns.length - 1) as int;
         columns[column].add(i + 1);
@@ -2365,16 +3167,18 @@ $paperFontBlock    :root {
         buffer.write('</div>');
       }
       buffer.write('</div>');
-    } else {
+    }
+
+    final serialVisible =
+        style == McqAnswerSheetStyle.serialAnswer ? '' : 'display:none;';
+    buffer.write(
+        '<div class="answer-sheet-variant answer-sheet-serial" data-answer-style="serialAnswer" style="$serialVisible">');
+    {
       const columnsPerTable = 30;
       for (var start = 0; start < mcqs.length; start += columnsPerTable) {
         final end = (start + columnsPerTable).clamp(0, mcqs.length) as int;
-        final count = end - start;
-        final width = count < columnsPerTable
-            ? '${(count / columnsPerTable * 100).toStringAsFixed(4)}%'
-            : '100%';
         buffer.write(
-            '<table class="serial-answer-table" style="width:$width"><tbody><tr>');
+            '<table class="serial-answer-table" style="width:${(end - start) * 6.5}mm"><tbody><tr>');
         for (var i = start; i < end; i++) {
           buffer.write('<th>${i + 1}</th>');
         }
@@ -2384,6 +3188,7 @@ $paperFontBlock    :root {
         }
         buffer.write('</tr></tbody></table>');
       }
+      buffer.write('</div>');
     }
     buffer.write('</section>');
   }
@@ -2690,7 +3495,7 @@ $paperFontBlock    :root {
     required String time,
     required String totalMarks,
     required List<HighSchoolQuestion> questions,
-    StemImageSize imageSize = StemImageSize.medium,
+    StemImageSize imageSize = StemImageSize.small,
     List<String> setLabels = const [],
     List<PaperSection> sectionOrder = PaperSection.defaultOrder,
   }) {
@@ -2889,54 +3694,6 @@ $paperFontBlock    :root {
         .replaceFirst(RegExp(r'^[. ]+'), '')
         .replaceFirst(RegExp(r'[. ]+$'), '');
     return cleaned.isEmpty ? 'document' : cleaned;
-  }
-
-  static Future<File> saveFile({
-    required String content,
-    required String fileName,
-    List<int>? bytes,
-  }) async {
-    final tempDir = await getTemporaryDirectory();
-    final sanitizedName = safeFileName(fileName);
-    final file = File('${tempDir.path}/$sanitizedName');
-    if (bytes != null) {
-      await file.writeAsBytes(bytes);
-    } else {
-      await file.writeAsString(content, encoding: utf8);
-    }
-    return file;
-  }
-
-  static Future<void> openExportedFile(BuildContext context, File file) async {
-    try {
-      final result = await OpenFile.open(file.path);
-      if (result.type != ResultType.done && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('ফাইলটি সরাসরি ওপেন করা যায়নি: ${result.message}'),
-            backgroundColor: Colors.amber.shade800,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('ত্রুটি: $e'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
-  static Future<void> shareExportedFile(File file, {String? text}) async {
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: text ?? 'Pi-QBank Question Paper',
-    );
   }
 
   static void copyToClipboard(

@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../models/highschool_question.dart';
@@ -27,13 +30,13 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.cqInstruction = '',
     this.setLabels = const [],
     this.sectionOrder = PaperSection.defaultOrder,
-    this.imageSize = StemImageSize.medium,
+    this.imageSize = StemImageSize.small,
     this.cqLayout = QuestionLayout.single,
     this.mcqLayout = QuestionLayout.doubleColumn,
     this.rqLayout = QuestionLayout.single,
     this.mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
     this.fontStep = 0,
-    this.font = PaperFont.hindSiliguri,
+    this.font = PaperFont.kalpurush,
   });
 
   final String schoolName;
@@ -80,6 +83,8 @@ class QuestionPaperPreviewPage extends StatefulWidget {
 }
 
 class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
+  static const _printChannel =
+      MethodChannel('com.pi.mathematics/print_preview');
   WebViewController? _controller;
   bool _isLoading = true;
 
@@ -112,6 +117,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         // The preview shows the page as a desktop browser lays it out, not as a
         // phone-width WebView reflows it.
         desktopMode: true,
+        compactToolbar: defaultTargetPlatform == TargetPlatform.android,
       );
 
   @override
@@ -171,6 +177,51 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   Future<void> _printPreview() async {
     final controller = _controller;
     if (controller == null) return;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        // The preview toolbar changes the DOM at runtime. Printing the
+        // original source would silently discard those changes on Android.
+        var liveHtml = _html;
+        final rawHtml = await controller.runJavaScriptReturningResult(
+          'document.documentElement.outerHTML',
+        );
+        if (rawHtml is String && rawHtml.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(rawHtml);
+            if (decoded is String && decoded.isNotEmpty) {
+              liveHtml = decoded;
+            }
+          } on FormatException {
+            // Some WebView versions return the raw string instead of JSON.
+            liveHtml = rawHtml;
+          }
+        }
+        final rawPaperSize = await controller.runJavaScriptReturningResult(
+          'document.documentElement.dataset.paperSize || "A4"',
+        );
+        var paperSize = 'A4';
+        if (rawPaperSize is String && rawPaperSize.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(rawPaperSize);
+            paperSize = decoded is String ? decoded : rawPaperSize;
+          } on FormatException {
+            paperSize = rawPaperSize;
+          }
+        }
+        await _printChannel.invokeMethod<void>('printHtml', <String, String>{
+          'html': liveHtml,
+          'paperSize': paperSize,
+        });
+      } on PlatformException catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'প্রিন্ট শুরু করা যায়নি: ${error.message ?? 'অজানা সমস্যা'}')),
+        );
+      }
+      return;
+    }
     await controller.runJavaScript('window.print();');
   }
 

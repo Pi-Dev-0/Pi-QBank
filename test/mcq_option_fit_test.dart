@@ -242,6 +242,12 @@ void main() {
           '1fr');
     });
 
+    test('a three-column MCQ block is emitted for compact papers', () {
+      final html = sheetHtml(mcqLayout: QuestionLayout.tripleColumn);
+
+      expect(html, contains('column-count: 3'));
+    });
+
     test('the script tries four, then two, then one', () {
       final script = sheetHtml(mcqLayout: QuestionLayout.single)
           .split('<script>')[1]

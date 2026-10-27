@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/highschool_question.dart';
 import '../services/highschool_qbank_service.dart';
 import '../services/highschool_export_service.dart';
+import '../services/highschool_file_export_service.dart';
 import '../pages/question_paper_preview_page.dart';
 import '../widgets/custom_app_bar.dart';
 import '../config/app_config.dart';
@@ -148,6 +149,7 @@ class _HighSchoolQPaperGeneratorPageState
 
   /// Which question type the picker is showing.
   _PickFilter _pickFilter = _PickFilter.all;
+  _ImageFilter _imageFilter = _ImageFilter.all;
   final _pickSearchCtrl = TextEditingController();
   String _pickSearchQuery = '';
 
@@ -186,14 +188,11 @@ class _HighSchoolQPaperGeneratorPageState
   /// [number] written the way a paper writes it.
   static String _bengaliNumber(int number) {
     const digits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    return '$number'
-        .split('')
-        .map((d) => digits[int.parse(d)])
-        .join();
+    return '$number'.split('').map((d) => digits[int.parse(d)]).join();
   }
 
   /// How stem images are sized in the HTML paper.
-  StemImageSize _imageSize = StemImageSize.medium;
+  StemImageSize _imageSize = StemImageSize.small;
 
   /// How CQ questions are arranged (single or double column).
   QuestionLayout _cqLayout = QuestionLayout.single;
@@ -221,7 +220,7 @@ class _HighSchoolQPaperGeneratorPageState
   static const double _fontStepMax = 6;
 
   /// The face the HTML sheet is set in. See [PaperFont].
-  PaperFont _paperFont = PaperFont.hindSiliguri;
+  PaperFont _paperFont = PaperFont.kalpurush;
 
   // ── Animation ─────────────────────────────────────────────────────────────
   late final AnimationController _stepAnim = AnimationController(
@@ -271,6 +270,10 @@ class _HighSchoolQPaperGeneratorPageState
 
   /// When false the paper is a single set, exactly as before.
   bool _twoSets = false;
+
+  /// Desktop navigation rail state. The narrow rail keeps the native wizard
+  /// usable while matching the browser studio shell.
+  bool _desktopSidebarOpen = true;
 
   /// Order the sections are printed in. Defaults to the paper's original
   /// arrangement: CQ, then the short questions, then MCQ.
@@ -649,6 +652,7 @@ class _HighSchoolQPaperGeneratorPageState
     final query = _pickSearchQuery.trim().toLowerCase();
     return _fetchedQuestions.where((q) {
       if (!_pickFilter.matches(q)) return false;
+      if (!_imageFilter.matches(q)) return false;
       // An empty filter means every chapter, which keeps the default from
       // silently hiding anything.
       if (_pickerChapterFilter.isNotEmpty &&
@@ -668,7 +672,9 @@ class _HighSchoolQPaperGeneratorPageState
   /// True when a filter or search is narrowing the list, so the select-all
   /// buttons can say they only affect what is on screen.
   bool get _pickIsNarrowed =>
-      _pickFilter != _PickFilter.all || _pickSearchQuery.trim().isNotEmpty;
+      _pickFilter != _PickFilter.all ||
+      _imageFilter != _ImageFilter.all ||
+      _pickSearchQuery.trim().isNotEmpty;
 
   void _selectAll() {
     final runs = _mcqStemRuns();
@@ -712,10 +718,8 @@ class _HighSchoolQPaperGeneratorPageState
       _PickFilter.rq: _fetchedQuestions.where((q) => q.isShort).toList(),
     };
     pools.removeWhere((_, pool) => pool.isEmpty);
-    if (pools.isEmpty &&
-        cqCount <= 0 &&
-        mcqCount <= 0 &&
-        rqCount <= 0) return const [];
+    if (pools.isEmpty && cqCount <= 0 && mcqCount <= 0 && rqCount <= 0)
+      return const [];
 
     final order = pools.keys.toList();
     final share = <_PickFilter, int>{
@@ -1002,15 +1006,15 @@ class _HighSchoolQPaperGeneratorPageState
         font: _paperFont,
         cqInstruction: _cqInstruction,
       );
-      final file = await HighSchoolExportService.saveFile(
+      final file = await HighSchoolFileExportService.saveFile(
         content: html,
         fileName: '${_getBaseFileName()}.html',
       );
       if (!mounted) return;
       if (open) {
-        await HighSchoolExportService.openExportedFile(context, file);
+        await HighSchoolFileExportService.openExportedFile(context, file);
       } else {
-        await HighSchoolExportService.shareExportedFile(
+        await HighSchoolFileExportService.shareExportedFile(
           file,
           text: '${_examCtrl.text} - HTML Web Page',
         );
@@ -1089,12 +1093,12 @@ class _HighSchoolQPaperGeneratorPageState
       // browser, and a phone-width one should still show the printed page.
       desktopMode: true,
     );
-    final file = await HighSchoolExportService.saveFile(
+    final file = await HighSchoolFileExportService.saveFile(
       content: html,
       fileName: '${_getBaseFileName()}_preview.html',
     );
     if (!mounted) return;
-    await HighSchoolExportService.openExportedFile(context, file);
+    await HighSchoolFileExportService.openExportedFile(context, file);
   }
 
   /// Turn network and configuration failures into actionable messages.
@@ -1162,16 +1166,154 @@ class _HighSchoolQPaperGeneratorPageState
             ),
         ],
       ),
-      body: Column(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final desktop = constraints.maxWidth >= 1000;
+          final content = Column(
+            children: [
+              _StepIndicator(currentStep: _currentStep),
+              Expanded(
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: _buildCurrentStep(),
+                ),
+              ),
+            ],
+          );
+          if (!desktop) return content;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: _desktopSidebarOpen ? 250 : 68,
+                child: _buildDesktopSidebar(compact: !_desktopSidebarOpen),
+              ),
+              Expanded(child: content),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDesktopSidebar({bool compact = false}) {
+    return Container(
+      color: const Color(0xFF102F50),
+      padding: EdgeInsets.fromLTRB(compact ? 8 : 14, 16, compact ? 8 : 14, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _StepIndicator(currentStep: _currentStep),
-          Expanded(
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: _buildCurrentStep(),
-            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: compact
+                ? IconButton(
+                    tooltip: 'মেনু খুলুন',
+                    onPressed: () => setState(() => _desktopSidebarOpen = true),
+                    icon: const Icon(Icons.menu_open, color: Colors.white),
+                  )
+                : Row(
+                    children: [
+                      const Expanded(
+                        child: Row(
+                          children: [
+                            Icon(Icons.auto_stories_outlined,
+                                color: Colors.white, size: 25),
+                            SizedBox(width: 8),
+                            Text('Pi-QBank',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 21,
+                                    fontWeight: FontWeight.w800)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'মেনু গুটান',
+                        onPressed: () =>
+                            setState(() => _desktopSidebarOpen = false),
+                        icon: const Icon(Icons.menu_open, color: Colors.white),
+                      ),
+                    ],
+                  ),
           ),
+          if (!compact) ...[
+            const SizedBox(height: 22),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text('প্রশ্নপত্র',
+                  style: TextStyle(
+                      color: Color(0xFFB7C8DB),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ] else
+            const SizedBox(height: 20),
+          _desktopNavItem(Icons.dashboard_outlined, 'ড্যাশবোর্ড',
+              compact: compact, onTap: () => _goToStep(0)),
+          _desktopNavItem(Icons.add_box_outlined, 'প্রশ্নপত্র তৈরি',
+              compact: compact,
+              active: _currentStep == 0,
+              onTap: () => _goToStep(0)),
+          _desktopNavItem(Icons.preview_outlined, 'প্রিভিউ',
+              compact: compact,
+              active: _currentStep == 2,
+              onTap: _selectedQuestions.isEmpty ? null : _openLivePreview),
+          _desktopNavItem(Icons.library_books_outlined, 'প্রশ্ন ব্যাংক',
+              compact: compact,
+              active: _currentStep == 1,
+              onTap: () => _goToStep(1)),
+          if (!compact) ...[
+            const SizedBox(height: 18),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Text('সহায়তা',
+                  style: TextStyle(
+                      color: Color(0xFFB7C8DB),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(height: 8),
+          ] else
+            const Spacer(),
+          _desktopNavItem(Icons.help_outline, 'নির্দেশিকা',
+              compact: compact,
+              onTap: () => _showError('নির্দেশিকা শীঘ্রই যুক্ত হবে।')),
+          _desktopNavItem(Icons.settings_outlined, 'সেটিংস',
+              compact: compact, onTap: () => _goToStep(2)),
+          const Spacer(),
+          if (!compact)
+            const Padding(
+              padding: EdgeInsets.all(8),
+              child: Text('Linux desktop edition',
+                  style: TextStyle(color: Color(0xFF90A8C2), fontSize: 12)),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _desktopNavItem(IconData icon, String label,
+      {required bool compact, bool active = false, VoidCallback? onTap}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 5),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFFDCE7F3) : Colors.transparent,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: ListTile(
+        dense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: compact ? 0 : 8),
+        horizontalTitleGap: compact ? 0 : 8,
+        leading: Icon(icon,
+            size: 20, color: active ? const Color(0xFF102F50) : Colors.white),
+        title: compact
+            ? null
+            : Text(label,
+                style: TextStyle(
+                    color: active ? const Color(0xFF102F50) : Colors.white,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w500)),
+        onTap: onTap,
       ),
     );
   }
@@ -1877,6 +2019,28 @@ class _HighSchoolQPaperGeneratorPageState
                 if (_pickIsNarrowed)
                   Text('$visibleCount টি দেখানো হচ্ছে',
                       style: const TextStyle(fontSize: 11, color: _kSubText)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Text('ছবি:',
+                    style: TextStyle(fontSize: 11, color: _kSubText)),
+                const SizedBox(width: 8),
+                for (final f in _ImageFilter.values) ...[
+                  _PickFilterChip(
+                    label: f.badge,
+                    title: f.title,
+                    count: _fetchedQuestions.where(f.matches).length,
+                    color: f.color,
+                    selected: _imageFilter == f,
+                    onTap: () => setState(() => _imageFilter = f),
+                  ),
+                  const SizedBox(width: 8),
+                ],
               ],
             ),
           ),
@@ -2597,53 +2761,53 @@ class _HighSchoolQPaperGeneratorPageState
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          Expanded(
-            child: _buildSettingDropdown<StemImageSize>(
-              label: 'ছবির আকার',
-              value: _imageSize,
-              items: StemImageSize.values,
-              itemLabel: (size) => size.label,
-              selectedItemLabel: (size) =>
-                  size == StemImageSize.hidden ? 'বন্ধ' : size.label,
-              onChanged: (value) {
-                if (value != null) setState(() => _imageSize = value);
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildSettingDropdown<double>(
-              label: 'লেখার আকার',
-              value: _fontStep,
-              items: fontSteps,
-              itemLabel: fontSizeLabel,
-              onChanged: (value) {
-                if (value != null) setState(() => _fontStep = value);
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _buildSettingDropdown<PaperFont>(
-              label: 'ফন্ট',
-              value: _paperFont,
-              items: PaperFont.values,
-              itemLabel: (font) => font.label,
-              selectedItemLabel: (font) => switch (font) {
-                PaperFont.hindSiliguri => 'হিন্দ',
-                PaperFont.notoSansBengali => 'নোটো সান্স',
-                PaperFont.notoSerifBengali => 'নোটো সেরিফ',
-                PaperFont.balooDa => 'বালু দা',
-                PaperFont.mina => 'মিনা',
-                PaperFont.kalpurush => 'কলপুরুষ',
-                PaperFont.solaimanLipi => 'সলাইমান',
-                PaperFont.nirmalaUi => 'নির্মলা',
-              },
-              onChanged: (value) {
-                if (value != null) setState(() => _paperFont = value);
-              },
-            ),
-          ),
+              Expanded(
+                child: _buildSettingDropdown<StemImageSize>(
+                  label: 'ছবির আকার',
+                  value: _imageSize,
+                  items: StemImageSize.values,
+                  itemLabel: (size) => size.label,
+                  selectedItemLabel: (size) =>
+                      size == StemImageSize.hidden ? 'বন্ধ' : size.label,
+                  onChanged: (value) {
+                    if (value != null) setState(() => _imageSize = value);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSettingDropdown<double>(
+                  label: 'লেখার আকার',
+                  value: _fontStep,
+                  items: fontSteps,
+                  itemLabel: fontSizeLabel,
+                  onChanged: (value) {
+                    if (value != null) setState(() => _fontStep = value);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSettingDropdown<PaperFont>(
+                  label: 'ফন্ট',
+                  value: _paperFont,
+                  items: PaperFont.values,
+                  itemLabel: (font) => font.label,
+                  selectedItemLabel: (font) => switch (font) {
+                    PaperFont.hindSiliguri => 'হিন্দ',
+                    PaperFont.notoSansBengali => 'নোটো সান্স',
+                    PaperFont.notoSerifBengali => 'নোটো সেরিফ',
+                    PaperFont.balooDa => 'বালু দা',
+                    PaperFont.mina => 'মিনা',
+                    PaperFont.kalpurush => 'কলপুরুষ',
+                    PaperFont.solaimanLipi => 'সলাইমান',
+                    PaperFont.nirmalaUi => 'নির্মলা',
+                  },
+                  onChanged: (value) {
+                    if (value != null) setState(() => _paperFont = value);
+                  },
+                ),
+              ),
             ],
           ),
           if (_selectedMcqs.isNotEmpty) ...[
@@ -3015,7 +3179,8 @@ class _HighSchoolQPaperGeneratorPageState
         labelStyle: const TextStyle(fontSize: 13.5, color: _kSubText),
         floatingLabelStyle: const TextStyle(
             fontSize: 13, color: _kPrimary, fontWeight: FontWeight.w600),
-        prefixIcon: icon == null ? null : Icon(icon, color: _kPrimary, size: 20),
+        prefixIcon:
+            icon == null ? null : Icon(icon, color: _kPrimary, size: 20),
         prefixIconConstraints:
             const BoxConstraints(minWidth: 38, minHeight: 40),
         isDense: true,
@@ -3482,6 +3647,28 @@ enum _PickFilter {
       case _PickFilter.rq:
         return q.isShort;
     }
+  }
+}
+
+/// An independent image filter, so it can be combined with CQ/MCQ/RQ.
+enum _ImageFilter {
+  all('সব', 'সব প্রশ্ন', _kPrimary),
+  withImage('ছবিসহ', 'যেসব প্রশ্নে ছবি আছে', _kCqColor),
+  withoutImage('ছবিহীন', 'যেসব প্রশ্নে ছবি নেই', _kSubText);
+
+  const _ImageFilter(this.badge, this.title, this.color);
+
+  final String badge;
+  final String title;
+  final Color color;
+
+  bool matches(HighSchoolQuestion q) {
+    final hasImage = q.stemImageUrl.trim().isNotEmpty;
+    return switch (this) {
+      _ImageFilter.all => true,
+      _ImageFilter.withImage => hasImage,
+      _ImageFilter.withoutImage => !hasImage,
+    };
   }
 }
 

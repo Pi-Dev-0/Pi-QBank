@@ -10,7 +10,13 @@ import android.os.Build
 import android.provider.Settings
 import android.app.AlarmManager
 import android.app.NotificationManager
+import android.print.PrintAttributes
+import android.print.PrintManager
 import android.util.Log
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.os.Handler
+import android.os.Looper
 
 class MainActivity : FlutterActivity() {
     private var newspaperWidgetChannel: MethodChannel? = null
@@ -22,6 +28,7 @@ class MainActivity : FlutterActivity() {
     private var specialAccessKind: String? = null
     private var notificationPermissionResult: MethodChannel.Result? = null
     private var pendingNewspaperRequest: Map<String, String>? = null
+    private val printWebViews = mutableListOf<WebView>()
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,8 +36,41 @@ class MainActivity : FlutterActivity() {
         // forward it to Flutter once the engine is ready.
         pendingNewspaperRequest = readNewspaperRequest(intent)
     }
+
+    override fun onDestroy() {
+        printWebViews.forEach { webView ->
+            webView.stopLoading()
+            webView.destroy()
+        }
+        printWebViews.clear()
+        super.onDestroy()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.pi.mathematics/print_preview"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "printHtml" -> {
+                    val arguments = call.arguments
+                    val html = when (arguments) {
+                        is String -> arguments
+                        is Map<*, *> -> arguments["html"] as? String
+                        else -> null
+                    }
+                    val paperSize = (arguments as? Map<*, *>)?.get("paperSize") as? String
+                        ?: "A4"
+                    if (html.isNullOrBlank()) {
+                        result.error("invalid_html", "Print HTML is empty", null)
+                    } else {
+                        printHtml(html, paperSize, result)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "com.pi.mathematics/reading_progress_widget"
@@ -125,6 +165,56 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+    }
+
+    /** Loads the preview in a print-capable WebView and opens Android's printer UI. */
+    private fun printHtml(html: String, paperSize: String, result: MethodChannel.Result) {
+        val printWebView = WebView(this)
+        printWebViews.add(printWebView)
+        printWebView.settings.javaScriptEnabled = true
+        printWebView.settings.loadsImagesAutomatically = true
+        printWebView.settings.domStorageEnabled = true
+        var printed = false
+        printWebView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                if (printed) return
+                printed = true
+                // Give web fonts and remote images a moment to finish before
+                // Android snapshots the document for the print adapter.
+                Handler(Looper.getMainLooper()).postDelayed({
+                    try {
+                        val printManager = getSystemService(PRINT_SERVICE) as PrintManager
+                        val adapter = view.createPrintDocumentAdapter("Pi-QBank Question Paper")
+                        val attributes = PrintAttributes.Builder()
+                            .setMediaSize(mediaSizeFor(paperSize))
+                            .setResolution(PrintAttributes.Resolution("qbank", "Pi-QBank", 300, 300))
+                            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                            .build()
+                        printManager.print("Pi-QBank Question Paper", adapter, attributes)
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error("print_failed", error.message, null)
+                    }
+                }, 700)
+            }
+        }
+        printWebView.loadDataWithBaseURL(
+            "https://pi-qbank.local/",
+            html,
+            "text/html",
+            "UTF-8",
+            null,
+        )
+    }
+
+    private fun mediaSizeFor(paperSize: String): PrintAttributes.MediaSize {
+        return when (paperSize.uppercase()) {
+            "A3" -> PrintAttributes.MediaSize.ISO_A3
+            "A5" -> PrintAttributes.MediaSize.ISO_A5
+            "LETTER" -> PrintAttributes.MediaSize.NA_LETTER
+            "LEGAL" -> PrintAttributes.MediaSize.NA_LEGAL
+            else -> PrintAttributes.MediaSize.ISO_A4
+        }
     }
 
     private fun requestNotificationPermission(result: MethodChannel.Result) {
