@@ -355,9 +355,9 @@ void main() {
       await _toLastStep(tester);
 
       expect(_sectionOrder(tester), [
-        'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-        'খ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
-        'গ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
+        'ক-বিভাগ: সৃজনশীল (CQ)',
+        'খ-বিভাগ: সংক্ষিপ্ত (SQ)',
+        'গ-বিভাগ: বহুনির্বাচনী (MCQ)',
       ]);
     });
 
@@ -365,9 +365,9 @@ void main() {
       await _openPicker(tester);
       await _toLastStep(tester);
 
-      expect(find.text('6 টি প্রশ্ন  ·  60 নম্বর'), findsOneWidget);
-      expect(find.text('2 টি প্রশ্ন  ·  2 নম্বর'), findsOneWidget);
-      expect(find.text('4 টি প্রশ্ন  ·  8 নম্বর'), findsOneWidget);
+      expect(find.text('6 টি · 60 নম্বর'), findsOneWidget);
+      expect(find.text('2 টি · 2 নম্বর'), findsOneWidget);
+      expect(find.text('4 টি · 8 নম্বর'), findsOneWidget);
     });
 
     testWidgets('dragging MCQ to the top reorders the sections',
@@ -382,9 +382,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_sectionOrder(tester), [
-        'ক-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
-        'খ-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
+        'ক-বিভাগ: বহুনির্বাচনী (MCQ)',
+        'খ-বিভাগ: সৃজনশীল (CQ)',
+        'গ-বিভাগ: সংক্ষিপ্ত (SQ)',
       ]);
     });
 
@@ -400,9 +400,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_sectionOrder(tester), [
-        'ক-বিভাগ: সৃজনশীল প্রশ্ন (CQ)',
-        'খ-বিভাগ: বহুনির্বাচনী প্রশ্ন (MCQ)',
-        'গ-বিভাগ: সংক্ষিপ্ত প্রশ্ন (SQ)',
+        'ক-বিভাগ: সৃজনশীল (CQ)',
+        'খ-বিভাগ: বহুনির্বাচনী (MCQ)',
+        'গ-বিভাগ: সংক্ষিপ্ত (SQ)',
       ]);
     });
 

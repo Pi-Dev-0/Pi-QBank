@@ -1,21 +1,14 @@
-// Printing a sheet from inside the app.
+// Printing a sheet.
 //
-// The sheet prints itself in a browser — the page as it stands, live edits and
-// all. Inside the app's preview it cannot: an Android WebView has no print
-// support at all, so `window.print()` does nothing and the button looked broken
-// on a phone. The button now asks the host over a JavaScript channel when one
-// exists, and the host prints the paper through the app's own PDF path.
-//
-// What is locked down here: the browser fallback still works (the exported file
-// is meant to be printed from a browser), the sheet asks for the print rather
-// than doing it when a host is listening, and the channel name the sheet posts
-// to is the one the preview page registers — the two are in different files and
-// silently drifting apart would put the dead button back.
-import 'package:flutter/material.dart';
+// The exported .html file is meant to be opened in a browser, so the sheet
+// carries its own print button: it prints the page as it stands, live edits and
+// all. Inside the app the preview page also offers a print action in its app
+// bar; this file only locks down the sheet half, because the two ends live in
+// different layers and the browser fallback must keep working even when no app
+// host is involved.
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:pi_qbank/models/highschool_question.dart';
-import 'package:pi_qbank/pages/question_paper_preview_page.dart';
 import 'package:pi_qbank/services/highschool_export_service.dart';
 
 HighSchoolQuestion rq() => HighSchoolQuestion.fromJson({
@@ -32,7 +25,8 @@ HighSchoolQuestion rq() => HighSchoolQuestion.fromJson({
       'short_mark': 1,
     });
 
-String sheetHtml() => HighSchoolExportService.generateHtml(
+String sheetHtml({PaperPrintSettings printSettings = const PaperPrintSettings()}) =>
+    HighSchoolExportService.generateHtml(
       schoolName: 'S',
       examName: 'E',
       subject: 'গণিত',
@@ -40,66 +34,47 @@ String sheetHtml() => HighSchoolExportService.generateHtml(
       time: 'T',
       totalMarks: '10',
       questions: [rq()],
-    );
-
-Widget preview({Future<void> Function()? onPrint}) => MaterialApp(
-      home: QuestionPaperPreviewPage(
-        schoolName: 'S',
-        examName: 'E',
-        subject: 'গণিত',
-        className: 'C',
-        time: 'T',
-        totalMarks: '10',
-        questions: [rq()],
-        onPrint: onPrint,
-      ),
+      printSettings: printSettings,
     );
 
 void main() {
-  group('the sheet', () {
-    test('the print button no longer prints by itself', () {
+  group('the sheet print button', () {
+    test('is present and labelled', () {
       final html = sheetHtml();
 
       expect(html, contains('id="printBtn"'));
-      expect(html, isNot(contains('onclick="window.print()"')));
+      expect(html, contains('প্রিন্ট করুন'));
     });
 
-    test('it asks the host when there is one, and prints itself when not', () {
+    test('prints the page it is on', () {
       final html = sheetHtml();
 
-      expect(html,
-          contains("if (window.${QuestionPaperPreviewPage.printChannel})"));
-      expect(html, contains('postMessage'));
-      // The browser fallback has to stay: an exported file is opened in a
-      // browser, where no host is listening and printing is the browser's job.
-      expect(html, contains('else window.print()'));
+      // The handler is wired rather than inlined, so the click prints the
+      // current document instead of reloading or exporting a stale copy.
+      expect(html, contains("printBtn.addEventListener('click'"));
+      expect(html, contains('window.print()'));
     });
 
-    test('the channel the sheet calls is the one the app answers', () {
-      // The two ends live in different files; a rename on one side alone would
-      // put the dead button back on Android.
-      expect(QuestionPaperPreviewPage.printChannel, 'PiQBankPrint');
-      expect(sheetHtml(), contains(QuestionPaperPreviewPage.printChannel));
-    });
-  });
+    test('belongs to the screen-only toolbar', () {
+      final html = sheetHtml();
 
-  group('the preview page', () {
-    testWidgets('offers the app print when a host hands it one', (tester) async {
-      await tester.pumpWidget(preview(onPrint: () async {}));
-      await tester.pumpAndSettle();
-
-      expect(find.byTooltip('প্রিন্ট / PDF সংরক্ষণ'), findsOneWidget);
+      expect(html, contains('.no-print-toolbar'));
+      expect(html, contains('class="no-print-toolbar"'));
     });
 
-    testWidgets('keeps its own hand off printing when no host is there',
-        (tester) async {
-      // A sheet rendered without a host prints itself; the page must not offer
-      // a print it cannot do.
-      await tester.pumpWidget(preview());
-      await tester.pumpAndSettle();
+    test('survives every print setting', () {
+      final html = sheetHtml(
+        printSettings: const PaperPrintSettings(
+          paperSize: PaperSize.legal,
+          pageNumbers: true,
+          editingMode: true,
+          showWatermark: true,
+          watermarkText: 'DRAFT',
+        ),
+      );
 
-      expect(find.byTooltip('প্রিন্ট / PDF সংরক্ষণ'), findsNothing);
-      expect(find.byTooltip('প্রিভিউ রিফ্রেশ করুন'), findsOneWidget);
+      expect(html, contains('id="printBtn"'));
+      expect(html, contains('window.print()'));
     });
   });
 }

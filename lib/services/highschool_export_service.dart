@@ -2767,7 +2767,7 @@ $paperFontBlock    :root {
         var nodes = set.querySelectorAll('*');
         var max = 0;
         var bengaliDigits = '০১২৩৪৫৬৭৮৯';
-        var numberPattern = /([0-9০-৯]+)\s*[.)]/g;
+        var numberPattern = /([0-9০-৯]+)\\s*[.)]/g;
         for (var i = 0; i < nodes.length; i++) {
           var text = nodes[i].textContent || '';
           var match;
@@ -3594,7 +3594,7 @@ $paperFontBlock    :root {
       final rowsPerColumn =
           (mcqs.length + columns.length - 1) ~/ columns.length;
       for (var i = 0; i < mcqs.length; i++) {
-        final column = (i ~/ rowsPerColumn).clamp(0, columns.length - 1) as int;
+        final column = (i ~/ rowsPerColumn).clamp(0, columns.length - 1);
         columns[column].add(i + 1);
       }
       buffer.write('<div class="omr-grid">');
@@ -3619,7 +3619,7 @@ $paperFontBlock    :root {
     {
       const columnsPerTable = 30;
       for (var start = 0; start < mcqs.length; start += columnsPerTable) {
-        final end = (start + columnsPerTable).clamp(0, mcqs.length) as int;
+        final end = (start + columnsPerTable).clamp(0, mcqs.length);
         buffer.write(
             '<table class="serial-answer-table" style="width:${(end - start) * 6.5}mm"><tbody><tr>');
         for (var i = start; i < end; i++) {

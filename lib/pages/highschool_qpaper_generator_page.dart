@@ -2073,7 +2073,6 @@ class _HighSchoolQPaperGeneratorPageState
   // ── Right-hand settings rail ───────────────────────────────────────────────
 
   Widget _buildStudioSettingsRail() {
-    final marks = _marksBreakdown;
     final selected = _selectedQuestions.length;
 
     return Container(
@@ -2143,32 +2142,6 @@ class _HighSchoolQPaperGeneratorPageState
                   _buildRailHeading('নির্বাচন'),
                   _buildPickerActions(),
                 ],
-                _buildRailHeading('সারসংক্ষেপ'),
-                _buildRailSummaryRow('CQ', _selectedCqs.length, marks.cq,
-                    _kCqColor),
-                _buildRailSummaryRow(
-                    'MCQ', _selectedMcqs.length, marks.mcq, _kMcqColor),
-                _buildRailSummaryRow(
-                    'RQ', _selectedShorts.length, marks.rq, _kRqColor),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text('মোট নম্বর',
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: _kDarkText)),
-                      ),
-                      Text('$_totalSelectedMarks',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: _kPrimary)),
-                    ],
-                  ),
-                ),
                 _buildRailHeading('পরীক্ষার তথ্য'),
                 _buildRailPaperInfo(),
                 _buildRailHeading('বিভাগ ও কলাম'),
@@ -2476,30 +2449,6 @@ class _HighSchoolQPaperGeneratorPageState
       ),
       child: Text(text,
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-    );
-  }
-
-  Widget _buildRailSummaryRow(
-      String label, int count, int marks, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 12.5, color: _kDarkText)),
-          ),
-          Text('$countটি · $marks নম্বর',
-              style: const TextStyle(fontSize: 12, color: _kSubText)),
-        ],
-      ),
     );
   }
 
@@ -4979,30 +4928,6 @@ class _HighSchoolQPaperGeneratorPageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.view_column_outlined,
-                  size: 17, color: _kPrimary),
-              const SizedBox(width: 7),
-              const Expanded(
-                child: Text('বিভাগ ও কলাম',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13.5,
-                        color: _kDarkText)),
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text('ধরে টেনে ক্রম বদলাও',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11, color: _kSubText)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
           ReorderableListView.builder(
             shrinkWrap: true,
             buildDefaultDragHandles: false,
@@ -5039,7 +4964,7 @@ class _HighSchoolQPaperGeneratorPageState
           ),
           const SizedBox(height: 4),
           const Text(
-            'প্রতিটি বিভাগ আলাদাভাবে এক বা দুই কলামে বসানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
+            'ধরে টেনে ক্রম বদলাও। প্রতিটি বিভাগ আলাদাভাবে এক বা দুই কলামে বসানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
             style: TextStyle(fontSize: 11, color: _kSubText),
           ),
         ],
