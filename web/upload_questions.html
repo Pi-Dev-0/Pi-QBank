@@ -647,6 +647,113 @@
       word-break: break-all;
     }
 
+    /* The upload queue uses the same question-card language as the web
+       question picker: a numbered card, a type badge, and the complete
+       question visible without another click. */
+    .queue-item {
+      display: block;
+      padding: 14px 16px 15px;
+      background: #fff;
+      border: 1px solid #D9E1EA;
+      border-radius: 12px;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    .queue-item:hover,
+    .queue-item.open {
+      border-color: var(--primary-light);
+      box-shadow: 0 3px 12px rgba(79, 70, 229, .08);
+    }
+    .queue-item .q-main { gap: 10px; }
+    .queue-item .q-number {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      border-radius: 9px;
+      background: #EEF2FF;
+      color: var(--primary-dark);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .queue-item .q-title {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      line-height: 1.4;
+    }
+    .queue-item .q-meta { margin-top: 3px; }
+    .queue-item .q-type-badge {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      vertical-align: 1px;
+    }
+    .queue-item .q-type-badge.cq { color: #4338CA; background: #EEF2FF; }
+    .queue-item .q-type-badge.mcq { color: #0F766E; background: #CCFBF1; }
+    .queue-item .q-type-badge.rq { color: #475569; background: #F1F5F9; }
+    .queue-item .q-detail {
+      display: block;
+      margin: 12px 0 0 40px;
+      padding: 12px 0 0;
+      border-top: 1px solid #E2E8F0;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .queue-item .qd-line { margin-bottom: 6px; }
+    .queue-item .qd-question { font-weight: 700; margin-bottom: 8px; }
+    .queue-item .qd-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 8px;
+      margin: 8px 0;
+    }
+    .queue-item .qd-option {
+      padding: 6px 9px;
+      border-radius: 8px;
+      background: #F1F3F6;
+    }
+    .queue-item .qd-option.qd-correct {
+      color: #065F46;
+      background: #ECFDF5;
+      font-weight: 700;
+    }
+    .queue-item .qd-cq-sub {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+    }
+    .queue-item .qd-cq-sub .qd-label {
+      flex: 0 0 24px;
+      color: var(--primary);
+      font-weight: 800;
+    }
+    .queue-item .qd-cq-sub .qd-text { flex: 1; min-width: 0; }
+    .queue-item .qd-mark { white-space: nowrap; }
+    .queue-item .qd-image {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #F8FAFC;
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+    @media (max-width: 520px) {
+      .queue-item .q-detail { margin-left: 0; }
+      .queue-item .qd-options { grid-template-columns: 1fr; }
+    }
+
     /* ── JSON Preview ──────────────────────── */
     .json-preview {
       background: #1E293B;
@@ -2605,8 +2712,9 @@
         if (q.stem_text) lines.push(`<div class="qd-line">${escapeHtml(String(q.stem_text))}</div>`);
         const subs = Array.isArray(q.sub_questions_json) ? q.sub_questions_json : [];
         subs.forEach(sq => lines.push(
-          `<div class="qd-line">(${escapeHtml(String(sq.label || ''))}) ` +
-          `${escapeHtml(String(sq.text || ''))} ` +
+          `<div class="qd-line qd-cq-sub">` +
+          `<span class="qd-label">${escapeHtml(String(sq.label || ''))}</span>` +
+          `<span class="qd-text">${escapeHtml(String(sq.text || ''))}</span>` +
           `<span class="qd-mark">[${escapeHtml(String(sq.mark ?? ''))}]</span></div>`));
       } else if (type === 'MCQ') {
         const payload = q.sub_questions_json || {};
@@ -2620,14 +2728,14 @@
               ? ` <span class="qd-mark">· stem_group: ${escapeHtml(String(q.stem_group))}</span>`
               : '') + '</div>');
         }
-        lines.push(`<div class="qd-line">${escapeHtml(String(payload.text || ''))}</div>`);
-        (payload.options || []).forEach((option, i) => {
+        lines.push(`<div class="qd-line qd-question">${escapeHtml(String(payload.text || ''))}</div>`);
+        const options = (payload.options || []).map((option, i) => {
           const letter = ['ক', 'খ', 'গ', 'ঘ', 'ঙ'][i] || String(i + 1);
           const correct = option === payload.correct_ans;
-          lines.push(
-            `<div class="qd-line${correct ? ' qd-correct' : ''}">` +
-            `(${letter}) ${escapeHtml(String(option))}${correct ? ' ✓' : ''}</div>`);
-        });
+          return `<div class="qd-option${correct ? ' qd-correct' : ''}">` +
+            `(${letter}) ${escapeHtml(String(option))}${correct ? ' ✓' : ''}</div>`;
+        }).join('');
+        if (options) lines.push(`<div class="qd-options">${options}</div>`);
         if (!payload.correct_ans) {
           lines.push('<div class="qd-line qd-meta">No correct answer marked.</div>');
         }
@@ -2693,8 +2801,6 @@
 
       list.innerHTML = questionQueue.map((q, i) => {
         const type = questionType(q);
-        const icon = type === 'CQ' ? '📖' : (type === 'RQ' ? '✏️' : '✅');
-        const bg = type === 'CQ' ? '#EEF2FF' : (type === 'RQ' ? '#ECFDF5' : '#FFF7ED');
         const meta =
           `${escapeHtml(String(q.class || ''))} · ${escapeHtml(String(q.subject || ''))} · ` +
           `${escapeHtml(String(q.chapter_number || ''))}: ${escapeHtml(String(q.chapter_name || ''))} · ` +
@@ -2702,13 +2808,15 @@
         return `
           <div class="queue-item" id="qitem_${i}">
             <div class="q-main">
-              <div class="q-icon" style="background:${bg};">${icon}</div>
+              <div class="q-number">${i + 1}</div>
               <div class="q-info" role="button" tabindex="0" aria-expanded="false"
                    title="Click to read the whole question"
                    onclick="toggleQueueItem(${i})"
                    onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleQueueItem(${i}); }">
-                <div class="q-title">${escapeHtml(queueTitle(q))}</div>
-                <div class="q-meta">${meta}</div>
+                <div class="q-title">${escapeHtml(queueTitle(q))}
+                  <span class="q-type-badge ${type.toLowerCase()}">${type}</span>
+                </div>
+                <div class="q-meta">${meta}${q.stem_image_url ? ' · image' : ''}</div>
               </div>
               <button type="button" class="q-act" title="Edit this question" onclick="editQueueItem(${i})">✏️</button>
               <button type="button" class="q-act" title="Duplicate it just below" onclick="duplicateQueueItem(${i})">⧉</button>
@@ -2941,6 +3049,13 @@
           // Only a confirmed insert empties the queue: a reply that says the
           // upload failed must leave the questions here to try again.
           questionQueue = [];
+          // The bulk JSON is another copy of the uploaded questions. Clear it
+          // only after the server confirms success, so a failed upload can
+          // still be retried without pasting the payload again.
+          const bulkJson = document.getElementById('bulkJson');
+          if (bulkJson) bulkJson.value = '';
+          const bulkError = document.getElementById('bulkParseError');
+          if (bulkError) bulkError.style.display = 'none';
           renderQueue();
           updateJsonPreview();
           showStatus('success',

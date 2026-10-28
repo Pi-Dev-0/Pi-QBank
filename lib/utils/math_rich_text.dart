@@ -41,6 +41,34 @@ List<InlineSpan> mathInlineSpans(
               )),
             ),
           ));
+        case MathRadical(:final body, :final math):
+          final radicalStyle = math
+              ? currentStyle.copyWith(fontStyle: FontStyle.italic)
+              : currentStyle;
+          result.add(WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('√', style: radicalStyle),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                        top: BorderSide(
+                            color: radicalStyle.color ?? Colors.black)),
+                  ),
+                  padding: const EdgeInsets.only(left: 2, right: 2),
+                  child: Text.rich(TextSpan(
+                      children: renderSegments(
+                    parseMath(body),
+                    currentStyle: radicalStyle,
+                  ))),
+                ),
+              ],
+            ),
+          ));
         case MathFraction(:final numerator, :final denominator, :final math):
           final fractionStyle = (math
                   ? currentStyle.copyWith(fontStyle: FontStyle.italic)

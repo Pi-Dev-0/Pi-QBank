@@ -99,6 +99,7 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
   bool _includeImages = true;
   bool _editingMode = false;
   bool _rightSettingsOpen = true;
+  bool _showQuestionSelection = false;
 
   @override
   void initState() {
@@ -141,6 +142,7 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
         // Start with an intentional blank paper. The user chooses exactly
         // which questions should appear in the preview.
         _selected.clear();
+        _showQuestionSelection = true;
       });
       _renderPreview();
     } catch (error) {
@@ -869,7 +871,7 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_questions.isEmpty) ...[
+            if (!_showQuestionSelection || _questions.isEmpty) ...[
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
                 decoration: const BoxDecoration(
@@ -909,13 +911,23 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
                     child: const Padding(
                       padding:
                           EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      child: Text('WEB',
+                      child: Text('DESKTOP',
                           style: TextStyle(
                               color: Color(0xFF4F46E5),
                               fontSize: 11,
                               fontWeight: FontWeight.w800)),
                     ),
                   ),
+                  if (_questions.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    IconButton(
+                      tooltip: 'Back to question selection',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () =>
+                          setState(() => _showQuestionSelection = true),
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 4),
@@ -969,12 +981,10 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
                             fontSize: 20, fontWeight: FontWeight.w800)),
                   ),
                   IconButton(
-                    tooltip: 'আবার তথ্য দিন',
-                    onPressed: () => setState(() {
-                      _questions = const [];
-                      _selected.clear();
-                    }),
-                    icon: const Icon(Icons.tune_rounded),
+                    tooltip: 'Back to setup',
+                    onPressed: () =>
+                        setState(() => _showQuestionSelection = false),
+                    icon: const Icon(Icons.arrow_back_rounded),
                   ),
                 ],
               ),
@@ -986,7 +996,7 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
               const SizedBox(height: 10),
               Text(_error!, style: TextStyle(color: Colors.red.shade700)),
             ],
-            if (_questions.isNotEmpty) ...[
+            if (_showQuestionSelection && _questions.isNotEmpty) ...[
               const Divider(height: 24),
               Row(
                 children: [

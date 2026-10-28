@@ -148,8 +148,12 @@ List<pw.InlineSpan> _spansForParsed(
           // inline form, which is always correct, rather than a stack that
           // looks broken.
           out.addAll(_textSpans('($numerator)/($denominator)',
-              banglaStyle: banglaStyle, latin: latin, bold: bold, math: math,
-              symbolFont: symbolFont, symbolCoverage: symbolCoverage));
+              banglaStyle: banglaStyle,
+              latin: latin,
+              bold: bold,
+              math: math,
+              symbolFont: symbolFont,
+              symbolCoverage: symbolCoverage));
           continue;
         }
         out.add(_fractionSpan(numerator, denominator,
@@ -183,10 +187,25 @@ List<pw.InlineSpan> _spansForParsed(
                         symbolFont: symbolFont,
                         symbolCoverage: symbolCoverage)))));
 
+      case MathRadical(:final body, :final math):
+        // The PDF fallback keeps the full radicand together and readable. The
+        // HTML/browser renderer adds the overbar around the same body.
+        out.addAll(_textSpans('√(${latexToPlainText(body)})',
+            banglaStyle: banglaStyle,
+            latin: latin,
+            bold: bold,
+            math: math,
+            symbolFont: symbolFont,
+            symbolCoverage: symbolCoverage));
+
       case MathText(:final text, :final math):
         out.addAll(_textSpans(text,
-            banglaStyle: banglaStyle, latin: latin, bold: bold, math: math,
-            symbolFont: symbolFont, symbolCoverage: symbolCoverage));
+            banglaStyle: banglaStyle,
+            latin: latin,
+            bold: bold,
+            math: math,
+            symbolFont: symbolFont,
+            symbolCoverage: symbolCoverage));
     }
   }
   return out;

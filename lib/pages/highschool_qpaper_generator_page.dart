@@ -1168,7 +1168,7 @@ class _HighSchoolQPaperGeneratorPageState
           totalMarks: _marksCtrl.text,
           questions: _selectedQuestions,
           cqInstruction: _cqInstruction,
-        printSettings: _printSettings,
+          printSettings: _printSettings,
           setLabels: _twoSets ? _setLabels : const [],
           sectionOrder: _paperSectionOrder,
           imageSize: _imageSize,
@@ -1209,7 +1209,7 @@ class _HighSchoolQPaperGeneratorPageState
       fontStep: _fontStep,
       font: _paperFont,
       cqInstruction: _cqInstruction,
-        printSettings: _printSettings,
+      printSettings: _printSettings,
       // Desktop-width layout, as in the in-app preview: the file opens in a
       // browser, and a phone-width one should still show the printed page.
       desktopMode: true,
@@ -1341,8 +1341,7 @@ class _HighSchoolQPaperGeneratorPageState
                 color: Colors.white, size: 20),
           ),
           const SizedBox(width: 10),
-          const Text('Pi-QBank',
-              style: TextStyle(fontWeight: FontWeight.w800)),
+          const Text('Pi-QBank', style: TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(width: 10),
           Text(
             'Question Paper Studio',
@@ -1455,6 +1454,15 @@ class _HighSchoolQPaperGeneratorPageState
                               fontSize: 11,
                               fontWeight: FontWeight.w800)),
                     ),
+                    if (_fetchedQuestions.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      IconButton(
+                        tooltip: 'Back to question selection',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _goToStep(1),
+                        icon: const Icon(Icons.arrow_forward_rounded),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -1596,12 +1604,9 @@ class _HighSchoolQPaperGeneratorPageState
                 ),
               ),
               IconButton(
-                tooltip: 'আবার তথ্য দিন',
-                onPressed: () => setState(() {
-                  _fetchedQuestions = [];
-                  _currentStep = 0;
-                }),
-                icon: const Icon(Icons.tune_rounded),
+                tooltip: 'Back to setup',
+                onPressed: () => _goToStep(0),
+                icon: const Icon(Icons.arrow_back_rounded),
               ),
             ],
           ),
@@ -1822,8 +1827,8 @@ class _HighSchoolQPaperGeneratorPageState
           _sheetText(
             'প্রশ্ন বাছাই করলে এখানেই প্রশ্নপত্র দেখা যাবে',
             textAlign: TextAlign.center,
-            style: TextStyle(
-                color: const Color(0xFF94A3B8), fontSize: 13 * scale),
+            style:
+                TextStyle(color: const Color(0xFF94A3B8), fontSize: 13 * scale),
           ),
         ],
       ),
@@ -1884,8 +1889,8 @@ class _HighSchoolQPaperGeneratorPageState
               for (final item in meta)
                 _sheetText(
                   item,
-                  style: TextStyle(
-                      fontSize: s(12), fontWeight: FontWeight.w700),
+                  style:
+                      TextStyle(fontSize: s(12), fontWeight: FontWeight.w700),
                 ),
             ],
           ),
@@ -1897,9 +1902,7 @@ class _HighSchoolQPaperGeneratorPageState
               instruction,
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: s(11),
-                  fontStyle: FontStyle.italic,
-                  height: 1.3),
+                  fontSize: s(11), fontStyle: FontStyle.italic, height: 1.3),
             ),
           ),
         SizedBox(height: s(14)),
@@ -1993,9 +1996,7 @@ class _HighSchoolQPaperGeneratorPageState
             _sheetText(
               q.mcqStemText,
               style: TextStyle(
-                  fontSize: s(12),
-                  height: 1.4,
-                  fontWeight: FontWeight.w600),
+                  fontSize: s(12), height: 1.4, fontWeight: FontWeight.w600),
             ),
             if (q.stemImageUrl.trim().isNotEmpty && _imageSize.isVisible)
               _buildPreviewImage(q.stemImageUrl, s),
@@ -2021,8 +2022,7 @@ class _HighSchoolQPaperGeneratorPageState
                           child: _sheetText(
                             '${o < letters.length ? letters[o] : o + 1}) '
                             '${mcq.options[o]}',
-                            style:
-                                TextStyle(fontSize: s(11.5), height: 1.35),
+                            style: TextStyle(fontSize: s(11.5), height: 1.35),
                           ),
                         ),
                     ],
@@ -2097,13 +2097,12 @@ class _HighSchoolQPaperGeneratorPageState
                 const SizedBox(width: 7),
                 const Expanded(
                   child: Text('সেটিংস',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 14)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                 ),
                 IconButton(
                   tooltip: 'সেটিংস গুটান',
-                  onPressed: () =>
-                      setState(() => _desktopSettingsOpen = false),
+                  onPressed: () => setState(() => _desktopSettingsOpen = false),
                   icon: const Icon(Icons.tune, size: 19),
                 ),
               ],
@@ -2139,7 +2138,7 @@ class _HighSchoolQPaperGeneratorPageState
                   _buildRailFilters(),
                   const SizedBox(height: 8),
                   _buildRailRandomSelector(),
-                  _buildRailHeading('নির্বাচন'),
+                  _buildRailHeading('Select'),
                   _buildPickerActions(),
                 ],
                 _buildRailHeading('পরীক্ষার তথ্য'),
@@ -2173,8 +2172,8 @@ class _HighSchoolQPaperGeneratorPageState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('ফিল্টার',
-            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700,
-                color: _kSubText)),
+            style: TextStyle(
+                fontSize: 11.5, fontWeight: FontWeight.w700, color: _kSubText)),
         const SizedBox(height: 5),
         SizedBox(
           height: 30,
@@ -2250,8 +2249,7 @@ class _HighSchoolQPaperGeneratorPageState
           const SizedBox(height: 5),
           Row(
             children: [
-              const Icon(Icons.filter_alt_outlined,
-                  size: 13, color: _kSubText),
+              const Icon(Icons.filter_alt_outlined, size: 13, color: _kSubText),
               const SizedBox(width: 4),
               const Text('অধ্যায়',
                   style: TextStyle(fontSize: 10, color: _kSubText)),
@@ -2284,8 +2282,9 @@ class _HighSchoolQPaperGeneratorPageState
               for (final c in chapterNumbers)
                 _PickerChapterChip(
                   chapterNumber: c,
-                  count:
-                      _fetchedQuestions.where((q) => q.chapterNumber == c).length,
+                  count: _fetchedQuestions
+                      .where((q) => q.chapterNumber == c)
+                      .length,
                   selected: _pickerChapterFilter.isEmpty ||
                       _pickerChapterFilter.contains(c),
                   onTap: () => setState(() {
@@ -2323,8 +2322,7 @@ class _HighSchoolQPaperGeneratorPageState
                   child: Text(
                     'ফিল্টারের বাইরে ${_marksBreakdown.hidden} নম্বরের নির্বাচিত '
                     'প্রশ্ন আছে — মোট নম্বরে ধরা হয়েছে।',
-                    style:
-                        const TextStyle(fontSize: 10.5, color: Colors.amber),
+                    style: const TextStyle(fontSize: 10.5, color: Colors.amber),
                   ),
                 ),
               ],
@@ -2403,8 +2401,7 @@ class _HighSchoolQPaperGeneratorPageState
                     borderRadius: BorderRadius.circular(9)),
               ),
               child: const Text('বাছাই',
-                  style:
-                      TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             ),
           ),
         ],
@@ -2477,9 +2474,7 @@ class _HighSchoolQPaperGeneratorPageState
             onChanged: (_) => setState(() {})),
         const SizedBox(height: 8),
         _buildTextField(
-            ctrl: _timeCtrl,
-            label: 'সময়',
-            onChanged: (_) => setState(() {})),
+            ctrl: _timeCtrl, label: 'সময়', onChanged: (_) => setState(() {})),
         const SizedBox(height: 8),
         _buildTextField(
           ctrl: _marksCtrl,
@@ -2644,8 +2639,8 @@ class _HighSchoolQPaperGeneratorPageState
             (value) => setState(() => _showSubject = value)),
         _railSwitch('অধ্যায়ের নাম', _showChapter,
             (value) => setState(() => _showChapter = value)),
-        _railSwitch('সেট কোড', _showSet,
-            (value) => setState(() => _showSet = value)),
+        _railSwitch(
+            'সেট কোড', _showSet, (value) => setState(() => _showSet = value)),
         _railSwitch('প্রোগ্রাম/পরীক্ষার নাম', _showExam,
             (value) => setState(() => _showExam = value)),
         _railSwitch('নির্দেশনা', _showInstructions,
@@ -2787,20 +2782,18 @@ class _HighSchoolQPaperGeneratorPageState
               TextButton.icon(
                 onPressed: _pickRandomQuestions,
                 icon: const Icon(Icons.shuffle_rounded, size: 16),
-                label:
-                    const Text('এলোমেলো', style: TextStyle(fontSize: 11.5)),
+                label: const Text('এলোমেলো', style: TextStyle(fontSize: 11.5)),
               ),
             ],
           ),
         _railButton(
           label: 'শাফল (সেট কোড তৈরি)',
           icon: Icons.shuffle_rounded,
-          onPressed:
-              _selectedQuestions.length < 2 ? null : _shuffleIntoTwoSets,
+          onPressed: _selectedQuestions.length < 2 ? null : _shuffleIntoTwoSets,
         ),
         _railSubheading('ব্র্যান্ডিং'),
-        _railSwitch('লোগো', _showLogo,
-            (value) => setState(() => _showLogo = value)),
+        _railSwitch(
+            'লোগো', _showLogo, (value) => setState(() => _showLogo = value)),
         if (_showLogo)
           Row(
             children: [
@@ -2938,15 +2931,14 @@ class _HighSchoolQPaperGeneratorPageState
                   onTap: () => onChanged(item),
                   borderRadius: BorderRadius.circular(5),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: item == value ? _kPrimary : Colors.white,
                       borderRadius: BorderRadius.circular(5),
                       border: Border.all(
-                        color: item == value
-                            ? _kPrimary
-                            : const Color(0xFFD9E1EA),
+                        color:
+                            item == value ? _kPrimary : const Color(0xFFD9E1EA),
                       ),
                     ),
                     child: Text(
@@ -3233,7 +3225,6 @@ class _HighSchoolQPaperGeneratorPageState
       ],
     );
   }
-
 
   Widget _buildCurrentStep() {
     switch (_currentStep) {
@@ -3707,8 +3698,7 @@ class _HighSchoolQPaperGeneratorPageState
 
   /// Every chapter the fetched questions come from, in paper order.
   List<String> get _pickerChapterNumbers => [
-        for (final c in _fetchedQuestions.map((q) => q.chapterNumber).toSet())
-          c
+        for (final c in _fetchedQuestions.map((q) => q.chapterNumber).toSet()) c
       ]..sort(compareChapterNumbers);
 
   /// Select all / none, plus hand entry.
@@ -3725,8 +3715,8 @@ class _HighSchoolQPaperGeneratorPageState
       alignment: Alignment.centerLeft,
       textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
     );
-    final allLabel = _pickIsNarrowed ? 'এই তালিকার সব' : 'সব নির্বাচন';
-    final noneLabel = _pickIsNarrowed ? 'এই তালিকা বাদ' : 'বাদ দিন';
+    final allLabel = _pickIsNarrowed ? 'Select list' : 'Select all';
+    final noneLabel = _pickIsNarrowed ? 'Exclude list' : 'Clear';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3748,7 +3738,8 @@ class _HighSchoolQPaperGeneratorPageState
                 icon: const Icon(Icons.remove_done_rounded, size: 16),
                 label: Text(noneLabel,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
-                style: style.copyWith(foregroundColor: WidgetStatePropertyAll(Colors.grey)),
+                style: style.copyWith(
+                    foregroundColor: WidgetStatePropertyAll(Colors.grey)),
                 onPressed: _deselectAll,
               ),
             ),
@@ -3756,8 +3747,9 @@ class _HighSchoolQPaperGeneratorPageState
         ),
         TextButton.icon(
           icon: const Icon(Icons.edit_note_rounded, size: 16),
-          label: const Text('নিজে প্রশ্ন লিখুন'),
-          style: style.copyWith(foregroundColor: WidgetStatePropertyAll(_kPrimary)),
+          label: const Text('Add question'),
+          style: style.copyWith(
+              foregroundColor: WidgetStatePropertyAll(_kPrimary)),
           onPressed: _openManualQuestion,
         ),
       ],
@@ -4202,9 +4194,7 @@ class _HighSchoolQPaperGeneratorPageState
                             child: Text(
                               intro,
                               style: const TextStyle(
-                                  fontSize: 12,
-                                  height: 1.3,
-                                  color: _kSubText),
+                                  fontSize: 12, height: 1.3, color: _kSubText),
                             ),
                           ),
                         Text(
@@ -4247,9 +4237,8 @@ class _HighSchoolQPaperGeneratorPageState
                             : Icons.star_border_rounded,
                         size: 18,
                       ),
-                      color: q.isImportant
-                          ? const Color(0xFFD97706)
-                          : _kSubText,
+                      color:
+                          q.isImportant ? const Color(0xFFD97706) : _kSubText,
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
                       constraints:
@@ -4329,8 +4318,7 @@ class _HighSchoolQPaperGeneratorPageState
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color:
-                                  isCorrect ? Colors.white : _kSubText,
+                              color: isCorrect ? Colors.white : _kSubText,
                             ),
                           ),
                         ),
@@ -4343,8 +4331,7 @@ class _HighSchoolQPaperGeneratorPageState
                               height: 1.2,
                               fontWeight:
                                   isCorrect ? FontWeight.w700 : FontWeight.w400,
-                              color:
-                                  isCorrect ? _kRqColor : _kDarkText,
+                              color: isCorrect ? _kRqColor : _kDarkText,
                             ),
                           ),
                         ),
@@ -4406,8 +4393,7 @@ class _HighSchoolQPaperGeneratorPageState
                   ),
                   const SizedBox(width: 6),
                   Text('[${sub.mark}]',
-                      style:
-                          const TextStyle(fontSize: 11, color: _kSubText)),
+                      style: const TextStyle(fontSize: 11, color: _kSubText)),
                 ],
               ),
             ),
@@ -4496,9 +4482,8 @@ class _HighSchoolQPaperGeneratorPageState
         if (_twoSets)
           for (var i = 0; i < 2; i++)
             _SetChip(
-              label: _setLabels[i].isEmpty
-                  ? (i == 0 ? 'ক' : 'খ')
-                  : _setLabels[i],
+              label:
+                  _setLabels[i].isEmpty ? (i == 0 ? 'ক' : 'খ') : _setLabels[i],
               active: q.setLabel == _setLabels[i],
               selected: q.isSelected,
               onTap: () {
@@ -5638,10 +5623,10 @@ class _PickFilterChip extends StatelessWidget {
 enum _SectionKind {
   cq('সৃজনশীল প্রশ্ন (CQ)', 'সৃজনশীল প্রশ্ন', 'সৃজনশীল (CQ)', _kCqColor),
   rq('সংক্ষিপ্ত প্রশ্ন (SQ)', 'সংক্ষিপ্ত প্রশ্ন', 'সংক্ষিপ্ত (SQ)', _kRqColor),
-  mcq('বহুনির্বাচনী প্রশ্ন (MCQ)', 'বহুনির্বাচনী প্রশ্ন', 'বহুনির্বাচনী (MCQ)', _kMcqColor);
+  mcq('বহুনির্বাচনী প্রশ্ন (MCQ)', 'বহুনির্বাচনী প্রশ্ন', 'বহুনির্বাচনী (MCQ)',
+      _kMcqColor);
 
-  const _SectionKind(
-      this.title, this.shortName, this.compactTitle, this.color);
+  const _SectionKind(this.title, this.shortName, this.compactTitle, this.color);
 
   /// The block's name as the printed banner spells it, minus the `ক-বিভাগ:`
   /// prefix. The letter comes from the block's *place* in the printed order, so
@@ -5745,7 +5730,8 @@ class _SectionCardRow extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    fontSize: 10.5, height: 1.2,
+                                    fontSize: 10.5,
+                                    height: 1.2,
                                     color: _kSubText),
                               ),
                             ],
@@ -5931,8 +5917,7 @@ class _CountBadge extends StatelessWidget {
             Container(
               width: 7,
               height: 7,
-              decoration:
-                  BoxDecoration(color: color, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(width: 5),
             Text('$label: $selected/$total',

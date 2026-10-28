@@ -75,6 +75,20 @@ class MathScript extends MathSegment {
   String toString() => superscript ? '^$text' : '_$text';
 }
 
+/// A square root whose radical covers the complete group, including nested
+/// fractions: `\sqrt{\frac{3}{y}+4y}`.
+class MathRadical extends MathSegment {
+  const MathRadical(this.body, {this.math = false});
+  final String body;
+  final bool math;
+
+  @override
+  bool get isMath => math;
+
+  @override
+  String toString() => '√($body)';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Symbol table
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,9 +233,10 @@ List<MathSegment> parseMath(String text) {
           continue;
 
         case 'frac':
-          final num = _readGroup(text, cursor);
+          final numStart = _skipCommandSpaces(text, cursor);
+          final num = _readGroup(text, numStart);
           if (num != null) {
-            final den = _readGroup(text, num.end);
+            final den = _readGroup(text, _skipCommandSpaces(text, num.end));
             if (den != null) {
               flush();
               out.add(MathFraction(num.body, den.body, math: math));
@@ -233,17 +248,13 @@ List<MathSegment> parseMath(String text) {
           i = cursor;
 
         case 'sqrt':
-          buffer.write('√');
-          final arg = _readGroup(text, cursor);
+          final arg = _readGroup(text, _skipCommandSpaces(text, cursor));
           if (arg != null) {
-            // Parse the contents before putting them inside the radical. In
-            // particular, `\sqrt{\frac{a}{b}+c}` must not leak the nested
-            // LaTeX command into Flutter's plain text span.
-            buffer.write('(');
-            buffer.write(latexToPlainText(arg.body));
-            buffer.write(')');
+            flush();
+            out.add(MathRadical(arg.body, math: math));
             i = arg.end;
           } else {
+            buffer.write('√');
             i = cursor;
           }
 
@@ -354,6 +365,14 @@ List<MathSegment> parseMath(String text) {
 bool _isLetter(String c) {
   final code = c.codeUnitAt(0);
   return (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A);
+}
+
+int _skipCommandSpaces(String text, int start) {
+  var i = start;
+  while (i < text.length && (text[i] == ' ' || text[i] == '\t')) {
+    i++;
+  }
+  return i;
 }
 
 /// Read a `{...}` group at [start], honouring nesting.
@@ -479,6 +498,12 @@ String mathToHtml(List<MathSegment> segments) {
             '</span>');
       case MathScript(:final text, :final superscript):
         out.write(superscript ? '<sup>$text</sup>' : '<sub>$text</sub>');
+      case MathRadical(:final body, :final math):
+        final inner = mathToHtml(parseMath(body));
+        out.write('<span class="radical${math ? ' mathv' : ''}">'
+            '<span class="radical-sign">√</span>'
+            '<span class="radical-body">$inner</span>'
+            '</span>');
       case MathText(:final text, :final math):
         final symbols = _wrapMathSymbols(text);
         out.write(math ? '<span class="mathv">$symbols</span>' : symbols);
@@ -506,6 +531,9 @@ const String kMathCss =
     '.frac .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }'
     '.frac .frac-den { display:block; padding:0 .25em; }'
     '.mathv { font-style:italic; }'
+    '.radical { display:inline-flex; align-items:flex-start; vertical-align:middle; margin:0 .08em; }'
+    '.radical-sign { line-height:1; }'
+    '.radical-body { display:inline-block; border-top:1px solid currentColor; padding:0 .12em 0 .08em; line-height:1.05; }'
     '.m { font-family: $kMathFontStack; font-style: normal; }';
 
 /// Wrap each run of maths symbols in `<span class="m">`, which sets the face

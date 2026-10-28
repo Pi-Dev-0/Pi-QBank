@@ -132,6 +132,8 @@ class PdfTextMetrics {
           out.add(_Segment('', _fontChain(true, bold).first, math: piece));
         case MathScript():
           out.add(_Segment('', _fontChain(true, bold).first, math: piece));
+        case MathRadical():
+          out.add(_Segment('', _fontChain(true, bold).first, math: piece));
         case MathText(:final text):
           for (final run in splitPdfTextRuns(text)) {
             if (run.isEmpty) continue;
@@ -201,6 +203,8 @@ class PdfTextMetrics {
         return (n > d ? n : d) + fracPaddingX * 2 / baseFontSize;
       case MathScript(:final text):
         return textWidth(text, fontSize: scriptFontScale, bold: bold);
+      case MathRadical(:final body):
+        return textWidth('√${latexToPlainText(body)}', fontSize: 1, bold: bold);
       case MathText(:final text):
         return textWidth(text, fontSize: 1, bold: bold);
     }
@@ -219,6 +223,9 @@ class PdfTextMetrics {
             lineHeight(denominator, fontSize: fracFontScale, bold: bold);
       case MathScript(:final text):
         return lineHeight(text, fontSize: scriptFontScale, bold: bold);
+      case MathRadical(:final body):
+        return lineHeight('√${latexToPlainText(body)}',
+            fontSize: 1, bold: bold);
       case MathText(:final text):
         return lineHeight(text, fontSize: 1, bold: bold);
     }
@@ -309,9 +316,7 @@ class PdfTextMetrics {
   /// not breaks with its foot empty — a whole question's worth of white space
   /// in the worst case.
   double blockHeight(String text,
-      {required double width,
-      required double fontSize,
-      bool bold = false}) {
+      {required double width, required double fontSize, bool bold = false}) {
     var total = 0.0;
     for (final line
         in _wrap(text, width: width, fontSize: fontSize, bold: bold)) {
@@ -325,9 +330,7 @@ class PdfTextMetrics {
   /// Returns one list of tokens per line; each token carries the width and the
   /// line height it contributes, both in em.
   List<List<_Token>> _wrap(String text,
-      {required double width,
-      required double fontSize,
-      bool bold = false}) {
+      {required double width, required double fontSize, bool bold = false}) {
     if (text.isEmpty) return const [];
 
     final tokens = _tokenize(text, bold, fontSize);
@@ -457,9 +460,7 @@ class PdfTextMetrics {
           // still shifts the text after it.
           flush();
           tokens.add(_Token(
-              width: space.advanceWidth,
-              inkWidth: space.width,
-              isSpace: true));
+              width: space.advanceWidth, inkWidth: space.width, isSpace: true));
         } else {
           buffer.writeCharCode(rune);
         }
