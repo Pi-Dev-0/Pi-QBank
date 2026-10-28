@@ -645,10 +645,18 @@ class HighSchoolQuestion {
   }
 
   factory HighSchoolQuestion.fromJson(Map<String, dynamic> json) {
-    final qType = (json['question_type'] as String? ?? 'CQ').toUpperCase();
+    final qType = (json['question_type'] ?? json['questionType'] ?? 'CQ')
+        .toString()
+        .trim()
+        .toUpperCase();
     dynamic parsed;
 
-    final rawSub = json['sub_questions_json'];
+    // The API uses `sub_questions_json`, while sheet/import payloads commonly
+    // arrive as `sub_questions` or `subQuestions`. Accept all three so a CQ
+    // does not silently lose its (ক)/(খ)/(গ) rows when loaded from the web.
+    final rawSub = json['sub_questions_json'] ??
+        json['sub_questions'] ??
+        json['subQuestions'];
 
     if (qType == 'CQ') {
       if (rawSub is List) {
@@ -657,8 +665,11 @@ class HighSchoolQuestion {
             .toList();
       } else if (rawSub is String) {
         try {
-          final decoded = jsonDecode(rawSub) as List;
-          parsed = decoded
+          dynamic decoded = jsonDecode(rawSub.trim());
+          // Some spreadsheet bridges JSON-encode the JSON string once more.
+          if (decoded is String) decoded = jsonDecode(decoded);
+          final list = decoded is List ? decoded : const <dynamic>[];
+          parsed = list
               .map((e) => CqSubQuestion.fromJson(e as Map<String, dynamic>))
               .toList();
         } catch (_) {

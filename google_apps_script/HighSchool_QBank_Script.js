@@ -296,11 +296,24 @@ function rowToObject(row) {
   HEADERS.forEach((key, idx) => {
     obj[key] = row[idx] !== undefined ? String(row[idx]) : "";
   });
-  // Parse JSON sub_questions safely
+  // Parse JSON sub_questions safely. Questions are often pasted into the
+  // sheet with LaTeX backslashes written literally (`\frac`, `\left`,
+  // `\quad`). Those are not valid JSON escapes, so a strict parse would drop
+  // the whole CQ payload and the client would receive an empty subquestion
+  // list. Escape only unescaped backslashes before letters; already encoded
+  // JSON (`\\frac`) is left unchanged and decodes to the intended `\frac`.
   try {
     obj.sub_questions_json = JSON.parse(obj.sub_questions_json);
   } catch (_) {
-    obj.sub_questions_json = [];
+    try {
+      const repaired = obj.sub_questions_json.replace(
+        /(^|[^\\])\\(?=[A-Za-z])/g,
+        "$1\\\\"
+      );
+      obj.sub_questions_json = JSON.parse(repaired);
+    } catch (_) {
+      obj.sub_questions_json = [];
+    }
   }
   return obj;
 }

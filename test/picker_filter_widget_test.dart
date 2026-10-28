@@ -326,6 +326,28 @@ void main() {
     expect(find.textContaining('সংক্ষিপ্ত প্রশ্ন এক'), findsNothing);
   });
 
+  testWidgets('the selection actions sit two-up, not one per line',
+      (tester) async {
+    await _openPicker(tester);
+
+    final all = find.text('সব নির্বাচন');
+    final none = find.text('বাদ দিন');
+    final manual = find.text('নিজে প্রশ্ন লিখুন');
+    expect(all, findsOneWidget);
+    expect(none, findsOneWidget);
+    expect(manual, findsOneWidget);
+
+    // The rail is narrow: the first two actions share a row and the hand-entry
+    // action takes the row below, instead of three full-height lines.
+    final allY = tester.getCenter(all).dy;
+    final noneY = tester.getCenter(none).dy;
+    final manualY = tester.getCenter(manual).dy;
+    expect((allY - noneY).abs(), lessThan(2),
+        reason: 'the select-all and clear actions share a row');
+    expect(manualY, greaterThan(allY),
+        reason: 'hand entry sits on its own compact row below');
+  });
+
   testWidgets('the search box narrows within the current type', (tester) async {
     await _openPicker(tester);
 

@@ -10,6 +10,7 @@ import 'config/app_config.dart';
 import 'models/highschool_question.dart';
 import 'services/highschool_export_service.dart';
 import 'services/highschool_qbank_service.dart';
+import 'utils/math_rich_text.dart';
 
 const _webClasses = [
   'Class 6',
@@ -1158,9 +1159,11 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: Text('${index + 1}. ${_questionLabel(question)}',
-                  style: const TextStyle(
-                      fontSize: 15, height: 1.35, fontWeight: FontWeight.w700)),
+              child: mathText(
+                '${index + 1}. ${_questionLabel(question)}',
+                style: const TextStyle(
+                    fontSize: 15, height: 1.35, fontWeight: FontWeight.w700),
+              ),
             ),
             const SizedBox(width: 8),
             _questionTypeBadge(question),
@@ -1184,14 +1187,10 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
                         color: const Color(0xFFF1F3F6),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                          '(${[
-                            'ক',
-                            'খ',
-                            'গ',
-                            'ঘ'
-                          ][i]}) ${optionData.options[i]}',
-                          style: const TextStyle(fontSize: 13, height: 1.2)),
+                      child: mathText(
+                        '(${['ক', 'খ', 'গ', 'ঘ'][i]}) ${optionData.options[i]}',
+                        style: const TextStyle(fontSize: 13, height: 1.2),
+                      ),
                     ),
                 ],
               );
@@ -1203,8 +1202,10 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
           for (final sub in question.cqSubQuestions)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text('(${sub.label}) ${sub.text}',
-                  style: const TextStyle(fontSize: 13, height: 1.25)),
+              child: mathText(
+                '(${sub.label}) ${sub.text}',
+                style: const TextStyle(fontSize: 13, height: 1.25),
+              ),
             ),
         ],
         if (imageUrl.isNotEmpty) ...[

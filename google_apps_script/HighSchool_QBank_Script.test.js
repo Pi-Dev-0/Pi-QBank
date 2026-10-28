@@ -92,6 +92,19 @@ test('the plus is not confused with an encoded space', () => {
   assert.strictEqual(parsed.questions[0].stem_text, 'a + b');
 });
 
+test('literal LaTeX backslashes do not erase CQ subquestions', () => {
+  const row = Array(12).fill('');
+  row[0] = 'cq-latex';
+  row[5] = 'CQ';
+  // A Sheets cell commonly contains one backslash before each LaTeX command.
+  row[8] = String.raw`[{"label":"ক","mark":2,"text":"সরল করো: \left(\frac{a}{b}\right) \div 2"}]`;
+
+  const parsed = script.rowToObject(row);
+  assert.strictEqual(parsed.sub_questions_json.length, 1);
+  assert.strictEqual(parsed.sub_questions_json[0].label, 'ক');
+  assert.match(parsed.sub_questions_json[0].text, /\\frac/);
+});
+
 test('a urlencoded body still decodes "+" as a space', () => {
   // Some client posts form-encoded JSON, where "+" does mean a space.
   const parsed = script.parseRequestBody({

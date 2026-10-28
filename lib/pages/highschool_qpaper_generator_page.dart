@@ -3712,27 +3712,52 @@ class _HighSchoolQPaperGeneratorPageState
       ]..sort(compareChapterNumbers);
 
   /// Select all / none, plus hand entry.
+  ///
+  /// The rail is narrow, so the three actions sit two-up over one full-width
+  /// row rather than each taking a line of its own. Compact tap targets keep
+  /// the block short without making the buttons hard to hit.
   Widget _buildPickerActions() {
-    return Wrap(
-      spacing: 4,
-      runSpacing: 4,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    final style = TextButton.styleFrom(
+      minimumSize: const Size(0, 30),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      alignment: Alignment.centerLeft,
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+    );
+    final allLabel = _pickIsNarrowed ? 'এই তালিকার সব' : 'সব নির্বাচন';
+    final noneLabel = _pickIsNarrowed ? 'এই তালিকা বাদ' : 'বাদ দিন';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextButton.icon(
-          icon: const Icon(Icons.done_all_rounded, size: 18),
-          label: Text(_pickIsNarrowed ? 'এই তালিকার সব' : 'সব নির্বাচন'),
-          onPressed: _selectAll,
+        Row(
+          children: [
+            Expanded(
+              child: TextButton.icon(
+                icon: const Icon(Icons.done_all_rounded, size: 16),
+                label: Text(allLabel,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                style: style,
+                onPressed: _selectAll,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Expanded(
+              child: TextButton.icon(
+                icon: const Icon(Icons.remove_done_rounded, size: 16),
+                label: Text(noneLabel,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                style: style.copyWith(foregroundColor: WidgetStatePropertyAll(Colors.grey)),
+                onPressed: _deselectAll,
+              ),
+            ),
+          ],
         ),
         TextButton.icon(
-          icon: const Icon(Icons.remove_done_rounded, size: 18),
-          label: Text(_pickIsNarrowed ? 'এই তালিকা বাদ' : 'বাদ দিন'),
-          style: TextButton.styleFrom(foregroundColor: Colors.grey),
-          onPressed: _deselectAll,
-        ),
-        TextButton.icon(
-          icon: const Icon(Icons.edit_note_rounded, size: 18),
+          icon: const Icon(Icons.edit_note_rounded, size: 16),
           label: const Text('নিজে প্রশ্ন লিখুন'),
-          style: TextButton.styleFrom(foregroundColor: _kPrimary),
+          style: style.copyWith(foregroundColor: WidgetStatePropertyAll(_kPrimary)),
           onPressed: _openManualQuestion,
         ),
       ],

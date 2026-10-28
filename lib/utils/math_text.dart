@@ -202,6 +202,22 @@ List<MathSegment> parseMath(String text) {
       }
 
       switch (name) {
+        case '(':
+        case '[':
+          // MathJax-style delimiters (`\(...\)` / `\[...\]`) are notation,
+          // not visible question text.
+          flush();
+          math = true;
+          i = cursor;
+          continue;
+
+        case ')':
+        case ']':
+          flush();
+          math = false;
+          i = cursor;
+          continue;
+
         case 'frac':
           final num = _readGroup(text, cursor);
           if (num != null) {
@@ -220,7 +236,12 @@ List<MathSegment> parseMath(String text) {
           buffer.write('√');
           final arg = _readGroup(text, cursor);
           if (arg != null) {
-            buffer.write(arg.body);
+            // Parse the contents before putting them inside the radical. In
+            // particular, `\sqrt{\frac{a}{b}+c}` must not leak the nested
+            // LaTeX command into Flutter's plain text span.
+            buffer.write('(');
+            buffer.write(latexToPlainText(arg.body));
+            buffer.write(')');
             i = arg.end;
           } else {
             i = cursor;
