@@ -370,6 +370,15 @@ void main() {
       expect(find.text('4 টি · 8 নম্বর'), findsOneWidget);
     });
 
+    testWidgets('the summary card is gone, the rows carry its counts',
+        (tester) async {
+      await _openPicker(tester);
+      await _toLastStep(tester);
+
+      // The separate সারসংক্ষেপ card repeated what the section rows now say.
+      expect(find.text('সারসংক্ষেপ'), findsNothing);
+    });
+
     testWidgets('dragging MCQ to the top reorders the sections',
         (tester) async {
       await _openPicker(tester);

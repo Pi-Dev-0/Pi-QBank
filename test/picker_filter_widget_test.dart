@@ -288,8 +288,17 @@ void main() {
     }
 
     // All six questions are on screen: three per chapter, one of each type.
-    expect(find.textContaining('প্রশ্ন এক'), findsNWidgets(3));
-    expect(find.textContaining('প্রশ্ন দুই'), findsNWidgets(3));
+    // Scoped to the picker list: the settings rail also names the section
+    // types, and a bare finder would count those too.
+    final pickerList = find.byKey(const ValueKey('studio-picker-list'));
+    expect(
+        find.descendant(
+            of: pickerList, matching: find.textContaining('প্রশ্ন এক')),
+        findsNWidgets(3));
+    expect(
+        find.descendant(
+            of: pickerList, matching: find.textContaining('প্রশ্ন দুই')),
+        findsNWidgets(3));
   });
 
   testWidgets('a type chip shows only that type', (tester) async {
@@ -298,10 +307,17 @@ void main() {
     await tester.tap(find.byTooltip('সংক্ষিপ্ত'));
     await tester.pumpAndSettle();
 
+    final pickerList = find.byKey(const ValueKey('studio-picker-list'));
     expect(find.textContaining('সংক্ষিপ্ত প্রশ্ন এক'), findsOneWidget);
     expect(find.textContaining('সংক্ষিপ্ত প্রশ্ন দুই'), findsOneWidget);
-    expect(find.textContaining('সৃজনশীল প্রশ্ন'), findsNothing);
-    expect(find.textContaining('বহুনির্বাচনি প্রশ্ন'), findsNothing);
+    expect(
+        find.descendant(
+            of: pickerList, matching: find.textContaining('সৃজনশীল প্রশ্ন')),
+        findsNothing);
+    expect(
+        find.descendant(
+            of: pickerList, matching: find.textContaining('বহুনির্বাচনি প্রশ্ন')),
+        findsNothing);
 
     // MCQ too, so the filter is not hard-wired to one type.
     await tester.tap(find.byTooltip('বহুনির্বাচনি'));

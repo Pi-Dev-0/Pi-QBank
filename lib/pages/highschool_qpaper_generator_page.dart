@@ -3764,6 +3764,7 @@ class _HighSchoolQPaperGeneratorPageState
       child: ClipRRect(
         borderRadius: BorderRadius.circular(13),
         child: ListView(
+          key: const ValueKey('studio-picker-list'),
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 100),
           children: [
             // Chapter groups
@@ -5515,7 +5516,7 @@ enum _PickFilter {
 
 /// An independent image filter, so it can be combined with CQ/MCQ/RQ.
 enum _ImageFilter {
-  all('সব', 'সব প্রশ্ন', _kPrimary),
+  all('সব', 'ছবি: সব', _kPrimary),
   withImage('ছবিসহ', 'যেসব প্রশ্নে ছবি আছে', _kCqColor),
   withoutImage('ছবিহীন', 'যেসব প্রশ্নে ছবি নেই', _kSubText);
 

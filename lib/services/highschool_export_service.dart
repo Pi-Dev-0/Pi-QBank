@@ -2701,14 +2701,16 @@ $paperFontBlock    :root {
         if (hint) hint.hidden = !on;
         var button = document.getElementById('editBtn');
         if (button) button.textContent = on ? '✅ এডিট শেষ' : '✏️ লাইভ এডিট';
-        if (!on && selectedImage) {
-          selectedImage.classList.remove('image-selected');
-          selectedImage = null;
+        if (!on) {
+          if (selectedImage) {
+            selectedImage.classList.remove('image-selected');
+            selectedImage = null;
+          }
+          var floatEditor = document.getElementById('imageEditorFloat');
+          if (floatEditor) floatEditor.style.display = 'none';
+          var floatUrl = document.getElementById('floatImageUrl');
+          if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
         }
-        var floatEditor = document.getElementById('imageEditorFloat');
-        if (floatEditor) floatEditor.style.display = 'none';
-        var floatUrl = document.getElementById('floatImageUrl');
-        if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
         var imageSize = document.getElementById('imageSizeEditor');
         var imageSizeCustom = document.getElementById('imageSizeCustom');
         if (imageSize) imageSize.disabled = !on || !selectedImage;
