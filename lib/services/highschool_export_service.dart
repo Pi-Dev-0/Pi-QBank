@@ -1418,8 +1418,8 @@ class HighSchoolExportService {
         final o2 = has2 ? options[opt + 1] : '';
         b.write('''
       <tr>
-        <td class="mcq-opt-cell">($l1) ${_htmlText(options[opt])}</td>
-        <td class="mcq-opt-cell">${has2 ? '($l2) ${_htmlText(o2)}' : ''}</td>
+        <td class="mcq-opt-cell">($l1) ${_htmlText(options[opt], latex: true)}</td>
+        <td class="mcq-opt-cell">${has2 ? '($l2) ${_htmlText(o2, latex: true)}' : ''}</td>
       </tr>''');
       }
       return b.toString();
@@ -1506,7 +1506,7 @@ class HighSchoolExportService {
       return '''
     <div class="rq-item">
       <div style="flex:1;">
-        <span>${index + 1}. ${_htmlText(data.text)}</span>
+        <span>${index + 1}. ${_htmlText(data.text, latex: true)}</span>
         $imageHtml
       </div>
       <span class="rq-mark">[${data.mark}]</span>
@@ -1581,6 +1581,7 @@ class HighSchoolExportService {
     QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
     QuestionLayout rqLayout = QuestionLayout.single,
     McqAnswerSheetStyle mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
+    int manualAnswerCount = 30,
     double fontStep = 0,
     Map<String, Uint8List>? imageBytes,
 
@@ -1690,7 +1691,7 @@ class HighSchoolExportService {
         <select class="preview-select" id="previewAnswerSheet" aria-label="MCQ উত্তরপত্র">
           $previewAnswerSheetOptions
         </select>
-        ${hasMcq ? '' : '<input class="preview-number answer-item-count" id="answerItemCount" type="number" min="1" max="200" value="30" aria-label="MCQ উত্তর আইটেম সংখ্যা" title="MCQ না থাকলে উত্তর আইটেম সংখ্যা">'}
+        ${hasMcq ? '' : '<input class="preview-number answer-item-count" id="answerItemCount" type="number" min="1" max="200" value="${manualAnswerCount.clamp(1, 200)}" aria-label="MCQ উত্তর আইটেম সংখ্যা" title="MCQ না থাকলে উত্তর আইটেম সংখ্যা">'}
       </div>''';
 
     final buffer = StringBuffer();
@@ -2538,6 +2539,7 @@ $paperFontBlock    :root {
         imageBytes: imageBytes,
         cqInstruction: cqInstruction,
         mcqAnswerSheetStyle: mcqAnswerSheetStyle,
+        manualAnswerCount: manualAnswerCount,
       );
     }
 
@@ -3417,17 +3419,18 @@ $paperFontBlock    :root {
     Map<String, Uint8List>? imageBytes,
     String cqInstruction = '',
     required McqAnswerSheetStyle mcqAnswerSheetStyle,
+    required int manualAnswerCount,
   }) {
     final logo = _print.showLogo && _print.logoDataUri.trim().isNotEmpty
         ? '<img class="brand-logo" src="${_print.logoDataUri}" alt="লোগো">'
         : '';
-    final headerAddress =
-        _print.showAddress && _print.address.trim().isNotEmpty
-            ? '<span>${_escapeXml(_print.address.trim())}</span>'
-            : '';
+    final headerAddress = _print.showAddress && _print.address.trim().isNotEmpty
+        ? '<span>${_escapeXml(_print.address.trim())}</span>'
+        : '';
     // The masthead already carries the school name; the band is the letterhead
     // — a logo and the address — so it does not repeat it.
-    final brandHeader = _print.showHeader && (logo.isNotEmpty || headerAddress.isNotEmpty)
+    final brandHeader = _print.showHeader &&
+            (logo.isNotEmpty || headerAddress.isNotEmpty)
         ? '<div class="brand-header">$logo'
             '${headerAddress.isNotEmpty ? '<div class="brand-header-text">$headerAddress</div>' : ''}'
             '</div>'
@@ -3557,17 +3560,30 @@ $paperFontBlock    :root {
         mcqAnswerSheetStyle,
       );
     } else {
-      _writeHtmlManualMcqAnswerSheet(buffer);
+      _writeHtmlManualMcqAnswerSheet(
+          buffer, mcqAnswerSheetStyle, manualAnswerCount);
     }
     if (footerBand.isNotEmpty) buffer.write(footerBand);
   }
 
-  static void _writeHtmlManualMcqAnswerSheet(StringBuffer buffer) {
+  static void _writeHtmlManualMcqAnswerSheet(
+      StringBuffer buffer, McqAnswerSheetStyle style, int itemCount) {
+    final visible = style == McqAnswerSheetStyle.none ? 'display:none;' : '';
+    final omrVisible = style == McqAnswerSheetStyle.omr ? '' : 'display:none;';
+    final count = itemCount.clamp(1, 200);
+    const letters = ['ক', 'খ', 'গ', 'ঘ'];
+    final rows = StringBuffer();
+    for (var number = 1; number <= count; number++) {
+      rows.write('''
+        <div class="omr-row"><span class="omr-number">$number</span>
+          ${letters.map((letter) => '<span class="omr-bubble">$letter</span>').join()}
+        </div>''');
+    }
     buffer.write('''
-    <section class="mcq-answer-sheet" data-manual-answer-sheet="true" style="display:none;">
+    <section class="mcq-answer-sheet" data-manual-answer-sheet="true" style="$visible">
       <div class="answer-sheet-title">MCQ উত্তরপত্র</div>
-      <div class="answer-sheet-variant answer-sheet-omr" data-answer-style="omr" style="display:none;">
-        <div class="omr-grid"></div>
+      <div class="answer-sheet-variant answer-sheet-omr" data-answer-style="omr" style="$omrVisible">
+        <div class="omr-grid"><div class="omr-column">$rows</div></div>
       </div>
       <div class="answer-sheet-variant answer-sheet-serial" data-answer-style="serialAnswer" style="display:none;"></div>
     </section>
@@ -3857,7 +3873,7 @@ $paperFontBlock    :root {
         final l =
             opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
         buffer.write('''
-          <div>${_print.optionStyle.prefix(l)} ${_htmlText(options[opt])}</div>
+          <div>${_print.optionStyle.prefix(l)} ${_htmlText(options[opt], latex: true)}</div>
 ''');
       }
       buffer.write('''
@@ -3939,7 +3955,7 @@ $paperFontBlock    :root {
       buffer.write('''
         <div class="rq-item" title="${_idTooltip(q)}">
           <div class="rq-content">
-            <div>${_importantStar(q)}<b>${i + 1}.</b> ${_htmlText(data.text)}</div>
+            <div>${_importantStar(q)}<b>${i + 1}.</b> ${_htmlText(data.text, latex: true)}</div>
             ${_questionInfoMarkup(q)}
             $imageHtml
           </div>

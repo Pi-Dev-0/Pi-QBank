@@ -176,6 +176,12 @@ const Map<String, String> kVulgarFractions = {
 List<MathSegment> parseMath(String text) {
   if (text.isEmpty) return const [];
 
+  // A JSON string such as `"\\frac{x}{y}"` is unfortunately accepted by
+  // some decoders as form-feed + `rac` because `\f` is a valid JSON escape.
+  // Recover the LaTeX command before scanning so imported spreadsheet rows do
+  // not lose the leading backslash.
+  text = repairJsonLatexEscapes(text);
+
   final out = <MathSegment>[];
   final buffer = StringBuffer();
   var math = false; // inside $...$
@@ -195,6 +201,15 @@ List<MathSegment> parseMath(String text) {
       final next = text[i + 1];
 
       if (next == r'\') {
+        // Spreadsheet/API JSON sometimes leaves a command with two literal
+        // backslashes (`\\frac`) after it has already been decoded.  Treat
+        // the first slash as transport escaping when the second one starts a
+        // command, otherwise `frac` is emitted as raw text and the HTML/PDF
+        // preview shows `\\frac{...}{...}` instead of a stacked fraction.
+        if (i + 2 < text.length && _isLetter(text[i + 2])) {
+          i++;
+          continue;
+        }
         // `\\` is a line break in LaTeX, but in a question paper it is a path
         // separator or a set difference: `C:\\Users`, `A \\ B`. Kept as typed,
         // so the two backslashes print as two backslashes.
@@ -360,6 +375,18 @@ List<MathSegment> parseMath(String text) {
 
   flush();
   return out;
+}
+
+/// Restores LaTeX commands that were decoded from a JSON string before the
+/// renderer saw them. For example, JSON may turn `\frac` into form-feed +
+/// `rac` because `\f` is itself a valid JSON escape.
+String repairJsonLatexEscapes(String text) {
+  return text
+      .replaceAll('${String.fromCharCode(12)}rac', r'\frac')
+      .replaceAll('${String.fromCharCode(9)}ext', r'\text')
+      .replaceAll('${String.fromCharCode(10)}eq', r'\neq')
+      .replaceAll('${String.fromCharCode(13)}ight', r'\right')
+      .replaceAll('${String.fromCharCode(8)}eta', r'\beta');
 }
 
 bool _isLetter(String c) {

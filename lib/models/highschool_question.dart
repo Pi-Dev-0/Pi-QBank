@@ -20,7 +20,7 @@ class CqSubQuestion {
     return CqSubQuestion(
       label: json['label'] as String? ?? '',
       mark: (json['mark'] as num?)?.toInt() ?? 0,
-      text: json['text'] as String? ?? '',
+      text: repairJsonLatexEscapes(json['text'] as String? ?? ''),
     );
   }
 
@@ -48,9 +48,12 @@ class McqQuestion {
 
   factory McqQuestion.fromJson(Map<String, dynamic> json) {
     return McqQuestion(
-      text: json['text'] as String? ?? '',
-      options: List<String>.from(json['options'] as List? ?? []),
-      correctAns: json['correct_ans'] as String? ?? '',
+      text: repairJsonLatexEscapes(json['text'] as String? ?? ''),
+      options: [
+        for (final option in json['options'] as List? ?? [])
+          repairJsonLatexEscapes(option.toString()),
+      ],
+      correctAns: repairJsonLatexEscapes(json['correct_ans'] as String? ?? ''),
     );
   }
 
@@ -381,7 +384,10 @@ class HighSchoolQuestion {
           text: typed,
           options: [
             for (final o in options)
-              if (o.trim().isNotEmpty) normaliseTypedFractions(o.trim()),
+              // Keep every MCQ option in the author's written form. Folding
+              // only some values such as `2/5` into a single vulgar-fraction
+              // glyph makes one option render differently from `3/7`, `5/7`.
+              if (o.trim().isNotEmpty) o.trim(),
           ],
           correctAns: correctAnswer.trim(),
         ),
@@ -636,9 +642,14 @@ class HighSchoolQuestion {
     }
     if (parsed is McqQuestion) {
       return McqQuestion(
-        text: normaliseTypedFractions(parsed.text),
-        options: [for (final o in parsed.options) normaliseTypedFractions(o)],
-        correctAns: parsed.correctAns,
+        text: normaliseTypedFractions(repairJsonLatexEscapes(parsed.text)),
+        // Do not convert only some slash fractions into glyphs. The math
+        // renderer can typeset explicit LaTeX, while plain MCQ choices should
+        // remain visually consistent with one another.
+        options: [
+          for (final o in parsed.options) repairJsonLatexEscapes(o.trim())
+        ],
+        correctAns: repairJsonLatexEscapes(parsed.correctAns),
       );
     }
     return parsed;

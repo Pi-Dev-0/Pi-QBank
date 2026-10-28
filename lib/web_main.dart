@@ -431,10 +431,6 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
             setState(() => _includeHeader = value);
             _togglePreview('.mcq-answer-sheet', value);
           }),
-          _settingsSwitch('OMR সংযুক্তি', false, (value) {
-            _previewCommand(
-                {'action': 'answerSheet', 'value': value ? 'omr' : 'none'});
-          }),
           _settingsSwitch('গুরুত্বপূর্ণ প্রশ্ন', false, (value) {},
               icon: Icons.palette_outlined),
           _settingsSwitch('প্রশ্নের তথ্য', false, (value) {},

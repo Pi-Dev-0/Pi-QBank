@@ -37,6 +37,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.mcqLayout = QuestionLayout.doubleColumn,
     this.rqLayout = QuestionLayout.single,
     this.mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
+    this.manualAnswerCount = 30,
     this.fontStep = 0,
     this.font = PaperFont.kalpurush,
     this.printSettings = const PaperPrintSettings(),
@@ -66,6 +67,8 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   final QuestionLayout rqLayout;
 
   final McqAnswerSheetStyle mcqAnswerSheetStyle;
+
+  final int manualAnswerCount;
 
   /// How far every text size in the paper is moved from its tuned size, in
   /// points; see the font-size control on the generator page.
@@ -122,6 +125,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         mcqLayout: widget.mcqLayout,
         rqLayout: widget.rqLayout,
         mcqAnswerSheetStyle: widget.mcqAnswerSheetStyle,
+        manualAnswerCount: widget.manualAnswerCount,
         fontStep: widget.fontStep,
         font: widget.font,
         printSettings: widget.printSettings,

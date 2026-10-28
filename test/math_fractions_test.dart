@@ -13,6 +13,12 @@ void main() {
       expect(f.denominator, '3');
     });
 
+    test('a JSON-decoded frac escape is recovered', () {
+      final f = parseMath('\f' 'rac{x}{y}').single as MathFraction;
+      expect(f.numerator, 'x');
+      expect(f.denominator, 'y');
+    });
+
     test('several in one line', () {
       final segs = parseMath(r'\frac{a}{b} = \frac{c}{d}');
       expect(segs.whereType<MathFraction>(), hasLength(2));
@@ -163,7 +169,8 @@ void main() {
       // The text faces cover ∩ (U+2229) but not ∪ (U+222A) — Arial, Liberation
       // Sans, Times New Roman and Courier New all do — so without the wrapper
       // the union came from a different face than the intersection beside it.
-      expect(latexToHtml(r'P \cup Q \cap R'),
+      expect(
+          latexToHtml(r'P \cup Q \cap R'),
           'P <span class="mathv"><span class="m">∪</span></span> Q '
           '<span class="mathv"><span class="m">∩</span></span> R');
     });
@@ -174,11 +181,12 @@ void main() {
     });
 
     test('prose, entities and maths italics are left as they are', () {
-      expect(latexToHtml('A &amp; B ∪ C'),
-          'A &amp; B <span class="m">∪</span> C');
+      expect(
+          latexToHtml('A &amp; B ∪ C'), 'A &amp; B <span class="m">∪</span> C');
       // `\cup` is a command, so it lands in the maths span — which is italic
       // for letters; `.m` sets the symbol back upright.
-      expect(latexToHtml(r'$a \cup b$'),
+      expect(
+          latexToHtml(r'$a \cup b$'),
           '<span class="mathv">a </span>'
           '<span class="mathv"><span class="m">∪</span></span>'
           '<span class="mathv"> b</span>');

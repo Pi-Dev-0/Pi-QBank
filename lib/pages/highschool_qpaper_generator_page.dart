@@ -14,6 +14,7 @@ import '../pages/question_paper_preview_page.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/exact_html_preview.dart';
 import '../config/app_config.dart';
+import '../utils/math_rich_text.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour & design tokens
@@ -209,6 +210,9 @@ class _HighSchoolQPaperGeneratorPageState
 
   /// Optional answer sheet appended after the MCQ section in the HTML paper.
   McqAnswerSheetStyle _mcqAnswerSheetStyle = McqAnswerSheetStyle.none;
+
+  /// Number of blank OMR/answer rows when no MCQ questions are selected.
+  int _manualAnswerItemCount = 30;
 
   /// How far every text size in the paper is moved from the size it was tuned
   /// at — one point per step.
@@ -816,6 +820,26 @@ class _HighSchoolQPaperGeneratorPageState
     });
   }
 
+  void _selectChapter(String chapterNumber) {
+    final runs = _mcqStemRuns();
+    setState(() {
+      for (final q
+          in _visibleQuestions.where((q) => q.chapterNumber == chapterNumber)) {
+        _applySelection(q, true, runs);
+      }
+    });
+  }
+
+  void _deselectChapter(String chapterNumber) {
+    final runs = _mcqStemRuns();
+    setState(() {
+      for (final q
+          in _visibleQuestions.where((q) => q.chapterNumber == chapterNumber)) {
+        _applySelection(q, false, runs);
+      }
+    });
+  }
+
   /// Draw [count] questions at random, spread as evenly as possible across the
   /// types that have anything to offer.
   ///
@@ -946,7 +970,7 @@ class _HighSchoolQPaperGeneratorPageState
   /// Reached from the picker, including its empty state — which is where a
   /// subject with no rows at all ends up, so a question can always be written
   /// even when the bank has nothing to show.
-  Future<void> _openManualQuestion() async {
+  Future<void> _openManualQuestion({String? initialChapter}) async {
     if (_selectedClass == null || _selectedSubject == null) {
       _showError('দয়া করে ক্লাস ও বিষয় নির্বাচন করুন।');
       return;
@@ -962,9 +986,10 @@ class _HighSchoolQPaperGeneratorPageState
         chapters: _manualChapterChoices,
         // One chapter picked in step 1 means the question belongs to it; with
         // nothing picked, the sheet defaults to the first chapter it knows.
-        initialChapter: _selectedChapterNumbers.length == 1
-            ? _selectedChapterNumbers.first
-            : null,
+        initialChapter: initialChapter ??
+            (_selectedChapterNumbers.length == 1
+                ? _selectedChapterNumbers.first
+                : null),
       ),
     );
     if (question == null || !mounted) return;
@@ -1120,6 +1145,7 @@ class _HighSchoolQPaperGeneratorPageState
         mcqLayout: _mcqLayout,
         rqLayout: _rqLayout,
         mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
+        manualAnswerCount: _manualAnswerItemCount,
         fontStep: _fontStep,
         font: _paperFont,
         cqInstruction: _cqInstruction,
@@ -1176,6 +1202,7 @@ class _HighSchoolQPaperGeneratorPageState
           mcqLayout: _mcqLayout,
           rqLayout: _rqLayout,
           mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
+          manualAnswerCount: _manualAnswerItemCount,
           fontStep: _fontStep,
           font: _paperFont,
         ),
@@ -1206,6 +1233,7 @@ class _HighSchoolQPaperGeneratorPageState
       mcqLayout: _mcqLayout,
       rqLayout: _rqLayout,
       mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
+      manualAnswerCount: _manualAnswerItemCount,
       fontStep: _fontStep,
       font: _paperFont,
       cqInstruction: _cqInstruction,
@@ -1739,6 +1767,7 @@ class _HighSchoolQPaperGeneratorPageState
         mcqLayout: _mcqLayout,
         rqLayout: _rqLayout,
         mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
+        manualAnswerCount: _manualAnswerItemCount,
         fontStep: _fontStep,
         font: _paperFont,
         desktopMode: true,
@@ -2570,19 +2599,6 @@ class _HighSchoolQPaperGeneratorPageState
       children: [
         _railSubheading('প্রশ্ন সংযুক্তি'),
         _railSwitch(
-          'উত্তরপত্র',
-          _mcqAnswerSheetStyle == McqAnswerSheetStyle.serialAnswer,
-          (value) => setState(() => _mcqAnswerSheetStyle = value
-              ? McqAnswerSheetStyle.serialAnswer
-              : McqAnswerSheetStyle.none),
-        ),
-        _railSwitch(
-          'OMR সংযুক্ত',
-          _mcqAnswerSheetStyle == McqAnswerSheetStyle.omr,
-          (value) => setState(() => _mcqAnswerSheetStyle =
-              value ? McqAnswerSheetStyle.omr : McqAnswerSheetStyle.none),
-        ),
-        _railSwitch(
           'গুরুত্বপূর্ণ প্রশ্ন',
           _showImportant,
           (value) => setState(() => _showImportant = value),
@@ -2734,18 +2750,20 @@ class _HighSchoolQPaperGeneratorPageState
             if (value != null) setState(() => _imageSize = value);
           },
         ),
-        if (_selectedMcqs.isNotEmpty)
-          _buildRailDropdown<McqAnswerSheetStyle>(
-            label: 'MCQ উত্তরপত্র',
-            value: _mcqAnswerSheetStyle,
-            items: McqAnswerSheetStyle.values,
-            itemLabel: (style) => style.label,
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _mcqAnswerSheetStyle = value);
-              }
-            },
-          ),
+        _buildRailDropdown<McqAnswerSheetStyle>(
+          label: 'MCQ উত্তরপত্র',
+          value: _mcqAnswerSheetStyle,
+          items: McqAnswerSheetStyle.values,
+          itemLabel: (style) => style.label,
+          onChanged: (value) {
+            if (value != null) {
+              setState(() => _mcqAnswerSheetStyle = value);
+            }
+          },
+        ),
+        if (_selectedMcqs.isEmpty &&
+            _mcqAnswerSheetStyle == McqAnswerSheetStyle.omr)
+          _buildManualAnswerCountField(),
         _railSubheading('সহায়ক টুলস'),
         _railSwitch('পুনরাবৃত্ত প্রশ্ন শনাক্ত', _detectRepeated,
             (value) => setState(() => _detectRepeated = value)),
@@ -3108,6 +3126,46 @@ class _HighSchoolQPaperGeneratorPageState
                   ),
               ],
               onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualAnswerCountField() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F3F6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text('OMR আইটেম',
+                style: TextStyle(fontSize: 12.5, color: _kDarkText)),
+          ),
+          SizedBox(
+            width: 86,
+            child: TextFormField(
+              key: const ValueKey('manual-omr-count'),
+              initialValue: '$_manualAnswerItemCount',
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                final count = int.tryParse(value);
+                if (count != null) {
+                  setState(() => _manualAnswerItemCount = count.clamp(1, 200));
+                }
+              },
             ),
           ),
         ],
@@ -3678,15 +3736,6 @@ class _HighSchoolQPaperGeneratorPageState
         _buildPickerChapterBar(_pickerChapterNumbers),
         // Type filter + search
         _buildPickFilterBar(visible.length),
-        // Select all / none, plus hand entry. A Wrap so the three actions
-        // stack onto a second line on a phone rather than overflowing.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: _buildPickerActions(),
-          ),
-        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
           child: _buildRandomSelectorBar(),
@@ -3794,6 +3843,9 @@ class _HighSchoolQPaperGeneratorPageState
                 selected: byChapter[chNum]!.where((q) => q.isSelected).length,
                 collapsed: _collapsedChapters.contains(chNum),
                 onToggle: () => _toggleChapter(chNum),
+                onSelect: () => _selectChapter(chNum),
+                onExclude: () => _deselectChapter(chNum),
+                onAdd: () => _openManualQuestion(initialChapter: chNum),
               ),
               const SizedBox(height: 8),
               // A folded chapter shows its header and nothing else.
@@ -4324,7 +4376,7 @@ class _HighSchoolQPaperGeneratorPageState
                         ),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Text(
+                          child: mathText(
                             mcq.options[i],
                             style: TextStyle(
                               fontSize: 13,
@@ -4824,21 +4876,6 @@ class _HighSchoolQPaperGeneratorPageState
               ),
             ],
           ),
-          if (_selectedMcqs.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            _buildSettingDropdown<McqAnswerSheetStyle>(
-              label: 'MCQ উত্তরপত্র',
-              value: _mcqAnswerSheetStyle,
-              items: McqAnswerSheetStyle.values,
-              itemLabel: (style) => '${style.label} — ${style.description}',
-              selectedItemLabel: (style) => style.label,
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _mcqAnswerSheetStyle = value);
-                }
-              },
-            ),
-          ],
         ],
       ),
     );
@@ -5308,6 +5345,9 @@ class _ChapterGroupHeader extends StatelessWidget {
 
   final bool collapsed;
   final VoidCallback onToggle;
+  final VoidCallback onSelect;
+  final VoidCallback onExclude;
+  final VoidCallback onAdd;
 
   const _ChapterGroupHeader({
     super.key,
@@ -5317,65 +5357,105 @@ class _ChapterGroupHeader extends StatelessWidget {
     required this.selected,
     required this.collapsed,
     required this.onToggle,
+    required this.onSelect,
+    required this.onExclude,
+    required this.onAdd,
   });
 
   @override
   Widget build(BuildContext context) => Material(
         color: Colors.transparent,
-        child: InkWell(
-          onTap: onToggle,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                _kPrimary.withOpacity(0.08),
-                _kAccent.withOpacity(0.05)
-              ]),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _kPrimary.withOpacity(0.15)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.folder_special_rounded,
-                    color: _kPrimary, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('অধ্যায় $chapterNumber: $chapterName',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: _kDarkText,
-                          fontSize: 13)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [
+              _kPrimary.withOpacity(0.08),
+              _kAccent.withOpacity(0.05)
+            ]),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _kPrimary.withOpacity(0.15)),
+          ),
+          child: Column(
+            children: [
+              InkWell(
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.folder_special_rounded,
+                        color: _kPrimary, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('অধ্যায় $chapterNumber: $chapterName',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _kDarkText,
+                              fontSize: 13)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('$total টি',
+                        style: const TextStyle(fontSize: 11, color: _kSubText)),
+                    if (selected > 0) ...[
+                      const SizedBox(width: 6),
+                      Text('$selected নির্বাচিত',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: _kRqColor,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                    const SizedBox(width: 2),
+                    // The arrow is the affordance; the whole bar is the target.
+                    Tooltip(
+                      message:
+                          collapsed ? 'প্রশ্নগুলো দেখান' : 'প্রশ্নগুলো লুকান',
+                      child: AnimatedRotation(
+                        turns: collapsed ? -0.25 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: const Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 20, color: _kSubText),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text('$total টি',
-                    style: const TextStyle(fontSize: 11, color: _kSubText)),
-                if (selected > 0) ...[
-                  const SizedBox(width: 6),
-                  Text('$selected নির্বাচিত',
-                      style: const TextStyle(
-                          fontSize: 11,
-                          color: _kRqColor,
-                          fontWeight: FontWeight.w600)),
-                ],
-                const SizedBox(width: 2),
-                // The arrow is the affordance; the whole bar is the target.
-                Tooltip(
-                  message: collapsed ? 'প্রশ্নগুলো দেখান' : 'প্রশ্নগুলো লুকান',
-                  child: AnimatedRotation(
-                    turns: collapsed ? -0.25 : 0,
-                    duration: const Duration(milliseconds: 180),
-                    child: const Icon(Icons.keyboard_arrow_down_rounded,
-                        size: 20, color: _kSubText),
+              ),
+              const Divider(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _chapterAction(
+                        Icons.done_all_rounded, 'Select', onSelect),
                   ),
-                ),
-              ],
-            ),
+                  Expanded(
+                    child: _chapterAction(
+                        Icons.remove_done_rounded, 'Exclude', onExclude),
+                  ),
+                  Expanded(
+                    child:
+                        _chapterAction(Icons.edit_note_rounded, 'Add', onAdd),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       );
+
+  Widget _chapterAction(IconData icon, String label, VoidCallback onPressed) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 15),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        minimumSize: const Size(0, 28),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
 }
 
 /// The CQ / MCQ / RQ pill on a picker card.
