@@ -9,6 +9,25 @@ import 'package:pi_qbank/services/test_result_service.dart'; // Import TestResul
 import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
 import 'package:pi_qbank/widgets/upload_test_button.dart';
 
+/// Deliberately small, page-local palette. Keeping the exam chrome in one
+/// palette makes the question runner and result review feel like one product.
+class _McqPalette {
+  static const navy = Color(0xFF111C3A);
+  static const indigo = Color(0xFF4056D6);
+  static const indigoDark = Color(0xFF2F3FA8);
+  static const ink = Color(0xFF17213D);
+  static const muted = Color(0xFF64708A);
+  static const canvas = Color(0xFFF5F7FC);
+  static const surface = Color(0xFFFFFFFF);
+  static const line = Color(0xFFE3E8F3);
+  static const selected = Color(0xFFF0F2FF);
+  static const teal = Color(0xFF138A83);
+  static const tealSoft = Color(0xFFE8F7F5);
+  static const amber = Color(0xFFC27A13);
+  static const amberSoft = Color(0xFFFFF5E3);
+  static const red = Color(0xFFD14343);
+}
+
 class MCQTestPage extends StatefulWidget {
   final int numberOfQuestions;
   final int testTimeInMinutes;
@@ -266,7 +285,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                       'Flagged',
                       '${_flagged.length}',
                       Icons.bookmark_outline,
-                      const Color(0xFF8B5CF6),
+                      const Color(0xFFD97706),
                     ),
                   ),
                 ],
@@ -310,7 +329,7 @@ class _MCQTestPageState extends State<MCQTestPage>
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 120, 145, 255),
+                backgroundColor: const Color(0xFF2563EB),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -378,18 +397,19 @@ class _MCQTestPageState extends State<MCQTestPage>
           }
         },
         child: Scaffold(
-          backgroundColor: const Color(0xFFF8FAFC),
+          backgroundColor: _McqPalette.canvas,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
+            systemOverlayStyle: SystemUiOverlayStyle.light,
             flexibleSpace: Container(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color.fromARGB(255, 115, 140, 230),
-                    Color.fromARGB(255, 155, 100, 210),
+                    _McqPalette.navy,
+                    _McqPalette.indigoDark,
                   ],
                 ),
                 borderRadius: const BorderRadius.only(
@@ -398,7 +418,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF667EEA).withOpacity(0.2),
+                    color: _McqPalette.indigo.withOpacity(0.24),
                     blurRadius: 5,
                     offset: const Offset(0, 5),
                   ),
@@ -417,8 +437,6 @@ class _MCQTestPageState extends State<MCQTestPage>
                 : AnimatedBuilder(
                     animation: _timerAnimationController,
                     builder: (context, child) {
-                      final progress =
-                          _remainingSeconds / (widget.testTimeInMinutes * 60);
                       return Transform.scale(
                         scale: _timeIsLow
                             ? 1.0 + (_timerAnimationController.value * 0.1)
@@ -427,24 +445,13 @@ class _MCQTestPageState extends State<MCQTestPage>
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
+                            color: _timeIsLow
+                                ? const Color(0xFFDC2626)
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(25),
-                            gradient: LinearGradient(
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                              stops: [progress, progress],
-                              colors: [
-                                _timeIsLow
-                                    ? Colors.red.shade400
-                                    : Colors.white
-                                        .withOpacity(0.8), // Progress color
-                                Colors.white.withOpacity(
-                                    0.3), // Changed from Colors.black.withOpacity(0.1) // Background color
-                              ],
-                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: (_timeIsLow ? Colors.red : Colors.black)
-                                    .withOpacity(0.2),
+                                color: Colors.black.withOpacity(0.18),
                                 blurRadius: 8,
                                 offset: const Offset(0, 4),
                               ),
@@ -454,11 +461,11 @@ class _MCQTestPageState extends State<MCQTestPage>
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                Icons.access_time,
+                                Icons.timer_outlined,
                                 size: 20,
                                 color: _timeIsLow
                                     ? Colors.white
-                                    : const Color.fromARGB(255, 90, 0, 150),
+                                    : _McqPalette.indigo,
                               ),
                               const SizedBox(width: 8),
                               Text(
@@ -468,7 +475,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                                   fontWeight: FontWeight.bold,
                                   color: _timeIsLow
                                       ? Colors.white
-                                      : const Color.fromARGB(255, 90, 0, 150),
+                                      : _McqPalette.ink,
                                   letterSpacing: 1.2,
                                 ),
                               ),
@@ -499,8 +506,8 @@ class _MCQTestPageState extends State<MCQTestPage>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  const Color(0xFFF8FAFC),
-                  Colors.white,
+                  _McqPalette.canvas,
+                  const Color(0xFFFBFCFF),
                 ],
               ),
             ),
@@ -591,8 +598,8 @@ class _MCQTestPageState extends State<MCQTestPage>
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: const Border(bottom: BorderSide(color: Color(0xFFEEF0F6))),
+        color: _McqPalette.surface,
+        border: const Border(bottom: BorderSide(color: _McqPalette.line)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.03),
@@ -613,8 +620,8 @@ class _MCQTestPageState extends State<MCQTestPage>
                     icon: Icons.check_circle_rounded,
                     value: '$answered/$total',
                     label: 'answered',
-                    color: const Color(0xFF047857),
-                    background: const Color(0xFFECFDF5),
+                    color: _McqPalette.teal,
+                    background: _McqPalette.tealSoft,
                   ),
                 ),
               ),
@@ -626,11 +633,10 @@ class _MCQTestPageState extends State<MCQTestPage>
                     icon: Icons.bookmark_rounded,
                     value: '$flagged',
                     label: 'flagged',
-                    color:
-                        flagged == 0 ? Colors.black45 : const Color(0xFFB45309),
+                    color: flagged == 0 ? _McqPalette.muted : _McqPalette.amber,
                     background: flagged == 0
-                        ? const Color(0xFFF7F8FC)
-                        : const Color(0xFFFFFBEB),
+                        ? _McqPalette.canvas
+                        : _McqPalette.amberSoft,
                   ),
                 ),
               ),
@@ -640,7 +646,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF4F46E5),
+                  color: _McqPalette.indigo,
                 ),
               ),
               const SizedBox(width: 3),
@@ -654,11 +660,11 @@ class _MCQTestPageState extends State<MCQTestPage>
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 4,
-              backgroundColor: const Color(0xFFEDE9FE),
+              backgroundColor: const Color(0xFFDDE3FF),
               valueColor: AlwaysStoppedAnimation<Color>(
                 answered == total && total > 0
-                    ? const Color(0xFF10B981)
-                    : const Color(0xFF667EEA),
+                    ? _McqPalette.teal
+                    : _McqPalette.indigo,
               ),
             ),
           ),
@@ -709,7 +715,7 @@ class _MCQTestPageState extends State<MCQTestPage>
     final flagged = _flagged.length;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _McqPalette.surface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
@@ -758,7 +764,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                     style:
                         TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4F46E5),
+                  backgroundColor: const Color(0xFF1D4ED8),
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -873,7 +879,7 @@ class _MCQTestPageState extends State<MCQTestPage>
     final total = _mcqQuestions.length;
     final progress = total == 0 ? 0.0 : _answeredCount / total;
     return Container(
-      color: Colors.white,
+      color: _McqPalette.surface,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
       child: Column(
         children: [
@@ -894,9 +900,9 @@ class _MCQTestPageState extends State<MCQTestPage>
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 7,
-              backgroundColor: const Color(0xFFEDE9FE),
+              backgroundColor: const Color(0xFFDDE3FF),
               valueColor:
-                  const AlwaysStoppedAnimation<Color>(Color(0xFF667EEA)),
+                  const AlwaysStoppedAnimation<Color>(_McqPalette.indigo),
             ),
           ),
         ],
@@ -912,7 +918,7 @@ class _MCQTestPageState extends State<MCQTestPage>
 
     final card = Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _McqPalette.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -921,7 +927,7 @@ class _MCQTestPageState extends State<MCQTestPage>
             offset: const Offset(0, 3),
           ),
         ],
-        border: Border.all(color: const Color(0xFFEDE9FE)),
+        border: Border.all(color: _McqPalette.line),
       ),
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -973,7 +979,7 @@ class _MCQTestPageState extends State<MCQTestPage>
             style: const TextStyle(
               fontSize: 15.5,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1F2937),
+              color: _McqPalette.ink,
               height: 1.35,
             ),
           ),
@@ -998,11 +1004,11 @@ class _MCQTestPageState extends State<MCQTestPage>
   /// need an answer without opening the palette.
   Widget _answerStatusPill(int index) {
     final answered = _userAnswers[index] != null;
-    final color = answered ? const Color(0xFF047857) : Colors.black45;
+    final color = answered ? const Color(0xFF047857) : const Color(0xFF64748B);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: answered ? const Color(0xFFECFDF5) : const Color(0xFFF3F4F6),
+        color: answered ? const Color(0xFFECFDF5) : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(7),
       ),
       child: Row(
@@ -1030,8 +1036,8 @@ class _MCQTestPageState extends State<MCQTestPage>
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: answered
-                ? [const Color(0xFF667EEA), const Color(0xFF764BA2)]
-                : [Colors.grey.shade300, Colors.grey.shade400],
+                ? [const Color(0xFF2563EB), const Color(0xFF1E40AF)]
+                : [const Color(0xFF64748B), const Color(0xFF475569)],
           ),
           shape: BoxShape.circle,
         ),
@@ -1155,13 +1161,10 @@ class _MCQTestPageState extends State<MCQTestPage>
             vertical: dense ? 9 : 10,
           ),
           decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFF667EEA).withOpacity(0.08)
-                : Colors.white,
+            color: selected ? _McqPalette.selected : _McqPalette.surface,
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
-              color:
-                  selected ? const Color(0xFF667EEA) : const Color(0xFFE5E7EB),
+              color: selected ? _McqPalette.indigo : _McqPalette.line,
               width: selected ? 2 : 1.4,
             ),
           ),
@@ -1171,9 +1174,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                 width: badgeSize,
                 height: badgeSize,
                 decoration: BoxDecoration(
-                  color: selected
-                      ? const Color(0xFF667EEA)
-                      : const Color(0xFFF1F2F9),
+                  color: selected ? _McqPalette.indigo : _McqPalette.canvas,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -1195,16 +1196,14 @@ class _MCQTestPageState extends State<MCQTestPage>
                     fontSize: 14,
                     height: 1.3,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                    color: selected
-                        ? const Color(0xFF4F46E5)
-                        : const Color(0xFF374151),
+                    color: selected ? _McqPalette.indigoDark : _McqPalette.ink,
                   ),
                 ),
               ),
               if (selected) ...[
                 SizedBox(width: checkGap),
                 Icon(Icons.check_circle,
-                    color: const Color(0xFF667EEA), size: checkSize),
+                    color: _McqPalette.indigo, size: checkSize),
               ],
             ],
           ),
@@ -1218,7 +1217,7 @@ class _MCQTestPageState extends State<MCQTestPage>
     final last = _currentIndex >= total - 1;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _McqPalette.surface,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.07),
@@ -1241,6 +1240,8 @@ class _MCQTestPageState extends State<MCQTestPage>
                 icon: const Icon(Icons.chevron_left, size: 20),
                 label: const Text('Previous'),
                 style: OutlinedButton.styleFrom(
+                  foregroundColor: _McqPalette.indigoDark,
+                  side: const BorderSide(color: Color(0xFFBFC8F7), width: 1.4),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(13)),
@@ -1257,7 +1258,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                     size: 20),
                 label: Text(last ? 'Submit' : 'Next'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF667EEA),
+                  backgroundColor: _McqPalette.indigo,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   elevation: 0,
@@ -1278,7 +1279,7 @@ class _MCQTestPageState extends State<MCQTestPage>
         icon: Stack(
           clipBehavior: Clip.none,
           children: [
-            const Icon(Icons.grid_view_rounded, color: Color(0xFF4F46E5)),
+            const Icon(Icons.grid_view_rounded, color: Color(0xFF1D4ED8)),
             if (_unansweredCount > 0)
               Positioned(
                 right: -6,
@@ -1390,7 +1391,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                     icon: const Icon(Icons.send_rounded, size: 18),
                     label: const Text('Submit'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF667EEA),
+                      backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       elevation: 0,
@@ -1415,14 +1416,14 @@ class _MCQTestPageState extends State<MCQTestPage>
     final Color background;
     final Color foreground;
     if (flagged) {
-      background = const Color(0xFFFEF3C7);
-      foreground = const Color(0xFFB45309);
+      background = _McqPalette.amberSoft;
+      foreground = _McqPalette.amber;
     } else if (answered) {
-      background = const Color(0xFFD1FAE5);
-      foreground = const Color(0xFF047857);
+      background = _McqPalette.tealSoft;
+      foreground = _McqPalette.teal;
     } else {
-      background = const Color(0xFFF1F2F9);
-      foreground = Colors.black54;
+      background = _McqPalette.canvas;
+      foreground = _McqPalette.muted;
     }
 
     return GestureDetector(
@@ -1437,7 +1438,7 @@ class _MCQTestPageState extends State<MCQTestPage>
           color: background,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: current ? const Color(0xFF4F46E5) : Colors.transparent,
+            color: current ? _McqPalette.indigo : Colors.transparent,
             width: 2,
           ),
         ),
@@ -1456,7 +1457,7 @@ class _MCQTestPageState extends State<MCQTestPage>
               const Positioned(
                 top: 4,
                 right: 4,
-                child: Icon(Icons.bookmark, size: 10, color: Color(0xFFB45309)),
+                child: Icon(Icons.bookmark, size: 10, color: _McqPalette.amber),
               ),
           ],
         ),
@@ -1468,9 +1469,9 @@ class _MCQTestPageState extends State<MCQTestPage>
         spacing: 16,
         runSpacing: 8,
         children: [
-          _PaletteKey(color: Color(0xFFD1FAE5), label: 'Answered'),
-          _PaletteKey(color: Color(0xFFFEF3C7), label: 'Flagged'),
-          _PaletteKey(color: Color(0xFFF1F2F9), label: 'Unanswered'),
+          _PaletteKey(color: _McqPalette.tealSoft, label: 'Answered'),
+          _PaletteKey(color: _McqPalette.amberSoft, label: 'Flagged'),
+          _PaletteKey(color: _McqPalette.canvas, label: 'Unanswered'),
         ],
       );
 
@@ -1555,16 +1556,16 @@ class _MCQTestPageState extends State<MCQTestPage>
               Row(
                 children: [
                   _resultStat(total.toString(), 'Total', Icons.quiz_outlined,
-                      const Color(0xFF667EEA)),
+                      _McqPalette.indigo),
                   const SizedBox(width: 6),
                   _resultStat(score.toString(), 'Correct',
-                      Icons.check_circle_outline, const Color(0xFF10B981)),
+                      Icons.check_circle_outline, _McqPalette.teal),
                   const SizedBox(width: 6),
                   _resultStat(incorrect.toString(), 'Wrong',
-                      Icons.cancel_outlined, const Color(0xFFEF4444)),
+                      Icons.cancel_outlined, _McqPalette.red),
                   const SizedBox(width: 6),
                   _resultStat(notAnswered.toString(), 'Skipped',
-                      Icons.remove_circle_outline, const Color(0xFFF59E0B)),
+                      Icons.remove_circle_outline, _McqPalette.amber),
                 ],
               ),
               const SizedBox(height: 18),
@@ -1592,13 +1593,11 @@ class _MCQTestPageState extends State<MCQTestPage>
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  _resultFilterChip(0, 'All', total, const Color(0xFF667EEA)),
+                  _resultFilterChip(0, 'All', total, _McqPalette.indigo),
+                  _resultFilterChip(1, 'Correct', score, _McqPalette.teal),
+                  _resultFilterChip(2, 'Wrong', incorrect, _McqPalette.red),
                   _resultFilterChip(
-                      1, 'Correct', score, const Color(0xFF10B981)),
-                  _resultFilterChip(
-                      2, 'Wrong', incorrect, const Color(0xFFEF4444)),
-                  _resultFilterChip(
-                      3, 'Skipped', notAnswered, const Color(0xFFF59E0B)),
+                      3, 'Skipped', notAnswered, _McqPalette.amber),
                 ],
               ),
               const SizedBox(height: 10),
@@ -1624,8 +1623,8 @@ class _MCQTestPageState extends State<MCQTestPage>
                 label: const Text('Retake this paper'),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 48),
-                  foregroundColor: const Color(0xFF4F46E5),
-                  side: const BorderSide(color: Color(0xFFC7D2FE), width: 1.4),
+                  foregroundColor: _McqPalette.indigoDark,
+                  side: const BorderSide(color: Color(0xFFBFC8F7), width: 1.4),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(13)),
                 ),
@@ -1635,11 +1634,11 @@ class _MCQTestPageState extends State<MCQTestPage>
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(13),
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                    colors: [_McqPalette.indigo, _McqPalette.indigoDark],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF667EEA).withOpacity(0.35),
+                      color: _McqPalette.indigo.withOpacity(0.28),
                       blurRadius: 12,
                       offset: const Offset(0, 6),
                     ),
@@ -1871,7 +1870,7 @@ class _MCQTestPageState extends State<MCQTestPage>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Text(
           message,
@@ -2047,7 +2046,7 @@ class _MCQTestPageState extends State<MCQTestPage>
           color: selected ? color.withOpacity(0.12) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? color : const Color(0xFFE5E7EB),
+            color: selected ? color : const Color(0xFFE2E8F0),
             width: selected ? 1.4 : 1,
           ),
         ),
@@ -2137,10 +2136,10 @@ class _MCQTestPageState extends State<MCQTestPage>
   }
 
   Color _getScoreColor(double percentage) {
-    if (percentage >= 80) return Colors.green;
-    if (percentage >= 60) return Colors.blue;
-    if (percentage >= 40) return Colors.orange;
-    return Colors.red;
+    if (percentage >= 80) return _McqPalette.teal;
+    if (percentage >= 60) return _McqPalette.indigo;
+    if (percentage >= 40) return _McqPalette.amber;
+    return _McqPalette.red;
   }
 
   String _getGradeText(double percentage) {
