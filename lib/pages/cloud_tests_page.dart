@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -116,6 +117,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   static const String _prefsShuffle = 'cloudExam.shuffle';
   static const String _prefsShuffleOptions = 'cloudExam.shuffleOptions';
   static const String _prefsMinutes = 'cloudExam.minutes';
+  static const String _prefsPicked = 'cloudExam.picked';
 
   static const List<String> _prefsKeys = [
     _prefsClass,
@@ -126,12 +128,19 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     _prefsShuffle,
     _prefsShuffleOptions,
     _prefsMinutes,
+    _prefsPicked,
   ];
 
   @override
   void initState() {
     super.initState();
     _restoreSettings();
+  }
+
+  @override
+  void dispose() {
+    _chapterReload?.cancel();
+    super.dispose();
   }
 
   // ── selection ────────────────────────────────────────────────────────────
@@ -142,9 +151,21 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   // ── loading ──────────────────────────────────────────────────────────────
   bool _loadingChapters = false;
   bool _loadingQuestions = false;
+
+  /// True once the pool has been asked for, so a chapter change can refresh it
+  /// without firing a request before the user has loaded anything.
+  bool _questionsRequested = false;
+
   String? _error;
   List<ChapterInfo> _chapterList = const [];
   List<HighSchoolQuestion> _questions = const [];
+
+  /// Pending refresh after a chapter chip changed.
+  ///
+  /// Tapping four chapters is one decision, not four requests. The pool is
+  /// re-read once the taps settle, so the paper can never keep drawing on a
+  /// chapter that was just unselected.
+  Timer? _chapterReload;
 
   // ── exam plan ────────────────────────────────────────────────────────────
   //
@@ -226,6 +247,18 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             .where((c) => _chapterList.any((info) => info.chapterNumber == c)));
     });
     await _loadQuestions();
+
+    // The picked questions are part of the paper, so a manual paper reopens
+    // with the same questions ticked instead of an empty sheet. Ids that are no
+    // longer in the bank (or filtered out by chapters) are dropped.
+    final savedPicked = prefs.getStringList(_prefsPicked) ?? const [];
+    if (!mounted || savedPicked.isEmpty) return;
+    final available = _mcqs.map((q) => q.id).toSet();
+    setState(() {
+      _pickedIds
+        ..clear()
+        ..addAll(savedPicked.where(available.contains));
+    });
   }
 
   /// Remember the setup of a paper the user actually started.
@@ -243,6 +276,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       await prefs.setInt(_prefsCount, _mcqCount);
       await prefs.setBool(_prefsShuffle, _shuffle);
       await prefs.setBool(_prefsShuffleOptions, _shuffleOptions);
+      await prefs.setStringList(_prefsPicked, _pickedIds.toList());
       if (_customMinutes == null) {
         await prefs.remove(_prefsMinutes);
       } else {
@@ -280,12 +314,14 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   }
 
   Future<void> _reset() async {
+    _chapterReload?.cancel();
     setState(() {
       _className = null;
       _subject = null;
       _chapters.clear();
       _chapterList = const [];
       _questions = const [];
+      _questionsRequested = false;
       _pickedIds.clear();
       _mcqCount = 10;
       _shuffle = true;
@@ -332,6 +368,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
 
   Future<void> _loadQuestions() async {
     if (_className == null || _subject == null) return;
+    _questionsRequested = true;
     setState(() {
       _loadingQuestions = true;
       _error = null;
@@ -357,6 +394,26 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     }
   }
 
+  /// Re-read the pool after the chapter scope changed.
+  ///
+  /// Tapping four chapters is one decision, not four requests: the refresh is
+  /// coalesced. Until the user has loaded once, the explicit Load button stays
+  /// the only thing that fetches.
+  void _scheduleQuestionReload() {
+    _chapterReload?.cancel();
+    if (!_questionsRequested ||
+        _className == null ||
+        _subject == null ||
+        _loadingQuestions) {
+      return;
+    }
+    _chapterReload = Timer(const Duration(milliseconds: 400), () {
+      // A manual reload started in the meantime already reads the current
+      // chapter set, so there is nothing left to refresh.
+      if (mounted && !_loadingQuestions) _loadQuestions();
+    });
+  }
+
   List<HighSchoolQuestion> get _mcqs =>
       _questions.where((q) => q.isMcq).toList();
 
@@ -371,6 +428,18 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     _pickedIds.removeWhere((id) => !ids.contains(id));
   }
 
+  /// The random paper last drawn.
+  ///
+  /// `_selected` is read several times per frame — the count, the summary, the
+  /// preview, the start action. Shuffling inside the getter meant each read
+  /// produced a *different* paper, so Preview could show one set while Start
+  /// ran another. The draw is kept until one of its inputs changes.
+  List<HighSchoolQuestion>? _draw;
+  Object? _drawKey;
+
+  /// Bumped by "Redraw", so the same inputs can still produce a fresh paper.
+  int _drawVersion = 0;
+
   /// The questions the paper will actually contain, in the order it will run.
   List<HighSchoolQuestion> get _selected {
     if (_pickMode == _PickMode.manual) {
@@ -380,10 +449,24 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       return _mcqs.where((q) => _pickedIds.contains(q.id)).toList();
     }
     if (_mcqCount <= 0 || _mcqs.isEmpty) return const [];
+
+    final key = Object.hash(
+      identityHashCode(_questions),
+      _mcqCount,
+      _shuffle,
+      _drawVersion,
+    );
+    if (key == _drawKey && _draw != null) return _draw!;
+
     final list = List<HighSchoolQuestion>.from(_mcqs);
     if (_shuffle) list.shuffle(Random());
-    return list.take(_mcqCount).toList();
+    _draw = list.take(_mcqCount).toList();
+    _drawKey = key;
+    return _draw!;
   }
+
+  /// Dismiss the current random draw and take another.
+  void _redraw() => setState(() => _drawVersion++);
 
   int get _plannedCount => _selected.length;
 
@@ -422,6 +505,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
           ],
         }),
         language: 'Bangla',
+        showAllQuestions: true,
       ),
     );
   }
@@ -636,7 +720,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
 
   // ── header ───────────────────────────────────────────────────────────────
   Widget _header() => Container(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
@@ -651,15 +735,15 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.fact_check_rounded,
-                      color: Colors.white, size: 28),
+                      color: Colors.white, size: 24),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,19 +751,19 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                       Text('Online Exam',
                           style: TextStyle(
                               color: Colors.white,
-                              fontSize: 19,
+                              fontSize: 18,
                               fontWeight: FontWeight.w800)),
-                      SizedBox(height: 2),
+                      SizedBox(height: 1),
                       Text('MCQ, marked automatically',
                           style:
-                              TextStyle(color: Colors.white70, fontSize: 12.5)),
+                              TextStyle(color: Colors.white70, fontSize: 12)),
                     ],
                   ),
                 ),
               ],
             ),
             if (_questions.isNotEmpty) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   _headerStat('${_questions.length}', 'loaded',
@@ -689,8 +773,13 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                       '${_mcqs.length}', 'MCQ', Icons.check_circle_outline),
                   _headerDivider(),
                   _headerStat(
-                      '${_chapters.length}',
-                      _chapters.length == 1 ? 'chapter' : 'chapters',
+                      '${_chapters.isEmpty ? _chapterList.length : _chapters.length}',
+                      (_chapters.isEmpty
+                                  ? _chapterList.length
+                                  : _chapters.length) ==
+                              1
+                          ? 'chapter'
+                          : 'chapters',
                       Icons.menu_book_outlined),
                 ],
               ),
@@ -828,31 +917,31 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE8EAF6)),
         ),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 CircleAvatar(
-                  radius: 13,
+                  radius: 12,
                   backgroundColor: const Color(0xFF4F46E5),
                   child: Text('$number',
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800)),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 9),
                 Text(title,
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w800)),
+                        fontSize: 15, fontWeight: FontWeight.w800)),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             child,
           ],
         ),
@@ -872,14 +961,18 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             for (final c in _classes)
               DropdownMenuItem(value: c, child: Text(c)),
           ],
-          onChanged: (v) => setState(() {
-            _className = v;
-            _subject = null;
-            _chapterList = const [];
-            _chapters.clear();
-            _questions = const [];
-            _error = null;
-          }),
+          onChanged: (v) {
+            _chapterReload?.cancel();
+            setState(() {
+              _className = v;
+              _subject = null;
+              _chapterList = const [];
+              _chapters.clear();
+              _questions = const [];
+              _questionsRequested = false;
+              _error = null;
+            });
+          },
         ),
         const SizedBox(height: 14),
         _label('Subject'),
@@ -897,10 +990,12 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
           onChanged: _className == null
               ? null
               : (v) {
+                  _chapterReload?.cancel();
                   setState(() {
                     _subject = v;
                     _chapters.clear();
                     _questions = const [];
+                    _questionsRequested = false;
                     _error = null;
                   });
                   _loadChapters();
@@ -928,15 +1023,18 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             ),
             if (_chapterList.isNotEmpty)
               TextButton(
-                onPressed: () => setState(() {
-                  if (_chapters.length == _chapterList.length) {
-                    _chapters.clear();
-                  } else {
-                    _chapters
-                      ..clear()
-                      ..addAll(_chapterList.map((c) => c.chapterNumber));
-                  }
-                }),
+                onPressed: () {
+                  setState(() {
+                    if (_chapters.length == _chapterList.length) {
+                      _chapters.clear();
+                    } else {
+                      _chapters
+                        ..clear()
+                        ..addAll(_chapterList.map((c) => c.chapterNumber));
+                    }
+                  });
+                  _scheduleQuestionReload();
+                },
                 child: Text(_chapters.length == _chapterList.length
                     ? 'Clear'
                     : 'Select all'),
@@ -977,10 +1075,12 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                         : c.chapterName,
                     style: const TextStyle(fontSize: 12.5),
                   ),
-                  onSelected: (_) => setState(() =>
-                      _chapters.contains(c.chapterNumber)
-                          ? _chapters.remove(c.chapterNumber)
-                          : _chapters.add(c.chapterNumber)),
+                  onSelected: (_) {
+                    setState(() => _chapters.contains(c.chapterNumber)
+                        ? _chapters.remove(c.chapterNumber)
+                        : _chapters.add(c.chapterNumber));
+                    _scheduleQuestionReload();
+                  },
                 ),
             ],
           ),
@@ -1157,35 +1257,38 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     return Column(
       children: [
         _modeSwitch(),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         if (_pickMode == _PickMode.random)
           _randomControls()
         else
           _manualPicker(),
+        const SizedBox(height: 4),
         // Applies to both modes: how the questions were chosen says nothing
         // about whether the choices under each one should be reordered.
         SwitchListTile(
           value: _shuffleOptions,
           onChanged: (v) => setState(() => _shuffleOptions = v),
           contentPadding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          dense: true,
           title: const Text('Shuffle answer options',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
           subtitle: Text(
               _shuffleOptions
                   ? 'The four choices come out in a different order each time.'
                   : 'Choices stay in the order the bank lists them.',
-              style: const TextStyle(fontSize: 12)),
+              style: const TextStyle(fontSize: 11.5)),
         ),
-        const Divider(height: 30),
+        const Divider(height: 22),
         _durationRow(),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Color(0xFFF5F3FF), Color(0xFFEEF2FF)],
             ),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE0E7FF)),
           ),
           child: Row(
@@ -1196,22 +1299,6 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               _statDivider(),
               _stat('$_plannedMinutes', 'minutes'),
             ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _plannedCount == 0 ? null : _previewPaper,
-            icon: const Icon(Icons.visibility_outlined, size: 18),
-            label: Text(_plannedCount == 0
-                ? 'Preview the paper'
-                : 'Preview ${_plannedCount == 1 ? 'the question' : 'all $_plannedCount questions'}'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
           ),
         ),
       ],
@@ -1289,69 +1376,98 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         children: [
           _countRow('MCQ', 'one mark each', _mcqs.length, _mcqCount,
               (v) => setState(() => _mcqCount = v)),
-          SwitchListTile(
-            value: _shuffle,
-            onChanged: (v) => setState(() => _shuffle = v),
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Shuffle',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            subtitle: Text(
-                _shuffle
-                    ? 'Questions come out in a different order each time.'
-                    : 'Off keeps the order the bank returns.',
-                style: const TextStyle(fontSize: 12)),
+          Row(
+            children: [
+              Expanded(
+                child: SwitchListTile(
+                  value: _shuffle,
+                  onChanged: (v) => setState(() => _shuffle = v),
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  dense: true,
+                  title: const Text('Shuffle order',
+                      style: TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                      _shuffle
+                          ? 'A new order on every draw.'
+                          : 'Keep the order the bank returns.',
+                      style: const TextStyle(fontSize: 11.5)),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Draws another set without changing the count. With shuffling
+              // off there is nothing to redraw, so it stays disabled.
+              IconButton(
+                onPressed: _shuffle && _plannedCount > 0 ? _redraw : null,
+                tooltip: 'Draw a different set',
+                icon: const Icon(Icons.refresh_rounded, size: 20),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFFEEF2FF),
+                  foregroundColor: const Color(0xFF4F46E5),
+                  disabledBackgroundColor: const Color(0xFFF3F4F6),
+                  disabledForegroundColor: Colors.black26,
+                  minimumSize: const Size(40, 40),
+                ),
+              ),
+            ],
           ),
           // Quick presets beat making someone tap + to reach 30. Only sizes the
           // bank can actually fill are offered, so a preset never silently
           // clamps to something else.
           if (_mcqs.isNotEmpty)
-            Row(
-              children: [
-                for (final n in [5, 10, 20, 0])
-                  if (n == 0 || n <= _mcqs.length) ...[
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: GestureDetector(
-                          onTap: () => setState(
-                              () => _mcqCount = n == 0 ? _mcqs.length : n),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: _mcqCount == (n == 0 ? _mcqs.length : n)
-                                  ? const Color(0xFF4F46E5).withOpacity(0.10)
-                                  : Colors.white,
-                              border: Border.all(
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  for (final n in [5, 10, 20, 0])
+                    if (n == 0 || n <= _mcqs.length) ...[
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: GestureDetector(
+                            onTap: () => setState(
+                                () => _mcqCount = n == 0 ? _mcqs.length : n),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
                                 color: _mcqCount == (n == 0 ? _mcqs.length : n)
-                                    ? const Color(0xFF4F46E5)
-                                    : const Color(0xFFE0E0E0),
+                                    ? const Color(0xFF4F46E5).withOpacity(0.10)
+                                    : Colors.white,
+                                border: Border.all(
+                                  color:
+                                      _mcqCount == (n == 0 ? _mcqs.length : n)
+                                          ? const Color(0xFF4F46E5)
+                                          : const Color(0xFFE0E0E0),
+                                ),
+                                borderRadius: BorderRadius.circular(9),
                               ),
-                              borderRadius: BorderRadius.circular(10),
+                              child: Text(n == 0 ? 'All' : '$n',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: _mcqCount ==
+                                              (n == 0 ? _mcqs.length : n)
+                                          ? const Color(0xFF4F46E5)
+                                          : Colors.black87)),
                             ),
-                            child: Text(n == 0 ? 'All' : '$n',
-                                style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                    color:
-                                        _mcqCount == (n == 0 ? _mcqs.length : n)
-                                            ? const Color(0xFF4F46E5)
-                                            : Colors.black87)),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-              ],
+                    ],
+                ],
+              ),
             ),
         ],
       );
 
-  /// Manual mode, reduced to a summary and a way in.
+  /// Manual mode: the whole paper at a glance.
   ///
-  /// The list itself lives in a full-height sheet: four chapters of questions
-  /// crammed into a 320px box inside the form could not be filtered, scanned or
-  /// checked against the key.
+  /// The picked questions used to collapse into a one-line summary, so the only
+  /// way to see what the paper would ask was to reopen the full-height sheet.
+  /// Every picked question is now listed here, compactly and in paper order,
+  /// with the sheet still available for bulk work.
   Widget _manualPicker() {
     final picked = _selected;
     final chapters = picked.map((q) => q.chapterNumber).toSet().length;
@@ -1359,68 +1475,155 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF7F8FC),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE8EAF6)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4F46E5).withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: const Icon(Icons.checklist_rounded,
-                    color: Color(0xFF4F46E5), size: 20),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4F46E5).withOpacity(0.10),
+                borderRadius: BorderRadius.circular(9),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      picked.isEmpty
-                          ? 'No questions picked'
-                          : '${picked.length} question'
-                              '${picked.length == 1 ? '' : 's'} picked',
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      picked.isEmpty
-                          ? 'Choose the exact questions this paper should ask.'
-                          : 'From $chapters '
-                              'chapter${chapters == 1 ? '' : 's'} · '
-                              'asked in bank order',
-                      style: const TextStyle(
-                          fontSize: 11.5, color: Colors.black45),
-                    ),
-                  ],
-                ),
+              child: const Icon(Icons.checklist_rounded,
+                  color: Color(0xFF4F46E5), size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    picked.isEmpty
+                        ? 'No questions picked'
+                        : '${picked.length} question'
+                            '${picked.length == 1 ? '' : 's'} picked',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    picked.isEmpty
+                        ? 'Choose the exact questions this paper should ask.'
+                        : '$chapters chapter${chapters == 1 ? '' : 's'} · '
+                            'asked in bank order',
+                    style:
+                        const TextStyle(fontSize: 11.5, color: Colors.black45),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            if (picked.isNotEmpty)
+              TextButton(
+                onPressed: () => setState(_pickedIds.clear),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black45,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: const Text('Clear', style: TextStyle(fontSize: 12.5)),
+              ),
+          ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+        if (picked.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F8FC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE8EAF6)),
+            ),
+            child: Text(
+              'Nothing picked yet — open the list and tick the questions to '
+              'ask.',
+              style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+            ),
+          )
+        else
+          Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F8FC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE8EAF6)),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < picked.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, color: Color(0xFFE8EAF6)),
+                  _pickedRow(picked[i], i + 1),
+                ],
+              ],
+            ),
+          ),
+        const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: _mcqs.isEmpty ? null : _openPicker,
             icon: const Icon(Icons.edit_note_rounded, size: 20),
-            label: Text(picked.isEmpty ? 'Choose questions' : 'Edit selection'),
+            label: Text(picked.isEmpty
+                ? 'Choose questions'
+                : 'Add or remove questions'),
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  /// One line of the inline paper.
+  ///
+  /// Tapping opens the picker where the question can be inspected in full;
+  /// the close button removes it from the paper without leaving the page.
+  Widget _pickedRow(HighSchoolQuestion q, int position) {
+    final text = (q.mcqData?.text ?? '').trim();
+
+    return InkWell(
+      onTap: _openPicker,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 6, 2, 6),
+        child: Row(
+          children: [
+            _QuestionIndexPill(position),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    text.isEmpty ? '(no question text)' : text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12.5, height: 1.3),
+                  ),
+                  if (q.chapterName.isNotEmpty)
+                    Text(
+                      q.chapterName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 10.5, color: Colors.black38),
+                    ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => setState(() => _pickedIds.remove(q.id)),
+              tooltip: 'Remove question $position',
+              icon: const Icon(Icons.close_rounded, size: 17),
+              color: Colors.black38,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1447,47 +1650,91 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     // from the number the student already sees.
     final derived = max(3, _plannedCount);
     final auto = _customMinutes == null;
-    return Row(
-      children: [
-        const Icon(Icons.timer_outlined, size: 18, color: Color(0xFF64748B)),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Time limit',
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-            Text(auto ? 'auto — one minute a question' : 'set by hand',
-                style: const TextStyle(fontSize: 11, color: Colors.black45)),
-          ],
-        ),
-        const Spacer(),
-        Text(
-            _plannedMinutes < 60
-                ? '$_plannedMinutes min'
-                : '${_plannedMinutes ~/ 60} h ${_plannedMinutes % 60} min',
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF4F46E5))),
-        const SizedBox(width: 4),
-        IconButton(
-          onPressed: () => setState(
-              () => _customMinutes = max(1, (_customMinutes ?? derived) - 5)),
-          icon: const Icon(Icons.remove_circle_outline),
-          iconSize: 21,
-        ),
-        IconButton(
-          onPressed: () =>
-              setState(() => _customMinutes = (_customMinutes ?? derived) + 5),
-          icon: const Icon(Icons.add_circle_outline),
-          iconSize: 21,
-        ),
-        if (!auto)
-          TextButton(
-            onPressed: () => setState(() => _customMinutes = null),
-            child: const Text('Auto', style: TextStyle(fontSize: 12)),
+    final minutes = '$_plannedMinutes min';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE8EAF6)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.timer_outlined, size: 18, color: Color(0xFF64748B)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Time limit',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                  auto ? 'auto · one minute a question' : 'set by hand',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 10.5, color: Colors.black45),
+                ),
+              ],
+            ),
           ),
-      ],
+          IconButton(
+            onPressed: () => setState(
+                () => _customMinutes = max(1, (_customMinutes ?? derived) - 5)),
+            tooltip: 'Five minutes less',
+            icon: const Icon(Icons.remove_rounded, size: 18),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF4F46E5),
+              side: const BorderSide(color: Color(0xFFE0E7FF)),
+            ),
+          ),
+          SizedBox(
+            width: 58,
+            child: Text(
+              minutes,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF4F46E5)),
+            ),
+          ),
+          IconButton(
+            onPressed: () => setState(
+                () => _customMinutes = (_customMinutes ?? derived) + 5),
+            tooltip: 'Five minutes more',
+            icon: const Icon(Icons.add_rounded, size: 18),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF4F46E5),
+              side: const BorderSide(color: Color(0xFFE0E7FF)),
+            ),
+          ),
+          if (!auto)
+            SizedBox(
+              width: 42,
+              child: TextButton(
+                onPressed: () => setState(() => _customMinutes = null),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF4F46E5),
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(42, 34),
+                ),
+                child: const Text('Auto', style: TextStyle(fontSize: 11.5)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1555,22 +1802,38 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             IconButton(
               onPressed:
                   disabled || value <= 0 ? null : () => onChanged(value - 1),
-              icon: const Icon(Icons.remove_circle_outline),
-              iconSize: 22,
+              tooltip: 'One fewer',
+              icon: const Icon(Icons.remove_rounded, size: 18),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF4F46E5),
+                side: const BorderSide(color: Color(0xFFE0E7FF)),
+              ),
             ),
             SizedBox(
-              width: 34,
+              width: 38,
               child: Text('$value',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w800)),
+                      fontSize: 15, fontWeight: FontWeight.w800)),
             ),
             IconButton(
               onPressed: disabled || value >= available
                   ? null
                   : () => onChanged(value + 1),
-              icon: const Icon(Icons.add_circle_outline),
-              iconSize: 22,
+              tooltip: 'One more',
+              icon: const Icon(Icons.add_rounded, size: 18),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF4F46E5),
+                side: const BorderSide(color: Color(0xFFE0E7FF)),
+              ),
             ),
           ],
         ),
@@ -1900,7 +2163,7 @@ class _QuestionPickerState extends State<QuestionPicker> {
             onTap: () => _toggle(q.id),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 2, 10),
+              padding: const EdgeInsets.fromLTRB(8, 8, 0, 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1911,7 +2174,7 @@ class _QuestionPickerState extends State<QuestionPicker> {
                     size: 20,
                     color: on ? const Color(0xFF4F46E5) : Colors.black26,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 9),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1928,7 +2191,7 @@ class _QuestionPickerState extends State<QuestionPicker> {
                           runSpacing: 4,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            if (position != null) _positionPill(position),
+                            if (position != null) _QuestionIndexPill(position),
                             if (q.chapterName.isNotEmpty)
                               Text(q.chapterName,
                                   style: const TextStyle(
@@ -1955,6 +2218,9 @@ class _QuestionPickerState extends State<QuestionPicker> {
                         size: 20),
                     tooltip: open ? 'Hide choices' : 'Show choices',
                     visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 34, minHeight: 34),
                     color: Colors.black38,
                   ),
                 ],
@@ -2010,19 +2276,6 @@ class _QuestionPickerState extends State<QuestionPicker> {
       ),
     );
   }
-
-  Widget _positionPill(int n) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-        decoration: BoxDecoration(
-          color: const Color(0xFF4F46E5),
-          borderRadius: BorderRadius.circular(7),
-        ),
-        child: Text('Q$n',
-            style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                color: Colors.white)),
-      );
 
   Widget _footer() => Container(
         decoration: BoxDecoration(
@@ -2080,6 +2333,30 @@ class _QuestionPickerState extends State<QuestionPicker> {
             ],
           ),
         ),
+      );
+}
+
+/// The small `Q3` badge marking a question's place in the paper.
+///
+/// Shared by the inline paper on the page and the picker rows so both number
+/// the same question the same way.
+class _QuestionIndexPill extends StatelessWidget {
+  const _QuestionIndexPill(this.number);
+
+  final int number;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+        decoration: BoxDecoration(
+          color: const Color(0xFF4F46E5),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Text('Q$number',
+            style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: Colors.white)),
       );
 }
 

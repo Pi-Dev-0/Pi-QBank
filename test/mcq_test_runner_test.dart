@@ -212,8 +212,9 @@ void main() {
         (tester) async {
       await answerAndSubmit(tester);
 
-      expect(find.text('🎉 Test Results'), findsOneWidget);
+      expect(find.text('Result'), findsOneWidget);
       expect(find.text('50.0%'), findsOneWidget);
+      expect(find.text('1 of 2 correct'), findsOneWidget);
       expect(find.text('Correct · 1'), findsOneWidget);
       expect(find.text('Wrong · 1'), findsOneWidget);
       expect(find.text('Skipped · 0'), findsOneWidget);
