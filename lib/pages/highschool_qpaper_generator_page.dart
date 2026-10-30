@@ -1312,6 +1312,11 @@ class _HighSchoolQPaperGeneratorPageState
           manualAnswerCount: _manualAnswerItemCount,
           fontStep: _fontStep,
           font: _paperFont,
+          settingsBuilder: (context, onChanged) => _MobileSettingsSheet(
+            parent: this,
+            onChanged: onChanged,
+          ),
+          liveHtmlBuilder: _buildPaperHtml,
         ),
       ),
     );
@@ -4894,17 +4899,17 @@ class _HighSchoolQPaperGeneratorPageState
 
   Widget _buildStep3() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _SectionHeader(
               icon: Icons.edit_document, label: 'পরীক্ষার তথ্য পূরণ করুন'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // The paper in one glance, before anything is written.
           _buildSummaryChips(),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Everything the paper's masthead prints, in one card.
           _buildPaperInfoCard(),
@@ -4988,28 +4993,58 @@ class _HighSchoolQPaperGeneratorPageState
   /// eye. The total stands out from the rest.
   Widget _buildSummaryChips() {
     final marks = _marksBreakdown;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        _SummaryChip(
-          icon: Icons.quiz_rounded,
-          label: 'CQ: ${_selectedCqs.length}টি  ·  ${marks.cq} নম্বর',
-        ),
-        _SummaryChip(
-          icon: Icons.format_list_bulleted_rounded,
-          label: 'MCQ: ${_selectedMcqs.length}টি  ·  ${marks.mcq} নম্বর',
-        ),
-        _SummaryChip(
-          icon: Icons.short_text_rounded,
-          label: 'RQ: ${_selectedShorts.length}টি  ·  ${marks.rq} নম্বর',
-        ),
-        _SummaryChip(
-          icon: Icons.star_rounded,
-          label: 'মোট নম্বর: $_totalSelectedMarks',
-          emphasized: true,
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kPrimary.withOpacity(0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.analytics_outlined, size: 16, color: _kPrimary),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'নির্বাচনের সারাংশ',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: _kDarkText,
+                  ),
+                ),
+              ),
+              _SummaryChip(
+                icon: Icons.star_rounded,
+                label: 'মোট $_totalSelectedMarks',
+                emphasized: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: [
+              _SummaryChip(
+                icon: Icons.quiz_rounded,
+                label: 'CQ ${_selectedCqs.length}টি · ${marks.cq}',
+              ),
+              _SummaryChip(
+                icon: Icons.format_list_bulleted_rounded,
+                label: 'MCQ ${_selectedMcqs.length}টি · ${marks.mcq}',
+              ),
+              _SummaryChip(
+                icon: Icons.short_text_rounded,
+                label: 'RQ ${_selectedShorts.length}টি · ${marks.rq}',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -5366,7 +5401,7 @@ class _SummaryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: emphasized
               ? _kPrimary.withOpacity(0.10)
@@ -5382,12 +5417,12 @@ class _SummaryChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 12, color: _kPrimary),
+              Icon(icon, size: 11, color: _kPrimary),
               const SizedBox(width: 4),
             ],
             Text(label,
                 style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 11,
                     color: emphasized ? _kPrimary : _kDarkText,
                     fontWeight:
                         emphasized ? FontWeight.bold : FontWeight.w600)),
@@ -6984,9 +7019,10 @@ class _MobileSettingsButton extends StatelessWidget {
 /// Reaching into the page's state is deliberate — the two live in one file and
 /// the sheet is nothing but a mobile face for those very fields.
 class _MobileSettingsSheet extends StatefulWidget {
-  const _MobileSettingsSheet({required this.parent});
+  const _MobileSettingsSheet({required this.parent, this.onChanged});
 
   final _HighSchoolQPaperGeneratorPageState parent;
+  final VoidCallback? onChanged;
 
   @override
   State<_MobileSettingsSheet> createState() => _MobileSettingsSheetState();
@@ -7003,6 +7039,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
 
   void _apply(VoidCallback change) {
     page.setState(change);
+    widget.onChanged?.call();
     setState(() {});
   }
 

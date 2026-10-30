@@ -41,6 +41,8 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.fontStep = 0,
     this.font = PaperFont.kalpurush,
     this.printSettings = const PaperPrintSettings(),
+    this.settingsBuilder,
+    this.liveHtmlBuilder,
   });
 
   final String schoolName;
@@ -81,6 +83,13 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   /// watermark, page numbers, and so on.
   final PaperPrintSettings printSettings;
 
+  /// Optional editor supplied by the generator. Keeping it injectable lets
+  /// the preview reuse the generator's complete settings panel.
+  final Widget Function(BuildContext, VoidCallback)? settingsBuilder;
+
+  /// Rebuilds HTML from the generator's live state after a setting changes.
+  final String Function()? liveHtmlBuilder;
+
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
       !kIsWeb &&
@@ -108,7 +117,21 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   /// platforms load it into `webview_flutter` directly.
   String? _cachedHtml;
 
-  String get _html => HighSchoolExportService.generateHtml(
+  // A preview is an editor too: keep a private, mutable copy of every paper
+  // setting so the floating panel can update the sheet without navigating back.
+  late StemImageSize _imageSize;
+  late QuestionLayout _cqLayout;
+  late QuestionLayout _mcqLayout;
+  late QuestionLayout _rqLayout;
+  late McqAnswerSheetStyle _answerSheet;
+  late int _answerCount;
+  late double _fontStep;
+  late PaperFont _font;
+  late PaperPrintSettings _printSettings;
+
+  String get _html =>
+      widget.liveHtmlBuilder?.call() ??
+      HighSchoolExportService.generateHtml(
         schoolName: widget.schoolName,
         examName: widget.examName,
         subject: widget.subject,
@@ -120,15 +143,15 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         imageBytes: _stemImages,
         setLabels: widget.setLabels,
         sectionOrder: widget.sectionOrder,
-        imageSize: widget.imageSize,
-        cqLayout: widget.cqLayout,
-        mcqLayout: widget.mcqLayout,
-        rqLayout: widget.rqLayout,
-        mcqAnswerSheetStyle: widget.mcqAnswerSheetStyle,
-        manualAnswerCount: widget.manualAnswerCount,
-        fontStep: widget.fontStep,
-        font: widget.font,
-        printSettings: widget.printSettings,
+        imageSize: _imageSize,
+        cqLayout: _cqLayout,
+        mcqLayout: _mcqLayout,
+        rqLayout: _rqLayout,
+        mcqAnswerSheetStyle: _answerSheet,
+        manualAnswerCount: _answerCount,
+        fontStep: _fontStep,
+        font: _font,
+        printSettings: _printSettings,
         // The preview shows the page as a desktop browser lays it out, not as a
         // phone-width WebView reflows it.
         desktopMode: true,
@@ -138,6 +161,15 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   @override
   void initState() {
     super.initState();
+    _imageSize = widget.imageSize;
+    _cqLayout = widget.cqLayout;
+    _mcqLayout = widget.mcqLayout;
+    _rqLayout = widget.rqLayout;
+    _answerSheet = widget.mcqAnswerSheetStyle;
+    _answerCount = widget.manualAnswerCount;
+    _fontStep = widget.fontStep;
+    _font = widget.font;
+    _printSettings = widget.printSettings;
     _start();
   }
 
@@ -264,6 +296,100 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     await controller.runJavaScript('window.print();');
   }
 
+  /// Keep the preview controls reachable without leaving the paper. The
+  /// preview receives an immutable settings snapshot, so this is a compact
+  /// summary; the actual editing controls remain on the generator page.
+  void _showPreviewSettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 34,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Icon(Icons.tune_rounded,
+                      color: Color(0xFF5C35E3), size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('প্রিভিউ সেটিংস',
+                        style: TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.w800)),
+                  ),
+                  IconButton(
+                    tooltip: 'বন্ধ করুন',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _previewSettingRow(
+                  'ফন্ট', widget.font.label, Icons.text_fields_rounded),
+              _previewSettingRow(
+                  'ছবির আকার', widget.imageSize.label, Icons.image_outlined),
+              _previewSettingRow(
+                  'CQ কলাম', widget.cqLayout.label, Icons.view_column_outlined),
+              _previewSettingRow(
+                  'MCQ কলাম', widget.mcqLayout.label, Icons.view_week_outlined),
+              _previewSettingRow(
+                  'RQ কলাম', widget.rqLayout.label, Icons.subject_rounded),
+              _previewSettingRow('MCQ উত্তরপত্র',
+                  widget.mcqAnswerSheetStyle.label, Icons.fact_check_outlined),
+              const SizedBox(height: 8),
+              const Text('পরিবর্তন করতে আগের পাতায় ফিরে যান।',
+                  style: TextStyle(fontSize: 11.5, color: Colors.black45)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _previewSettingRow(String label, String value, IconData icon) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F7FB),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: const Color(0xFF5C35E3)),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(label,
+                style: const TextStyle(fontSize: 12.5, color: Colors.black54)),
+          ),
+          Text(value,
+              style:
+                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final withImages =
@@ -297,6 +423,56 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           _buildInfoBar(withImages),
           Expanded(child: _buildPreviewBody()),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: widget.settingsBuilder == null
+            ? _showPreviewSettings
+            : () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) =>
+                      widget.settingsBuilder?.call(
+                        context,
+                        _reload,
+                      ) ??
+                      _buildFallbackSettingsSheet(context),
+                ),
+        backgroundColor: const Color(0xFF5C35E3),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.tune_rounded, size: 19),
+        label:
+            const Text('সেটিংস', style: TextStyle(fontWeight: FontWeight.w700)),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildFallbackSettingsSheet(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('প্রিভিউ সেটিংস',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            Text('ফন্ট: ${_font.label}'),
+            Text('ছবির আকার: ${_imageSize.label}'),
+            Text(
+                'CQ: ${_cqLayout.label} · MCQ: ${_mcqLayout.label} · RQ: ${_rqLayout.label}'),
+            Text('MCQ উত্তরপত্র: ${_answerSheet.label}'),
+            const SizedBox(height: 8),
+            const Text('সম্পূর্ণ সেটিংস বদলাতে generator page ব্যবহার করুন।',
+                style: TextStyle(fontSize: 11.5, color: Colors.black45)),
+          ],
+        ),
       ),
     );
   }
