@@ -28,6 +28,8 @@ const _kBg = Color(0xFFF4F3FF);
 const _kCardBg = Colors.white;
 const _kDarkText = Color(0xFF1E1B3A);
 const _kSubText = Color(0xFF6B6880);
+const _kSheetSoft = Color(0xFFF5F4FC);
+const _kSheetLine = Color(0xFFE3E0F2);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Available options
@@ -4904,7 +4906,7 @@ class _HighSchoolQPaperGeneratorPageState
           _buildSummaryChips(),
           const SizedBox(height: 12),
 
-          _buildSectionCard(),
+          _buildSectionCard(withColumnToggle: false),
           const SizedBox(height: 12),
 
           // Everything the paper's masthead prints, in one card.
@@ -5264,7 +5266,7 @@ class _HighSchoolQPaperGeneratorPageState
   /// showing the order the reader chose and the other a fixed order that could
   /// contradict it. Here, top to bottom *is* the order on the page, so the letter
   /// a block is headed with reads straight off its row.
-  Widget _buildSectionCard() {
+  Widget _buildSectionCard({bool withColumnToggle = true}) {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: BoxDecoration(
@@ -5304,15 +5306,19 @@ class _HighSchoolQPaperGeneratorPageState
                 // skipped on the page, so numbering it would promise a division
                 // the reader will not find there.
                 letter: count == 0 ? '' : _sectionLetter(kind),
-                layout: _layoutOf(kind),
-                onLayout: (v) => setState(() => _setLayoutOf(kind, v)),
+                layout: withColumnToggle ? _layoutOf(kind) : null,
+                onLayout: withColumnToggle
+                    ? (v) => setState(() => _setLayoutOf(kind, v))
+                    : null,
               );
             },
           ),
           const SizedBox(height: 4),
-          const Text(
-            'ধরে টেনে ক্রম বদলাও। প্রতিটি বিভাগ আলাদাভাবে এক বা দুই কলামে বসানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
-            style: TextStyle(fontSize: 11, color: _kSubText),
+          Text(
+            withColumnToggle
+                ? 'ধরে টেনে ক্রম বদলাও। প্রতিটি বিভাগ আলাদাভাবে এক বা দুই কলামে বসানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।'
+                : 'ধরে টেনে ক্রম বদলাও। কলাম সংখ্যা সেটিংস থেকে বদলানো যায়।',
+            style: const TextStyle(fontSize: 11, color: _kSubText),
           ),
         ],
       ),
@@ -6030,8 +6036,9 @@ enum _SectionKind {
 
 /// One block of the paper: where it prints, what it holds and how wide it runs.
 ///
-/// The row itself is the drag handle; the column toggle inside it still takes a
-/// tap, because a drag only begins once the pointer moves.
+/// The row itself is the drag handle. The column toggle is optional: the phone
+/// wizard leaves it out (its settings sheet owns column counts) while the
+/// desktop rail still shows it beside each section.
 class _SectionCardRow extends StatelessWidget {
   const _SectionCardRow({
     super.key,
@@ -6040,8 +6047,8 @@ class _SectionCardRow extends StatelessWidget {
     required this.marks,
     required this.letter,
     required this.index,
-    required this.layout,
-    required this.onLayout,
+    this.layout,
+    this.onLayout,
   });
 
   final _SectionKind kind;
@@ -6052,8 +6059,10 @@ class _SectionCardRow extends StatelessWidget {
   /// and is skipped on the page.
   final String letter;
   final int index;
-  final QuestionLayout layout;
-  final ValueChanged<QuestionLayout> onLayout;
+
+  /// The section's column choice, shown only when [onLayout] is set.
+  final QuestionLayout? layout;
+  final ValueChanged<QuestionLayout>? onLayout;
 
   @override
   Widget build(BuildContext context) {
@@ -6070,12 +6079,9 @@ class _SectionCardRow extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
+          padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
           child: Row(
             children: [
-              // The drag area stops short of the column toggle: a pill inside
-              // the drag listener would start a reorder the moment a click
-              // moved a pixel, and the setting would not change.
               Expanded(
                 child: ReorderableDragStartListener(
                   index: index,
@@ -6123,8 +6129,14 @@ class _SectionCardRow extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              _ColumnToggle(value: layout, onChanged: onLayout),
+              if (layout != null && onLayout != null) ...[
+                const SizedBox(width: 6),
+                _ColumnToggle(
+                  value: layout!,
+                  onChanged: onLayout!,
+                  compact: true,
+                ),
+              ],
             ],
           ),
         ),
@@ -6133,17 +6145,31 @@ class _SectionCardRow extends StatelessWidget {
   }
 }
 
-/// The one-or-two column choice for a section, as two glyphs.
+/// The one-, two- or three-column choice for a section, as glyph pills.
 ///
-/// Glyphs rather than words: the row already carries the block's name, its
-/// letter and its counts, and the choice has to fit beside them. These are the
-/// same bars the paper itself is drawn with, so two bars read as "two columns"
-/// without a label.
+/// Each pill draws the same bars the paper itself is laid out with, so two bars
+/// read as "two columns" without a word beside them. The chosen pill is tinted
+/// and outlined in the app's primary colour; the rest sit on the sheet's soft
+/// surface, which keeps the three choices visible without turning them into
+/// three heavy buttons.
 class _ColumnToggle extends StatelessWidget {
-  const _ColumnToggle({required this.value, required this.onChanged});
+  const _ColumnToggle({
+    required this.value,
+    required this.onChanged,
+    this.keyPrefix,
+    this.compact = false,
+  });
 
   final QuestionLayout value;
   final ValueChanged<QuestionLayout> onChanged;
+
+  /// Prefix for the tap targets' keys, so the CQ and MCQ toggles can be told
+  /// apart by tests and by the semantics tree.
+  final String? keyPrefix;
+
+  /// Draws the older, tighter pills. The desktop rail uses this so its section
+  /// rows keep the height they had before the sheet was restyled.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -6151,52 +6177,90 @@ class _ColumnToggle extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < QuestionLayout.values.length; i++) ...[
-          if (i > 0) const SizedBox(width: 4),
-          // Labelled for the pointer and the screen reader: the pill itself is
-          // two bars and no words, which is all that fits beside a section name.
-          Tooltip(
-            message: QuestionLayout.values[i].label,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => onChanged(QuestionLayout.values[i]),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                decoration: BoxDecoration(
-                  color: value == QuestionLayout.values[i]
-                      ? _kPrimary.withOpacity(0.10)
-                      : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: value == QuestionLayout.values[i]
-                        ? _kPrimary
-                        : Colors.transparent,
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: List.generate(
-                    QuestionLayout.values[i].mcqColumns,
-                    (_) => Container(
-                      width: 6,
-                      height: 12,
-                      margin: const EdgeInsets.symmetric(horizontal: 1),
+          if (i > 0) SizedBox(width: compact ? 4 : 5),
+          _pill(QuestionLayout.values[i]),
+        ],
+      ],
+    );
+  }
+
+  Widget _pill(QuestionLayout layout) {
+    final selected = layout == value;
+    final columns = layout.mcqColumns;
+    final radius = compact ? 8.0 : 10.0;
+    return Tooltip(
+      message: layout.label,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: layout.label,
+        child: InkWell(
+          key: keyPrefix == null
+              ? null
+              : ValueKey('layout-$keyPrefix-${layout.name}'),
+          onTap: () => onChanged(layout),
+          borderRadius: BorderRadius.circular(radius),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            width: compact ? null : 42,
+            height: compact ? null : 36,
+            padding: compact
+                ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
+                : null,
+            decoration: BoxDecoration(
+              color: selected
+                  ? _kPrimary.withOpacity(0.10)
+                  : (compact ? Colors.grey.shade100 : _kSheetSoft),
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(
+                color: selected
+                    ? _kPrimary
+                    : (compact ? Colors.transparent : _kSheetLine),
+                width: selected ? (compact ? 1.5 : 1.6) : 1.2,
+              ),
+              boxShadow: selected && !compact
+                  ? [
+                      BoxShadow(
+                        color: _kPrimary.withOpacity(0.10),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < columns; i++) ...[
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: compact ? 6 : 5,
+                      height: compact ? 12 : 18,
+                      margin: compact
+                          ? const EdgeInsets.symmetric(horizontal: 1)
+                          : null,
                       decoration: BoxDecoration(
-                        color: value == QuestionLayout.values[i]
-                            ? _kPrimary.withOpacity(0.55)
-                            : Colors.grey.shade400,
+                        color: selected
+                            ? (compact
+                                ? _kPrimary.withOpacity(0.55)
+                                : _kPrimary)
+                            : (compact
+                                ? Colors.grey.shade400
+                                : const Color(0xFFB8B2D6)),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                  ),
-                ),
+                    if (i != columns - 1 && !compact) const SizedBox(width: 3),
+                  ],
+                ],
               ),
             ),
           ),
-        ],
-      ],
+        ),
+      ),
     );
   }
 }
@@ -7082,8 +7146,8 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
   static const _ink = Color(0xFF1E1B3A);
   static const _muted = Color(0xFF6B6880);
   static const _line = Color(0xFFE9E6F7);
-  static const _soft = Color(0xFFF5F4FC);
-  static const _softLine = Color(0xFFE3E0F2);
+  static const _soft = _kSheetSoft;
+  static const _softLine = _kSheetLine;
 
   _HighSchoolQPaperGeneratorPageState get page => widget.parent;
 
@@ -7501,19 +7565,28 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     return _card(
       icon: Icons.view_column_rounded,
       title: 'কলাম লেআউট',
-      subtitle: 'প্রতি সারিতে কতটি প্রশ্ন বসবে',
+      subtitle: 'প্রতিটি বিভাগ আলাদাভাবে সাজানো যায়',
       children: [
         _layoutRow(
-            'CQ', page._cqLayout, (v) => _apply(() => page._cqLayout = v)),
-        const SizedBox(height: 8),
+          'CQ',
+          Icons.edit_note_rounded,
+          _kCqColor,
+          page._cqLayout,
+          (v) => _apply(() => page._cqLayout = v),
+        ),
+        const SizedBox(height: 4),
         _layoutRow(
           'MCQ',
+          Icons.check_box_outlined,
+          _kMcqColor,
           page._mcqLayout,
           (v) => _apply(() => page._mcqLayout = v),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         _layoutRow(
           'সংক্ষিপ্ত',
+          Icons.short_text_rounded,
+          _kRqColor,
           page._rqLayout,
           (v) => _apply(() => page._rqLayout = v),
         ),
@@ -7523,92 +7596,56 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
 
   Widget _layoutRow(
     String label,
+    IconData icon,
+    Color color,
     QuestionLayout value,
     ValueChanged<QuestionLayout> onChanged,
   ) {
-    final layouts = QuestionLayout.values;
-    return Row(
-      children: [
-        SizedBox(
-          width: 54,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: _ink,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 17, color: color),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value.label,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    height: 1.2,
+                    color: _muted,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Row(
-            children: [
-              for (var i = 0; i < layouts.length; i++) ...[
-                Expanded(
-                  child: _layoutChip(
-                    '$label-${layouts[i].name}',
-                    layouts[i],
-                    layouts[i] == value,
-                    () => onChanged(layouts[i]),
-                  ),
-                ),
-                if (i != layouts.length - 1) const SizedBox(width: 7),
-              ],
-            ],
+          _ColumnToggle(
+            value: value,
+            onChanged: onChanged,
+            keyPrefix: label,
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _layoutChip(
-    String keyName,
-    QuestionLayout layout,
-    bool selected,
-    VoidCallback onTap,
-  ) {
-    final columns = layout.mcqColumns;
-    return GestureDetector(
-      key: ValueKey('layout-$keyName'),
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        height: 44,
-        decoration: BoxDecoration(
-          color: selected ? _kPrimary : _soft,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? _kPrimary : _softLine,
-            width: 1.4,
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: _kPrimary.withOpacity(0.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (var i = 0; i < columns; i++) ...[
-              Container(
-                width: 6,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: selected ? Colors.white : const Color(0xFFB8B2D6),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              if (i != columns - 1) const SizedBox(width: 3),
-            ],
-          ],
-        ),
+        ],
       ),
     );
   }

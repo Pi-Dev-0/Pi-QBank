@@ -297,6 +297,38 @@ void main() {
         reason: 'the arrange step is where the paper is tuned');
   });
 
+  testWidgets('column choices live only in the settings sheet', (tester) async {
+    HttpOverrides.global = _FakeOverrides(_questionPayload);
+    addTearDown(() => HttpOverrides.global = _FakeOverrides(
+          jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+        ));
+
+    await _pumpPhonePage(tester);
+    await _goToPicker(tester);
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('সাজান'),
+    ));
+    await tester.pumpAndSettle();
+
+    // The arrange card now only owns the print order; the column pills are
+    // gone from it so they do not duplicate the sheet.
+    expect(find.byTooltip('এক কলাম'), findsNothing);
+    expect(find.byTooltip('দুই কলাম'), findsNothing);
+    expect(find.byKey(const ValueKey('layout-CQ-single')), findsNothing);
+
+    await tester.tap(find.text('সেটিংস'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('layout-CQ-single')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('layout-MCQ-doubleColumn')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('layout-সংক্ষিপ্ত-single')), findsOneWidget);
+  });
+
   testWidgets('the floating button opens the full settings sheet',
       (tester) async {
     await _openSheet(tester);
