@@ -313,20 +313,52 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // The arrange card now only owns the print order; the column pills are
-    // gone from it so they do not duplicate the sheet.
+    // The arrange page no longer owns the section order or the column pills;
+    // both live in the settings sheet so the page stays focused on text.
     expect(find.byTooltip('এক কলাম'), findsNothing);
     expect(find.byTooltip('দুই কলাম'), findsNothing);
     expect(find.byKey(const ValueKey('layout-CQ-single')), findsNothing);
+    expect(find.byType(ReorderableListView), findsNothing,
+        reason: 'the section order moved into the sheet');
 
     await tester.tap(find.text('সেটিংস'));
     await tester.pumpAndSettle();
 
+    expect(find.byType(ReorderableListView), findsOneWidget);
     expect(find.byKey(const ValueKey('layout-CQ-single')), findsOneWidget);
     expect(
         find.byKey(const ValueKey('layout-MCQ-doubleColumn')), findsOneWidget);
     expect(
         find.byKey(const ValueKey('layout-সংক্ষিপ্ত-single')), findsOneWidget);
+  });
+
+  testWidgets('the sheet can reorder the sections', (tester) async {
+    await _openSheet(tester);
+
+    final handles = find.byIcon(Icons.drag_indicator_rounded);
+    expect(handles, findsNWidgets(3));
+
+    final firstY = tester.getCenter(handles.at(0)).dy;
+    final lastY = tester.getCenter(handles.at(2)).dy;
+    final rowHeight = (lastY - firstY) / 2;
+
+    // Drag MCQ, the last row, above CQ and SQ.
+    await tester.timedDrag(
+      handles.at(2),
+      Offset(0, -rowHeight * 2 - 4),
+      const Duration(milliseconds: 700),
+    );
+    await tester.pumpAndSettle();
+
+    final labels = tester
+        .widgetList<Text>(find.descendant(
+          of: find.byType(ReorderableListView),
+          matching: find.byType(Text),
+        ))
+        .map((t) => t.data ?? '')
+        .where((t) => t.contains('বিভাগ'))
+        .toList();
+    expect(labels.first, contains('MCQ'));
   });
 
   testWidgets('the floating button opens the full settings sheet',
@@ -335,7 +367,7 @@ void main() {
 
     expect(find.text('প্রশ্নপত্র সেটিংস'), findsOneWidget);
     for (final section in [
-      'কলাম লেআউট',
+      'বিভাগ ও ক্রম',
       'পেজ সেটআপ',
       'টাইপোগ্রাফি ও ফাঁক',
       'MCQ অপশন স্টাইল',
@@ -347,11 +379,17 @@ void main() {
     }
 
     // The last card sits below the first viewport; scrolling to it proves the
-    // list is complete rather than truncated.
+    // list is complete rather than truncated. Target the sheet's own list, not
+    // the reorderable section list nested inside it.
     await tester.scrollUntilVisible(
       find.text('সহায়ক টুলস'),
       400,
-      scrollable: find.byType(Scrollable).last,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('mobile-settings-list')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
     expect(find.text('সহায়ক টুলস'), findsOneWidget);
   });

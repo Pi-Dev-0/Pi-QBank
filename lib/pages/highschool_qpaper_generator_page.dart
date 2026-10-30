@@ -4906,15 +4906,8 @@ class _HighSchoolQPaperGeneratorPageState
           _buildSummaryChips(),
           const SizedBox(height: 12),
 
-          _buildSectionCard(withColumnToggle: false),
-          const SizedBox(height: 12),
-
           // Everything the paper's masthead prints, in one card.
           _buildPaperInfoCard(),
-          const SizedBox(height: 12),
-
-          // Paper appearance settings share one compact row.
-          _buildPaperSettingsSelector(),
           const SizedBox(height: 14),
 
           // Export and share the generated paper as HTML.
@@ -5106,158 +5099,6 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
-  /// Image size, paper text size, and typeface in one row of dropdowns.
-  Widget _buildPaperSettingsSelector() {
-    final fontSteps = [
-      for (var step = _fontStepMin; step <= _fontStepMax; step++) step,
-    ];
-    String fontSizeLabel(double step) => step == 0
-        ? 'স্বাভাবিক'
-        : '${step > 0 ? '+' : ''}${step.toStringAsFixed(0)} pt';
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-      decoration: BoxDecoration(
-        color: _kCardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _buildSettingDropdown<StemImageSize>(
-                  label: 'ছবির আকার',
-                  value: _imageSize,
-                  items: StemImageSize.values,
-                  itemLabel: (size) => size.label,
-                  selectedItemLabel: (size) =>
-                      size == StemImageSize.hidden ? 'বন্ধ' : size.label,
-                  onChanged: (value) {
-                    if (value != null) setState(() => _imageSize = value);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildSettingDropdown<double>(
-                  label: 'লেখার আকার',
-                  value: _fontStep,
-                  items: fontSteps,
-                  itemLabel: fontSizeLabel,
-                  onChanged: (value) {
-                    if (value != null) setState(() => _fontStep = value);
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildSettingDropdown<PaperFont>(
-                  label: 'ফন্ট',
-                  value: _paperFont,
-                  items: PaperFont.values,
-                  itemLabel: (font) => font.label,
-                  selectedItemLabel: (font) => switch (font) {
-                    PaperFont.hindSiliguri => 'হিন্দ',
-                    PaperFont.notoSansBengali => 'নোটো সান্স',
-                    PaperFont.notoSerifBengali => 'নোটো সেরিফ',
-                    PaperFont.balooDa => 'বালু দা',
-                    PaperFont.mina => 'মিনা',
-                    PaperFont.kalpurush => 'কলপুরুষ',
-                    PaperFont.solaimanLipi => 'সলাইমান',
-                    PaperFont.nirmalaUi => 'নির্মলা',
-                  },
-                  onChanged: (value) {
-                    if (value != null) setState(() => _paperFont = value);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingDropdown<T>({
-    required String label,
-    required T value,
-    required List<T> items,
-    required String Function(T) itemLabel,
-    String Function(T)? selectedItemLabel,
-    required ValueChanged<T?> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 6),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: _kSubText,
-            ),
-          ),
-        ),
-        DropdownButtonFormField<T>(
-          value: value,
-          isExpanded: true,
-          iconSize: 18,
-          style: const TextStyle(fontSize: 12, color: _kDarkText),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(9),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(9),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(9),
-              borderSide: const BorderSide(color: _kPrimary, width: 1.4),
-            ),
-          ),
-          selectedItemBuilder: (context) => [
-            for (final item in items)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  (selectedItemLabel ?? itemLabel)(item),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
-          items: [
-            for (final item in items)
-              DropdownMenuItem<T>(
-                value: item,
-                child: Text(
-                  itemLabel(item),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
-          onChanged: onChanged,
-        ),
-      ],
-    );
-  }
-
   /// The paper's structure in one card: the order its blocks print in, and how
   /// wide each of them runs.
   ///
@@ -5266,7 +5107,7 @@ class _HighSchoolQPaperGeneratorPageState
   /// showing the order the reader chose and the other a fixed order that could
   /// contradict it. Here, top to bottom *is* the order on the page, so the letter
   /// a block is headed with reads straight off its row.
-  Widget _buildSectionCard({bool withColumnToggle = true}) {
+  Widget _buildSectionCard() {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: BoxDecoration(
@@ -5306,19 +5147,15 @@ class _HighSchoolQPaperGeneratorPageState
                 // skipped on the page, so numbering it would promise a division
                 // the reader will not find there.
                 letter: count == 0 ? '' : _sectionLetter(kind),
-                layout: withColumnToggle ? _layoutOf(kind) : null,
-                onLayout: withColumnToggle
-                    ? (v) => setState(() => _setLayoutOf(kind, v))
-                    : null,
+                layout: _layoutOf(kind),
+                onLayout: (v) => setState(() => _setLayoutOf(kind, v)),
               );
             },
           ),
           const SizedBox(height: 4),
-          Text(
-            withColumnToggle
-                ? 'ধরে টেনে ক্রম বদলাও। প্রতিটি বিভাগ আলাদাভাবে এক বা দুই কলামে বসানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।'
-                : 'ধরে টেনে ক্রম বদলাও। কলাম সংখ্যা সেটিংস থেকে বদলানো যায়।',
-            style: const TextStyle(fontSize: 11, color: _kSubText),
+          const Text(
+            'ধরে টেনে ক্রম বদলাও। প্রতিটি বিভাগ আলাদাভাবে এক বা দুই কলামে বসানো যায়। ছবি থাকলে ছোট কলামে ছবি ছোট দেখাবে।',
+            style: TextStyle(fontSize: 11, color: _kSubText),
           ),
         ],
       ),
@@ -6032,13 +5869,19 @@ enum _SectionKind {
   bool get isCq => this == _SectionKind.cq;
   bool get isMcq => this == _SectionKind.mcq;
   bool get isRq => this == _SectionKind.rq;
+
+  /// Stable prefix for the column pills' widget keys.
+  String get toggleKey => switch (this) {
+        _SectionKind.cq => 'CQ',
+        _SectionKind.mcq => 'MCQ',
+        _SectionKind.rq => 'সংক্ষিপ্ত',
+      };
 }
 
 /// One block of the paper: where it prints, what it holds and how wide it runs.
 ///
-/// The row itself is the drag handle. The column toggle is optional: the phone
-/// wizard leaves it out (its settings sheet owns column counts) while the
-/// desktop rail still shows it beside each section.
+/// The row itself is the drag handle; the column toggle sits outside that
+/// listener so tapping a pill changes the layout instead of starting a reorder.
 class _SectionCardRow extends StatelessWidget {
   const _SectionCardRow({
     super.key,
@@ -6047,8 +5890,10 @@ class _SectionCardRow extends StatelessWidget {
     required this.marks,
     required this.letter,
     required this.index,
-    this.layout,
-    this.onLayout,
+    required this.layout,
+    required this.onLayout,
+    this.compactToggle = true,
+    this.toggleKeyPrefix,
   });
 
   final _SectionKind kind;
@@ -6060,9 +5905,15 @@ class _SectionCardRow extends StatelessWidget {
   final String letter;
   final int index;
 
-  /// The section's column choice, shown only when [onLayout] is set.
-  final QuestionLayout? layout;
-  final ValueChanged<QuestionLayout>? onLayout;
+  /// The section's column choice.
+  final QuestionLayout layout;
+  final ValueChanged<QuestionLayout> onLayout;
+
+  /// Whether the column pills use the tighter desktop size.
+  final bool compactToggle;
+
+  /// Prefix for the column pills' keys, when the caller needs to find them.
+  final String? toggleKeyPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -6129,14 +5980,13 @@ class _SectionCardRow extends StatelessWidget {
                   ),
                 ),
               ),
-              if (layout != null && onLayout != null) ...[
-                const SizedBox(width: 6),
-                _ColumnToggle(
-                  value: layout!,
-                  onChanged: onLayout!,
-                  compact: true,
-                ),
-              ],
+              const SizedBox(width: 6),
+              _ColumnToggle(
+                value: layout,
+                onChanged: onLayout,
+                compact: compactToggle,
+                keyPrefix: toggleKeyPrefix,
+              ),
             ],
           ),
         ),
@@ -7220,10 +7070,11 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
           _header(),
           Expanded(
             child: ListView(
+              key: const ValueKey('mobile-settings-list'),
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               children: [
                 _summaryStrip(),
-                _columnsCard(),
+                _sectionsCard(),
                 _pageCard(),
                 _typographyCard(),
                 _optionCard(),
@@ -7561,92 +7412,51 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     );
   }
 
-  Widget _columnsCard() {
+  /// The sections' order and column counts in one card.
+  ///
+  /// The phone's arrange page used to carry this list; moving it here keeps the
+  /// wizard focused on the paper's text and gives the reader one place to tune
+  /// how the paper is printed.
+  Widget _sectionsCard() {
     return _card(
-      icon: Icons.view_column_rounded,
-      title: 'কলাম লেআউট',
-      subtitle: 'প্রতিটি বিভাগ আলাদাভাবে সাজানো যায়',
+      icon: Icons.reorder_rounded,
+      title: 'বিভাগ ও ক্রম',
+      subtitle: 'ধরে টেনে ক্রম বদলাও, পাশে কলাম বেছে নাও',
       children: [
-        _layoutRow(
-          'CQ',
-          Icons.edit_note_rounded,
-          _kCqColor,
-          page._cqLayout,
-          (v) => _apply(() => page._cqLayout = v),
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          primary: false,
+          buildDefaultDragHandles: false,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: page._sectionOrder.length,
+          onReorder: (oldIndex, newIndex) => _apply(() {
+            if (newIndex > oldIndex) newIndex -= 1;
+            page._sectionOrder
+                .insert(newIndex, page._sectionOrder.removeAt(oldIndex));
+          }),
+          itemBuilder: (context, index) {
+            final kind = page._sectionOrder[index];
+            final count = page._questionsOf(kind).length;
+            return _SectionCardRow(
+              key: ValueKey(kind),
+              kind: kind,
+              index: index,
+              questionCount: count,
+              marks: page._marksOf(kind),
+              letter: count == 0 ? '' : page._sectionLetter(kind),
+              layout: page._layoutOf(kind),
+              onLayout: (v) => _apply(() => page._setLayoutOf(kind, v)),
+              compactToggle: false,
+              toggleKeyPrefix: kind.toggleKey,
+            );
+          },
         ),
         const SizedBox(height: 4),
-        _layoutRow(
-          'MCQ',
-          Icons.check_box_outlined,
-          _kMcqColor,
-          page._mcqLayout,
-          (v) => _apply(() => page._mcqLayout = v),
-        ),
-        const SizedBox(height: 4),
-        _layoutRow(
-          'সংক্ষিপ্ত',
-          Icons.short_text_rounded,
-          _kRqColor,
-          page._rqLayout,
-          (v) => _apply(() => page._rqLayout = v),
+        const Text(
+          'প্রতিটি বিভাগের কলাম আলাদাভাবে বদলানো যায়।',
+          style: TextStyle(fontSize: 10.5, height: 1.3, color: _muted),
         ),
       ],
-    );
-  }
-
-  Widget _layoutRow(
-    String label,
-    IconData icon,
-    Color color,
-    QuestionLayout value,
-    ValueChanged<QuestionLayout> onChanged,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Icon(icon, size: 17, color: color),
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: _ink,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  value.label,
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    height: 1.2,
-                    color: _muted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _ColumnToggle(
-            value: value,
-            onChanged: onChanged,
-            keyPrefix: label,
-          ),
-        ],
-      ),
     );
   }
 

@@ -427,6 +427,10 @@ void main() {
       await tester.tap(find.text('সাজান'));
       await tester.pumpAndSettle();
 
+      // The section list now lives in the floating settings sheet.
+      await tester.tap(find.text('সেটিংস'));
+      await tester.pumpAndSettle();
+
       // The rows still map one-for-one onto the order the blocks print in: a
       // block with nothing in it keeps its place and says so, because the order
       // still decides the letter the other blocks print under.
