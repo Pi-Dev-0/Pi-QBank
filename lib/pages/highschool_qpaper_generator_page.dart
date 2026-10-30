@@ -122,6 +122,25 @@ class _HighSchoolQPaperGeneratorPageState
   // ── Step tracking ──────────────────────────────────────────────────────────
   int _currentStep = 0; // 0 = filter, 1 = picker, 2 = export HTML
 
+  /// Steps the wizard has already shown.
+  ///
+  /// Going back is cheap, but going forward again should not rebuild the page
+  /// the reader just came from: the picker would re-fetch and lose every tick,
+  /// and the arrange page would overwrite fields that were typed there. A
+  /// visited step is therefore reopened as-is, so back/forward behaves like
+  /// history rather than a reset.
+  final Set<int> _visitedSteps = {0};
+
+  /// The class/subject/chapter set the picker was last loaded with, or null
+  /// before the first fetch. Compared on every forward press so a changed
+  /// filter still triggers a real reload.
+  String? _loadedFilterSignature;
+
+  /// The selection the arrange step last opened with, or null before it was
+  /// first reached. A different selection means the arrange page has to be
+  /// refreshed rather than merely reopened.
+  String? _arrangedSelectionSignature;
+
   // ── Step 1 state ──────────────────────────────────────────────────────────
   String? _selectedClass;
   String? _selectedSubject;
@@ -630,8 +649,51 @@ class _HighSchoolQPaperGeneratorPageState
 
   Future<void> _goToStep(int step) async {
     await _stepAnim.reverse();
-    setState(() => _currentStep = step);
+    setState(() {
+      _currentStep = step;
+      _visitedSteps.add(step);
+    });
     _stepAnim.forward();
+  }
+
+  /// A fingerprint of the inputs the picker is fetched from. Used only to tell
+  /// "the same query as last time" from "the filters changed".
+  String _filterSignature() {
+    final chapters = _selectedChapterNumbers.toList()..sort();
+    return '${_selectedClass ?? ''}|${_selectedSubject ?? ''}|${chapters.join(',')}';
+  }
+
+  /// A fingerprint of what the arrange step derives from the picker: the
+  /// selected question ids, in picker order.
+  String _selectionSignature() =>
+      [for (final q in _selectedQuestions) q.id].join('|');
+
+  /// Advance one step, reusing the visited page when nothing upstream changed.
+  ///
+  /// First visit runs the step's own entry action (fetch the bank, or seed the
+  /// arrange fields). A later visit after a back press only pages forward, so
+  /// the picker keeps its ticks and the arrange page keeps its edits.
+  void _goForward() {
+    switch (_currentStep) {
+      case 0:
+        final reusable = _visitedSteps.contains(1) &&
+            _loadedFilterSignature != null &&
+            _loadedFilterSignature == _filterSignature();
+        if (reusable) {
+          _goToStep(1);
+        } else {
+          _fetchQuestions();
+        }
+      case 1:
+        final reusable = _visitedSteps.contains(2) &&
+            _arrangedSelectionSignature != null &&
+            _arrangedSelectionSignature == _selectionSignature();
+        if (reusable) {
+          _goToStep(2);
+        } else {
+          _proceedToGenerate();
+        }
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -685,6 +747,7 @@ class _HighSchoolQPaperGeneratorPageState
       return;
     }
     setState(() => _loadingQuestions = true);
+    final signature = _filterSignature();
     try {
       final questions = await _service.fetchQuestions(
         className: _selectedClass!,
@@ -698,6 +761,10 @@ class _HighSchoolQPaperGeneratorPageState
         // Still on to the picker rather than stopping here: its empty list is
         // where a question can be written by hand, and that is exactly what a
         // subject with no rows needs.
+        setState(() {
+          _loadedFilterSignature = signature;
+          _arrangedSelectionSignature = null;
+        });
         await _goToStep(1);
         return;
       }
@@ -723,6 +790,8 @@ class _HighSchoolQPaperGeneratorPageState
           for (final q in questions) corrected[q.id] ?? q,
           ...typed,
         ];
+        _loadedFilterSignature = signature;
+        _arrangedSelectionSignature = null;
       });
       await _goToStep(1);
     } catch (e) {
@@ -1135,6 +1204,9 @@ class _HighSchoolQPaperGeneratorPageState
     _classCtrl.text =
         _selectedClass == null ? '' : _classLabel(_selectedClass!);
     _marksCtrl.text = '$_totalSelectedMarks';
+    // Record what the arrange page was seeded from, so a later back/forward
+    // pair can reopen it untouched while a changed selection still refreshes it.
+    _arrangedSelectionSignature = _selectionSignature();
     // The studio keeps its settings in the right-hand rail rather than on a
     // step of its own, so "প্রশ্নপত্র সাজান" opens that rail instead of paging.
     setState(() => _desktopSettingsOpen = true);
@@ -1358,7 +1430,7 @@ class _HighSchoolQPaperGeneratorPageState
                 ),
               ],
             ),
-      floatingActionButton: desktop
+      floatingActionButton: desktop || _currentStep != 2
           ? null
           : _MobileSettingsButton(
               showDot: _settingsDifferFromDefaults,
@@ -1428,13 +1500,13 @@ class _HighSchoolQPaperGeneratorPageState
             label: 'পরবর্তী',
             tooltip: 'পরবর্তী ধাপ',
             busy: _loadingQuestions,
-            onPressed: _loadingQuestions ? null : _fetchQuestions,
+            onPressed: _loadingQuestions ? null : _goForward,
           ),
         if (_currentStep == 1)
           _appBarAction(
             label: 'সাজান',
             tooltip: 'প্রশ্নপত্র সাজান',
-            onPressed: _proceedToGenerate,
+            onPressed: _goForward,
           ),
       ],
     );
@@ -5393,11 +5465,13 @@ class _SectionHeader extends StatelessWidget {
             child: Icon(icon, color: _kPrimary, size: 22),
           ),
           const SizedBox(width: 12),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: _kDarkText)),
+          Expanded(
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _kDarkText)),
+          ),
         ],
       );
 }

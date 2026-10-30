@@ -23,9 +23,15 @@ class _FakeHttpClient implements HttpClient {
   _FakeHttpClient(this._body);
   final String _body;
 
+  /// Number of requests opened. The back/forward test resets this to prove a
+  /// reused picker does not hit the network again.
+  static int opens = 0;
+
   @override
-  Future<HttpClientRequest> openUrl(String method, Uri url) async =>
-      _FakeRequest(_body);
+  Future<HttpClientRequest> openUrl(String method, Uri url) async {
+    opens++;
+    return _FakeRequest(_body);
+  }
 
   @override
   Future<void> close({bool force = false}) async {}
@@ -144,16 +150,23 @@ class _FakeResponse implements HttpClientResponse, Stream<List<int>> {
       throw UnimplementedError('${invocation.memberName}');
 }
 
-/// A phone width keeps the wizard, whose Scaffold carries the floating
-/// settings pill. A tall viewport lets the lazy list build every card.
+/// Open the wizard's settings sheet the way a phone reader does: the floating
+/// pill only rides the arrange step, so the helper walks through the picker
+/// first and ticks one question.
 Future<void> _openSheet(WidgetTester tester) async {
-  tester.view.physicalSize = const Size(420, 2600);
-  tester.view.devicePixelRatio = 1.0;
-  addTearDown(tester.view.reset);
+  HttpOverrides.global = _FakeOverrides(_questionPayload);
+  addTearDown(() => HttpOverrides.global = _FakeOverrides(
+        jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+      ));
 
-  await tester.pumpWidget(
-    const MaterialApp(home: HighSchoolQPaperGeneratorPage()),
-  );
+  await _openPickerOnPhone(tester);
+
+  await tester.tap(find.byType(Checkbox).first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.descendant(
+    of: find.byType(AppBar),
+    matching: find.text('সাজান'),
+  ));
   await tester.pumpAndSettle();
 
   await tester.tap(find.text('সেটিংস'));
@@ -216,8 +229,9 @@ final String _questionPayload = jsonEncode({
   ],
 });
 
-/// Pick class and subject, fetch the bank, and land on the question picker.
-Future<void> _openPickerOnPhone(WidgetTester tester) async {
+/// Pump the wizard at a phone width. A tall viewport lets the lazy lists build
+/// every card.
+Future<void> _pumpPhonePage(WidgetTester tester) async {
   tester.view.physicalSize = const Size(420, 2600);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -226,7 +240,10 @@ Future<void> _openPickerOnPhone(WidgetTester tester) async {
     const MaterialApp(home: HighSchoolQPaperGeneratorPage()),
   );
   await tester.pumpAndSettle();
+}
 
+/// Pick class and subject, then fetch the bank and land on the picker.
+Future<void> _goToPicker(WidgetTester tester) async {
   await tester.tap(find.text('ক্লাস নির্বাচন করুন'));
   await tester.pumpAndSettle();
   await tester.tap(find.text('Class (9-10) SSC').last);
@@ -243,11 +260,42 @@ Future<void> _openPickerOnPhone(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _openPickerOnPhone(WidgetTester tester) async {
+  await _pumpPhonePage(tester);
+  await _goToPicker(tester);
+}
+
 void main() {
   setUpAll(() => HttpOverrides.global = _FakeOverrides(
         jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
       ));
   tearDownAll(() => HttpOverrides.global = null);
+
+  testWidgets('the settings pill only rides the arrange step', (tester) async {
+    HttpOverrides.global = _FakeOverrides(_questionPayload);
+    addTearDown(() => HttpOverrides.global = _FakeOverrides(
+          jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+        ));
+
+    await _pumpPhonePage(tester);
+    expect(find.text('সেটিংস'), findsNothing,
+        reason: 'the filters step has no paper settings');
+
+    await _goToPicker(tester);
+    expect(find.text('সেটিংস'), findsNothing,
+        reason: 'the picker step has no paper settings either');
+
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('সাজান'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('সেটিংস'), findsOneWidget,
+        reason: 'the arrange step is where the paper is tuned');
+  });
 
   testWidgets('the floating button opens the full settings sheet',
       (tester) async {
@@ -345,5 +393,41 @@ void main() {
     // The old purple counter bar is gone from the body, which is the space the
     // move was meant to reclaim.
     expect(find.text('প্রশ্নপত্র সাজান ➜'), findsNothing);
+  });
+
+  testWidgets('back then forward reopens the picker untouched', (tester) async {
+    HttpOverrides.global = _FakeOverrides(_questionPayload);
+    addTearDown(() => HttpOverrides.global = _FakeOverrides(
+          jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+        ));
+
+    await _openPickerOnPhone(tester);
+
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('CQ 1/1')),
+      findsOneWidget,
+    );
+
+    // Going forward again must not fetch: a fresh fetch would replace the
+    // question objects and silently drop every tick.
+    _FakeHttpClient.opens = 0;
+
+    await tester.tap(find.byTooltip('আগের ধাপ'));
+    await tester.pumpAndSettle();
+    expect(find.text('ক্লাস নির্বাচন করুন'), findsOneWidget);
+
+    await tester.tap(find.text('পরবর্তী'));
+    await tester.pumpAndSettle();
+
+    expect(_FakeHttpClient.opens, 0,
+        reason: 'forward should reuse the loaded picker, not re-fetch');
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('CQ 1/1')),
+      findsOneWidget,
+    );
+    expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, isTrue,
+        reason: 'the tick survived the back/forward trip');
   });
 }
