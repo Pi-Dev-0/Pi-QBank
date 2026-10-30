@@ -225,7 +225,7 @@ Future<void> _openPicker(WidgetTester tester) async {
 Future<void> _toLastStep(WidgetTester tester) async {
   await tester.tap(find.text('সব নির্বাচন'));
   await tester.pumpAndSettle();
-  await tester.tap(find.textContaining('প্রশ্নপত্র সাজান ➜'));
+  await tester.tap(find.text('সাজান'));
   await tester.pumpAndSettle();
 }
 
@@ -424,7 +424,7 @@ void main() {
         await tester.tap(find.byType(Checkbox).at(i));
         await tester.pumpAndSettle();
       }
-      await tester.tap(find.textContaining('প্রশ্নপত্র সাজান ➜'));
+      await tester.tap(find.text('সাজান'));
       await tester.pumpAndSettle();
 
       // The rows still map one-for-one onto the order the blocks print in: a

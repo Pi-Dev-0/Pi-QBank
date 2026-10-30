@@ -160,6 +160,89 @@ Future<void> _openSheet(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Map<String, dynamic> _cq(String id, String chapter) => {
+      'id': id,
+      'class': 'Class (9-10) SSC',
+      'subject': 'গণিত',
+      'chapter_number': chapter,
+      'chapter_name': 'অধ্যায় $chapter',
+      'question_type': 'CQ',
+      'stem_text': 'সৃজনশীল প্রশ্ন $id',
+      'stem_image_url': '',
+      'sub_questions_json': [
+        {'label': 'ক', 'mark': 2, 'text': 'উপপ্রশ্ন ক'},
+        {'label': 'খ', 'mark': 3, 'text': 'উপপ্রশ্ন খ'},
+      ],
+      'board_year_tag': '',
+    };
+
+Map<String, dynamic> _mcq(String id, String chapter) => {
+      'id': id,
+      'class': 'Class (9-10) SSC',
+      'subject': 'গণিত',
+      'chapter_number': chapter,
+      'chapter_name': 'অধ্যায় $chapter',
+      'question_type': 'MCQ',
+      'stem_text': '',
+      'stem_image_url': '',
+      'stem_group': '',
+      'sub_questions_json': {
+        'text': 'বহুনির্বাচনি প্রশ্ন $id',
+        'options': ['১', '২', '৩', '৪'],
+      },
+      'board_year_tag': '',
+    };
+
+Map<String, dynamic> _rq(String id, String chapter) => {
+      'id': id,
+      'class': 'Class (9-10) SSC',
+      'subject': 'গণিত',
+      'chapter_number': chapter,
+      'chapter_name': 'অধ্যায় $chapter',
+      'question_type': 'RQ',
+      'stem_text': 'সংক্ষিপ্ত প্রশ্ন $id',
+      'stem_image_url': '',
+      'sub_questions_json': <Object>[],
+      'board_year_tag': '',
+      'short_mark': 2,
+    };
+
+final String _questionPayload = jsonEncode({
+  'status': 'SUCCESS',
+  'data': [
+    _cq('c1', '1'),
+    _mcq('m1', '1'),
+    _rq('r1', '1'),
+  ],
+});
+
+/// Pick class and subject, fetch the bank, and land on the question picker.
+Future<void> _openPickerOnPhone(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(420, 2600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
+  await tester.pumpWidget(
+    const MaterialApp(home: HighSchoolQPaperGeneratorPage()),
+  );
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text('ক্লাস নির্বাচন করুন'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Class (9-10) SSC').last);
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text('বিষয় নির্বাচন করুন'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('উচ্চতর গণিত').last);
+  await tester.pumpAndSettle();
+
+  // The app bar's own forward pill carries the step, not just the big button
+  // at the bottom of the filters page.
+  await tester.tap(find.text('পরবর্তী'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUpAll(() => HttpOverrides.global = _FakeOverrides(
         jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
@@ -230,5 +313,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('প্রশ্নপত্র সেটিংস'), findsNothing);
+  });
+
+  testWidgets('the picker counts ride in the app bar, not a second bar',
+      (tester) async {
+    HttpOverrides.global = _FakeOverrides(_questionPayload);
+    addTearDown(() => HttpOverrides.global = _FakeOverrides(
+          jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+        ));
+
+    await _openPickerOnPhone(tester);
+
+    final appBar = find.byType(AppBar);
+    expect(find.descendant(of: appBar, matching: find.text('CQ 0/1')),
+        findsOneWidget);
+    expect(find.descendant(of: appBar, matching: find.text('MCQ 0/1')),
+        findsOneWidget);
+    expect(find.descendant(of: appBar, matching: find.text('RQ 0/1')),
+        findsOneWidget);
+    expect(find.descendant(of: appBar, matching: find.text('মোট নম্বর: 0')),
+        findsOneWidget);
+    expect(find.descendant(of: appBar, matching: find.text('সাজান')),
+        findsOneWidget);
+
+    // The counts are live: ticking the first card raises its type at once.
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: appBar, matching: find.text('CQ 1/1')),
+        findsOneWidget);
+
+    // The old purple counter bar is gone from the body, which is the space the
+    // move was meant to reclaim.
+    expect(find.text('প্রশ্নপত্র সাজান ➜'), findsNothing);
   });
 }

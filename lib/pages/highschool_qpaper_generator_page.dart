@@ -1,17 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/highschool_question.dart';
 import '../services/highschool_qbank_service.dart';
 import '../services/highschool_export_service.dart';
 import '../services/highschool_file_export_service.dart';
 import '../pages/question_paper_preview_page.dart';
-import '../widgets/custom_app_bar.dart';
 import '../widgets/exact_html_preview.dart';
 import '../config/app_config.dart';
 import '../utils/math_rich_text.dart';
@@ -1345,19 +1344,7 @@ class _HighSchoolQPaperGeneratorPageState
 
     return Scaffold(
       backgroundColor: desktop ? const Color(0xFFF1F3F7) : _kBg,
-      appBar: desktop
-          ? _buildStudioAppBar()
-          : CustomAppBar(
-              title: 'প্রশ্নপত্র তৈরি করুন',
-              actions: [
-                if (_currentStep > 0)
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                    tooltip: 'আগের ধাপ',
-                    onPressed: () => _goToStep(_currentStep - 1),
-                  ),
-              ],
-            ),
+      appBar: desktop ? _buildStudioAppBar() : _buildWizardAppBar(),
       body: desktop
           ? _buildStudioBody()
           : Column(
@@ -1383,6 +1370,202 @@ class _HighSchoolQPaperGeneratorPageState
               ),
             ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MOBILE APP BAR — the picker's numbers ride here, not in a second bar.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// The wizard's own app bar.
+  ///
+  /// Step 2 used to pin a purple counter bar above the list, spending a whole
+  /// row on numbers the app bar could already hold. The counts and the
+  /// "সাজান" action now sit in the app bar itself, so the list starts higher and
+  /// the paper-in-progress is visible on every scroll position.
+  AppBar _buildWizardAppBar() {
+    final picking = _currentStep == 1;
+
+    return AppBar(
+      toolbarHeight: 64,
+      backgroundColor: _kPrimary,
+      surfaceTintColor: _kPrimary,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+      titleSpacing: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.light,
+      iconTheme: const IconThemeData(color: Colors.white),
+      flexibleSpace: const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_kPrimary, Color(0xFF7C5CF0)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+        ),
+      ),
+      leading: _currentStep > 0
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+              tooltip: 'আগের ধাপ',
+              onPressed: () => _goToStep(_currentStep - 1),
+            )
+          : null,
+      title: picking
+          ? _buildAppBarStats()
+          : const Text(
+              'প্রশ্নপত্র তৈরি করুন',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+      actions: [
+        if (_currentStep == 0)
+          _appBarAction(
+            label: 'পরবর্তী',
+            tooltip: 'পরবর্তী ধাপ',
+            busy: _loadingQuestions,
+            onPressed: _loadingQuestions ? null : _fetchQuestions,
+          ),
+        if (_currentStep == 1)
+          _appBarAction(
+            label: 'সাজান',
+            tooltip: 'প্রশ্নপত্র সাজান',
+            onPressed: _proceedToGenerate,
+          ),
+      ],
+    );
+  }
+
+  /// The white pill on the app bar's right edge. It carries the forward action
+  /// for the current step — "পরবর্তী" on the filters, "সাজান" on the picker —
+  /// so the wizard can be driven from the top as well as from its buttons.
+  Widget _appBarAction({
+    required String label,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    bool busy = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Tooltip(
+        message: tooltip,
+        child: TextButton(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: _kPrimary,
+            disabledBackgroundColor: Colors.white.withOpacity(0.55),
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            minimumSize: const Size(0, 36),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (busy)
+                const SizedBox.square(
+                  dimension: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _kPrimary,
+                  ),
+                )
+              else ...[
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.arrow_forward_rounded, size: 16),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Two tight rows — one count per type, then the running total — sized to a
+  /// phone's app bar. Each chip shrinks with an ellipsis before anything is
+  /// pushed off the bar.
+  Widget _buildAppBarStats() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _appBarCount('CQ', _selectedCqs.length, _totalCqs, _kCqColor),
+            const SizedBox(width: 5),
+            _appBarCount('MCQ', _selectedMcqs.length, _totalMcqs, _kMcqColor),
+            if (_totalShorts > 0) ...[
+              const SizedBox(width: 5),
+              _appBarCount(
+                'RQ',
+                _selectedShorts.length,
+                _totalShorts,
+                _kRqColor,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 3),
+        Text(
+          'মোট নম্বর: $_totalSelectedMarks',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _appBarCount(String label, int selected, int total, Color color) {
+    return Flexible(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.16),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                '$label $selected/$total',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -3776,8 +3959,6 @@ class _HighSchoolQPaperGeneratorPageState
     final visible = _visibleQuestions;
     return Column(
       children: [
-        // Sticky counter bar
-        _buildStickyBar(),
         // Chapter filter, when the paper draws on more than one
         _buildPickerChapterBar(_pickerChapterNumbers),
         // Type filter + search
