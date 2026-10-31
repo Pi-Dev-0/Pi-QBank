@@ -2904,8 +2904,8 @@ $paperFontBlock    :root {
           var serial = sheet.querySelector('.answer-sheet-serial');
           if (serial) {
             serial.innerHTML = '';
-            for (var start = 1; start <= count; start += 30) {
-              var end = Math.min(count, start + 29);
+            for (var start = 1; start <= count; start += 15) {
+              var end = Math.min(count, start + 14);
               var table = document.createElement('table');
               table.className = 'serial-answer-table';
               table.style.width = ((end - start + 1) * 6.5) + 'mm';
@@ -3587,7 +3587,7 @@ $paperFontBlock    :root {
     // never fires the browser toolbar's change event, so an empty variant here
     // left only the section title on the page.
     final serial = StringBuffer();
-    const perTable = 30;
+    const perTable = 15;
     for (var start = 1; start <= count; start += perTable) {
       final end = (start + perTable - 1).clamp(1, count);
       serial.write(
@@ -3658,7 +3658,7 @@ $paperFontBlock    :root {
     buffer.write(
         '<div class="answer-sheet-variant answer-sheet-serial" data-answer-style="serialAnswer" style="$serialVisible">');
     {
-      const columnsPerTable = 30;
+      const columnsPerTable = 15;
       for (var start = 0; start < mcqs.length; start += columnsPerTable) {
         final end = (start + columnsPerTable).clamp(0, mcqs.length);
         buffer.write(
