@@ -5975,6 +5975,8 @@ class _CompactFilterDropdown<T> extends StatelessWidget {
           value: value,
           isDense: true,
           isExpanded: false,
+          menuWidth: 130,
+          borderRadius: BorderRadius.circular(10),
           icon: Icon(Icons.expand_more_rounded,
               size: 14, color: selectedColor),
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -6005,13 +6007,17 @@ class _CompactFilterDropdown<T> extends StatelessWidget {
                         BoxDecoration(color: c, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 7),
-                  Text(
-                    itemLabel(item),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
-                      color: isSelected ? c : Colors.black87,
+                  Flexible(
+                    child: Text(
+                      itemLabel(item),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? c : Colors.black87,
+                      ),
                     ),
                   ),
                 ],
