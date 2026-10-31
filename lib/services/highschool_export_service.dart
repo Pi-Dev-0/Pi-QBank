@@ -2908,7 +2908,7 @@ $paperFontBlock    :root {
               var end = Math.min(count, start + 29);
               var table = document.createElement('table');
               table.className = 'serial-answer-table';
-              table.style.width = ((end - start) * 6.5) + 'mm';
+              table.style.width = ((end - start + 1) * 6.5) + 'mm';
               table.innerHTML = '<tbody><tr></tr><tr class="serial-answer-row"></tr></tbody>';
               var heads = table.querySelector('tr');
               var answers = table.querySelector('.serial-answer-row');
@@ -3570,6 +3570,8 @@ $paperFontBlock    :root {
       StringBuffer buffer, McqAnswerSheetStyle style, int itemCount) {
     final visible = style == McqAnswerSheetStyle.none ? 'display:none;' : '';
     final omrVisible = style == McqAnswerSheetStyle.omr ? '' : 'display:none;';
+    final serialVisible =
+        style == McqAnswerSheetStyle.serialAnswer ? '' : 'display:none;';
     final count = itemCount.clamp(1, 200);
     const letters = ['ক', 'খ', 'গ', 'ঘ'];
     final rows = StringBuffer();
@@ -3579,13 +3581,34 @@ $paperFontBlock    :root {
           ${letters.map((letter) => '<span class="omr-bubble">$letter</span>').join()}
         </div>''');
     }
+
+    // The serial tables belong in the static sheet, not only in the script.
+    // The Android preview loads the file with the chosen style already set and
+    // never fires the browser toolbar's change event, so an empty variant here
+    // left only the section title on the page.
+    final serial = StringBuffer();
+    const perTable = 30;
+    for (var start = 1; start <= count; start += perTable) {
+      final end = (start + perTable - 1).clamp(1, count);
+      serial.write(
+          '<table class="serial-answer-table" style="width:${(end - start + 1) * 6.5}mm"><tbody><tr>');
+      for (var number = start; number <= end; number++) {
+        serial.write('<th>$number</th>');
+      }
+      serial.write('</tr><tr class="serial-answer-row">');
+      for (var number = start; number <= end; number++) {
+        serial.write('<td></td>');
+      }
+      serial.write('</tr></tbody></table>');
+    }
+
     buffer.write('''
     <section class="mcq-answer-sheet" data-manual-answer-sheet="true" style="$visible">
       <div class="answer-sheet-title">MCQ উত্তরপত্র</div>
       <div class="answer-sheet-variant answer-sheet-omr" data-answer-style="omr" style="$omrVisible">
         <div class="omr-grid"><div class="omr-column">$rows</div></div>
       </div>
-      <div class="answer-sheet-variant answer-sheet-serial" data-answer-style="serialAnswer" style="display:none;"></div>
+      <div class="answer-sheet-variant answer-sheet-serial" data-answer-style="serialAnswer" style="$serialVisible">$serial</div>
     </section>
 ''');
   }

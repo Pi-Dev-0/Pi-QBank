@@ -274,15 +274,50 @@ void main() {
       expect(html, contains('class="mcq-answer-sheet"'));
       expect(html, contains('class="omr-bubble">ক</span>'));
       expect(html, contains('class="omr-bubble">ঘ</span>'));
-      expect(html, isNot(contains('serial-answer-table')));
+      // Both variants ship so the preview can switch styles in place; only
+      // the chosen one is visible on load.
+      expect(html, contains('data-answer-style="omr" style=""'));
+      expect(html,
+          contains('data-answer-style="serialAnswer" style="display:none;"'));
     });
 
-    test('the optional serial answer sheet uses repeated number-answer pairs', () {
+    test('the optional serial answer sheet uses repeated number-answer pairs',
+        () {
       final html = sheetHtml(answerSheet: McqAnswerSheetStyle.serialAnswer);
 
       expect(html, contains('class="serial-answer-table"'));
-      expect(html, contains('<tr><th>1</th></tr><tr class="serial-answer-row"><td></td></tr>'));
-      expect(html, isNot(contains('class="omr-bubble"')));
+      expect(
+          html,
+          contains(
+              '<tr><th>1</th></tr><tr class="serial-answer-row"><td></td></tr>'));
+      expect(html, contains('data-answer-style="serialAnswer" style=""'));
+      expect(html, contains('data-answer-style="omr" style="display:none;"'));
+    });
+
+    test('a manual serial sheet is filled before the script runs', () {
+      final html = HighSchoolExportService.generateHtml(
+        schoolName: 'S',
+        examName: 'E',
+        subject: 'গণিত',
+        className: 'C',
+        time: 'T',
+        totalMarks: '10',
+        mcqAnswerSheetStyle: McqAnswerSheetStyle.serialAnswer,
+        manualAnswerCount: 3,
+        questions: const [],
+      );
+
+      expect(html, contains('data-manual-answer-sheet="true"'));
+      expect(
+        html,
+        contains('<tr><th>1</th><th>2</th><th>3</th></tr>'
+            '<tr class="serial-answer-row"><td></td><td></td><td></td></tr>'),
+      );
+      // The chosen variant is visible in the markup itself: the Android
+      // preview and the exported file both open with the style pre-selected
+      // and never fire the browser toolbar's change event.
+      expect(html, contains('data-answer-style="serialAnswer" style=""'));
+      expect(html, contains('data-answer-style="omr" style="display:none;"'));
     });
   });
 }
