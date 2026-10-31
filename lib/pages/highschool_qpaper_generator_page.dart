@@ -5915,8 +5915,9 @@ enum _SectionKind {
 
 /// One block of the paper: where it prints, what it holds and how wide it runs.
 ///
-/// The row itself is the drag handle; the column toggle sits outside that
-/// listener so tapping a pill changes the layout instead of starting a reorder.
+/// On the desktop rail the row itself is the drag handle. In the phone settings
+/// sheet drag gestures compete with the sheet's scroll, so the sheet asks for
+/// explicit up/down buttons instead.
 class _SectionCardRow extends StatelessWidget {
   const _SectionCardRow({
     super.key,
@@ -5929,6 +5930,9 @@ class _SectionCardRow extends StatelessWidget {
     required this.onLayout,
     this.compactToggle = true,
     this.toggleKeyPrefix,
+    this.reorderable = true,
+    this.onMoveUp,
+    this.onMoveDown,
   });
 
   final _SectionKind kind;
@@ -5950,9 +5954,55 @@ class _SectionCardRow extends StatelessWidget {
   /// Prefix for the column pills' keys, when the caller needs to find them.
   final String? toggleKeyPrefix;
 
+  /// When false, the row shows [onMoveUp]/[onMoveDown] buttons rather than a
+  /// drag handle, because it lives in a sheet that already scrolls.
+  final bool reorderable;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
+
   @override
   Widget build(BuildContext context) {
     final empty = questionCount == 0;
+
+    final content = Row(
+      children: [
+        if (reorderable)
+          Icon(Icons.drag_indicator_rounded,
+              size: 16, color: empty ? Colors.grey.shade400 : kind.color)
+        else
+          _moveButtons(empty),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                letter.isEmpty
+                    ? kind.compactTitle
+                    : '$letter-বিভাগ: ${kind.compactTitle}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.15,
+                    fontWeight: FontWeight.bold,
+                    color: empty ? _kSubText : _kDarkText),
+              ),
+              Text(
+                empty
+                    ? 'কোনো ${kind.shortName} নেই'
+                    : '$questionCount টি · $marks নম্বর',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 10.5, height: 1.2, color: _kSubText),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -5969,51 +6019,15 @@ class _SectionCardRow extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: ReorderableDragStartListener(
-                  index: index,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.grab,
-                    child: Row(
-                      children: [
-                        Icon(Icons.drag_indicator_rounded,
-                            size: 16,
-                            color: empty ? Colors.grey.shade400 : kind.color),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                letter.isEmpty
-                                    ? kind.compactTitle
-                                    : '$letter-বিভাগ: ${kind.compactTitle}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontSize: 11.5,
-                                    height: 1.15,
-                                    fontWeight: FontWeight.bold,
-                                    color: empty ? _kSubText : _kDarkText),
-                              ),
-                              Text(
-                                empty
-                                    ? 'কোনো ${kind.shortName} নেই'
-                                    : '$questionCount টি · $marks নম্বর',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontSize: 10.5,
-                                    height: 1.2,
-                                    color: _kSubText),
-                              ),
-                            ],
-                          ),
+                child: reorderable
+                    ? ReorderableDragStartListener(
+                        index: index,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.grab,
+                          child: content,
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      )
+                    : content,
               ),
               const SizedBox(width: 6),
               _ColumnToggle(
@@ -6023,6 +6037,64 @@ class _SectionCardRow extends StatelessWidget {
                 keyPrefix: toggleKeyPrefix,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Up/down buttons for the sheet, where a drag would fight its scroll.
+  Widget _moveButtons(bool empty) {
+    final color = empty ? Colors.grey.shade400 : kind.color;
+    return SizedBox(
+      width: 30,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _moveButton(
+            keyName: 'move-up-${kind.name}',
+            icon: Icons.keyboard_arrow_up_rounded,
+            tooltip: 'উপরে সরান',
+            onTap: onMoveUp,
+            enabledColor: color,
+          ),
+          _moveButton(
+            keyName: 'move-down-${kind.name}',
+            icon: Icons.keyboard_arrow_down_rounded,
+            tooltip: 'নিচে সরান',
+            onTap: onMoveDown,
+            enabledColor: color,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _moveButton({
+    required String keyName,
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onTap,
+    required Color enabledColor,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        enabled: onTap != null,
+        label: tooltip,
+        child: InkWell(
+          key: ValueKey(keyName),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: SizedBox(
+            width: 30,
+            height: 20,
+            child: Icon(
+              icon,
+              size: 18,
+              color: onTap == null ? Colors.grey.shade300 : enabledColor,
+            ),
           ),
         ),
       ),
@@ -7458,36 +7530,10 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     return _card(
       icon: Icons.reorder_rounded,
       title: 'বিভাগ ও ক্রম',
-      subtitle: 'ধরে টেনে ক্রম বদলাও, পাশে কলাম বেছে নাও',
+      subtitle: 'উপর-নিচে সরিয়ে ক্রম বদলাও, পাশে কলাম বেছে নাও',
       children: [
-        ReorderableListView.builder(
-          shrinkWrap: true,
-          primary: false,
-          buildDefaultDragHandles: false,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: page._sectionOrder.length,
-          onReorder: (oldIndex, newIndex) => _apply(() {
-            if (newIndex > oldIndex) newIndex -= 1;
-            page._sectionOrder
-                .insert(newIndex, page._sectionOrder.removeAt(oldIndex));
-          }),
-          itemBuilder: (context, index) {
-            final kind = page._sectionOrder[index];
-            final count = page._questionsOf(kind).length;
-            return _SectionCardRow(
-              key: ValueKey(kind),
-              kind: kind,
-              index: index,
-              questionCount: count,
-              marks: page._marksOf(kind),
-              letter: count == 0 ? '' : page._sectionLetter(kind),
-              layout: page._layoutOf(kind),
-              onLayout: (v) => _apply(() => page._setLayoutOf(kind, v)),
-              compactToggle: false,
-              toggleKeyPrefix: kind.toggleKey,
-            );
-          },
-        ),
+        for (var index = 0; index < page._sectionOrder.length; index++)
+          _sectionRow(index),
         const SizedBox(height: 4),
         const Text(
           'প্রতিটি বিভাগের কলাম আলাদাভাবে বদলানো যায়।',
@@ -7495,6 +7541,34 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
         ),
       ],
     );
+  }
+
+  Widget _sectionRow(int index) {
+    final kind = page._sectionOrder[index];
+    final count = page._questionsOf(kind).length;
+    return _SectionCardRow(
+      key: ValueKey(kind),
+      kind: kind,
+      index: index,
+      questionCount: count,
+      marks: page._marksOf(kind),
+      letter: count == 0 ? '' : page._sectionLetter(kind),
+      layout: page._layoutOf(kind),
+      onLayout: (v) => _apply(() => page._setLayoutOf(kind, v)),
+      compactToggle: false,
+      toggleKeyPrefix: kind.toggleKey,
+      reorderable: false,
+      onMoveUp: index == 0 ? null : () => _moveSection(index, index - 1),
+      onMoveDown: index == page._sectionOrder.length - 1
+          ? null
+          : () => _moveSection(index, index + 1),
+    );
+  }
+
+  void _moveSection(int from, int to) {
+    _apply(() {
+      page._sectionOrder.insert(to, page._sectionOrder.removeAt(from));
+    });
   }
 
   Widget _pageCard() {

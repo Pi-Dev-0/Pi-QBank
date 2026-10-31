@@ -319,12 +319,16 @@ void main() {
     expect(find.byTooltip('দুই কলাম'), findsNothing);
     expect(find.byKey(const ValueKey('layout-CQ-single')), findsNothing);
     expect(find.byType(ReorderableListView), findsNothing,
-        reason: 'the section order moved into the sheet');
+        reason: 'the section order lives in the settings sheet, which moves '
+            'rows with arrow buttons instead of a nested drag list');
 
     await tester.tap(find.text('সেটিংস'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ReorderableListView), findsOneWidget);
+    expect(find.byKey(const ValueKey('move-up-mcq')), findsOneWidget);
+    expect(find.textContaining('সৃজনশীল (CQ)'), findsOneWidget);
+    expect(find.textContaining('সংক্ষিপ্ত (SQ)'), findsOneWidget);
+    expect(find.textContaining('বহুনির্বাচনী (MCQ)'), findsOneWidget);
     expect(find.byKey(const ValueKey('layout-CQ-single')), findsOneWidget);
     expect(
         find.byKey(const ValueKey('layout-MCQ-doubleColumn')), findsOneWidget);
@@ -332,33 +336,25 @@ void main() {
         find.byKey(const ValueKey('layout-সংক্ষিপ্ত-single')), findsOneWidget);
   });
 
-  testWidgets('the sheet can reorder the sections', (tester) async {
+  testWidgets('the sheet moves sections with the arrow buttons',
+      (tester) async {
     await _openSheet(tester);
 
-    final handles = find.byIcon(Icons.drag_indicator_rounded);
-    expect(handles, findsNWidgets(3));
-
-    final firstY = tester.getCenter(handles.at(0)).dy;
-    final lastY = tester.getCenter(handles.at(2)).dy;
-    final rowHeight = (lastY - firstY) / 2;
-
-    // Drag MCQ, the last row, above CQ and SQ.
-    await tester.timedDrag(
-      handles.at(2),
-      Offset(0, -rowHeight * 2 - 4),
-      const Duration(milliseconds: 700),
-    );
+    // MCQ starts last; two taps on its up arrow put it first.
+    await tester.tap(find.byKey(const ValueKey('move-up-mcq')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('move-up-mcq')));
     await tester.pumpAndSettle();
 
-    final labels = tester
-        .widgetList<Text>(find.descendant(
-          of: find.byType(ReorderableListView),
-          matching: find.byType(Text),
-        ))
-        .map((t) => t.data ?? '')
-        .where((t) => t.contains('বিভাগ'))
-        .toList();
-    expect(labels.first, contains('MCQ'));
+    // The rows carry their content, so compare where the three titles sit on
+    // screen rather than which one happens to print a division letter: only a
+    // non-empty section is numbered, and this sheet picked just one question.
+    final mcqY =
+        tester.getTopLeft(find.textContaining('বহুনির্বাচনী (MCQ)')).dy;
+    final cqY = tester.getTopLeft(find.textContaining('সৃজনশীল (CQ)')).dy;
+    final rqY = tester.getTopLeft(find.textContaining('সংক্ষিপ্ত (SQ)')).dy;
+    expect(mcqY, lessThan(cqY));
+    expect(cqY, lessThan(rqY));
   });
 
   testWidgets('the floating button opens the full settings sheet',

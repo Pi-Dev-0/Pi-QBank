@@ -434,7 +434,9 @@ void main() {
       // The rows still map one-for-one onto the order the blocks print in: a
       // block with nothing in it keeps its place and says so, because the order
       // still decides the letter the other blocks print under.
-      expect(find.byType(ReorderableListView), findsOneWidget);
+      expect(find.textContaining('সৃজনশীল (CQ)'), findsOneWidget);
+      expect(find.textContaining('সংক্ষিপ্ত (SQ)'), findsOneWidget);
+      expect(find.textContaining('বহুনির্বাচনী (MCQ)'), findsOneWidget);
       expect(find.text('কোনো সংক্ষিপ্ত প্রশ্ন নেই'), findsOneWidget);
       expect(find.text('কোনো বহুনির্বাচনী প্রশ্ন নেই'), findsOneWidget);
     });
