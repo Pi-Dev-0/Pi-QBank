@@ -4380,49 +4380,42 @@ class _HighSchoolQPaperGeneratorPageState
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final f in _PickFilter.values) ...[
-                  _PickFilterChip(
-                    label: f.badge,
-                    title: f.title,
-                    count: countOf(f),
-                    color: f.color,
-                    selected: _pickFilter == f,
-                    onTap: () => setState(() => _pickFilter = f),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                if (_pickIsNarrowed)
-                  Text('$visibleCount টি দেখানো হচ্ছে',
-                      style: const TextStyle(fontSize: 11, color: _kSubText)),
-              ],
-            ),
-          ),
           const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                const Text('ছবি:',
-                    style: TextStyle(fontSize: 11, color: _kSubText)),
-                const SizedBox(width: 8),
-                for (final f in _ImageFilter.values) ...[
-                  _PickFilterChip(
-                    label: f.badge,
-                    title: f.title,
-                    count: _fetchedQuestions.where(f.matches).length,
-                    color: f.color,
-                    selected: _imageFilter == f,
-                    onTap: () => setState(() => _imageFilter = f),
-                  ),
-                  const SizedBox(width: 8),
-                ],
+          // Compact dropdown row — question-type filter + image filter side by side.
+          Row(
+            children: [
+              // ── Question-type dropdown ────────────────────────────────────
+              Expanded(
+                child: _FilterDropdown<_PickFilter>(
+                  icon: Icons.filter_list_rounded,
+                  label: 'ধরন',
+                  value: _pickFilter,
+                  items: _PickFilter.values,
+                  displayText: (f) => '${f.badge} ${countOf(f)}',
+                  itemColor: (f) => f.color,
+                  onChanged: (f) => setState(() => _pickFilter = f!),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // ── Image filter dropdown ─────────────────────────────────────
+              Expanded(
+                child: _FilterDropdown<_ImageFilter>(
+                  icon: Icons.image_outlined,
+                  label: 'ছবি',
+                  value: _imageFilter,
+                  items: _ImageFilter.values,
+                  displayText: (f) =>
+                      '${f.badge} ${_fetchedQuestions.where(f.matches).length}',
+                  itemColor: (f) => f.color,
+                  onChanged: (f) => setState(() => _imageFilter = f!),
+                ),
+              ),
+              if (_pickIsNarrowed) ...[
+                const SizedBox(width: 6),
+                Text('$visibleCount',
+                    style: const TextStyle(fontSize: 11, color: _kSubText)),
               ],
-            ),
+            ],
           ),
           // Selected questions stay in the total even when the filter hides
           // them, so the cards on screen stop adding up to it. Say so, rather
@@ -5323,52 +5316,74 @@ class _StepIndicator extends StatelessWidget {
     const steps = ['ফিল্টার', 'প্রশ্ন বেছে নিন', 'প্রশ্নপত্র তৈরি'];
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 16),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: List.generate(steps.length * 2 - 1, (i) {
           if (i.isOdd) {
             final stepIndex = i ~/ 2;
+            final filled = stepIndex < currentStep;
             return Expanded(
-              child: Container(
-                height: 2,
-                color:
-                    stepIndex < currentStep ? _kPrimary : Colors.grey.shade200,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                height: 1.5,
+                color: filled ? _kPrimary : Colors.grey.shade200,
               ),
             );
           }
           final stepIndex = i ~/ 2;
           final active = stepIndex == currentStep;
           final done = stepIndex < currentStep;
-          return Column(
+          return Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
-                width: 32,
-                height: 32,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: done
                       ? _kAccent
                       : (active ? _kPrimary : Colors.grey.shade200),
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                            color: _kPrimary.withOpacity(0.35),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          )
+                        ]
+                      : null,
                 ),
                 child: Center(
                   child: done
-                      ? const Icon(Icons.check, size: 18, color: Colors.white)
-                      : Text('${stepIndex + 1}',
+                      ? const Icon(Icons.check_rounded,
+                          size: 13, color: Colors.white)
+                      : Text(
+                          '${stepIndex + 1}',
                           style: TextStyle(
-                              color:
-                                  active ? Colors.white : Colors.grey.shade500,
-                              fontWeight: FontWeight.bold)),
+                            fontSize: 11,
+                            color: active
+                                ? Colors.white
+                                : Colors.grey.shade500,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(steps[stepIndex],
+              // Show label only for the active step, right next to the circle.
+              if (active) ...[
+                const SizedBox(width: 5),
+                Text(
+                  steps[stepIndex],
                   style: TextStyle(
-                      fontSize: 10,
-                      color: active ? _kPrimary : Colors.grey.shade500,
-                      fontWeight:
-                          active ? FontWeight.bold : FontWeight.normal)),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _kPrimary,
+                  ),
+                ),
+              ],
             ],
           );
         }),
@@ -5924,7 +5939,110 @@ class _PickFilterChip extends StatelessWidget {
   }
 }
 
-/// A question section on the paper, in the order the reader arranges them.
+/// A compact dropdown that replaces the horizontal chip rows in the mobile
+/// question picker. It shows the selected option's colour accent in the
+/// leading icon and in the dropdown items so the visual language of the chips
+/// is preserved while taking far less horizontal space.
+class _FilterDropdown<T> extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final T value;
+  final List<T> items;
+  final String Function(T) displayText;
+  final Color Function(T) itemColor;
+  final ValueChanged<T?> onChanged;
+
+  const _FilterDropdown({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.displayText,
+    required this.itemColor,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedColor = itemColor(value);
+    return Container(
+      height: 38,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: selectedColor.withOpacity(0.45), width: 1.2),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          isExpanded: true,
+          isDense: true,
+          icon: Icon(Icons.expand_more_rounded,
+              size: 16, color: selectedColor),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: selectedColor,
+          ),
+          selectedItemBuilder: (_) => items.map((item) {
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 14, color: itemColor(item)),
+                  const SizedBox(width: 4),
+                  Text(
+                    displayText(item),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: itemColor(item),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+          items: items.map((item) {
+            final c = itemColor(item);
+            final isSelected = item == value;
+            return DropdownMenuItem<T>(
+              value: item,
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: c,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    displayText(item),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected ? c : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+
 ///
 /// The paper used to hard-code one order, and a different one when CQ and the
 /// short questions were merged, so there was no way to print the sections in
