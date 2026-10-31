@@ -182,6 +182,13 @@ class _HighSchoolQPaperGeneratorPageState
   final _randomMcqCtrl = TextEditingController();
   final _randomRqCtrl = TextEditingController();
 
+  /// Whether the phone picker is showing the random draw's count boxes.
+  ///
+  /// The bar keeps its header visible either way, so the draw is one tap away;
+  /// folding the three fields away by default leaves the question list the
+  /// screen it needs on a phone.
+  bool _randomSelectorOpen = false;
+
   // ── Step 3 state ──────────────────────────────────────────────────────────
   final _schoolCtrl = TextEditingController();
   final _examCtrl = TextEditingController(text: 'বার্ষিক পরীক্ষা ২০২৬');
@@ -3945,85 +3952,128 @@ class _HighSchoolQPaperGeneratorPageState
   /// questions come back is [_pickRandomQuestions]' business.
   Widget _buildRandomSelectorBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(11, 8, 8, 8),
+      padding: const EdgeInsets.fromLTRB(11, 4, 8, 4),
       decoration: BoxDecoration(
         color: _kPrimary.withOpacity(0.05),
         borderRadius: BorderRadius.circular(11),
         border: Border.all(color: _kPrimary.withOpacity(0.16)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.casino_outlined, size: 18, color: _kPrimary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'এলোমেলো নির্বাচন',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: _kDarkText,
+          // The whole header is the target: the chevron is the affordance,
+          // but a thumb should not have to find it on a phone.
+          InkWell(
+            key: const ValueKey('random-selector-toggle'),
+            onTap: () =>
+                setState(() => _randomSelectorOpen = !_randomSelectorOpen),
+            borderRadius: BorderRadius.circular(9),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.casino_outlined, size: 18, color: _kPrimary),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'এলোমেলো নির্বাচন',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _kDarkText,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _RandomCountField(
-                        controller: _randomCqCtrl,
-                        label: 'CQ',
-                        max: _totalCqs,
-                        color: _kCqColor,
-                        fieldKey: const ValueKey('cq-count-field'),
-                      ),
+                  Text(
+                    _randomSelectorOpen ? 'গুটান' : 'খুলুন',
+                    style: const TextStyle(fontSize: 11, color: _kSubText),
+                  ),
+                  const SizedBox(width: 2),
+                  Tooltip(
+                    message: _randomSelectorOpen
+                        ? 'এলোমেলো নির্বাচন লুকান'
+                        : 'এলোমেলো নির্বাচন দেখান',
+                    child: AnimatedRotation(
+                      turns: _randomSelectorOpen ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: const Icon(Icons.keyboard_arrow_down_rounded,
+                          size: 20, color: _kSubText),
                     ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: _RandomCountField(
-                        controller: _randomMcqCtrl,
-                        label: 'MCQ',
-                        max: _totalMcqs,
-                        color: _kMcqColor,
-                        fieldKey: const ValueKey('mcq-count-field'),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: _RandomCountField(
-                        controller: _randomRqCtrl,
-                        label: 'RQ',
-                        max: _totalShorts,
-                        color: _kRqColor,
-                        fieldKey: const ValueKey('rq-count-field'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 34,
-            child: ElevatedButton(
-              onPressed: _pickRandomQuestions,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kPrimary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(9),
-                ),
-              ),
-              child: const Text(
-                'বাছাই',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold),
-              ),
-            ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: _randomSelectorOpen
+                ? Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _RandomCountField(
+                                  controller: _randomCqCtrl,
+                                  label: 'CQ',
+                                  max: _totalCqs,
+                                  color: _kCqColor,
+                                  fieldKey: const ValueKey('cq-count-field'),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: _RandomCountField(
+                                  controller: _randomMcqCtrl,
+                                  label: 'MCQ',
+                                  max: _totalMcqs,
+                                  color: _kMcqColor,
+                                  fieldKey: const ValueKey('mcq-count-field'),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: _RandomCountField(
+                                  controller: _randomRqCtrl,
+                                  label: 'RQ',
+                                  max: _totalShorts,
+                                  color: _kRqColor,
+                                  fieldKey: const ValueKey('rq-count-field'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 34,
+                          child: ElevatedButton(
+                            onPressed: _pickRandomQuestions,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _kPrimary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                            ),
+                            child: const Text(
+                              'বাছাই',
+                              style: TextStyle(
+                                  fontSize: 12.5, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
           ),
         ],
       ),
@@ -7115,6 +7165,14 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     setState(() {});
   }
 
+  /// Runs a page action that already calls its own `setState`, then refreshes
+  /// the sheet so a set split or shuffle is visible without closing it.
+  void _runPageAction(VoidCallback action) {
+    action();
+    widget.onChanged?.call();
+    setState(() {});
+  }
+
   void _resetToDefaults() {
     _apply(() {
       page
@@ -7142,6 +7200,12 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
         .._showObtainedMarks = false
         .._showQuestionInfo = false
         .._showImportant = false
+        .._showLogo = false
+        .._showHeader = false
+        .._showFooter = false
+        .._showWatermark = false
+        .._showAddress = false
+        .._twoSets = false
         .._editingMode = false
         .._imageSize = StemImageSize.small
         .._mcqAnswerSheetStyle = McqAnswerSheetStyle.none
@@ -7188,8 +7252,10 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
                 _typographyCard(),
                 _optionCard(),
                 _headerCard(),
+                _brandingCard(),
                 _extrasCard(),
                 _mediaCard(),
+                _setsCard(),
                 _toolsCard(),
               ],
             ),
@@ -7454,6 +7520,50 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
   Widget _hair() =>
       const Divider(height: 14, thickness: 1, color: Color(0xFFF3F1FB));
 
+  /// One-line text field for the sheet's branding inputs.
+  ///
+  /// The desktop rail uses the page's own field builder; this one is tuned to
+  /// the sheet's tighter cards and softer surface.
+  Widget _textField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    ValueChanged<String>? onChanged,
+  }) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      style: const TextStyle(fontSize: 13, color: _ink),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: const TextStyle(fontSize: 12, color: _muted),
+        floatingLabelStyle: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: _kPrimary,
+        ),
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        filled: true,
+        fillColor: _soft,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _softLine),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kPrimary, width: 1.4),
+        ),
+      ),
+    );
+  }
+
   // ── Sections ──────────────────────────────────────────────────────────────
 
   /// A live one-line digest of the three choices that show up first on paper:
@@ -7692,6 +7802,101 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     );
   }
 
+  Widget _brandingCard() {
+    return _card(
+      icon: Icons.workspace_premium_rounded,
+      title: 'ব্র্যান্ডিং',
+      subtitle: 'লোগো, হেডার, ফুটার, জলছাপ ও ঠিকানা',
+      children: [
+        _toggleRow(
+          'লোগো',
+          'প্রতিষ্ঠানের লোগো ছাপা হবে',
+          page._showLogo,
+          (v) => _apply(() => page._showLogo = v),
+          switchKey: const ValueKey('branding-logo-switch'),
+        ),
+        if (page._showLogo) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await page._pickLogo();
+                    if (mounted) setState(() {});
+                  },
+                  icon: const Icon(Icons.upload_file_rounded, size: 16),
+                  label: Text(
+                    page._logoName.isEmpty ? 'লোগো নির্বাচন' : page._logoName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+              if (page._logoDataUri.isNotEmpty)
+                IconButton(
+                  tooltip: 'লোগো সরান',
+                  onPressed: () => _apply(() {
+                    page._logoDataUri = '';
+                    page._logoName = '';
+                  }),
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                ),
+            ],
+          ),
+          const SizedBox(height: 2),
+        ],
+        _toggleRow(
+          'হেডার',
+          'উপরের ব্র্যান্ডিং পটি',
+          page._showHeader,
+          (v) => _apply(() => page._showHeader = v),
+          switchKey: const ValueKey('branding-header-switch'),
+        ),
+        _toggleRow(
+          'ফুটার',
+          'নিচের ব্র্যান্ডিং পটি',
+          page._showFooter,
+          (v) => _apply(() => page._showFooter = v),
+          switchKey: const ValueKey('branding-footer-switch'),
+        ),
+        _toggleRow(
+          'জলছাপ',
+          'পাতার মাঝে হালকা লেখা',
+          page._showWatermark,
+          (v) => _apply(() => page._showWatermark = v),
+          switchKey: const ValueKey('branding-watermark-switch'),
+        ),
+        if (page._showWatermark) ...[
+          const SizedBox(height: 6),
+          _textField(
+            controller: page._watermarkCtrl,
+            label: 'জলছাপের লেখা',
+            hint: 'যেমন: নমুনা',
+            onChanged: (_) => _apply(() {}),
+          ),
+        ],
+        _toggleRow(
+          'ঠিকানা',
+          'প্রতিষ্ঠানের ঠিকানা ছাপা হবে',
+          page._showAddress,
+          (v) => _apply(() => page._showAddress = v),
+          switchKey: const ValueKey('branding-address-switch'),
+        ),
+        if (page._showAddress) ...[
+          const SizedBox(height: 6),
+          _textField(
+            controller: page._addressCtrl,
+            label: 'প্রতিষ্ঠানের ঠিকানা',
+            hint: 'গ্রাম/শহর, উপজেলা',
+            onChanged: (_) => _apply(() {}),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _extrasCard() {
     return _card(
       icon: Icons.sell_rounded,
@@ -7749,6 +7954,111 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
               ),
           ],
         ),
+      ],
+    );
+  }
+
+  Widget _setsCard() {
+    return _card(
+      icon: Icons.copy_all_rounded,
+      title: 'সেট',
+      subtitle: 'একই প্রশ্নপত্রের ক ও খ সংস্করণ',
+      children: [
+        _toggleRow(
+          'দুইটি সেটে প্রশ্নপত্র',
+          'ক ও খ একই পেজে তৈরি হবে',
+          page._twoSets,
+          (v) => _apply(() => page._twoSets = v),
+          switchKey: const ValueKey('two-sets-switch'),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          'ক ও খ একই পেজে তৈরি হবে — আলাদা করে তৈরি করলে প্রতিটির একটা পেজ নষ্ট হয়।',
+          style: TextStyle(fontSize: 10.5, height: 1.35, color: _muted),
+        ),
+        if (page._twoSets) ...[
+          const SizedBox(height: 10),
+          _textField(
+            controller: page._setLabelControllers[0],
+            label: 'প্রথম সেটের নাম',
+            hint: 'ক',
+            onChanged: (_) => _apply(() {}),
+          ),
+          const SizedBox(height: 8),
+          _textField(
+            controller: page._setLabelControllers[1],
+            label: 'দ্বিতীয় সেটের নাম',
+            hint: 'খ',
+            onChanged: (_) => _apply(() {}),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: page._selectedQuestions.length < 2
+                ? null
+                : () => _runPageAction(page._shuffleIntoTwoSets),
+            icon: const Icon(Icons.shuffle_rounded, size: 16),
+            label:
+                const Text('এলোমেলো ভাগ করো', style: TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: page._selectedQuestions.length < 2
+                ? null
+                : () => _runPageAction(page._splitSelectedEvenly),
+            icon: const Icon(Icons.balance, size: 16),
+            label: Text('অর্ধেক ভাগ করো (${page._selectedQuestions.length} টি)',
+                style: const TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: () => _runPageAction(page._assignAllToFirstSet),
+            icon: const Icon(Icons.merge_type, size: 16),
+            label: const Text('সব প্রশ্ন প্রথম সেটে',
+                style: TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < 2; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: i == 0
+                          ? _kPrimary.withOpacity(0.10)
+                          : Colors.teal.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      page._setLabels[i].isEmpty
+                          ? (i == 0 ? 'ক' : 'খ')
+                          : page._setLabels[i],
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: i == 0 ? _kPrimary : Colors.teal.shade700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${page._questionsForSet(i).length} টি প্রশ্ন'
+                      '  ·  ${page._questionsForSet(i).fold(0, (s, q) => s + q.totalMarks)} নম্বর',
+                      style: const TextStyle(fontSize: 11, color: _muted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 2),
+          const Text(
+            'প্রতিটি প্রশ্নের কার্ডে সেট বদলাতে পারেন।',
+            style: TextStyle(fontSize: 10.5, height: 1.35, color: _muted),
+          ),
+        ],
       ],
     );
   }
@@ -8048,6 +8358,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     bool value,
     ValueChanged<bool> onChanged, {
     IconData? icon,
+    Key? switchKey,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -8086,6 +8397,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
           Transform.scale(
             scale: 0.85,
             child: Switch.adaptive(
+              key: switchKey,
               value: value,
               onChanged: onChanged,
               activeColor: _kPrimary,

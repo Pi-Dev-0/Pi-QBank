@@ -297,6 +297,40 @@ void main() {
         reason: 'the arrange step is where the paper is tuned');
   });
 
+  testWidgets('the phone picker folds the random draw away', (tester) async {
+    HttpOverrides.global = _FakeOverrides(_questionPayload);
+    addTearDown(() => HttpOverrides.global = _FakeOverrides(
+          jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+        ));
+
+    await _openPickerOnPhone(tester);
+
+    final toggle = find.byKey(const ValueKey('random-selector-toggle'));
+    expect(toggle, findsOneWidget);
+    expect(find.descendant(of: toggle, matching: find.text('খুলুন')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('cq-count-field')), findsNothing,
+        reason: 'the draw starts folded so the question list has room');
+    expect(find.text('বাছাই'), findsNothing);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(find.descendant(of: toggle, matching: find.text('গুটান')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('cq-count-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mcq-count-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('rq-count-field')), findsOneWidget);
+    expect(find.text('বাছাই'), findsOneWidget);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(find.descendant(of: toggle, matching: find.text('খুলুন')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('cq-count-field')), findsNothing);
+  });
+
   testWidgets('column choices live only in the settings sheet', (tester) async {
     HttpOverrides.global = _FakeOverrides(_questionPayload);
     addTearDown(() => HttpOverrides.global = _FakeOverrides(
@@ -362,32 +396,30 @@ void main() {
     await _openSheet(tester);
 
     expect(find.text('প্রশ্নপত্র সেটিংস'), findsOneWidget);
+    final list = find
+        .descendant(
+          of: find.byKey(const ValueKey('mobile-settings-list')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
     for (final section in [
       'বিভাগ ও ক্রম',
       'পেজ সেটআপ',
       'টাইপোগ্রাফি ও ফাঁক',
       'MCQ অপশন স্টাইল',
       'হেডার তথ্য',
+      'ব্র্যান্ডিং',
       'প্রশ্নের সংযুক্তি',
       'ছবি ও উত্তরপত্র',
+      'সেট',
+      'সহায়ক টুলস',
     ]) {
+      // The ListView builds lazily, so a card further down is not in the tree
+      // until it has been scrolled to.
+      await tester.scrollUntilVisible(find.text(section), 250,
+          scrollable: list);
       expect(find.text(section), findsOneWidget, reason: section);
     }
-
-    // The last card sits below the first viewport; scrolling to it proves the
-    // list is complete rather than truncated. Target the sheet's own list, not
-    // the reorderable section list nested inside it.
-    await tester.scrollUntilVisible(
-      find.text('সহায়ক টুলস'),
-      400,
-      scrollable: find
-          .descendant(
-            of: find.byKey(const ValueKey('mobile-settings-list')),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    expect(find.text('সহায়ক টুলস'), findsOneWidget);
   });
 
   testWidgets('a layout chip updates the live summary at once', (tester) async {
@@ -495,5 +527,105 @@ void main() {
     );
     expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, isTrue,
         reason: 'the tick survived the back/forward trip');
+  });
+
+  testWidgets('branding switches live in the settings sheet', (tester) async {
+    await _openSheet(tester);
+
+    final list = find
+        .descendant(
+          of: find.byKey(const ValueKey('mobile-settings-list')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(find.text('ব্র্যান্ডিং'), 400,
+        scrollable: list);
+
+    Future<void> tapSwitch(String key) async {
+      final finder = find.byKey(ValueKey(key));
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text('ব্র্যান্ডিং'), findsOneWidget);
+    for (final key in [
+      'branding-logo-switch',
+      'branding-header-switch',
+      'branding-footer-switch',
+      'branding-watermark-switch',
+      'branding-address-switch',
+    ]) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget, reason: key);
+    }
+
+    // The watermark and address inputs stay folded until asked for.
+    expect(find.text('জলছাপের লেখা'), findsNothing);
+    await tapSwitch('branding-watermark-switch');
+    expect(find.text('জলছাপের লেখা'), findsOneWidget);
+
+    await tapSwitch('branding-address-switch');
+    expect(find.text('প্রতিষ্ঠানের ঠিকানা'), findsOneWidget);
+
+    // The header switch is independent and flips in place.
+    await tapSwitch('branding-header-switch');
+    expect(
+      tester
+          .widget<Switch>(find.byKey(const ValueKey('branding-header-switch')))
+          .value,
+      isTrue,
+    );
+  });
+
+  testWidgets('the sheet makes two sets from the picked questions',
+      (tester) async {
+    HttpOverrides.global = _FakeOverrides(_questionPayload);
+    addTearDown(() => HttpOverrides.global = _FakeOverrides(
+          jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+        ));
+
+    await _openPickerOnPhone(tester);
+
+    // One CQ, one MCQ and one RQ, so a split has something to deal.
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byType(Checkbox).at(i));
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('সাজান'),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('সেটিংস'));
+    await tester.pumpAndSettle();
+
+    final list = find
+        .descendant(
+          of: find.byKey(const ValueKey('mobile-settings-list')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final toggle = find.byKey(const ValueKey('two-sets-switch'));
+    await tester.scrollUntilVisible(toggle, 400, scrollable: list);
+    await tester.ensureVisible(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(find.text('প্রথম সেটের নাম'), findsOneWidget);
+    expect(find.text('দ্বিতীয় সেটের নাম'), findsOneWidget);
+    expect(find.text('সব প্রশ্ন প্রথম সেটে'), findsOneWidget);
+
+    final split = find.textContaining('অর্ধেক ভাগ করো');
+    await tester.ensureVisible(split);
+    await tester.pumpAndSettle();
+    await tester.tap(split);
+    await tester.pumpAndSettle();
+
+    // Three picked questions alternate 2 / 1 between the two sets.
+    expect(find.textContaining('2 টি প্রশ্ন'), findsOneWidget);
+    expect(find.textContaining('1 টি প্রশ্ন'), findsOneWidget);
   });
 }
