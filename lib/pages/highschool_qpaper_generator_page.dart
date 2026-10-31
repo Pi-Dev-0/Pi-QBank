@@ -5562,11 +5562,6 @@ class _RandomCountField extends StatelessWidget {
               ),
             ),
           ),
-          if (max > 0)
-            Text(
-              'মক্স $max',
-              style: TextStyle(fontSize: 7.5, color: _kSubText),
-            ),
         ],
       );
 }
