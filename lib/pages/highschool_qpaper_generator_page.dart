@@ -3952,10 +3952,10 @@ class _HighSchoolQPaperGeneratorPageState
   /// questions come back is [_pickRandomQuestions]' business.
   Widget _buildRandomSelectorBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(11, 4, 8, 4),
+      padding: const EdgeInsets.fromLTRB(10, 2, 6, 2),
       decoration: BoxDecoration(
         color: _kPrimary.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _kPrimary.withOpacity(0.16)),
       ),
       child: Column(
@@ -3969,16 +3969,16 @@ class _HighSchoolQPaperGeneratorPageState
                 setState(() => _randomSelectorOpen = !_randomSelectorOpen),
             borderRadius: BorderRadius.circular(9),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: 3),
               child: Row(
                 children: [
-                  Icon(Icons.casino_outlined, size: 18, color: _kPrimary),
-                  const SizedBox(width: 8),
+                  Icon(Icons.casino_outlined, size: 15, color: _kPrimary),
+                  const SizedBox(width: 6),
                   const Expanded(
                     child: Text(
                       'এলোমেলো নির্বাচন',
                       style: TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                         color: _kDarkText,
                       ),
@@ -3986,19 +3986,14 @@ class _HighSchoolQPaperGeneratorPageState
                   ),
                   Text(
                     _randomSelectorOpen ? 'গুটান' : 'খুলুন',
-                    style: const TextStyle(fontSize: 11, color: _kSubText),
+                    style: const TextStyle(fontSize: 10.5, color: _kSubText),
                   ),
                   const SizedBox(width: 2),
-                  Tooltip(
-                    message: _randomSelectorOpen
-                        ? 'এলোমেলো নির্বাচন লুকান'
-                        : 'এলোমেলো নির্বাচন দেখান',
-                    child: AnimatedRotation(
-                      turns: _randomSelectorOpen ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 180),
-                      child: const Icon(Icons.keyboard_arrow_down_rounded,
-                          size: 20, color: _kSubText),
-                    ),
+                  AnimatedRotation(
+                    turns: _randomSelectorOpen ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.keyboard_arrow_down_rounded,
+                        size: 17, color: _kSubText),
                   ),
                 ],
               ),
@@ -4346,85 +4341,89 @@ class _HighSchoolQPaperGeneratorPageState
     int countOf(_PickFilter f) => _fetchedQuestions.where(f.matches).length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            height: 38,
-            child: TextField(
-              controller: _pickSearchCtrl,
-              onChanged: (v) => setState(() => _pickSearchQuery = v),
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white,
-                prefixIcon: const Icon(Icons.search, size: 19),
-                hintText: 'অনুসন্ধান…',
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-                suffixIcon: _pickSearchQuery.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () {
-                          _pickSearchCtrl.clear();
-                          setState(() => _pickSearchQuery = '');
-                        },
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Compact dropdown row — question-type filter + image filter side by side.
+          // ── Single compact row: search + both dropdowns ──────────────────
           Row(
             children: [
-              // ── Question-type dropdown ────────────────────────────────────
+              // Search field — takes the remaining width
               Expanded(
-                child: _FilterDropdown<_PickFilter>(
-                  icon: Icons.filter_list_rounded,
-                  label: 'ধরন',
-                  value: _pickFilter,
-                  items: _PickFilter.values,
-                  displayText: (f) => '${f.badge} ${countOf(f)}',
-                  itemColor: (f) => f.color,
-                  onChanged: (f) => setState(() => _pickFilter = f!),
+                child: SizedBox(
+                  height: 36,
+                  child: TextField(
+                    controller: _pickSearchCtrl,
+                    onChanged: (v) => setState(() => _pickSearchQuery = v),
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                      prefixIcon: const Icon(Icons.search, size: 17),
+                      hintText: 'অনুসন্ধান…',
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      suffixIcon: _pickSearchQuery.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 15),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                _pickSearchCtrl.clear();
+                                setState(() => _pickSearchQuery = '');
+                              },
+                            ),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              // ── Image filter dropdown ─────────────────────────────────────
-              Expanded(
-                child: _FilterDropdown<_ImageFilter>(
-                  icon: Icons.image_outlined,
-                  label: 'ছবি',
-                  value: _imageFilter,
-                  items: _ImageFilter.values,
-                  displayText: (f) =>
-                      '${f.badge} ${_fetchedQuestions.where(f.matches).length}',
-                  itemColor: (f) => f.color,
-                  onChanged: (f) => setState(() => _imageFilter = f!),
-                ),
+              const SizedBox(width: 6),
+              // Question-type dropdown — compact fixed width
+              _CompactFilterDropdown<_PickFilter>(
+                value: _pickFilter,
+                items: _PickFilter.values,
+                displayText: (f) => f == _PickFilter.all
+                    ? 'সব'
+                    : '${f.badge} ${countOf(f)}',
+                itemLabel: (f) => '${f.badge} ${countOf(f)}',
+                itemColor: (f) => f.color,
+                onChanged: (f) => setState(() => _pickFilter = f!),
               ),
-              if (_pickIsNarrowed) ...[
-                const SizedBox(width: 6),
-                Text('$visibleCount',
-                    style: const TextStyle(fontSize: 11, color: _kSubText)),
-              ],
+              const SizedBox(width: 6),
+              // Image filter dropdown — compact fixed width
+              _CompactFilterDropdown<_ImageFilter>(
+                value: _imageFilter,
+                items: _ImageFilter.values,
+                displayText: (f) => f == _ImageFilter.all
+                    ? 'ছবি'
+                    : f.badge,
+                itemLabel: (f) =>
+                    '${f.badge} ${_fetchedQuestions.where(f.matches).length}',
+                itemColor: (f) => f.color,
+                onChanged: (f) => setState(() => _imageFilter = f!),
+                icon: Icons.image_outlined,
+              ),
             ],
           ),
-          // Selected questions stay in the total even when the filter hides
-          // them, so the cards on screen stop adding up to it. Say so, rather
-          // than leaving the reader to think the sum is wrong.
+          // Narrowed-count notice
+          if (_pickIsNarrowed) ...[
+            const SizedBox(height: 4),
+            Text('$visibleCount টি দেখানো হচ্ছে',
+                style: const TextStyle(fontSize: 10, color: _kSubText)),
+          ],
+          // Hidden-selection warning
           if (_marksBreakdown.hidden > 0) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.amber.withOpacity(0.14),
                 borderRadius: BorderRadius.circular(8),
@@ -4432,14 +4431,14 @@ class _HighSchoolQPaperGeneratorPageState
               child: Row(
                 children: [
                   const Icon(Icons.info_outline_rounded,
-                      size: 15, color: Colors.amber),
-                  const SizedBox(width: 8),
+                      size: 14, color: Colors.amber),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'ফিল্টারের বাইরে ${_marksBreakdown.hidden} নম্বরের নির্বাচিত '
-                      'প্রশ্ন আছে — মোট নম্বরে ধরা হয়েছে, তাই দেখা কার্ডের নম্বরের '
-                      'চেয়ে মোট বেশি দেখাবে।',
-                      style: const TextStyle(fontSize: 11, color: Colors.amber),
+                      'প্রশ্ন আছে — মোট নম্বরে ধরা হয়েছে।',
+                      style: const TextStyle(
+                          fontSize: 10.5, color: Colors.amber),
                     ),
                   ),
                 ],
@@ -4450,6 +4449,7 @@ class _HighSchoolQPaperGeneratorPageState
       ),
     );
   }
+
 
   Widget _buildStickyBar() {
     return Container(
@@ -5939,91 +5939,79 @@ class _PickFilterChip extends StatelessWidget {
   }
 }
 
-/// A compact dropdown that replaces the horizontal chip rows in the mobile
-/// question picker. It shows the selected option's colour accent in the
-/// leading icon and in the dropdown items so the visual language of the chips
-/// is preserved while taking far less horizontal space.
-class _FilterDropdown<T> extends StatelessWidget {
-  final IconData icon;
-  final String label;
+/// A slim pill-shaped dropdown button used inline next to the search bar.
+///
+/// Shows only the short [displayText] for the selected item, keeping the
+/// button narrow enough to sit alongside the search field. The open menu
+/// uses [itemLabel] (full label + count) with a color dot so it remains as
+/// informative as the old chip row.
+class _CompactFilterDropdown<T> extends StatelessWidget {
   final T value;
   final List<T> items;
   final String Function(T) displayText;
+  final String Function(T) itemLabel;
   final Color Function(T) itemColor;
   final ValueChanged<T?> onChanged;
+  final IconData icon;
 
-  const _FilterDropdown({
-    required this.icon,
-    required this.label,
+  const _CompactFilterDropdown({
     required this.value,
     required this.items,
     required this.displayText,
+    required this.itemLabel,
     required this.itemColor,
     required this.onChanged,
+    this.icon = Icons.filter_list_rounded,
   });
 
   @override
   Widget build(BuildContext context) {
     final selectedColor = itemColor(value);
     return Container(
-      height: 38,
+      height: 36,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: selectedColor.withOpacity(0.45), width: 1.2),
+        border:
+            Border.all(color: selectedColor.withOpacity(0.5), width: 1.2),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           value: value,
-          isExpanded: true,
           isDense: true,
+          isExpanded: false,
           icon: Icon(Icons.expand_more_rounded,
-              size: 16, color: selectedColor),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: selectedColor,
-          ),
-          selectedItemBuilder: (_) => items.map((item) {
-            return Align(
-              alignment: Alignment.centerLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 14, color: itemColor(item)),
-                  const SizedBox(width: 4),
-                  Text(
-                    displayText(item),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: itemColor(item),
+              size: 14, color: selectedColor),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          selectedItemBuilder: (_) => items
+              .map((item) => Center(
+                    child: Text(
+                      displayText(item),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: itemColor(item),
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
+                  ))
+              .toList(),
           items: items.map((item) {
             final c = itemColor(item);
             final isSelected = item == value;
             return DropdownMenuItem<T>(
               value: item,
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: c,
-                      shape: BoxShape.circle,
-                    ),
+                    width: 7,
+                    height: 7,
+                    decoration:
+                        BoxDecoration(color: c, shape: BoxShape.circle),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 7),
                   Text(
-                    displayText(item),
+                    itemLabel(item),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight:
@@ -6041,7 +6029,6 @@ class _FilterDropdown<T> extends StatelessWidget {
     );
   }
 }
-
 
 ///
 /// The paper used to hard-code one order, and a different one when CQ and the
