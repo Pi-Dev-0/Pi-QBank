@@ -141,6 +141,10 @@ void main() {
     expect(html, contains('id="imageEditorMain"'));
     expect(html, isNot(contains('id="imageSizeCustom"')));
     expect(html, isNot(contains('id="floatImageSizeCustom"')));
+    expect(html, contains('id="imageSizeEditor" type="range" min="15"'));
+    expect(html, contains('id="floatImageSize" min="15"'));
+    expect(html, contains('id="floatImageSize" min="15" max="200"'));
+    expect(html, contains('currentImagePercent'));
     expect(html, isNot(contains('id="floatImageReset"')));
   });
 

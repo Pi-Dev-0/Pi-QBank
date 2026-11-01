@@ -2566,7 +2566,7 @@ $paperFontBlock    :root {
         <select class="preview-select" id="previewImagePreset" aria-label="ছবির আকার">
           $previewImageOptions
         </select>
-        <input class="preview-range" id="imageSizeEditor" type="range" min="25" max="200" step="1" value="100" disabled aria-label="ছবির আকার শতাংশ">
+        <input class="preview-range" id="imageSizeEditor" type="range" min="15" max="200" step="1" value="100" disabled aria-label="ছবির আকার শতাংশ">
         <span>%</span>
       </div>
       <div class="toolbar-group typography-group">
@@ -2916,6 +2916,17 @@ $paperFontBlock    :root {
         });
       }
 
+      function currentImagePercent(image) {
+        var inlineWidth = image.style.width || '';
+        var inlineMatch = inlineWidth.match(/^([0-9.]+)%\$/);
+        if (inlineMatch) return Math.max(15, Math.min(200, Number(inlineMatch[1])));
+        var parent = image.parentElement;
+        var parentWidth = parent ? parent.getBoundingClientRect().width : 0;
+        var imageWidth = image.getBoundingClientRect().width;
+        if (!parentWidth || !imageWidth) return 100;
+        return Math.max(15, Math.min(200, imageWidth / parentWidth * 100));
+      }
+
       function beginImageResize(event) {
         if (!selectedImage || !isEditing()) return;
         event.preventDefault();
@@ -2949,7 +2960,7 @@ $paperFontBlock    :root {
         var delta = Math.abs(horizontal) >= Math.abs(vertical * state.ratio)
             ? horizontal : vertical * state.ratio;
         var width = Math.max(32, state.startWidth + delta);
-        var percent = Math.max(25, Math.min(200, width / state.parentWidth * 100));
+        var percent = Math.max(15, Math.min(200, width / state.parentWidth * 100));
         selectedImage.style.maxWidth = 'none';
         selectedImage.style.maxHeight = 'none';
         selectedImage.style.width = percent + '%';
@@ -3190,14 +3201,12 @@ $paperFontBlock    :root {
         selectedImage = image;
         selectedImage.classList.add('image-selected');
         var imageSize = document.getElementById('imageSizeEditor');
-        if (imageSize) {
-          imageSize.disabled = false;
-          imageSize.value = '100';
-        }
+        if (imageSize) imageSize.disabled = false;
         var floatEditor = document.getElementById('imageEditorFloat');
         var floatSize = document.getElementById('floatImageSize');
         if (floatEditor) floatEditor.style.display = 'flex';
-        if (floatSize) { floatSize.disabled = false; floatSize.value = '100'; }
+        if (floatSize) floatSize.disabled = false;
+        setImagePercent(currentImagePercent(image));
         var floatUrl = document.getElementById('floatImageUrl');
         if (floatUrl) { floatUrl.disabled = false; floatUrl.value = ''; }
         var replacePanel = document.getElementById('floatImageReplacePanel');
@@ -3207,7 +3216,7 @@ $paperFontBlock    :root {
 
       function resizeSelectedImage(value) {
         if (!selectedImage || value === '') return;
-        var percent = Math.max(25, Math.min(200, Number(value) || 100));
+        var percent = Math.max(15, Math.min(200, Number(value) || 100));
         selectedImage.style.maxWidth = 'none';
         selectedImage.style.maxHeight = 'none';
         selectedImage.style.width = percent + '%';
