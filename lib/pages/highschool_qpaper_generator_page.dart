@@ -4081,6 +4081,7 @@ class _HighSchoolQPaperGeneratorPageState
   /// the filters move into the settings rail — but the wizard needs it whole.
   Widget _buildStep2() {
     final visible = _visibleQuestions;
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
     return Column(
       children: [
         // Chapter filter, when the paper draws on more than one
@@ -4088,7 +4089,9 @@ class _HighSchoolQPaperGeneratorPageState
         // Type filter + search
         _buildPickFilterBar(visible.length),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+          padding: isAndroid
+              ? const EdgeInsets.fromLTRB(8, 4, 8, 6)
+              : const EdgeInsets.fromLTRB(16, 6, 16, 8),
           child: _buildRandomSelectorBar(),
         ),
         Expanded(child: _buildPickerList()),
@@ -4170,9 +4173,12 @@ class _HighSchoolQPaperGeneratorPageState
     // The উদ্দীপক runs, so a card can say it is one of a shared pair and a click
     // on it can take the pair along.
     final stemRuns = _mcqStemRuns();
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 2, 16, 12),
+      margin: isAndroid
+          ? const EdgeInsets.fromLTRB(6, 2, 6, 8)
+          : const EdgeInsets.fromLTRB(16, 2, 16, 12),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F4F8),
         borderRadius: BorderRadius.circular(14),
@@ -4182,7 +4188,9 @@ class _HighSchoolQPaperGeneratorPageState
         borderRadius: BorderRadius.circular(13),
         child: ListView(
           key: const ValueKey('studio-picker-list'),
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 100),
+          padding: isAndroid
+              ? const EdgeInsets.fromLTRB(6, 6, 6, 100)
+              : const EdgeInsets.fromLTRB(10, 10, 10, 100),
           children: [
             // Chapter groups
             for (final chNum in chapterNumbers) ...[
@@ -4270,8 +4278,11 @@ class _HighSchoolQPaperGeneratorPageState
     final all = _pickerChapterFilter.isEmpty ||
         _pickerChapterFilter.containsAll(chapterNumbers);
 
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: isAndroid
+          ? const EdgeInsets.fromLTRB(8, 0, 8, 8)
+          : const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4339,9 +4350,12 @@ class _HighSchoolQPaperGeneratorPageState
 
   Widget _buildPickFilterBar(int visibleCount) {
     int countOf(_PickFilter f) => _fetchedQuestions.where(f.matches).length;
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: isAndroid
+          ? const EdgeInsets.fromLTRB(8, 6, 8, 0)
+          : const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4537,6 +4551,7 @@ class _HighSchoolQPaperGeneratorPageState
   Widget _buildQuestionCard(HighSchoolQuestion q, String cardKey,
       {List<HighSchoolQuestion>? run}) {
     final typeColor = q.isCq ? _kCqColor : (q.isShort ? _kRqColor : _kMcqColor);
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
     // An MCQ's shared উদ্দীপক is worth reading before ticking, so it rides
     // above the question rather than being hidden behind a disclosure.
     final intro = q.isMcq ? q.mcqStemText.trim() : '';
@@ -4544,7 +4559,7 @@ class _HighSchoolQPaperGeneratorPageState
     return AnimatedContainer(
       key: ValueKey('question-card-$cardKey'),
       duration: const Duration(milliseconds: 200),
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: EdgeInsets.only(bottom: isAndroid ? 8 : 10),
       decoration: BoxDecoration(
         color: q.isSelected ? const Color(0xFFF7F5FF) : Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -4572,88 +4587,92 @@ class _HighSchoolQPaperGeneratorPageState
             // instead of selecting the question.
             onTap: () => _toggleQuestion(q),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 6, 8),
-              child: Row(
+              padding: isAndroid
+                  ? const EdgeInsets.fromLTRB(12, 9, 12, 9)
+                  : const EdgeInsets.fromLTRB(10, 10, 6, 8),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Checkbox(
-                    value: q.isSelected,
-                    activeColor: _kPrimary,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5)),
-                    onChanged: (_) => _toggleQuestion(q),
-                  ),
-                  const SizedBox(width: 2),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        if (intro.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 5),
-                            child: Text(
-                              intro,
-                              style: const TextStyle(
-                                  fontSize: 12, height: 1.3, color: _kSubText),
-                            ),
-                          ),
-                        Text(
-                          _previewText(q),
-                          style: const TextStyle(
-                            fontSize: 15,
-                            height: 1.35,
-                            fontWeight: FontWeight.w700,
-                            color: _kDarkText,
-                          ),
-                        ),
-                        if (q.isMcq) _buildCardOptions(q),
-                        if (q.isCq) _buildCardSubQuestions(q),
-                        if (q.stemImageUrl.trim().isNotEmpty)
-                          _buildCardThumbnail(q),
-                        const SizedBox(height: 7),
-                        _buildCardTags(q, run),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      _TypeBadge(type: q.questionType, color: typeColor),
-                      const SizedBox(height: 8),
-                      _MarksBadge(marks: q.totalMarks),
+                      if (!isAndroid) ...[
+                        Checkbox(
+                          value: q.isSelected,
+                          activeColor: _kPrimary,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4)),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.padded,
+                          visualDensity: VisualDensity.standard,
+                          onChanged: (_) => _toggleQuestion(q),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      if (intro.isNotEmpty)
+                        Expanded(
+                          child: Text(
+                            intro,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 11.5, height: 1.25, color: _kSubText),
+                          ),
+                        )
+                      else
+                        const Spacer(),
+                      const SizedBox(width: 6),
+                      if (isAndroid && q.isSelected) ...[
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: _kPrimary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      _QuestionMetaBadge(
+                        type: q.questionType,
+                        color: typeColor,
+                        marks: q.totalMarks,
+                        isImportant: q.isImportant,
+                        showImportant: _showImportant,
+                        onToggleImportant: () =>
+                            setState(() => q.isImportant = !q.isImportant),
+                        onEdit: () => _openEditQuestion(q),
+                      ),
                     ],
                   ),
-                  if (_showImportant)
-                    IconButton(
-                      tooltip: q.isImportant
-                          ? 'গুরুত্বপূর্ণ চিহ্ন সরান'
-                          : 'গুরুত্বপূর্ণ হিসেবে চিহ্নিত করুন',
-                      onPressed: () =>
-                          setState(() => q.isImportant = !q.isImportant),
-                      icon: Icon(
-                        q.isImportant
-                            ? Icons.star_rounded
-                            : Icons.star_border_rounded,
-                        size: 18,
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      _previewText(q),
+                      style: TextStyle(
+                        fontSize: isAndroid ? 14.5 : 15,
+                        height: 1.35,
+                        fontWeight: FontWeight.w700,
+                        color: _kDarkText,
                       ),
-                      color:
-                          q.isImportant ? const Color(0xFFD97706) : _kSubText,
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 32, minHeight: 32),
                     ),
-                  IconButton(
-                    tooltip: 'সম্পাদনা করুন',
-                    onPressed: () => _openEditQuestion(q),
-                    icon: const Icon(Icons.edit_outlined, size: 18),
-                    color: _kPrimary,
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                  ),
+                  if (q.isMcq)
+                    Padding(
+                      padding: EdgeInsets.only(left: isAndroid ? 0 : 30),
+                      child: _buildCardOptions(q),
+                    ),
+                  if (q.isCq)
+                    Padding(
+                      padding: EdgeInsets.only(left: isAndroid ? 0 : 30),
+                      child: _buildCardSubQuestions(q),
+                    ),
+                  if (q.stemImageUrl.trim().isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(left: isAndroid ? 0 : 30),
+                      child: _buildCardThumbnail(q),
+                    ),
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: EdgeInsets.only(left: isAndroid ? 0 : 30),
+                    child: _buildCardTags(q, run),
                   ),
                 ],
               ),
@@ -5602,10 +5621,13 @@ class _ChapterGroupHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Material(
+  Widget build(BuildContext context) {
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+    return Material(
         color: Colors.transparent,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: EdgeInsets.symmetric(
+              horizontal: isAndroid ? 10 : 14, vertical: 8),
           decoration: BoxDecoration(
             gradient: LinearGradient(colors: [
               _kPrimary.withOpacity(0.08),
@@ -5680,6 +5702,7 @@ class _ChapterGroupHeader extends StatelessWidget {
           ),
         ),
       );
+  }
 
   Widget _chapterAction(IconData icon, String label, VoidCallback onPressed) {
     return TextButton.icon(
@@ -5697,56 +5720,117 @@ class _ChapterGroupHeader extends StatelessWidget {
   }
 }
 
-/// The CQ / MCQ / RQ pill on a picker card.
-class _TypeBadge extends StatelessWidget {
+/// Ultra-compact unified pill containing question type, marks, and edit action.
+class _QuestionMetaBadge extends StatelessWidget {
   final String type;
   final Color color;
-  const _TypeBadge({required this.type, required this.color});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.22)),
-        ),
-        child: Text(type,
-            style: TextStyle(
-                color: color,
-                fontSize: 10.5,
-                letterSpacing: .3,
-                fontWeight: FontWeight.w800)),
-      );
-}
-
-/// The mark a card carries, in a quiet little box beside the type pill.
-class _MarksBadge extends StatelessWidget {
   final int marks;
-  const _MarksBadge({required this.marks});
+  final bool isImportant;
+  final bool showImportant;
+  final VoidCallback? onToggleImportant;
+  final VoidCallback onEdit;
+
+  const _QuestionMetaBadge({
+    required this.type,
+    required this.color,
+    required this.marks,
+    this.isImportant = false,
+    this.showImportant = false,
+    this.onToggleImportant,
+    required this.onEdit,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F4F8),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('$marks',
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: _kPrimary)),
-            const SizedBox(width: 3),
-            const Text('নম্বর',
-                style: TextStyle(fontSize: 9.5, color: _kSubText)),
+  Widget build(BuildContext context) {
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isAndroid ? 6 : 7,
+        vertical: isAndroid ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            type,
+            style: TextStyle(
+              color: color,
+              fontSize: isAndroid ? 10 : 10.5,
+              letterSpacing: .2,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '•',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: color.withOpacity(0.40),
+              ),
+            ),
+          ),
+          Text(
+            '$marks',
+            style: TextStyle(
+              fontSize: isAndroid ? 11 : 11.5,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            'নম্বর',
+            style: TextStyle(
+              fontSize: isAndroid ? 8 : 8.5,
+              color: color.withOpacity(0.85),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            child: Container(
+              width: 1,
+              height: 10,
+              color: color.withOpacity(0.28),
+            ),
+          ),
+          if (showImportant) ...[
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onToggleImportant,
+              child: Icon(
+                isImportant
+                    ? Icons.star_rounded
+                    : Icons.star_border_rounded,
+                size: 14,
+                color: isImportant
+                    ? const Color(0xFFD97706)
+                    : color.withOpacity(0.65),
+              ),
+            ),
+            const SizedBox(width: 4),
           ],
-        ),
-      );
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onEdit,
+            child: Icon(
+              Icons.edit_outlined,
+              size: 13,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// A tappable chip that assigns a question to one of the two printed sets.
