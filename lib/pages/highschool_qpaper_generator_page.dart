@@ -4609,39 +4609,95 @@ class _HighSchoolQPaperGeneratorPageState
                         ),
                         const SizedBox(width: 4),
                       ],
-                      if (intro.isNotEmpty)
-                        Expanded(
-                          child: Text(
-                            intro,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 11.5, height: 1.25, color: _kSubText),
-                          ),
-                        )
-                      else
-                        const Spacer(),
-                      const SizedBox(width: 6),
-                      if (isAndroid && q.isSelected) ...[
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          color: _kPrimary,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                      ],
                       _QuestionMetaBadge(
                         type: q.questionType,
                         color: typeColor,
                         marks: q.totalMarks,
-                        isImportant: q.isImportant,
-                        showImportant: _showImportant,
-                        onToggleImportant: () =>
-                            setState(() => q.isImportant = !q.isImportant),
-                        onEdit: () => _openEditQuestion(q),
+                      ),
+                      const Spacer(),
+                      if (isAndroid && q.isSelected) ...[
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: _kPrimary,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      if (_showImportant) ...[
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => setState(() => q.isImportant = !q.isImportant),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              width: 30,
+                              height: 30,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: q.isImportant
+                                    ? const Color(0xFFFEF3C7)
+                                    : const Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: q.isImportant
+                                      ? const Color(0xFFFCD34D)
+                                      : const Color(0xFFD8E2EE),
+                                ),
+                              ),
+                              child: Icon(
+                                q.isImportant
+                                    ? Icons.star_rounded
+                                    : Icons.star_border_rounded,
+                                size: 17,
+                                color: q.isImportant
+                                    ? const Color(0xFFD97706)
+                                    : _kSubText,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _openEditQuestion(q),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFFD8E2EE)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.edit_rounded,
+                              size: 16,
+                              color: Color.fromARGB(255, 255, 0, 0),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
+                  if (intro.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, bottom: 2),
+                      child: Text(
+                        intro,
+                        style: const TextStyle(
+                            fontSize: 12, height: 1.3, color: _kSubText),
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
@@ -5720,24 +5776,16 @@ class _ChapterGroupHeader extends StatelessWidget {
   }
 }
 
-/// Ultra-compact unified pill containing question type, marks, and edit action.
+/// Compact unified pill containing question type and marks.
 class _QuestionMetaBadge extends StatelessWidget {
   final String type;
   final Color color;
   final int marks;
-  final bool isImportant;
-  final bool showImportant;
-  final VoidCallback? onToggleImportant;
-  final VoidCallback onEdit;
 
   const _QuestionMetaBadge({
     required this.type,
     required this.color,
     required this.marks,
-    this.isImportant = false,
-    this.showImportant = false,
-    this.onToggleImportant,
-    required this.onEdit,
   });
 
   @override
@@ -5745,13 +5793,13 @@ class _QuestionMetaBadge extends StatelessWidget {
     final isAndroid = Theme.of(context).platform == TargetPlatform.android;
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isAndroid ? 6 : 7,
-        vertical: isAndroid ? 2 : 3,
+        horizontal: isAndroid ? 7 : 8,
+        vertical: isAndroid ? 3 : 4,
       ),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withOpacity(0.24)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -5761,7 +5809,7 @@ class _QuestionMetaBadge extends StatelessWidget {
             type,
             style: TextStyle(
               color: color,
-              fontSize: isAndroid ? 10 : 10.5,
+              fontSize: isAndroid ? 10.5 : 11,
               letterSpacing: .2,
               fontWeight: FontWeight.w800,
             ),
@@ -5780,7 +5828,7 @@ class _QuestionMetaBadge extends StatelessWidget {
           Text(
             '$marks',
             style: TextStyle(
-              fontSize: isAndroid ? 11 : 11.5,
+              fontSize: isAndroid ? 11.5 : 12,
               fontWeight: FontWeight.w800,
               color: color,
             ),
@@ -5789,42 +5837,9 @@ class _QuestionMetaBadge extends StatelessWidget {
           Text(
             'নম্বর',
             style: TextStyle(
-              fontSize: isAndroid ? 8 : 8.5,
+              fontSize: isAndroid ? 8.5 : 9,
               color: color.withOpacity(0.85),
               fontWeight: FontWeight.w600,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 5),
-            child: Container(
-              width: 1,
-              height: 10,
-              color: color.withOpacity(0.28),
-            ),
-          ),
-          if (showImportant) ...[
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onToggleImportant,
-              child: Icon(
-                isImportant
-                    ? Icons.star_rounded
-                    : Icons.star_border_rounded,
-                size: 14,
-                color: isImportant
-                    ? const Color(0xFFD97706)
-                    : color.withOpacity(0.65),
-              ),
-            ),
-            const SizedBox(width: 4),
-          ],
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onEdit,
-            child: Icon(
-              Icons.edit_outlined,
-              size: 13,
-              color: color,
             ),
           ),
         ],
