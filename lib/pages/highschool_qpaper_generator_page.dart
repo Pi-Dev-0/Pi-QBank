@@ -4668,14 +4668,14 @@ class _HighSchoolQPaperGeneratorPageState
                             height: 30,
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
+                              color: const Color(0xFFFEF2F2),
                               shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFFD8E2EE)),
+                              border: Border.all(color: const Color(0xFFFECACA)),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
+                                  color: const Color(0xFFEF4444).withOpacity(0.18),
+                                  blurRadius: 5,
+                                  offset: const Offset(0, 1.5),
                                 ),
                               ],
                             ),
