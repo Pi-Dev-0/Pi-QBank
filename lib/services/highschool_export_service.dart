@@ -1891,6 +1891,74 @@ $paperFontBlock    :root {
         outline: 1px dashed #a5b4fc;
         outline-offset: 2px;
       }
+      #imageEditorFloat {
+        position: fixed;
+        display: none;
+        max-width: calc(100vw - 24px);
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 8px 10px;
+        background: white;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        box-shadow: 0 5px 18px rgba(15, 23, 42, 0.2);
+        z-index: 1000;
+        font-size: 12px;
+      }
+      #imageEditorFloat .image-editor-title {
+        color: #475569;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      #imageEditorFloat button {
+        min-height: 32px;
+        padding: 5px 9px;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        background: #f8fafc;
+        color: #334155;
+        cursor: pointer;
+      }
+      #imageEditorFloat button.primary {
+        background: #e0e7ff;
+        border-color: #c7d2fe;
+        color: #4338ca;
+      }
+      #imageEditorFloat button.danger {
+        background: #fee2e2;
+        border-color: #fecaca;
+        color: #dc2626;
+      }
+      #imageResizeOverlay {
+        display: none;
+        position: fixed;
+        pointer-events: none;
+        border: 1px dashed #6366f1;
+        z-index: 999;
+        box-sizing: border-box;
+      }
+      #imageResizeOverlay .resize-handle {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border: 2px solid #6366f1;
+        border-radius: 50%;
+        background: white;
+        pointer-events: auto;
+        touch-action: none;
+        box-sizing: border-box;
+      }
+      #imageResizeOverlay .resize-handle.nw { left: -9px; top: -9px; cursor: nwse-resize; }
+      #imageResizeOverlay .resize-handle.ne { right: -9px; top: -9px; cursor: nesw-resize; }
+      #imageResizeOverlay .resize-handle.sw { left: -9px; bottom: -9px; cursor: nesw-resize; }
+      #imageResizeOverlay .resize-handle.se { right: -9px; bottom: -9px; cursor: nwse-resize; }
+      @media (max-width: 600px) {
+        #imageEditorFloat { gap: 5px; padding: 7px; }
+        #imageEditorFloat .image-editor-title { width: 100%; text-align: center; }
+        #imageEditorFloat input[type="text"] { width: min(180px, 52vw) !important; }
+      }
     }
     .edit-hint { font-size: 12px; color: var(--muted); }
     .edit-hint[hidden] { display: none; }
@@ -2564,14 +2632,22 @@ $paperFontBlock    :root {
     buffer.write('''
   </div>
 
-  <div id="imageEditorFloat" style="display:none; position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:white; border:1px solid #cbd5e1; border-radius:10px; padding:8px 14px; box-shadow:0 4px 16px rgba(0,0,0,0.18); z-index:1000; align-items:center; gap:8px; font-size:13px;">
-    <span style="color:#475569; font-weight:600;">ছবির আকার:</span>
+  <div id="imageEditorFloat" role="toolbar" aria-label="ছবি সম্পাদনা">
+    <span class="image-editor-title">ছবি সম্পাদনা</span>
     <input type="range" id="floatImageSize" min="25" max="200" step="1" value="100" style="width:120px;">
     <input type="number" id="floatImageSizeCustom" min="25" max="200" step="1" value="100" style="width:52px; text-align:center; border:1px solid #cbd5e1; border-radius:6px; padding:4px;">
     <span>%</span>
+    <button id="floatImageFit" class="primary" title="পাতার প্রস্থে মানানসই করুন">ফিট</button>
+    <button id="floatImageReset" title="ছবির আকার ফিরিয়ে আনুন">রিসেট</button>
     <input type="text" id="floatImageUrl" placeholder="নতুন ছবির URL" aria-label="নতুন ছবির URL" style="width:190px; border:1px solid #cbd5e1; border-radius:6px; padding:4px 6px; font-size:12px;">
-    <button id="floatImageApply" title="নতুন ছবি বসান" style="background:#e0e7ff; border:1px solid #c7d2fe; border-radius:6px; padding:4px 8px; cursor:pointer; color:#4338ca;">বসান</button>
-    <button id="floatImageDelete" title="নির্বাচিত ছবি মুছুন" style="background:#fee2e2; border:1px solid #fecaca; border-radius:6px; padding:4px 8px; cursor:pointer; color:#dc2626;">🗑️</button>
+    <button id="floatImageApply" class="primary" title="নতুন ছবি বসান">বসান</button>
+    <button id="floatImageDelete" class="danger" title="নির্বাচিত ছবি মুছুন">🗑️</button>
+  </div>
+  <div id="imageResizeOverlay" aria-hidden="true">
+    <span class="resize-handle nw" data-resize="nw"></span>
+    <span class="resize-handle ne" data-resize="ne"></span>
+    <span class="resize-handle sw" data-resize="sw"></span>
+    <span class="resize-handle se" data-resize="se"></span>
   </div>
   <script>
     /* Two sets share the sheet while the pair fits on a single A4 page; when it
@@ -2728,6 +2804,8 @@ $paperFontBlock    :root {
           }
           var floatEditor = document.getElementById('imageEditorFloat');
           if (floatEditor) floatEditor.style.display = 'none';
+          var resizeOverlay = document.getElementById('imageResizeOverlay');
+          if (resizeOverlay) resizeOverlay.style.display = 'none';
           var floatUrl = document.getElementById('floatImageUrl');
           if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
         }
@@ -2781,6 +2859,93 @@ $paperFontBlock    :root {
       }
 
       var selectedImage = null;
+      var resizeState = null;
+
+      function positionImageTools() {
+        if (!selectedImage) return;
+        var rect = selectedImage.getBoundingClientRect();
+        var overlay = document.getElementById('imageResizeOverlay');
+        if (overlay) {
+          overlay.style.display = 'block';
+          overlay.style.left = rect.left + 'px';
+          overlay.style.top = rect.top + 'px';
+          overlay.style.width = rect.width + 'px';
+          overlay.style.height = rect.height + 'px';
+        }
+        var editor = document.getElementById('imageEditorFloat');
+        if (!editor) return;
+        editor.style.display = 'flex';
+        var gap = 10;
+        var top = rect.bottom + gap;
+        if (top + editor.offsetHeight > window.innerHeight - 8) {
+          top = rect.top - editor.offsetHeight - gap;
+        }
+        top = Math.max(8, Math.min(top, window.innerHeight - editor.offsetHeight - 8));
+        var left = rect.left + (rect.width - editor.offsetWidth) / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - editor.offsetWidth - 8));
+        editor.style.left = left + 'px';
+        editor.style.top = top + 'px';
+      }
+
+      function setImagePercent(percent) {
+        var imageSize = document.getElementById('imageSizeEditor');
+        var imageSizeCustom = document.getElementById('imageSizeCustom');
+        var floatSize = document.getElementById('floatImageSize');
+        var floatCustom = document.getElementById('floatImageSizeCustom');
+        [imageSize, imageSizeCustom, floatSize, floatCustom].forEach(function (input) {
+          if (input) input.value = String(Math.round(percent));
+        });
+      }
+
+      function beginImageResize(event) {
+        if (!selectedImage || !isEditing()) return;
+        event.preventDefault();
+        event.stopPropagation();
+        var direction = event.currentTarget.getAttribute('data-resize') || 'se';
+        var rect = selectedImage.getBoundingClientRect();
+        var parentWidth = selectedImage.parentElement
+            ? selectedImage.parentElement.getBoundingClientRect().width
+            : rect.width;
+        resizeState = {
+          direction: direction,
+          startX: event.clientX,
+          startY: event.clientY,
+          startWidth: rect.width,
+          startHeight: rect.height,
+          parentWidth: Math.max(1, parentWidth),
+          ratio: rect.width / Math.max(1, rect.height),
+        };
+        if (event.currentTarget.setPointerCapture) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
+      }
+
+      function moveImageResize(event) {
+        if (!resizeState || !selectedImage) return;
+        var state = resizeState;
+        var horizontal = event.clientX - state.startX;
+        var vertical = event.clientY - state.startY;
+        if (state.direction.indexOf('w') >= 0) horizontal = -horizontal;
+        if (state.direction.indexOf('n') >= 0) vertical = -vertical;
+        var delta = Math.abs(horizontal) >= Math.abs(vertical * state.ratio)
+            ? horizontal : vertical * state.ratio;
+        var width = Math.max(32, state.startWidth + delta);
+        var percent = Math.max(25, Math.min(200, width / state.parentWidth * 100));
+        selectedImage.style.maxWidth = 'none';
+        selectedImage.style.maxHeight = 'none';
+        selectedImage.style.width = percent + '%';
+        selectedImage.style.height = 'auto';
+        setImagePercent(percent);
+        positionImageTools();
+        relayoutSoon();
+      }
+
+      function endImageResize() {
+        if (!resizeState) return;
+        resizeState = null;
+        positionImageTools();
+        relayoutSoon();
+      }
       var selectedDemoType = 'cq';
 
       function nextQuestionNumber() {
@@ -2981,6 +3146,8 @@ $paperFontBlock    :root {
         if (imageSizeCustom) imageSizeCustom.disabled = true;
         var floatEditor = document.getElementById('imageEditorFloat');
         if (floatEditor) floatEditor.style.display = 'none';
+        var resizeOverlay = document.getElementById('imageResizeOverlay');
+        if (resizeOverlay) resizeOverlay.style.display = 'none';
         var floatUrl = document.getElementById('floatImageUrl');
         if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
         relayoutSoon();
@@ -3008,6 +3175,7 @@ $paperFontBlock    :root {
         if (floatCustom) { floatCustom.disabled = false; floatCustom.value = '100'; }
         var floatUrl = document.getElementById('floatImageUrl');
         if (floatUrl) { floatUrl.disabled = false; floatUrl.value = ''; }
+        positionImageTools();
       }
 
       function resizeSelectedImage(value) {
@@ -3025,6 +3193,7 @@ $paperFontBlock    :root {
         var floatCustom = document.getElementById('floatImageSizeCustom');
         if (floatSize) floatSize.value = String(percent);
         if (floatCustom) floatCustom.value = String(percent);
+        positionImageTools();
       }
 
       function wireEditor() {
@@ -3182,6 +3351,28 @@ $paperFontBlock    :root {
         if (floatImageDelete) floatImageDelete.addEventListener('click', function () {
           removeSelectedImage();
         });
+        var floatImageFit = document.getElementById('floatImageFit');
+        if (floatImageFit) floatImageFit.addEventListener('click', function () {
+          if (!selectedImage) return;
+          selectedImage.style.maxWidth = 'none';
+          selectedImage.style.maxHeight = 'none';
+          selectedImage.style.width = '100%';
+          selectedImage.style.height = 'auto';
+          setImagePercent(100);
+          positionImageTools();
+          relayoutSoon();
+        });
+        var floatImageReset = document.getElementById('floatImageReset');
+        if (floatImageReset) floatImageReset.addEventListener('click', function () {
+          if (!selectedImage) return;
+          selectedImage.style.width = '';
+          selectedImage.style.height = '';
+          selectedImage.style.maxWidth = '';
+          selectedImage.style.maxHeight = '';
+          setImagePercent(100);
+          positionImageTools();
+          relayoutSoon();
+        });
         var floatImageApply = document.getElementById('floatImageApply');
         var floatImageUrl = document.getElementById('floatImageUrl');
         function applyImageUrl() {
@@ -3198,6 +3389,15 @@ $paperFontBlock    :root {
         if (floatImageUrl) floatImageUrl.addEventListener('keydown', function (event) {
           if (event.key === 'Enter') { applyImageUrl(); event.preventDefault(); }
         });
+        var resizeHandles = document.querySelectorAll('#imageResizeOverlay .resize-handle');
+        for (var h = 0; h < resizeHandles.length; h++) {
+          resizeHandles[h].addEventListener('pointerdown', beginImageResize);
+          resizeHandles[h].addEventListener('pointermove', moveImageResize);
+          resizeHandles[h].addEventListener('pointerup', endImageResize);
+          resizeHandles[h].addEventListener('pointercancel', endImageResize);
+        }
+        window.addEventListener('resize', positionImageTools);
+        window.addEventListener('scroll', positionImageTools, true);
         document.addEventListener('click', function (event) {
           var image = event.target;
           if (image && image.classList && image.classList.contains('paper-image')) {

@@ -130,6 +130,10 @@ void main() {
     expect(html, contains('@bottom-center'));
     expect(html, contains('counter(page, bengali)'));
     expect(html, contains('contenteditable="true"'));
+    expect(html, contains('id="imageResizeOverlay"'));
+    expect(html, contains('data-resize="se"'));
+    expect(html, contains('positionImageTools'));
+    expect(html, contains('id="floatImageFit"'));
   });
 
   test('important questions print a star only while the switch is on', () {
