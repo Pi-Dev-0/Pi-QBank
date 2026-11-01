@@ -5143,23 +5143,27 @@ class _HighSchoolQPaperGeneratorPageState
             ],
           ),
           const SizedBox(height: 7),
-          Wrap(
-            spacing: 5,
-            runSpacing: 5,
-            children: [
-              _SummaryChip(
-                icon: Icons.quiz_rounded,
-                label: 'CQ ${_selectedCqs.length}টি · ${marks.cq}',
-              ),
-              _SummaryChip(
-                icon: Icons.format_list_bulleted_rounded,
-                label: 'MCQ ${_selectedMcqs.length}টি · ${marks.mcq}',
-              ),
-              _SummaryChip(
-                icon: Icons.short_text_rounded,
-                label: 'RQ ${_selectedShorts.length}টি · ${marks.rq}',
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _SummaryChip(
+                  icon: Icons.quiz_rounded,
+                  label: 'CQ ${_selectedCqs.length}টি · ${marks.cq}',
+                ),
+                _SummaryChip(
+                  icon: Icons.format_list_bulleted_rounded,
+                  label: 'MCQ ${_selectedMcqs.length}টি · ${marks.mcq}',
+                ),
+                _SummaryChip(
+                  icon: Icons.short_text_rounded,
+                  label: 'RQ ${_selectedShorts.length}টি · ${marks.rq}',
+                ),
+              ],
+            ),
           ),
         ],
       ),
