@@ -4402,9 +4402,8 @@ class _HighSchoolQPaperGeneratorPageState
               _CompactFilterDropdown<_PickFilter>(
                 value: _pickFilter,
                 items: _PickFilter.values,
-                displayText: (f) => f == _PickFilter.all
-                    ? 'সব'
-                    : '${f.badge} ${countOf(f)}',
+                displayText: (f) =>
+                    f == _PickFilter.all ? 'সব' : '${f.badge} ${countOf(f)}',
                 itemLabel: (f) => '${f.badge} ${countOf(f)}',
                 itemColor: (f) => f.color,
                 onChanged: (f) => setState(() => _pickFilter = f!),
@@ -4414,9 +4413,7 @@ class _HighSchoolQPaperGeneratorPageState
               _CompactFilterDropdown<_ImageFilter>(
                 value: _imageFilter,
                 items: _ImageFilter.values,
-                displayText: (f) => f == _ImageFilter.all
-                    ? 'ছবি'
-                    : f.badge,
+                displayText: (f) => f == _ImageFilter.all ? 'ছবি' : f.badge,
                 itemLabel: (f) =>
                     '${f.badge} ${_fetchedQuestions.where(f.matches).length}',
                 itemColor: (f) => f.color,
@@ -4436,8 +4433,7 @@ class _HighSchoolQPaperGeneratorPageState
             const SizedBox(height: 6),
             Container(
               width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.amber.withOpacity(0.14),
                 borderRadius: BorderRadius.circular(8),
@@ -4451,8 +4447,8 @@ class _HighSchoolQPaperGeneratorPageState
                     child: Text(
                       'ফিল্টারের বাইরে ${_marksBreakdown.hidden} নম্বরের নির্বাচিত '
                       'প্রশ্ন আছে — মোট নম্বরে ধরা হয়েছে।',
-                      style: const TextStyle(
-                          fontSize: 10.5, color: Colors.amber),
+                      style:
+                          const TextStyle(fontSize: 10.5, color: Colors.amber),
                     ),
                   ),
                 ],
@@ -4463,7 +4459,6 @@ class _HighSchoolQPaperGeneratorPageState
       ),
     );
   }
-
 
   Widget _buildStickyBar() {
     return Container(
@@ -4602,8 +4597,7 @@ class _HighSchoolQPaperGeneratorPageState
                           activeColor: _kPrimary,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(4)),
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.padded,
+                          materialTapTargetSize: MaterialTapTargetSize.padded,
                           visualDensity: VisualDensity.standard,
                           onChanged: (_) => _toggleQuestion(q),
                         ),
@@ -4627,7 +4621,8 @@ class _HighSchoolQPaperGeneratorPageState
                         Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: () => setState(() => q.isImportant = !q.isImportant),
+                            onTap: () =>
+                                setState(() => q.isImportant = !q.isImportant),
                             borderRadius: BorderRadius.circular(16),
                             child: Container(
                               width: 30,
@@ -4670,10 +4665,12 @@ class _HighSchoolQPaperGeneratorPageState
                             decoration: BoxDecoration(
                               color: const Color(0xFFFEF2F2),
                               shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFFFECACA)),
+                              border:
+                                  Border.all(color: const Color(0xFFFECACA)),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFEF4444).withOpacity(0.18),
+                                  color:
+                                      const Color(0xFFEF4444).withOpacity(0.18),
                                   blurRadius: 5,
                                   offset: const Offset(0, 1.5),
                                 ),
@@ -5443,9 +5440,7 @@ class _StepIndicator extends StatelessWidget {
                           '${stepIndex + 1}',
                           style: TextStyle(
                             fontSize: 11,
-                            color: active
-                                ? Colors.white
-                                : Colors.grey.shade500,
+                            color: active ? Colors.white : Colors.grey.shade500,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -5684,84 +5679,83 @@ class _ChapterGroupHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isAndroid = Theme.of(context).platform == TargetPlatform.android;
     return Material(
-        color: Colors.transparent,
-        child: Container(
-          padding: EdgeInsets.symmetric(
-              horizontal: isAndroid ? 10 : 14, vertical: 8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [
-              _kPrimary.withOpacity(0.08),
-              _kAccent.withOpacity(0.05)
-            ]),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _kPrimary.withOpacity(0.15)),
-          ),
-          child: Column(
-            children: [
-              InkWell(
-                onTap: onToggle,
-                borderRadius: BorderRadius.circular(8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.folder_special_rounded,
-                        color: _kPrimary, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text('অধ্যায় $chapterNumber: $chapterName',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: _kDarkText,
-                              fontSize: 13)),
-                    ),
-                    const SizedBox(width: 8),
-                    Text('$total টি',
-                        style: const TextStyle(fontSize: 11, color: _kSubText)),
-                    if (selected > 0) ...[
-                      const SizedBox(width: 6),
-                      Text('$selected নির্বাচিত',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: _kRqColor,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                    const SizedBox(width: 2),
-                    // The arrow is the affordance; the whole bar is the target.
-                    Tooltip(
-                      message:
-                          collapsed ? 'প্রশ্নগুলো দেখান' : 'প্রশ্নগুলো লুকান',
-                      child: AnimatedRotation(
-                        turns: collapsed ? -0.25 : 0,
-                        duration: const Duration(milliseconds: 180),
-                        child: const Icon(Icons.keyboard_arrow_down_rounded,
-                            size: 20, color: _kSubText),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 10),
-              Row(
+      color: Colors.transparent,
+      child: Container(
+        padding:
+            EdgeInsets.symmetric(horizontal: isAndroid ? 10 : 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            _kPrimary.withOpacity(0.08),
+            _kAccent.withOpacity(0.05)
+          ]),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _kPrimary.withOpacity(0.15)),
+        ),
+        child: Column(
+          children: [
+            InkWell(
+              onTap: onToggle,
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
                 children: [
+                  const Icon(Icons.folder_special_rounded,
+                      color: _kPrimary, size: 18),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: _chapterAction(
-                        Icons.done_all_rounded, 'Select', onSelect),
+                    child: Text('অধ্যায় $chapterNumber: $chapterName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _kDarkText,
+                            fontSize: 13)),
                   ),
-                  Expanded(
-                    child: _chapterAction(
-                        Icons.remove_done_rounded, 'Exclude', onExclude),
-                  ),
-                  Expanded(
-                    child:
-                        _chapterAction(Icons.edit_note_rounded, 'Add', onAdd),
+                  const SizedBox(width: 8),
+                  Text('$total টি',
+                      style: const TextStyle(fontSize: 11, color: _kSubText)),
+                  if (selected > 0) ...[
+                    const SizedBox(width: 6),
+                    Text('$selected নির্বাচিত',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: _kRqColor,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                  const SizedBox(width: 2),
+                  // The arrow is the affordance; the whole bar is the target.
+                  Tooltip(
+                    message:
+                        collapsed ? 'প্রশ্নগুলো দেখান' : 'প্রশ্নগুলো লুকান',
+                    child: AnimatedRotation(
+                      turns: collapsed ? -0.25 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: const Icon(Icons.keyboard_arrow_down_rounded,
+                          size: 20, color: _kSubText),
+                    ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            const Divider(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _chapterAction(
+                      Icons.done_all_rounded, 'Select', onSelect),
+                ),
+                Expanded(
+                  child: _chapterAction(
+                      Icons.remove_done_rounded, 'Exclude', onExclude),
+                ),
+                Expanded(
+                  child: _chapterAction(Icons.edit_note_rounded, 'Add', onAdd),
+                ),
+              ],
+            ),
+          ],
         ),
-      );
+      ),
+    );
   }
 
   Widget _chapterAction(IconData icon, String label, VoidCallback onPressed) {
@@ -6070,8 +6064,7 @@ class _CompactFilterDropdown<T> extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        border:
-            Border.all(color: selectedColor.withOpacity(0.5), width: 1.2),
+        border: Border.all(color: selectedColor.withOpacity(0.5), width: 1.2),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
@@ -6080,8 +6073,7 @@ class _CompactFilterDropdown<T> extends StatelessWidget {
           isExpanded: false,
           menuWidth: 130,
           borderRadius: BorderRadius.circular(10),
-          icon: Icon(Icons.expand_more_rounded,
-              size: 14, color: selectedColor),
+          icon: Icon(Icons.expand_more_rounded, size: 14, color: selectedColor),
           padding: const EdgeInsets.symmetric(horizontal: 8),
           selectedItemBuilder: (_) => items
               .map((item) => Center(
@@ -6106,8 +6098,7 @@ class _CompactFilterDropdown<T> extends StatelessWidget {
                   Container(
                     width: 7,
                     height: 7,
-                    decoration:
-                        BoxDecoration(color: c, shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: c, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 7),
                   Flexible(
@@ -7978,7 +7969,10 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
               _selectChip(
                 item: style,
                 value: page._optionStyle,
-                label: style.prefix('ক'),
+                label: style == McqOptionStyle.circle ? '' : style.prefix('ক'),
+                content: style == McqOptionStyle.circle
+                    ? _circleOptionPreview(style, page._optionStyle)
+                    : null,
                 onChanged: (v) => _apply(() => page._optionStyle = v),
               ),
           ],
@@ -8359,6 +8353,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     required T item,
     required T value,
     required String label,
+    Widget? content,
     required ValueChanged<T> onChanged,
   }) {
     final selected = item == value;
@@ -8376,13 +8371,36 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
             width: selected ? 1.6 : 1,
           ),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            color: selected ? _kPrimary : _muted,
-          ),
+        child: content ??
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: selected ? _kPrimary : _muted,
+              ),
+            ),
+      ),
+    );
+  }
+
+  Widget _circleOptionPreview(McqOptionStyle style, McqOptionStyle selected) {
+    final color = style == selected ? _kPrimary : _muted;
+    return Container(
+      width: 18,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: 1.2),
+      ),
+      child: Text(
+        'ক',
+        style: TextStyle(
+          fontSize: 10,
+          height: 1,
+          fontWeight: FontWeight.w800,
+          color: color,
         ),
       ),
     );

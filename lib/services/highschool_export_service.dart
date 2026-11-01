@@ -220,10 +220,17 @@ extension McqOptionStyleLabels on McqOptionStyle {
       };
 
   String prefix(String letter) => switch (this) {
-        McqOptionStyle.circle => '$letter ○',
+        // Keep the text fallback for callers that cannot render HTML.
+        McqOptionStyle.circle => '$letter\u20DD',
         McqOptionStyle.parentheses => '($letter)',
         McqOptionStyle.dot => '$letter.',
         McqOptionStyle.closeParenthesis => '$letter)',
+      };
+
+  String htmlPrefix(String letter) => switch (this) {
+        McqOptionStyle.circle =>
+          '<span class="mcq-circle-marker">${HighSchoolExportService._escapeXml(letter)}</span>',
+        _ => prefix(letter),
       };
 }
 
@@ -2306,6 +2313,17 @@ $paperFontBlock    :root {
       padding-left: 6px;
       font-size: ${_cssFontSize(15, fontStep)};
     }
+    .mcq-circle-marker {
+      display: inline-flex;
+      width: 1.12em;
+      height: 1.12em;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      line-height: 1;
+      box-sizing: border-box;
+    }
     .mcq-answer-sheet {
       break-before: page;
       page-break-before: always;
@@ -3896,7 +3914,7 @@ $paperFontBlock    :root {
         final l =
             opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
         buffer.write('''
-          <div>${_print.optionStyle.prefix(l)} ${_htmlText(options[opt], latex: true)}</div>
+          <div>${_print.optionStyle.htmlPrefix(l)} ${_htmlText(options[opt], latex: true)}</div>
 ''');
       }
       buffer.write('''

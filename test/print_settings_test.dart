@@ -39,9 +39,17 @@ String sheet(PaperPrintSettings settings) =>
     );
 
 /// The body of the generated file, without the stylesheet and scripts.
-String bodyOf(String html) => html.split('</style>').last.split('<script>').first;
+String bodyOf(String html) =>
+    html.split('</style>').last.split('<script>').first;
 
 void main() {
+  test('circle MCQ style encloses the option letter', () {
+    expect(
+        McqOptionStyle.circle.htmlPrefix('ক'), contains('mcq-circle-marker'));
+    expect(McqOptionStyle.circle.htmlPrefix('ক'), contains('>ক</span>'));
+    expect(McqOptionStyle.circle.htmlPrefix('ক'), isNot(contains('ক ○')));
+  });
+
   test('paper size changes the canvas and the page box', () {
     final html = sheet(const PaperPrintSettings(paperSize: PaperSize.a5));
     expect(html, contains('width: 148mm'));
