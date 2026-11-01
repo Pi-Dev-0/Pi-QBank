@@ -137,6 +137,10 @@ void main() {
     expect(html, contains('id="floatImageReplace"'));
     expect(html, contains('id="floatImageFile"'));
     expect(html, contains('requestDeleteSelectedImage'));
+    expect(html, contains("target.matches('input, textarea, select, button')"));
+    expect(html, contains('id="imageEditorMain"'));
+    expect(html, isNot(contains('id="imageSizeCustom"')));
+    expect(html, isNot(contains('id="floatImageSizeCustom"')));
     expect(html, isNot(contains('id="floatImageReset"')));
   });
 
