@@ -134,6 +134,10 @@ void main() {
     expect(html, contains('data-resize="se"'));
     expect(html, contains('positionImageTools'));
     expect(html, contains('id="floatImageFit"'));
+    expect(html, contains('id="floatImageReplace"'));
+    expect(html, contains('id="floatImageFile"'));
+    expect(html, contains('requestDeleteSelectedImage'));
+    expect(html, isNot(contains('id="floatImageReset"')));
   });
 
   test('important questions print a star only while the switch is on', () {

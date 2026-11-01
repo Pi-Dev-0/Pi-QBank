@@ -9,6 +9,7 @@ import '../models/highschool_question.dart';
 import '../services/highschool_export_service.dart';
 import '../services/highschool_file_export_service.dart';
 import '../widgets/exact_html_preview.dart';
+import '../widgets/delete_confirmation_dialog.dart';
 
 /// Full-fidelity, live preview of the generated question-paper HTML.
 ///
@@ -199,8 +200,23 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
       setState(() => _preparing = false);
       return;
     }
-    final controller = WebViewController()
+    late final WebViewController controller;
+    controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'DeleteImageChannel',
+        onMessageReceived: (message) async {
+          final confirmed = await showDeleteConfirmationDialog(
+            context: context,
+            title: 'ছবি মুছে ফেলবেন?',
+            message: 'এই ছবিটি প্রশ্নপত্রের প্রিভিউ থেকে স্থায়ীভাবে সরিয়ে দেওয়া হবে।',
+          );
+          final decision = confirmed == true ? 'true' : 'false';
+          await controller.runJavaScript(
+            'window.__piQbankDeleteDecision && window.__piQbankDeleteDecision(${jsonEncode(message.message)}, $decision);',
+          );
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) {

@@ -1907,11 +1907,7 @@ $paperFontBlock    :root {
         z-index: 1000;
         font-size: 12px;
       }
-      #imageEditorFloat .image-editor-title {
-        color: #475569;
-        font-weight: 700;
-        white-space: nowrap;
-      }
+
       #imageEditorFloat button {
         min-height: 32px;
         padding: 5px 9px;
@@ -1931,6 +1927,20 @@ $paperFontBlock    :root {
         border-color: #fecaca;
         color: #dc2626;
       }
+      #floatImageReplacePanel {
+        display: none;
+        align-items: center;
+        gap: 5px;
+      }
+      #floatImageReplacePanel.open { display: inline-flex; }
+      #floatImageReplacePanel input[type="text"] {
+        width: 190px;
+        padding: 5px 6px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 12px;
+      }
+      #floatImageReplacePanel input[type="file"] { max-width: 150px; font-size: 11px; }
       #imageResizeOverlay {
         display: none;
         position: fixed;
@@ -1956,7 +1966,6 @@ $paperFontBlock    :root {
       #imageResizeOverlay .resize-handle.se { right: -9px; bottom: -9px; cursor: nwse-resize; }
       @media (max-width: 600px) {
         #imageEditorFloat { gap: 5px; padding: 7px; }
-        #imageEditorFloat .image-editor-title { width: 100%; text-align: center; }
         #imageEditorFloat input[type="text"] { width: min(180px, 52vw) !important; }
       }
     }
@@ -2633,14 +2642,18 @@ $paperFontBlock    :root {
   </div>
 
   <div id="imageEditorFloat" role="toolbar" aria-label="ছবি সম্পাদনা">
-    <span class="image-editor-title">ছবি সম্পাদনা</span>
     <input type="range" id="floatImageSize" min="25" max="200" step="1" value="100" style="width:120px;">
     <input type="number" id="floatImageSizeCustom" min="25" max="200" step="1" value="100" style="width:52px; text-align:center; border:1px solid #cbd5e1; border-radius:6px; padding:4px;">
     <span>%</span>
     <button id="floatImageFit" class="primary" title="পাতার প্রস্থে মানানসই করুন">ফিট</button>
-    <button id="floatImageReset" title="ছবির আকার ফিরিয়ে আনুন">রিসেট</button>
-    <input type="text" id="floatImageUrl" placeholder="নতুন ছবির URL" aria-label="নতুন ছবির URL" style="width:190px; border:1px solid #cbd5e1; border-radius:6px; padding:4px 6px; font-size:12px;">
-    <button id="floatImageApply" class="primary" title="নতুন ছবি বসান">বসান</button>
+    <button id="floatImageReplace" title="ছবি বদলান">ছবি বদলান</button>
+    <div id="floatImageReplacePanel">
+      <input type="text" id="floatImageUrl" placeholder="ছবির URL" aria-label="ছবির URL">
+      <button id="floatImageApply" class="primary" title="URL থেকে ছবি বসান">URL বসান</button>
+      <label class="btn" style="min-height:32px; padding:5px 8px; border:1px solid #cbd5e1; border-radius:7px; background:#f8fafc; color:#334155; cursor:pointer; white-space:nowrap;">
+        ডিভাইস থেকে <input type="file" id="floatImageFile" accept="image/*" hidden>
+      </label>
+    </div>
     <button id="floatImageDelete" class="danger" title="নির্বাচিত ছবি মুছুন">🗑️</button>
   </div>
   <div id="imageResizeOverlay" aria-hidden="true">
@@ -3152,6 +3165,21 @@ $paperFontBlock    :root {
         if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
         relayoutSoon();
       }
+
+      var deleteRequestId = 0;
+      function requestDeleteSelectedImage() {
+        if (!selectedImage) return;
+        var requestId = String(++deleteRequestId);
+        window.__piQbankDeleteDecision = function (id, confirmed) {
+          if (String(id) !== requestId || !confirmed) return;
+          removeSelectedImage();
+        };
+        if (window.DeleteImageChannel && DeleteImageChannel.postMessage) {
+          DeleteImageChannel.postMessage(requestId);
+        } else if (window.confirm('এই ছবিটি মুছে ফেলবেন?')) {
+          removeSelectedImage();
+        }
+      }
       function selectImage(image) {
         if (!isEditing()) return;
         if (selectedImage) selectedImage.classList.remove('image-selected');
@@ -3175,6 +3203,8 @@ $paperFontBlock    :root {
         if (floatCustom) { floatCustom.disabled = false; floatCustom.value = '100'; }
         var floatUrl = document.getElementById('floatImageUrl');
         if (floatUrl) { floatUrl.disabled = false; floatUrl.value = ''; }
+        var replacePanel = document.getElementById('floatImageReplacePanel');
+        if (replacePanel) replacePanel.classList.remove('open');
         positionImageTools();
       }
 
@@ -3349,7 +3379,18 @@ $paperFontBlock    :root {
         });
         var floatImageDelete = document.getElementById('floatImageDelete');
         if (floatImageDelete) floatImageDelete.addEventListener('click', function () {
-          removeSelectedImage();
+          requestDeleteSelectedImage();
+        });
+        var floatImageReplace = document.getElementById('floatImageReplace');
+        var floatImageReplacePanel = document.getElementById('floatImageReplacePanel');
+        if (floatImageReplace) floatImageReplace.addEventListener('click', function () {
+          if (!floatImageReplacePanel) return;
+          floatImageReplacePanel.classList.toggle('open');
+          if (floatImageReplacePanel.classList.contains('open')) {
+            var input = document.getElementById('floatImageUrl');
+            if (input) input.focus();
+          }
+          positionImageTools();
         });
         var floatImageFit = document.getElementById('floatImageFit');
         if (floatImageFit) floatImageFit.addEventListener('click', function () {
@@ -3358,17 +3399,6 @@ $paperFontBlock    :root {
           selectedImage.style.maxHeight = 'none';
           selectedImage.style.width = '100%';
           selectedImage.style.height = 'auto';
-          setImagePercent(100);
-          positionImageTools();
-          relayoutSoon();
-        });
-        var floatImageReset = document.getElementById('floatImageReset');
-        if (floatImageReset) floatImageReset.addEventListener('click', function () {
-          if (!selectedImage) return;
-          selectedImage.style.width = '';
-          selectedImage.style.height = '';
-          selectedImage.style.maxWidth = '';
-          selectedImage.style.maxHeight = '';
           setImagePercent(100);
           positionImageTools();
           relayoutSoon();
@@ -3388,6 +3418,20 @@ $paperFontBlock    :root {
         if (floatImageApply) floatImageApply.addEventListener('click', applyImageUrl);
         if (floatImageUrl) floatImageUrl.addEventListener('keydown', function (event) {
           if (event.key === 'Enter') { applyImageUrl(); event.preventDefault(); }
+        });
+        var floatImageFile = document.getElementById('floatImageFile');
+        if (floatImageFile) floatImageFile.addEventListener('change', function () {
+          var file = floatImageFile.files && floatImageFile.files[0];
+          if (!file || !selectedImage) return;
+          var reader = new FileReader();
+          reader.onload = function () {
+            selectedImage.setAttribute('src', reader.result);
+            selectedImage.style.maxWidth = 'none';
+            selectedImage.style.maxHeight = 'none';
+            floatImageFile.value = '';
+            relayoutSoon();
+          };
+          reader.readAsDataURL(file);
         });
         var resizeHandles = document.querySelectorAll('#imageResizeOverlay .resize-handle');
         for (var h = 0; h < resizeHandles.length; h++) {
