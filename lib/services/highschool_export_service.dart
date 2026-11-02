@@ -2804,6 +2804,25 @@ $paperFontBlock    :root {
          what prints is what is left on the page. Nothing goes back to the
          .html file or to the app — the edit lives in this tab — so a paper
          worth keeping still comes from a fresh export. */
+      function clearImageSelection() {
+        if (selectedImage) {
+          selectedImage.classList.remove('image-selected');
+          selectedImage = null;
+        }
+        var imageSize = document.getElementById('imageSizeEditor');
+        if (imageSize) imageSize.disabled = true;
+        var floatEditor = document.getElementById('imageEditorFloat');
+        if (floatEditor) floatEditor.style.display = 'none';
+        var resizeOverlay = document.getElementById('imageResizeOverlay');
+        if (resizeOverlay) resizeOverlay.style.display = 'none';
+        var floatUrl = document.getElementById('floatImageUrl');
+        if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
+        var floatSize = document.getElementById('floatImageSize');
+        if (floatSize) floatSize.disabled = true;
+        var replacePanel = document.getElementById('floatImageReplacePanel');
+        if (replacePanel) replacePanel.classList.remove('open');
+      }
+
       function setEditing(on) {
         var sheets = document.querySelectorAll('.paper-sheet');
         for (var i = 0; i < sheets.length; i++) {
@@ -2820,21 +2839,112 @@ $paperFontBlock    :root {
         if (hint) hint.hidden = !on;
         var button = document.getElementById('editBtn');
         if (button) button.textContent = on ? '✅ এডিট শেষ' : '✏️ লাইভ এডিট';
-        if (!on) {
-          if (selectedImage) {
-            selectedImage.classList.remove('image-selected');
-            selectedImage = null;
-          }
-          var floatEditor = document.getElementById('imageEditorFloat');
-          if (floatEditor) floatEditor.style.display = 'none';
-          var resizeOverlay = document.getElementById('imageResizeOverlay');
-          if (resizeOverlay) resizeOverlay.style.display = 'none';
-          var floatUrl = document.getElementById('floatImageUrl');
-          if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
-        }
+        // The image editor belongs to editing mode: leaving it open over text
+        // the reader is now typing in would keep a stale image selected.
+        if (!on) clearImageSelection();
         var imageSize = document.getElementById('imageSizeEditor');
         if (imageSize) imageSize.disabled = !on || !selectedImage;
       }
+      // The Android preview's floating settings sheet lives outside the WebView.
+      // Exposing the switch lets it turn editing on or off without a reload, so
+      // text already typed into the sheet survives the toggle.
+      window.__piQbankSetEditing = setEditing;
+
+      /* Settings that cannot be applied to the live page — a header field, a
+         watermark, another set — rebuild the sheet from the app's state. That
+         rebuild must not throw away what the reader has typed. Each block that
+         received typing is marked, captured by a path inside its sheet, and put
+         back after the rebuilt page loads. Attributes and layout stay whatever
+         the new settings say; only the edited text is restored. */
+      function editPath(element, sheet) {
+        if (element === sheet) return '';
+        var parts = [];
+        var node = element;
+        while (node && node !== sheet) {
+          var parent = node.parentNode;
+          if (!parent) return null;
+          var index = 0;
+          for (var child = parent.firstChild; child; child = child.nextSibling) {
+            if (child === node) break;
+            index++;
+          }
+          parts.unshift(index);
+          node = parent;
+        }
+        return node === sheet ? parts.join('.') : null;
+      }
+
+      function markLiveEdit() {
+        var selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
+        var node = selection.anchorNode;
+        if (!node) return;
+        var element = node.nodeType === 3 ? node.parentElement : node;
+        if (!element || !element.closest) return;
+        var sheet = element.closest('.paper-sheet');
+        if (!sheet) return;
+        element.setAttribute('data-live-edited', 'true');
+      }
+
+      function markImageEdited(image) {
+        if (!image || !image.setAttribute) return;
+        image.setAttribute('data-live-edited', 'true');
+      }
+
+      window.__piQbankCaptureEdits = function () {
+        var sheets = document.querySelectorAll('.paper-sheet');
+        var edits = {};
+        for (var s = 0; s < sheets.length; s++) {
+          var sheet = sheets[s];
+          var marked = sheet.querySelectorAll('[data-live-edited="true"]');
+          for (var i = 0; i < marked.length; i++) {
+            var element = marked[i];
+            var path = editPath(element, sheet);
+            if (path === null) continue;
+            edits[s + ':' + path] = {
+              tag: element.tagName,
+              cls: element.className,
+              html: element.innerHTML,
+              outer: element.tagName === 'IMG' ? element.outerHTML : ''
+            };
+          }
+        }
+        return edits;
+      };
+
+      window.__piQbankRestoreEdits = function (edits) {
+        if (!edits) return;
+        var sheets = document.querySelectorAll('.paper-sheet');
+        for (var key in edits) {
+          if (!Object.prototype.hasOwnProperty.call(edits, key)) continue;
+          var split = key.indexOf(':');
+          var sheet = sheets[Number(key.slice(0, split))];
+          if (!sheet) continue;
+          var path = key.slice(split + 1);
+          var node = sheet;
+          if (path) {
+            var parts = path.split('.');
+            for (var p = 0; p < parts.length; p++) {
+              node = node.childNodes[Number(parts[p])];
+              if (!node) break;
+            }
+          }
+          var record = edits[key];
+          if (!node || !node.tagName || node.tagName !== record.tag) continue;
+          if (String(node.className) !== record.cls) continue;
+          if (record.tag === 'IMG' && record.outer) {
+            // An image edit lives in its attributes — src, width, style — not
+            // in child nodes, so replace the element as a whole. The captured
+            // markup already carries the live-edit mark.
+            node.outerHTML = record.outer;
+          } else {
+            node.innerHTML = record.html;
+            // Keep the mark so a second settings change captures this edit too.
+            node.setAttribute('data-live-edited', 'true');
+          }
+        }
+        relayoutSoon();
+      };
 
       function isEditing() {
         return document.body.classList.contains('editing');
@@ -2965,6 +3075,7 @@ $paperFontBlock    :root {
         selectedImage.style.maxHeight = 'none';
         selectedImage.style.width = percent + '%';
         selectedImage.style.height = 'auto';
+        markImageEdited(selectedImage);
         setImagePercent(percent);
         positionImageTools();
         relayoutSoon();
@@ -3169,15 +3280,7 @@ $paperFontBlock    :root {
       function removeSelectedImage() {
         if (!selectedImage) return;
         selectedImage.remove();
-        selectedImage = null;
-        var imageSize = document.getElementById('imageSizeEditor');
-        if (imageSize) imageSize.disabled = true;
-        var floatEditor = document.getElementById('imageEditorFloat');
-        if (floatEditor) floatEditor.style.display = 'none';
-        var resizeOverlay = document.getElementById('imageResizeOverlay');
-        if (resizeOverlay) resizeOverlay.style.display = 'none';
-        var floatUrl = document.getElementById('floatImageUrl');
-        if (floatUrl) { floatUrl.disabled = true; floatUrl.value = ''; }
+        clearImageSelection();
         relayoutSoon();
       }
 
@@ -3189,8 +3292,16 @@ $paperFontBlock    :root {
           if (String(id) !== requestId || !confirmed) return;
           removeSelectedImage();
         };
-        if (window.DeleteImageChannel && DeleteImageChannel.postMessage) {
-          DeleteImageChannel.postMessage(requestId);
+        if (window.DeleteImageChannel) {
+          // Android's WebView channel is an object with `postMessage`; the CEF
+          // bridge is a plain function. Support both so the trash button works
+          // in the in-app Linux preview without a native JS dialog (CEF has no
+          // parent window to hang one on and cancels it).
+          if (DeleteImageChannel.postMessage) {
+            DeleteImageChannel.postMessage(requestId);
+          } else {
+            DeleteImageChannel(requestId);
+          }
         } else if (window.confirm('এই ছবিটি মুছে ফেলবেন?')) {
           removeSelectedImage();
         }
@@ -3221,6 +3332,7 @@ $paperFontBlock    :root {
         selectedImage.style.maxHeight = 'none';
         selectedImage.style.width = percent + '%';
         selectedImage.style.height = 'auto';
+        markImageEdited(selectedImage);
         var imageSize = document.getElementById('imageSizeEditor');
         if (imageSize) imageSize.value = String(percent);
         var floatSize = document.getElementById('floatImageSize');
@@ -3389,6 +3501,7 @@ $paperFontBlock    :root {
           selectedImage.style.maxHeight = 'none';
           selectedImage.style.width = '100%';
           selectedImage.style.height = 'auto';
+          markImageEdited(selectedImage);
           setImagePercent(100);
           positionImageTools();
           relayoutSoon();
@@ -3402,6 +3515,7 @@ $paperFontBlock    :root {
           selectedImage.setAttribute('src', next);
           selectedImage.style.maxWidth = 'none';
           selectedImage.style.maxHeight = 'none';
+          markImageEdited(selectedImage);
           floatImageUrl.value = '';
           relayoutSoon();
         }
@@ -3418,6 +3532,7 @@ $paperFontBlock    :root {
             selectedImage.setAttribute('src', reader.result);
             selectedImage.style.maxWidth = 'none';
             selectedImage.style.maxHeight = 'none';
+            markImageEdited(selectedImage);
             floatImageFile.value = '';
             relayoutSoon();
           };
@@ -3433,15 +3548,39 @@ $paperFontBlock    :root {
         window.addEventListener('resize', positionImageTools);
         window.addEventListener('scroll', positionImageTools, true);
         document.addEventListener('click', function (event) {
-          var image = event.target;
-          if (image && image.classList && image.classList.contains('paper-image')) {
+          var target = event.target;
+          var image = target && target.closest
+              ? target.closest('.paper-image')
+              : null;
+          if (image && isEditing()) {
             selectImage(image);
+          } else if (!(target && target.closest &&
+              (target.closest('#imageEditorFloat') ||
+               target.closest('#imageResizeOverlay')))) {
+            // Tapping the text — or anywhere that is not the picture or its
+            // toolbar — ends the picture's turn. Leaving the editor floating
+            // over a cursor that has moved into the text is confusing, and the
+            // next size change would silently resize the wrong thing.
+            clearImageSelection();
           }
           var menu = document.getElementById('demoQuestionMenu');
           var demoButton = document.getElementById('demoQuestionBtn');
-          if (menu && !menu.hidden && image !== demoButton &&
-              !(image && image.closest && image.closest('#demoQuestionMenu'))) {
+          if (menu && !menu.hidden && target !== demoButton &&
+              !(target && target.closest && target.closest('#demoQuestionMenu'))) {
             menu.hidden = true;
+          }
+        });
+        // Keyboard focus is the other way into the text: tapping a field that
+        // is already focused can fire focusin without a fresh click, so close
+        // the picture editor there too.
+        document.addEventListener('focusin', function (event) {
+          if (!isEditing()) return;
+          var target = event.target;
+          if (target && target.closest &&
+              target.closest('#imageEditorFloat')) return;
+          if (target && (target.isContentEditable ||
+              (target.closest && target.closest('.paper-sheet')))) {
+            clearImageSelection();
           }
         });
         // Double-clicking an image jumps to the replacement field, so swapping
@@ -3459,7 +3598,10 @@ $paperFontBlock    :root {
         // not care which sheet the typing landed in.
         document.addEventListener('input', function (event) {
           var node = event.target;
-          if (node && node.closest && node.closest('.paper-sheet')) relayoutSoon();
+          if (node && node.closest && node.closest('.paper-sheet')) {
+            markLiveEdit();
+            relayoutSoon();
+          }
         });
         // Delete/Backspace removes the selected image as one unit, so an
         // image that no longer belongs is gone with a single keypress instead

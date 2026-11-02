@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -44,6 +45,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.printSettings = const PaperPrintSettings(),
     this.settingsBuilder,
     this.liveHtmlBuilder,
+    this.onEditingModeChanged,
   });
 
   final String schoolName;
@@ -91,6 +93,12 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   /// Rebuilds HTML from the generator's live state after a setting changes.
   final String Function()? liveHtmlBuilder;
 
+  /// Tells the generator that the preview's floating edit button moved.
+  ///
+  /// The generator owns the sheet's `editingMode`; keeping the two in step means
+  /// a reload or a later export starts in the same mode the reader left.
+  final ValueChanged<bool>? onEditingModeChanged;
+
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
       !kIsWeb &&
@@ -105,6 +113,12 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   static const _printChannel =
       MethodChannel('com.pi.mathematics/print_preview');
   WebViewController? _controller;
+
+  /// The embedded Chromium runner on Linux, once it is ready.
+  ///
+  /// Android/iOS/macOS use [_controller]; Linux uses this instead, but both
+  /// expose the same page scripts so live editing behaves identically.
+  ExactHtmlPreviewController? _exactController;
   bool _isLoading = true;
 
   /// True until the shipped faces are in hand and the WebView is up with the
@@ -117,6 +131,26 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   /// The finished sheet. Linux hands it to the embedded Chromium; the other
   /// platforms load it into `webview_flutter` directly.
   String? _cachedHtml;
+
+  /// Edits captured from the live sheet just before it is rebuilt for a new
+  /// setting. They are put back once the new page has loaded, so changing a
+  /// print option does not wipe text the reader has typed.
+  String? _pendingEdits;
+
+  /// Bumped for each requested reload. Dragging a slider asks for many, and only
+  /// the newest one may replace the page; an older capture would restore stale
+  /// text over the setting the reader just chose.
+  int _reloadSerial = 0;
+
+  /// Bumped when the embedded browser must reload even if the HTML string is
+  /// unchanged (the refresh button is the common case).
+  int _exactReloadToken = 0;
+
+  /// Whether the floating edit button has live edit switched on.
+  ///
+  /// Kept here rather than in the settings sheet: on a phone the button rides
+  /// the preview itself, so editing is never buried under a rebuild.
+  bool _editingMode = false;
 
   // A preview is an editor too: keep a private, mutable copy of every paper
   // setting so the floating panel can update the sheet without navigating back.
@@ -171,6 +205,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     _fontStep = widget.fontStep;
     _font = widget.font;
     _printSettings = widget.printSettings;
+    _editingMode = widget.printSettings.editingMode;
     _start();
   }
 
@@ -205,16 +240,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
         'DeleteImageChannel',
-        onMessageReceived: (message) async {
-          final confirmed = await showDeleteConfirmationDialog(
-            context: context,
-            title: 'ছবি মুছে ফেলবেন?',
-            message: 'এই ছবিটি প্রশ্নপত্রের প্রিভিউ থেকে স্থায়ীভাবে সরিয়ে দেওয়া হবে।',
-          );
-          final decision = confirmed == true ? 'true' : 'false';
-          await controller.runJavaScript(
-            'window.__piQbankDeleteDecision && window.__piQbankDeleteDecision(${jsonEncode(message.message)}, $decision);',
-          );
+        onMessageReceived: (message) {
+          unawaited(_confirmDeleteImage(message.message));
         },
       )
       ..setNavigationDelegate(
@@ -224,6 +251,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           },
           onPageFinished: (_) {
             if (mounted) setState(() => _isLoading = false);
+            unawaited(_afterPageLoaded());
           },
           // The preview is self-contained; never let it navigate away.
           onNavigationRequest: (NavigationRequest request) =>
@@ -241,21 +269,234 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
 
   /// Re-render with the current header values (used after returning from edit).
   void _reload() {
-    if (ExactHtmlPreview.supported) {
-      setState(() => _cachedHtml = _html);
+    final html = _html;
+    final exact = _exactController;
+    if (exact != null) {
+      unawaited(_reloadExactWithEdits(exact, html));
       return;
     }
-    _controller?.loadHtmlString(_html);
+    final controller = _controller;
+    if (controller != null) {
+      unawaited(_reloadWithEdits(controller, html));
+      return;
+    }
+    if (ExactHtmlPreview.supported) {
+      // CEF is still starting. Its first load will pick up this signature.
+      setState(() {
+        _cachedHtml = html;
+        _exactReloadToken += 1;
+      });
+    }
+  }
+
+  /// Capture the text typed into the live CEF sheet, rebuild it, then put that
+  /// text back once Chromium reports the new page loaded.
+  Future<void> _reloadExactWithEdits(
+    ExactHtmlPreviewController exact,
+    String html,
+  ) async {
+    final serial = ++_reloadSerial;
+    String? edits;
+    try {
+      final raw = await exact.evaluateJavascript(
+        'JSON.stringify(window.__piQbankCaptureEdits '
+        '? window.__piQbankCaptureEdits() : null)',
+      );
+      edits = _decodeCapturedEdits(raw);
+    } catch (_) {
+      // The old page may already be going away; there is nothing to capture.
+    }
+    if (!mounted || serial != _reloadSerial) return;
+    _pendingEdits = edits;
+    setState(() {
+      _cachedHtml = html;
+      _exactReloadToken++;
+    });
+  }
+
+  /// Capture the text typed into the live sheet, reload it, then put that text
+  /// back once the new page is ready.
+  ///
+  /// A settings change has to rebuild the sheet from the app's state, but the
+  /// reader's corrections only exist in the WebView. Without this hand-over a
+  /// switch anywhere in the floating settings panel would look like the edit
+  /// silently undid itself.
+  Future<void> _reloadWithEdits(
+    WebViewController controller,
+    String html,
+  ) async {
+    final serial = ++_reloadSerial;
+    String? edits;
+    try {
+      final raw = await controller.runJavaScriptReturningResult(
+        'JSON.stringify(window.__piQbankCaptureEdits '
+        '? window.__piQbankCaptureEdits() : null)',
+      );
+      edits = _decodeCapturedEdits(raw);
+    } catch (_) {
+      // A page that has not finished loading yet has nothing to capture.
+    }
+    if (!mounted || serial != _reloadSerial) return;
+    _pendingEdits = edits;
     setState(() => _isLoading = true);
+    await controller.loadHtmlString(html);
+  }
+
+  String? _decodeCapturedEdits(Object? raw) {
+    if (raw is Map || raw is List) {
+      if (raw is Map && raw.isEmpty) return null;
+      return jsonEncode(raw);
+    }
+    if (raw is! String || raw.isEmpty || raw == 'null') return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is String) {
+        return decoded.isEmpty || decoded == '{}' ? null : decoded;
+      }
+      if (decoded is Map && decoded.isEmpty) return null;
+      if (decoded is Map || decoded is List) return raw;
+    } on FormatException {
+      return null;
+    }
+    return null;
+  }
+
+  /// Run JavaScript in whichever live view is hosting the sheet.
+  Future<Object?> _evaluateJavascript(String code) async {
+    final exact = _exactController;
+    if (exact != null) return exact.evaluateJavascript(code);
+    final controller = _controller;
+    if (controller != null) {
+      return controller.runJavaScriptReturningResult(code);
+    }
+    return null;
+  }
+
+  Future<void> _runJavascript(String code) async {
+    final exact = _exactController;
+    if (exact != null) {
+      await exact.executeJavaScript(code);
+      return;
+    }
+    await _controller?.runJavaScript(code);
+  }
+
+  Future<void> _afterPageLoaded() async {
+    final exact = _exactController;
+    if (exact != null) await _registerExactDeleteChannel(exact);
+    await _restorePendingEdits();
+    // A rebuild comes back in the generator's mode, which can lag the floating
+    // button by one setting change. Put the button's mode back on top.
+    if (_editingMode) await _setEditingMode(true);
+  }
+
+  Future<void> _restorePendingEdits() async {
+    final edits = _pendingEdits;
+    if (edits == null) return;
+    _pendingEdits = null;
+    try {
+      await _runJavascript(
+        'window.__piQbankRestoreEdits && '
+        'window.__piQbankRestoreEdits(JSON.parse(${jsonEncode(edits)}));',
+      );
+    } catch (_) {
+      // Nothing to restore into: the page never came up.
+    }
+  }
+
+  /// Switch the floating edit button on or off.
+  ///
+  /// The page is changed in place: reloading it would rebuild the sheet from the
+  /// generator's state and discard every word the reader has typed.
+  void _toggleEditingMode() {
+    final on = !_editingMode;
+    setState(() => _editingMode = on);
+    widget.onEditingModeChanged?.call(on);
+    unawaited(_setEditingMode(on));
+  }
+
+  Future<void> _setEditingMode(bool on) async {
+    if (_exactController == null && _controller == null) {
+      // A host without a scriptable view cannot change the page in place; fall
+      // back to rebuilding it so the button still has an effect there.
+      _reload();
+      return;
+    }
+    try {
+      await _runJavascript(
+        'window.__piQbankSetEditing && window.__piQbankSetEditing(${on ? 'true' : 'false'});',
+      );
+    } catch (_) {
+      // The view went away between the tap and the script.
+    }
+  }
+
+  /// Ask before removing a picture from the live sheet.
+  ///
+  /// The page sends the request through `DeleteImageChannel`; the answer goes
+  /// back with the same id so a confirmation that belongs to an older selection
+  /// cannot delete the picture selected now.
+  Future<void> _confirmDeleteImage(String requestId) async {
+    if (!mounted) return;
+    final confirmed = await showDeleteConfirmationDialog(
+      context: context,
+      title: 'ছবি মুছে ফেলবেন?',
+      message:
+          'এই ছবিটি প্রশ্নপত্রের প্রিভিউ থেকে স্থায়ীভাবে সরিয়ে দেওয়া হবে।',
+    );
+    if (!mounted) return;
+    try {
+      await _runJavascript(
+        'window.__piQbankDeleteDecision && '
+        'window.__piQbankDeleteDecision(${jsonEncode(requestId)}, '
+        '${confirmed == true ? 'true' : 'false'});',
+      );
+    } catch (_) {
+      // The preview closed while the dialog was open.
+    }
+  }
+
+  Future<void> _registerExactDeleteChannel(
+    ExactHtmlPreviewController controller,
+  ) async {
+    try {
+      await controller.setJavaScriptChannel(
+        'DeleteImageChannel',
+        (message) => unawaited(_confirmDeleteImage(message)),
+      );
+      // CEF defines the channel as a function, while the sheet (and Android's
+      // WebView) calls `postMessage`. Add the object-style method too, so a
+      // preview generated by an older build keeps working after a reload.
+      await controller.executeJavaScript(
+        'if (typeof DeleteImageChannel === "function" && '
+        '!DeleteImageChannel.postMessage) {'
+        'DeleteImageChannel.postMessage = function (id) { '
+        'DeleteImageChannel(id); };'
+        '}',
+      );
+    } catch (_) {
+      // The page is between loads; the next load registers it again.
+    }
   }
 
   /// Open the platform's print flow from the preview AppBar.
   Future<void> _printPreview() async {
     if (ExactHtmlPreview.supported) {
       // CEF does not implement `window.print()`; hand the same file to the
-      // browser, whose print dialog is the real one.
+      // browser, whose print dialog is the real one. Read the live DOM first:
+      // what the reader typed (and any image change) exists only there.
+      var liveHtml = _cachedHtml ?? _html;
+      try {
+        final rawHtml = await _evaluateJavascript(
+          'document.documentElement.outerHTML',
+        );
+        final snapshot = _decodeJavascriptString(rawHtml);
+        if (snapshot != null && snapshot.isNotEmpty) liveHtml = snapshot;
+      } catch (_) {
+        // Fall back to the generated sheet if CEF is between pages.
+      }
       final file = await HighSchoolFileExportService.saveFile(
-        content: _cachedHtml ?? _html,
+        content: _withDoctype(liveHtml),
         fileName: 'question_paper_print.html',
       );
       if (!mounted) return;
@@ -272,17 +513,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         final rawHtml = await controller.runJavaScriptReturningResult(
           'document.documentElement.outerHTML',
         );
-        if (rawHtml is String && rawHtml.isNotEmpty) {
-          try {
-            final decoded = jsonDecode(rawHtml);
-            if (decoded is String && decoded.isNotEmpty) {
-              liveHtml = decoded;
-            }
-          } on FormatException {
-            // Some WebView versions return the raw string instead of JSON.
-            liveHtml = rawHtml;
-          }
-        }
+        final snapshot = _decodeJavascriptString(rawHtml);
+        if (snapshot != null && snapshot.isNotEmpty) liveHtml = snapshot;
         final rawPaperSize = await controller.runJavaScriptReturningResult(
           'document.documentElement.dataset.paperSize || "A4"',
         );
@@ -296,7 +528,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           }
         }
         await _printChannel.invokeMethod<void>('printHtml', <String, String>{
-          'html': liveHtml,
+          'html': _withDoctype(liveHtml),
           'paperSize': paperSize,
         });
       } on PlatformException catch (error) {
@@ -310,6 +542,25 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
       return;
     }
     await controller.runJavaScript('window.print();');
+  }
+
+  /// WebView/CEF return either the raw string or a JSON-quoted string.
+  String? _decodeJavascriptString(Object? raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is String && decoded.isNotEmpty) return decoded;
+    } on FormatException {
+      // Some WebView versions return the raw string instead of JSON.
+    }
+    return raw;
+  }
+
+  /// `outerHTML` omits the doctype; without it Chromium prints in quirks mode.
+  String _withDoctype(String html) {
+    final trimmed = html.trimLeft();
+    if (trimmed.toLowerCase().startsWith('<!doctype')) return html;
+    return '<!DOCTYPE html>\n$html';
   }
 
   /// Keep the preview controls reachable without leaving the paper. The
@@ -440,27 +691,122 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           Expanded(child: _buildPreviewBody()),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: widget.settingsBuilder == null
-            ? _showPreviewSettings
-            : () => showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) =>
-                      widget.settingsBuilder?.call(
-                        context,
-                        _reload,
-                      ) ??
-                      _buildFallbackSettingsSheet(context),
-                ),
-        backgroundColor: const Color(0xFF5C35E3),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.tune_rounded, size: 19),
-        label:
-            const Text('সেটিংস', style: TextStyle(fontWeight: FontWeight.w700)),
-      ),
+      floatingActionButton: _buildFloatingActions(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  /// The settings pill, with the live-edit control stacked above it on a phone.
+  ///
+  /// Editing belongs next to the page, not inside the settings sheet: opening
+  /// the sheet to find it was what made an edit look like it had been undone.
+  Widget _buildFloatingActions() {
+    // A phone layout is what this button is for. Checking the width as well as
+    // the platform keeps it visible on an Android build, an iOS build, and any
+    // narrow preview pane; a wide desktop window keeps only the settings pill.
+    final mobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        MediaQuery.sizeOf(context).width < 700;
+    final canEdit = _controller != null || _exactController != null;
+    final settings = FloatingActionButton.extended(
+      heroTag: 'preview-settings',
+      onPressed: widget.settingsBuilder == null
+          ? _showPreviewSettings
+          : () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) =>
+                    widget.settingsBuilder?.call(context, _reload) ??
+                    _buildFallbackSettingsSheet(context),
+              ),
+      backgroundColor: const Color(0xFF5C35E3),
+      foregroundColor: Colors.white,
+      icon: const Icon(Icons.tune_rounded, size: 19),
+      label:
+          const Text('সেটিংস', style: TextStyle(fontWeight: FontWeight.w700)),
+    );
+
+    if (!mobile) return settings;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        _buildEditButton(canEdit),
+        const SizedBox(height: 10),
+        settings,
+      ],
+    );
+  }
+
+  /// A round, glowing edit control instead of a second text pill.
+  ///
+  /// The settings pill already carries the only label the reader needs; this
+  /// one is pure affordance, with its state in the icon and colour.
+  Widget _buildEditButton(bool canEdit) {
+    final on = _editingMode;
+    return Tooltip(
+      message: on ? 'এডিট শেষ' : 'লাইভ এডিট',
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 180),
+        opacity: canEdit ? 1 : 0.55,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+          width: 58,
+          height: 58,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: on
+                  ? const [Color(0xFF34D399), Color(0xFF047857)]
+                  : const [Color(0xFF8B5CF6), Color(0xFF4C1D95)],
+            ),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.24),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (on ? const Color(0xFF047857) : const Color(0xFF6D28D9))
+                    .withOpacity(0.38),
+                blurRadius: 20,
+                spreadRadius: 1,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: canEdit ? _toggleEditingMode : null,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  switchInCurve: Curves.easeOutBack,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: animation,
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                  child: Icon(
+                    on ? Icons.check_rounded : Icons.edit_rounded,
+                    key: ValueKey(on),
+                    color: Colors.white,
+                    size: 27,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -532,9 +878,15 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         );
       }
       return ExactHtmlPreview(
-        signature: html,
+        signature: (html, _exactReloadToken),
         buildHtml: () => html,
         fileName: 'question_paper_preview.html',
+        onControllerReady: (controller) {
+          if (!mounted) return;
+          setState(() => _exactController = controller);
+          unawaited(_registerExactDeleteChannel(controller));
+        },
+        onPageFinished: () => unawaited(_afterPageLoaded()),
       );
     }
     if (_controller == null) {

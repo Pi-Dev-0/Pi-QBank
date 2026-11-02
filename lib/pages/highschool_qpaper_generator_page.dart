@@ -1324,6 +1324,9 @@ class _HighSchoolQPaperGeneratorPageState
             onChanged: onChanged,
           ),
           liveHtmlBuilder: _buildPaperHtml,
+          onEditingModeChanged: (value) {
+            if (mounted) setState(() => _editingMode = value);
+          },
         ),
       ),
     );
@@ -8270,15 +8273,8 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     return _card(
       icon: Icons.tune_rounded,
       title: 'সহায়ক টুলস',
-      subtitle: 'এডিটিং ও পুনরাবৃত্তি শনাক্তকরণ',
+      subtitle: 'পুনরাবৃত্ত প্রশ্ন শনাক্তকরণ',
       children: [
-        _toggleRow(
-          'এডিটিং মোড',
-          'প্রিভিউতে সরাসরি সম্পাদনা করা যাবে',
-          page._editingMode,
-          (v) => _apply(() => page._editingMode = v),
-          icon: Icons.edit_rounded,
-        ),
         _toggleRow(
           'পুনরাবৃত্ত প্রশ্ন শনাক্ত',
           'একই প্রশ্ন দুবার থাকলে দেখাবে',

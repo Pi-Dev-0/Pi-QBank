@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -23,6 +24,8 @@ class ExactHtmlPreview extends StatefulWidget {
     this.fileName = 'preview.html',
     this.placeholderBuilder,
     this.fallbackBuilder,
+    this.onControllerReady,
+    this.onPageFinished,
   });
 
   /// A cheap value that changes whenever the sheet would change.
@@ -44,11 +47,64 @@ class ExactHtmlPreview extends StatefulWidget {
   /// Shown when CEF cannot start, for example on a machine without its runtime.
   final WidgetBuilder? fallbackBuilder;
 
+  /// Hands the caller a script runner once the embedded browser is up.
+  ///
+  /// The preview page uses this for live editing: the same `window.__piQbank…`
+  /// helpers the Android WebView calls can then run inside CEF too, so a
+  /// toggle or a settings change no longer rebuilds the page and discards the
+  /// reader's typing.
+  final ValueChanged<ExactHtmlPreviewController>? onControllerReady;
+
+  /// Called after every completed page load, including reloads triggered by a
+  /// new [signature]. The preview page uses it to put captured edits back.
+  final VoidCallback? onPageFinished;
+
   static bool get supported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
 
   @override
   State<ExactHtmlPreview> createState() => _ExactHtmlPreviewState();
+}
+
+/// A tiny shell around the CEF controller, exposing only the two JavaScript
+/// calls the preview needs.
+class ExactHtmlPreviewController {
+  ExactHtmlPreviewController(this._controller);
+
+  final WebViewController _controller;
+
+  Future<dynamic> evaluateJavascript(String code) =>
+      _controller.evaluateJavascript(code);
+
+  Future<void> executeJavaScript(String code) =>
+      _controller.executeJavaScript(code);
+
+  /// Register a one-way bridge from the page back to Flutter.
+  ///
+  /// CEF defines the channel as a global function, unlike Android's
+  /// `postMessage` object; the generated sheet handles both shapes.
+  Future<void> setJavaScriptChannel(
+    String name,
+    void Function(String message) onMessage,
+  ) {
+    return _controller.setJavaScriptChannels({
+      JavascriptChannel(
+        name: name,
+        onMessageReceived: (message) {
+          // CEF serialises the argument with JSON.stringify, so a string comes
+          // back as `"1"`; Android's WebView channel gives the bare `1`.
+          var value = message.message;
+          try {
+            final decoded = jsonDecode(value);
+            if (decoded is String) value = decoded;
+          } on FormatException {
+            // Already a bare string.
+          }
+          onMessage(value);
+        },
+      ),
+    });
+  }
 }
 
 class _ExactHtmlPreviewState extends State<ExactHtmlPreview> {
@@ -57,10 +113,12 @@ class _ExactHtmlPreviewState extends State<ExactHtmlPreview> {
 
   WebViewController? _controller;
   Object? _renderedSignature;
+  String? _loadedUrl;
   File? _file;
   Timer? _debounce;
   bool _failed = false;
   bool _starting = true;
+  bool? _controllerAnnounced;
 
   @override
   void initState() {
@@ -87,8 +145,26 @@ class _ExactHtmlPreviewState extends State<ExactHtmlPreview> {
       // browser is starting, and the check after the load catches that.
       final signature = widget.signature;
       final file = await _write(widget.buildHtml());
+      final url = Uri.file(file.path).toString();
+      // Mark the page before asking Chromium to load it: `onLoadEnd` can arrive
+      // while the initialize call is still in flight.
+      _renderedSignature = signature;
+      _loadedUrl = url;
       final controller = WebviewManager().createWebView();
-      await controller.initialize(Uri.file(file.path).toString());
+      controller.setWebviewListener(
+        WebviewEventsListener(
+          onLoadEnd: (_, loadedUrl) {
+            if (!mounted) return;
+            // Ignore the tail of an old navigation when a newer page is
+            // already on its way; restoring into the wrong document would lose
+            // the edit the newer page is waiting for.
+            if (loadedUrl != _loadedUrl) return;
+            if (_renderedSignature != widget.signature) return;
+            widget.onPageFinished?.call();
+          },
+        ),
+      );
+      await controller.initialize(url);
       if (!mounted) {
         await controller.dispose();
         return;
@@ -96,7 +172,6 @@ class _ExactHtmlPreviewState extends State<ExactHtmlPreview> {
       setState(() {
         _controller = controller;
         _file = file;
-        _renderedSignature = signature;
         _starting = false;
       });
       if (_renderedSignature != widget.signature) {
@@ -118,14 +193,24 @@ class _ExactHtmlPreviewState extends State<ExactHtmlPreview> {
     final controller = _controller;
     if (controller == null) return;
     if (_renderedSignature == widget.signature) return;
+    final signature = widget.signature;
     try {
       final file = await _write(widget.buildHtml());
-      await controller.loadUrl(Uri.file(file.path).toString());
       if (!mounted) return;
-      setState(() {
-        _file = file;
-        _renderedSignature = widget.signature;
-      });
+      final url = Uri.file(file.path).toString();
+      // See _start: tag the navigation before loadUrl so a fast onLoadEnd can
+      // recognise the page that is actually current.
+      _renderedSignature = signature;
+      _loadedUrl = url;
+      _file = file;
+      await controller.loadUrl(url);
+      if (!mounted) return;
+      if (widget.signature != signature) {
+        // The sheet changed while the file was being written; load the newest
+        // one instead of marking the stale page as rendered.
+        _debounce?.cancel();
+        _debounce = Timer(const Duration(milliseconds: 50), _renderNow);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _failed = true);
@@ -162,6 +247,18 @@ class _ExactHtmlPreviewState extends State<ExactHtmlPreview> {
           const Center(
             child: CircularProgressIndicator(color: Color(0xFF5C35E3)),
           );
+    }
+    // Announce from build, not only from _start: a hot reload (or a callback
+    // added after the browser came up) must still hand the existing controller
+    // to the preview page. Deferring avoids a setState during build.
+    if (_controllerAnnounced != true && widget.onControllerReady != null) {
+      _controllerAnnounced = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onControllerReady
+              ?.call(ExactHtmlPreviewController(controller));
+        }
+      });
     }
     return controller.webviewWidget;
   }
