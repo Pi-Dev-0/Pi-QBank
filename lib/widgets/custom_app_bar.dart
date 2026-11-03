@@ -6,6 +6,12 @@ import 'notification_icon.dart';
 
 class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
+
+  /// Replaces [title] with an interactive widget, such as a selector.
+  ///
+  /// [title] is still required because it is the plain-text fallback and is
+  /// also what accessibility tooling announces when this is not set.
+  final Widget? titleWidget;
   final bool centerTitle;
   final List<Widget>? actions;
   final Widget? leading;
@@ -19,6 +25,7 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   const CustomAppBar({
     super.key,
     required this.title,
+    this.titleWidget,
     this.centerTitle = true,
     this.actions,
     this.leading,
@@ -76,19 +83,20 @@ class _CustomAppBarState extends State<CustomAppBar> {
           ),
           child: AppBar(
             leading: widget.leading,
-            title: Text(
-              widget.title,
-              style: TextStyle(
-                color: selectedColor,
-                shadows: [
-                  Shadow(
-                    color: selectedColor.withOpacity(0.5),
-                    offset: const Offset(0, 1),
-                    blurRadius: 30,
+            title: widget.titleWidget ??
+                Text(
+                  widget.title,
+                  style: TextStyle(
+                    color: selectedColor,
+                    shadows: [
+                      Shadow(
+                        color: selectedColor.withOpacity(0.5),
+                        offset: const Offset(0, 1),
+                        blurRadius: 30,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
             elevation: 0,

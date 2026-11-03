@@ -1,10 +1,26 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:pi_qbank/widgets/delete_confirmation_dialog.dart';
+
+/// A calculator keypad the site can draw.
+///
+/// MathDA ships keypads modelled on the Casio machines students actually use,
+/// and selects one with the `model` query parameter. [slug] is the form that
+/// parameter expects: lower-case, without the `fx-` prefix.
+class CalculatorModel {
+  const CalculatorModel(this.label, this.slug);
+
+  /// Shown in the app bar and the model menu.
+  final String label;
+
+  /// Value of the `model` query parameter, e.g. `991ex`.
+  final String slug;
+}
 
 /// The scientific calculator, opened inside the app.
 ///
@@ -19,17 +35,47 @@ import 'package:pi_qbank/widgets/delete_confirmation_dialog.dart';
 class CalculatorPage extends StatefulWidget {
   const CalculatorPage({super.key});
 
-  /// The calculator itself.
-  static final Uri calculatorUri = Uri.parse(
-    'https://mathda.com/calculator/?utm_source=landing-page',
-  );
+  /// The keypads offered in the app bar, grouped roughly as students meet
+  /// them: the older ES PLUS boards, the EX generation, then the CW family.
+  static const List<CalculatorModel> models = [
+    CalculatorModel('fx-991ES PLUS', '991es'),
+    CalculatorModel('fx-82ES PLUS', '82es'),
+    CalculatorModel('fx-991EX', '991ex'),
+    CalculatorModel('fx-570EX', '570ex'),
+    CalculatorModel('fx-82EX', '82ex'),
+    CalculatorModel('fx-991CW', '991cw'),
+    CalculatorModel('fx-570CW', '570cw'),
+    CalculatorModel('fx-83GT CW', '83gtcw'),
+    CalculatorModel('fx-580VN X', '580vnx'),
+    CalculatorModel('fx-570MY CW', '570mycw'),
+    CalculatorModel('fx-97SG CW', '97sgcw'),
+    CalculatorModel('fx-8200 AU II', '8200auii'),
+  ];
+
+  /// Used until the user picks one, and when a saved choice is unreadable.
+  static const CalculatorModel defaultModel =
+      CalculatorModel('fx-991EX', '991ex');
+
+  /// The calculator with a specific keypad selected.
+  ///
+  /// The site reads `model` before it reads its own stored preference, so this
+  /// wins over whatever was last used in the browser.
+  static Uri uriFor(CalculatorModel model) => Uri.parse(
+        'https://mathda.com/calculator/?model=${model.slug}'
+        '&utm_source=landing-page',
+      );
 
   @override
   State<CalculatorPage> createState() => _CalculatorPageState();
 }
 
 class _CalculatorPageState extends State<CalculatorPage> {
+  static const String _prefsModelKey = 'calculator.model';
+
   WebViewController? _controller;
+
+  /// The keypad currently shown. Restored on the next visit.
+  CalculatorModel _model = CalculatorPage.defaultModel;
 
   bool _isLoading = true;
   bool _hasError = false;
@@ -49,11 +95,67 @@ class _CalculatorPageState extends State<CalculatorPage> {
   @override
   void initState() {
     super.initState();
+    _bootstrap();
+  }
+
+  /// Read the saved keypad before the first page load.
+  ///
+  /// The choice has to be known before the URL is built, otherwise the
+  /// calculator would open with the wrong keypad and visibly re-draw itself
+  /// once the preference arrived.
+  Future<void> _bootstrap() async {
+    final saved = await _loadSavedModel();
+    if (!mounted) return;
+
+    _model = saved;
     if (_isWebViewSupported) {
       _createController();
     } else {
-      _isLoading = false;
+      setState(() => _isLoading = false);
     }
+  }
+
+  Future<CalculatorModel> _loadSavedModel() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final slug = prefs.getString(_prefsModelKey);
+      if (slug != null) {
+        for (final model in CalculatorPage.models) {
+          if (model.slug == slug) return model;
+        }
+      }
+    } catch (_) {
+      // A missing preference just means the default keypad.
+    }
+    return CalculatorPage.defaultModel;
+  }
+
+  Future<void> _saveModel(CalculatorModel model) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsModelKey, model.slug);
+    } catch (_) {
+      // Forgetting the choice is not worth an error on screen.
+    }
+  }
+
+  /// Switch keypad without leaving the page.
+  ///
+  /// The site only reads `model` while it builds the page, so this reloads the
+  /// calculator with the new parameter rather than trying to poke at its
+  /// internal state.
+  void _selectModel(CalculatorModel model) {
+    if (model.slug == _model.slug) return;
+    _saveModel(model);
+
+    final controller = _controller;
+    setState(() {
+      _model = model;
+      _hasError = false;
+      _isLoading = true;
+      _progress = 0;
+    });
+    controller?.loadRequest(CalculatorPage.uriFor(model));
   }
 
   void _createController() {
@@ -98,7 +200,7 @@ class _CalculatorPageState extends State<CalculatorPage> {
           onNavigationRequest: (_) => NavigationDecision.navigate,
         ),
       )
-      ..loadRequest(CalculatorPage.calculatorUri);
+      ..loadRequest(CalculatorPage.uriFor(_model));
 
     setState(() => _controller = controller);
   }
@@ -110,7 +212,7 @@ class _CalculatorPageState extends State<CalculatorPage> {
       _isLoading = true;
       _progress = 0;
     });
-    _controller!.loadRequest(CalculatorPage.calculatorUri);
+    _controller!.loadRequest(CalculatorPage.uriFor(_model));
   }
 
   Future<void> _openInBrowser() async {
@@ -118,7 +220,7 @@ class _CalculatorPageState extends State<CalculatorPage> {
     var opened = false;
     try {
       opened = await launchUrl(
-        CalculatorPage.calculatorUri,
+        CalculatorPage.uriFor(_model),
         mode: LaunchMode.externalApplication,
       );
     } catch (_) {
@@ -172,11 +274,12 @@ class _CalculatorPageState extends State<CalculatorPage> {
     );
   }
 
-  /// The app's own bar, without the notification bell: back, the name, and a
-  /// reload button. The calculator is the tool here, so the chrome around it
-  /// stays out of the way.
+  /// The app's own bar, without the notification bell: back, the model
+  /// selector, and a reload button. The calculator is the tool here, so the
+  /// chrome around it stays out of the way.
   PreferredSizeWidget _miniAppBar({required bool showReload}) => CustomAppBar(
         title: 'Calculator',
+        titleWidget: _modelSelector(),
         showNotification: false,
         leading: IconButton(
           tooltip: 'Back',
@@ -191,6 +294,82 @@ class _CalculatorPageState extends State<CalculatorPage> {
               icon: const Icon(Icons.refresh_rounded),
             ),
         ],
+      );
+
+  /// The keypad picker that takes the app bar's title slot.
+  ///
+  /// Tapping it opens the model list; picking one reloads the calculator with
+  /// that keypad. It is a menu rather than a dropdown so the bar stays compact
+  /// and the full list can scroll on a small screen.
+  Widget _modelSelector() => PopupMenuButton<CalculatorModel>(
+        tooltip: 'Calculator model',
+        initialValue: _model,
+        position: PopupMenuPosition.under,
+        color: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+        onSelected: _selectModel,
+        itemBuilder: (context) => [
+          for (final model in CalculatorPage.models)
+            PopupMenuItem<CalculatorModel>(
+              value: model,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 26,
+                    child: model.slug == _model.slug
+                        ? const Icon(Icons.check_rounded,
+                            size: 18, color: Color(0xFF4F46E5))
+                        : null,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    model.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: model.slug == _model.slug
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: const Color(0xFF1F2937),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 150),
+                child: Text(
+                  _model.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 18,
+                color: Color(0xFF475569),
+              ),
+            ],
+          ),
+        ),
       );
 
   Widget _webViewScaffold() => Scaffold(
