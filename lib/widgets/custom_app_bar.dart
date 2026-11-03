@@ -10,12 +10,19 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final List<Widget>? actions;
   final Widget? leading;
 
+  /// Whether to show the notification bell.
+  ///
+  /// Defaults to true for the app's main screens. Focused tools such as the
+  /// calculator turn it off so the bar holds only what that page needs.
+  final bool showNotification;
+
   const CustomAppBar({
     super.key,
     required this.title,
     this.centerTitle = true,
     this.actions,
     this.leading,
+    this.showNotification = true,
   });
 
   @override
@@ -87,7 +94,8 @@ class _CustomAppBarState extends State<CustomAppBar> {
             elevation: 0,
             centerTitle: widget.centerTitle,
             actions: [
-              NotificationIcon(iconColor: selectedColor),
+              if (widget.showNotification)
+                NotificationIcon(iconColor: selectedColor),
               ...(widget.actions ?? []),
             ],
             toolbarHeight: appBarHeight,

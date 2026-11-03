@@ -6,7 +6,11 @@ Future<bool?> showDeleteConfirmationDialog({
   String message = 'Are you sure you want to delete this item?',
   String? paperTitle,
   String? paperSubtitle,
+  String confirmLabel = 'Delete',
+  IconData confirmIcon = Icons.delete_forever,
+  Color? confirmColor,
 }) {
+  final actionColor = confirmColor ?? Colors.red.shade400;
   return showDialog<bool>(
     context: context,
     builder: (context) => Dialog(
@@ -81,10 +85,16 @@ Future<bool?> showDeleteConfirmationDialog({
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.2),
                         ),
                       ),
                       child: Column(
@@ -133,7 +143,7 @@ Future<bool?> showDeleteConfirmationDialog({
                         child: ElevatedButton(
                           onPressed: () => Navigator.pop(context, true),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade400,
+                            backgroundColor: actionColor,
                             foregroundColor: Colors.white,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -145,14 +155,14 @@ Future<bool?> showDeleteConfirmationDialog({
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
-                                Icons.delete_forever,
+                                confirmIcon,
                                 size: 20,
                                 color: Colors.white,
                               ),
                               const SizedBox(width: 8),
-                              const Text(
-                                'Delete',
-                                style: TextStyle(
+                              Text(
+                                confirmLabel,
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),

@@ -101,6 +101,10 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     'Class (11-12) HSC',
   ];
 
+  static const Color _primary = Color(0xFF4F46E5);
+  static const Color _primaryLight = Color(0xFFEEF2FF);
+  static const Color _surface = Color(0xFFF5F7FA);
+
   late final HighSchoolQBankService _service =
       const HighSchoolQBankService(scriptUrl: CloudTestsPage.scriptUrl);
 
@@ -530,7 +534,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         expand: false,
         builder: (context, controller) => Container(
           decoration: const BoxDecoration(
-            color: Color(0xFFF5F7FA),
+            color: _surface,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
@@ -546,11 +550,11 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                     Container(
                       padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4F46E5).withOpacity(0.10),
+                        color: _primary.withOpacity(0.10),
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: const Icon(Icons.visibility_outlined,
-                          color: Color(0xFF4F46E5), size: 20),
+                          color: _primary, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -676,7 +680,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: _surface,
       appBar: CustomAppBar(
         title: 'Online Exam',
         actions: [
@@ -690,27 +694,17 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           children: [
             _header(),
-            const SizedBox(height: 16),
-            _stepCard(
-              number: 1,
-              title: 'Choose the source',
-              child: _sourceSelector(),
-            ),
             const SizedBox(height: 12),
-            _stepCard(
-              number: 2,
-              title: 'Build the paper',
-              child: _planBuilder(),
-            ),
+            _sourceSection(),
+            const SizedBox(height: 12),
+            _buildSection(),
+            const SizedBox(height: 16),
           ],
         ),
       ),
-      // A bar rather than a floating button: a FAB sits over the list and gets
-      // clipped at the bottom of the viewport, and it vanishes whenever the
-      // paper is empty — which hides the one action the page exists for.
       bottomNavigationBar: _bottomBar(),
     );
   }
@@ -720,10 +714,10 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
 
   // ── header ───────────────────────────────────────────────────────────────
   Widget _header() => Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+            colors: [_primary, Color(0xFF7C3AED)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -818,11 +812,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         color: Colors.white.withOpacity(0.25),
       );
 
-  /// The persistent action bar.
-  ///
-  /// Always present, disabled until a paper is buildable, with a one-line
-  /// summary of what will start. A button that appears and disappears is harder
-  /// to trust than one that says why it is off.
+  // ── persistent action bar ────────────────────────────────────────────────
   Widget _bottomBar() {
     final ready = _canStart;
     return Container(
@@ -839,7 +829,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
           child: Row(
             children: [
               Expanded(
@@ -867,36 +857,36 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               if (ready) ...[
                 IconButton.filledTonal(
                   onPressed: _previewPaper,
                   tooltip: 'Preview the paper',
                   icon: const Icon(Icons.visibility_outlined, size: 20),
                   style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFFEEF2FF),
-                    foregroundColor: const Color(0xFF4F46E5),
-                    minimumSize: const Size(50, 50),
+                    backgroundColor: _primaryLight,
+                    foregroundColor: _primary,
+                    minimumSize: const Size(46, 46),
                   ),
                 ),
                 const SizedBox(width: 8),
               ],
               SizedBox(
-                height: 50,
+                height: 46,
                 child: ElevatedButton.icon(
                   onPressed: ready ? _startExam : null,
-                  icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
                   label: const Text('Start',
-                      style: TextStyle(
-                          fontSize: 15.5, fontWeight: FontWeight.w800)),
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
+                    backgroundColor: _primary,
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: const Color(0xFFE5E7EB),
                     disabledForegroundColor: Colors.black38,
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
                 ),
@@ -908,10 +898,317 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     );
   }
 
-  // ── step 1 ───────────────────────────────────────────────────────────────
-  Widget _stepCard({
-    required int number,
+  // ── source section ───────────────────────────────────────────────────────
+  Widget _sourceSection() => _card(
+        title: '1. Source',
+        subtitle: 'Class · Subject · Chapters',
+        icon: Icons.school_outlined,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Class and subject side-by-side to save vertical space.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label('Class'),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: _className,
+                        isExpanded: true,
+                        decoration: _field(),
+                        items: [
+                          for (final c in _classes)
+                            DropdownMenuItem(value: c, child: Text(c)),
+                        ],
+                        onChanged: (v) {
+                          _chapterReload?.cancel();
+                          setState(() {
+                            _className = v;
+                            _subject = null;
+                            _chapterList = const [];
+                            _chapters.clear();
+                            _questions = const [];
+                            _questionsRequested = false;
+                            _error = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label('Subject'),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        value: _subject,
+                        isExpanded: true,
+                        decoration: _field(),
+                        items: _className == null
+                            ? const []
+                            : [
+                                for (final s in _subjectsFor(_className!))
+                                  DropdownMenuItem(value: s, child: Text(s)),
+                              ],
+                        onChanged: _className == null
+                            ? null
+                            : (v) {
+                                _chapterReload?.cancel();
+                                setState(() {
+                                  _subject = v;
+                                  _chapters.clear();
+                                  _questions = const [];
+                                  _questionsRequested = false;
+                                  _error = null;
+                                });
+                                _loadChapters();
+                              },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label('Chapters'),
+                      if (_chapterScope.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(_chapterScope,
+                            style: TextStyle(
+                                fontSize: 11.5, color: Colors.grey.shade600)),
+                      ],
+                    ],
+                  ),
+                ),
+                if (_chapterList.isNotEmpty)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        if (_chapters.length == _chapterList.length) {
+                          _chapters.clear();
+                        } else {
+                          _chapters
+                            ..clear()
+                            ..addAll(_chapterList.map((c) => c.chapterNumber));
+                        }
+                      });
+                      _scheduleQuestionReload();
+                    },
+                    child: Text(_chapters.length == _chapterList.length
+                        ? 'Clear'
+                        : 'Select all'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            if (_loadingChapters)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: LinearProgressIndicator(),
+              )
+            else if (_chapterList.isEmpty)
+              Text(
+                _subject == null
+                    ? 'Pick a subject to see its chapters.'
+                    : 'This subject has no chapters yet — all questions will '
+                        'be used.',
+                style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in _chapterList)
+                    FilterChip(
+                      selected: _chapters.contains(c.chapterNumber),
+                      showCheckmark: false,
+                      selectedColor: _primary.withOpacity(0.12),
+                      side: BorderSide(
+                        color: _chapters.contains(c.chapterNumber)
+                            ? _primary
+                            : const Color(0xFFE0E0E0),
+                      ),
+                      label: Text(
+                        c.chapterName.isEmpty
+                            ? 'অধ্যায় ${c.chapterNumber}'
+                            : c.chapterName,
+                        style: const TextStyle(fontSize: 12.5),
+                      ),
+                      onSelected: (_) {
+                        setState(() => _chapters.contains(c.chapterNumber)
+                            ? _chapters.remove(c.chapterNumber)
+                            : _chapters.add(c.chapterNumber));
+                        _scheduleQuestionReload();
+                      },
+                    ),
+                ],
+              ),
+            const SizedBox(height: 14),
+            if (_error != null) _errorBox(_error!),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _className == null || _subject == null
+                    ? null
+                    : _loadQuestions,
+                icon: const Icon(Icons.download_rounded, size: 18),
+                label: Text(_loadingQuestions
+                    ? 'Loading…'
+                    : _questions.isEmpty
+                        ? 'Load questions'
+                        : 'Reload questions'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            // The bank returns every question type; this page can only sit MCQs.
+            if (_questions.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(Icons.info_outline_rounded,
+                      size: 15, color: Colors.grey.shade500),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${_questions.length} loaded, of which ${_mcqs.length} '
+                      '${_mcqs.length == 1 ? 'is an MCQ' : 'are MCQs'}'
+                      '${_questions.length == _mcqs.length ? '.' : ' — the rest are CQ and SQ, which this page cannot mark.'}',
+                      style: TextStyle(
+                          fontSize: 11.5, color: Colors.grey.shade600),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+
+  // ── build section ────────────────────────────────────────────────────────
+  Widget _buildSection() => _card(
+        title: '2. Build the paper',
+        subtitle: 'Count · Shuffle · Time',
+        icon: Icons.build_circle_outlined,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _modeSwitch(),
+            const SizedBox(height: 12),
+            if (_questions.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8FC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Load some questions first — the paper is built from what '
+                  'the bank returns.',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
+                ),
+              )
+            else if (_mcqs.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFED7AA)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        color: Color(0xFFEA580C), size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'No MCQ in this selection. The bank also holds CQ and '
+                        'SQ, which need writing out, so they are not offered '
+                        'here.',
+                        style:
+                            TextStyle(color: Color(0xFF9A3412), fontSize: 12.5),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Column(
+                children: [
+                  const SizedBox(height: 4),
+                  if (_pickMode == _PickMode.random)
+                    _randomControls()
+                  else
+                    _manualPicker(),
+                  const SizedBox(height: 8),
+                  // Applies to both modes.
+                  SwitchListTile(
+                    value: _shuffleOptions,
+                    onChanged: (v) => setState(() => _shuffleOptions = v),
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    dense: true,
+                    title: const Text('Shuffle answer options',
+                        style: TextStyle(
+                            fontSize: 13.5, fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                        _shuffleOptions
+                            ? 'The four choices come out in a different order '
+                                'each time.'
+                            : 'Choices stay in the order the bank lists them.',
+                        style: const TextStyle(fontSize: 11.5)),
+                  ),
+                  const Divider(height: 20),
+                  _durationRow(),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF5F3FF), Color(0xFFEEF2FF)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE0E7FF)),
+                    ),
+                    child: Row(
+                      children: [
+                        _stat('$_plannedCount', 'questions'),
+                        _statDivider(),
+                        _stat('$_plannedMarks', 'marks'),
+                        _statDivider(),
+                        _stat('$_plannedMinutes', 'minutes'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      );
+
+  Widget _card({
     required String title,
+    required String subtitle,
+    required IconData icon,
     required Widget child,
   }) =>
       Container(
@@ -926,19 +1223,29 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 12,
-                  backgroundColor: const Color(0xFF4F46E5),
-                  child: Text('$number',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800)),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _primaryLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: _primary, size: 20),
                 ),
-                const SizedBox(width: 9),
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w800)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 1),
+                      Text(subtitle,
+                          style:
+                              TextStyle(fontSize: 11.5, color: Colors.black45)),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -946,189 +1253,6 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
           ],
         ),
       );
-
-  Widget _sourceSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label('Class'),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: _className,
-          isExpanded: true,
-          decoration: _field(),
-          items: [
-            for (final c in _classes)
-              DropdownMenuItem(value: c, child: Text(c)),
-          ],
-          onChanged: (v) {
-            _chapterReload?.cancel();
-            setState(() {
-              _className = v;
-              _subject = null;
-              _chapterList = const [];
-              _chapters.clear();
-              _questions = const [];
-              _questionsRequested = false;
-              _error = null;
-            });
-          },
-        ),
-        const SizedBox(height: 14),
-        _label('Subject'),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: _subject,
-          isExpanded: true,
-          decoration: _field(),
-          items: _className == null
-              ? const []
-              : [
-                  for (final s in _subjectsFor(_className!))
-                    DropdownMenuItem(value: s, child: Text(s)),
-                ],
-          onChanged: _className == null
-              ? null
-              : (v) {
-                  _chapterReload?.cancel();
-                  setState(() {
-                    _subject = v;
-                    _chapters.clear();
-                    _questions = const [];
-                    _questionsRequested = false;
-                    _error = null;
-                  });
-                  _loadChapters();
-                },
-        ),
-        const SizedBox(height: 14),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _label('Chapters'),
-                  if (_chapterScope.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    // Says how much of the subject the paper draws on, so an
-                    // empty selection does not look like nothing was chosen.
-                    Text(_chapterScope,
-                        style: TextStyle(
-                            fontSize: 11.5, color: Colors.grey.shade600)),
-                  ],
-                ],
-              ),
-            ),
-            if (_chapterList.isNotEmpty)
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    if (_chapters.length == _chapterList.length) {
-                      _chapters.clear();
-                    } else {
-                      _chapters
-                        ..clear()
-                        ..addAll(_chapterList.map((c) => c.chapterNumber));
-                    }
-                  });
-                  _scheduleQuestionReload();
-                },
-                child: Text(_chapters.length == _chapterList.length
-                    ? 'Clear'
-                    : 'Select all'),
-              ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        if (_loadingChapters)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: LinearProgressIndicator(),
-          )
-        else if (_chapterList.isEmpty)
-          Text(
-            _subject == null
-                ? 'Pick a subject to see its chapters.'
-                : 'This subject has no chapters yet — all questions will be used.',
-            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
-          )
-        else
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final c in _chapterList)
-                FilterChip(
-                  selected: _chapters.contains(c.chapterNumber),
-                  showCheckmark: false,
-                  selectedColor: const Color(0xFF4F46E5).withOpacity(0.12),
-                  side: BorderSide(
-                    color: _chapters.contains(c.chapterNumber)
-                        ? const Color(0xFF4F46E5)
-                        : const Color(0xFFE0E0E0),
-                  ),
-                  label: Text(
-                    c.chapterName.isEmpty
-                        ? 'অধ্যায় ${c.chapterNumber}'
-                        : c.chapterName,
-                    style: const TextStyle(fontSize: 12.5),
-                  ),
-                  onSelected: (_) {
-                    setState(() => _chapters.contains(c.chapterNumber)
-                        ? _chapters.remove(c.chapterNumber)
-                        : _chapters.add(c.chapterNumber));
-                    _scheduleQuestionReload();
-                  },
-                ),
-            ],
-          ),
-        const SizedBox(height: 16),
-        if (_error != null) _errorBox(_error!),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed:
-                _className == null || _subject == null ? null : _loadQuestions,
-            icon: const Icon(Icons.download_rounded, size: 18),
-            label: Text(_loadingQuestions
-                ? 'Loading…'
-                : _questions.isEmpty
-                    ? 'Load questions'
-                    : 'Reload questions'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-        // The bank returns every question type; this page can only sit MCQs.
-        // Saying so here stops "185 loaded" from reading as "185 questions will
-        // be asked" — a paper of ten against a bank of 185 looks like a bug
-        // otherwise.
-        if (_questions.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Icon(Icons.info_outline_rounded,
-                  size: 15, color: Colors.grey.shade500),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  '${_questions.length} loaded, of which ${_mcqs.length} '
-                  '${_mcqs.length == 1 ? 'is an MCQ' : 'are MCQs'}'
-                  '${_questions.length == _mcqs.length ? '.' : ' — the rest are CQ and SQ, which this page cannot mark.'}',
-                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
 
   InputDecoration _field() => InputDecoration(
         isDense: true,
@@ -1171,11 +1295,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         ),
       );
 
-  /// Subjects per class.
-  ///
-  /// The bank does not expose a subject list — `getChapters` needs a subject
-  /// before it will answer — so this mirrors the paper generator. A subject
-  /// with no rows simply comes back empty rather than failing.
+  // ── subjects per class ───────────────────────────────────────────────────
   List<String> _subjectsFor(String className) => switch (className) {
         'Class 6' => const ['সাধারণ গণিত', 'বিজ্ঞান', 'বাংলা', 'English'],
         'Class 7' => const ['সাধারণ গণিত', 'বিজ্ঞান', 'বাংলা', 'English'],
@@ -1204,113 +1324,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
           ],
       };
 
-  // ── step 2 ───────────────────────────────────────────────────────────────
-  Widget _planBuilder() {
-    // The mode switch stays visible even with nothing loaded: it shows the
-    // shape of the form straight away, and it is the one control that does not
-    // depend on the bank having answered.
-    if (_questions.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _modeSwitch(),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF7F8FC),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              'Load some questions first — the paper is built from what the bank returns.',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (_mcqs.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF7ED),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFFED7AA)),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.info_outline, color: Color(0xFFEA580C), size: 20),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'No MCQ in this selection. The bank also holds CQ and SQ, which '
-                'need writing out, so they are not offered here.',
-                style: TextStyle(color: Color(0xFF9A3412), fontSize: 12.5),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        _modeSwitch(),
-        const SizedBox(height: 12),
-        if (_pickMode == _PickMode.random)
-          _randomControls()
-        else
-          _manualPicker(),
-        const SizedBox(height: 4),
-        // Applies to both modes: how the questions were chosen says nothing
-        // about whether the choices under each one should be reordered.
-        SwitchListTile(
-          value: _shuffleOptions,
-          onChanged: (v) => setState(() => _shuffleOptions = v),
-          contentPadding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-          dense: true,
-          title: const Text('Shuffle answer options',
-              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-          subtitle: Text(
-              _shuffleOptions
-                  ? 'The four choices come out in a different order each time.'
-                  : 'Choices stay in the order the bank lists them.',
-              style: const TextStyle(fontSize: 11.5)),
-        ),
-        const Divider(height: 22),
-        _durationRow(),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFF5F3FF), Color(0xFFEEF2FF)],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE0E7FF)),
-          ),
-          child: Row(
-            children: [
-              _stat('$_plannedCount', 'questions'),
-              _statDivider(),
-              _stat('$_plannedMarks', 'marks'),
-              _statDivider(),
-              _stat('$_plannedMinutes', 'minutes'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _statDivider() => Container(
-        width: 1,
-        height: 30,
-        color: const Color(0xFFDDD6FE),
-      );
-
+  // ── mode switch ──────────────────────────────────────────────────────────
   Widget _modeSwitch() => Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
@@ -1325,7 +1339,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                   onTap: () => setState(() => _pickMode = mode),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color:
                           _pickMode == mode ? Colors.white : Colors.transparent,
@@ -1348,9 +1362,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                               ? Icons.shuffle_rounded
                               : Icons.checklist_rounded,
                           size: 16,
-                          color: _pickMode == mode
-                              ? const Color(0xFF4F46E5)
-                              : Colors.black45,
+                          color: _pickMode == mode ? _primary : Colors.black45,
                         ),
                         const SizedBox(width: 7),
                         Text(
@@ -1358,9 +1370,8 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w700,
-                            color: _pickMode == mode
-                                ? const Color(0xFF4F46E5)
-                                : Colors.black54,
+                            color:
+                                _pickMode == mode ? _primary : Colors.black54,
                           ),
                         ),
                       ],
@@ -1395,26 +1406,23 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                       style: const TextStyle(fontSize: 11.5)),
                 ),
               ),
-              const SizedBox(width: 6),
-              // Draws another set without changing the count. With shuffling
-              // off there is nothing to redraw, so it stays disabled.
+              const SizedBox(width: 8),
               IconButton(
                 onPressed: _shuffle && _plannedCount > 0 ? _redraw : null,
                 tooltip: 'Draw a different set',
                 icon: const Icon(Icons.refresh_rounded, size: 20),
                 style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFFEEF2FF),
-                  foregroundColor: const Color(0xFF4F46E5),
+                  backgroundColor: _primaryLight,
+                  foregroundColor: _primary,
                   disabledBackgroundColor: const Color(0xFFF3F4F6),
                   disabledForegroundColor: Colors.black26,
-                  minimumSize: const Size(40, 40),
+                  minimumSize: const Size(42, 42),
                 ),
               ),
             ],
           ),
           // Quick presets beat making someone tap + to reach 30. Only sizes the
-          // bank can actually fill are offered, so a preset never silently
-          // clamps to something else.
+          // bank can actually fill are offered.
           if (_mcqs.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -1433,12 +1441,12 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: _mcqCount == (n == 0 ? _mcqs.length : n)
-                                    ? const Color(0xFF4F46E5).withOpacity(0.10)
+                                    ? _primary.withOpacity(0.10)
                                     : Colors.white,
                                 border: Border.all(
                                   color:
                                       _mcqCount == (n == 0 ? _mcqs.length : n)
-                                          ? const Color(0xFF4F46E5)
+                                          ? _primary
                                           : const Color(0xFFE0E0E0),
                                 ),
                                 borderRadius: BorderRadius.circular(9),
@@ -1449,7 +1457,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                                       fontWeight: FontWeight.w700,
                                       color: _mcqCount ==
                                               (n == 0 ? _mcqs.length : n)
-                                          ? const Color(0xFF4F46E5)
+                                          ? _primary
                                           : Colors.black87)),
                             ),
                           ),
@@ -1462,12 +1470,6 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         ],
       );
 
-  /// Manual mode: the whole paper at a glance.
-  ///
-  /// The picked questions used to collapse into a one-line summary, so the only
-  /// way to see what the paper would ask was to reopen the full-height sheet.
-  /// Every picked question is now listed here, compactly and in paper order,
-  /// with the sheet still available for bulk work.
   Widget _manualPicker() {
     final picked = _selected;
     final chapters = picked.map((q) => q.chapterNumber).toSet().length;
@@ -1480,11 +1482,11 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: const Color(0xFF4F46E5).withOpacity(0.10),
+                color: _primary.withOpacity(0.10),
                 borderRadius: BorderRadius.circular(9),
               ),
               child: const Icon(Icons.checklist_rounded,
-                  color: Color(0xFF4F46E5), size: 18),
+                  color: _primary, size: 18),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1527,7 +1529,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         if (picked.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
             decoration: BoxDecoration(
               color: const Color(0xFFF7F8FC),
               borderRadius: BorderRadius.circular(12),
@@ -1646,8 +1648,6 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   }
 
   Widget _durationRow() {
-    // Matches the derived default in `_plannedMinutes`, so tapping + starts
-    // from the number the student already sees.
     final derived = max(3, _plannedCount);
     final auto = _customMinutes == null;
     final minutes = '$_plannedMinutes min';
@@ -1689,7 +1689,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
             style: IconButton.styleFrom(
               backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF4F46E5),
+              foregroundColor: _primary,
               side: const BorderSide(color: Color(0xFFE0E7FF)),
             ),
           ),
@@ -1701,9 +1701,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF4F46E5)),
+                  fontSize: 12.5, fontWeight: FontWeight.w800, color: _primary),
             ),
           ),
           IconButton(
@@ -1716,7 +1714,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
             style: IconButton.styleFrom(
               backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF4F46E5),
+              foregroundColor: _primary,
               side: const BorderSide(color: Color(0xFFE0E7FF)),
             ),
           ),
@@ -1726,7 +1724,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               child: TextButton(
                 onPressed: () => setState(() => _customMinutes = null),
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF4F46E5),
+                  foregroundColor: _primary,
                   padding: EdgeInsets.zero,
                   minimumSize: const Size(42, 34),
                 ),
@@ -1738,6 +1736,12 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     );
   }
 
+  Widget _statDivider() => Container(
+        width: 1,
+        height: 30,
+        color: const Color(0xFFDDD6FE),
+      );
+
   Widget _stat(String value, String label) => Expanded(
         child: Column(
           children: [
@@ -1745,7 +1749,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                 style: const TextStyle(
                     fontSize: 21,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF4F46E5),
+                    color: _primary,
                     height: 1.1)),
             const SizedBox(height: 2),
             Text(label,
@@ -1773,12 +1777,12 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               padding: const EdgeInsets.symmetric(vertical: 6),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFF4F46E5).withOpacity(0.08),
+                color: _primary.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(label,
                   style: const TextStyle(
-                      color: Color(0xFF4F46E5),
+                      color: _primary,
                       fontWeight: FontWeight.w800,
                       fontSize: 12.5)),
             ),
@@ -1809,7 +1813,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               style: IconButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF4F46E5),
+                foregroundColor: _primary,
                 side: const BorderSide(color: Color(0xFFE0E7FF)),
               ),
             ),
@@ -1831,7 +1835,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               style: IconButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF4F46E5),
+                foregroundColor: _primary,
                 side: const BorderSide(color: Color(0xFFE0E7FF)),
               ),
             ),
@@ -2066,11 +2070,10 @@ class _QuestionPickerState extends State<QuestionPicker> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF4F46E5) : Colors.white,
+            color: selected ? Color(0xFF4F46E5) : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color:
-                  selected ? const Color(0xFF4F46E5) : const Color(0xFFE5E7EB),
+              color: selected ? Color(0xFF4F46E5) : const Color(0xFFE5E7EB),
             ),
           ),
           child: Text(
@@ -2093,23 +2096,23 @@ class _QuestionPickerState extends State<QuestionPicker> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: on ? const Color(0xFF4F46E5).withOpacity(0.10) : Colors.white,
+          color: on ? Color(0xFF4F46E5).withOpacity(0.10) : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-              color: on ? const Color(0xFF4F46E5) : const Color(0xFFE5E7EB)),
+              color: on ? Color(0xFF4F46E5) : const Color(0xFFE5E7EB)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(on ? Icons.check_circle : Icons.circle_outlined,
-                size: 14, color: on ? const Color(0xFF4F46E5) : Colors.black38),
+                size: 14, color: on ? Color(0xFF4F46E5) : Colors.black38),
             const SizedBox(width: 6),
             Text(
               'Picked only (${_picked.length})',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: on ? const Color(0xFF4F46E5) : Colors.black54,
+                color: on ? Color(0xFF4F46E5) : Colors.black54,
               ),
             ),
           ],
@@ -2150,10 +2153,10 @@ class _QuestionPickerState extends State<QuestionPicker> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: on ? const Color(0xFF4F46E5).withOpacity(0.05) : Colors.white,
+        color: on ? Color(0xFF4F46E5).withOpacity(0.05) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: on ? const Color(0xFF4F46E5) : const Color(0xFFE5E7EB),
+          color: on ? Color(0xFF4F46E5) : const Color(0xFFE5E7EB),
           width: on ? 1.6 : 1,
         ),
       ),
@@ -2172,7 +2175,7 @@ class _QuestionPickerState extends State<QuestionPicker> {
                         ? Icons.check_box_rounded
                         : Icons.check_box_outline_blank_rounded,
                     size: 20,
-                    color: on ? const Color(0xFF4F46E5) : Colors.black26,
+                    color: on ? Color(0xFF4F46E5) : Colors.black26,
                   ),
                   const SizedBox(width: 9),
                   Expanded(
@@ -2321,7 +2324,7 @@ class _QuestionPickerState extends State<QuestionPicker> {
                   label:
                       Text(_picked.isEmpty ? 'Done' : 'Use ${_picked.length}'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4F46E5),
+                    backgroundColor: Color(0xFF4F46E5),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     elevation: 0,
@@ -2349,7 +2352,7 @@ class _QuestionIndexPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
         decoration: BoxDecoration(
-          color: const Color(0xFF4F46E5),
+          color: Color(0xFF4F46E5),
           borderRadius: BorderRadius.circular(7),
         ),
         child: Text('Q$number',

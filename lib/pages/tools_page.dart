@@ -14,6 +14,7 @@ import '../widgets/app_drawer.dart';
 import 'package:pi_qbank/pages/cloud_tests_page.dart';
 import 'package:pi_qbank/pages/reading_progress_page.dart';
 import 'package:pi_qbank/pages/study_routine_page.dart';
+import 'package:pi_qbank/pages/calculator_page.dart';
 import 'package:pi_qbank/models/tool_item.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -214,6 +215,20 @@ class _ToolsPageState extends State<ToolsPage> {
             context,
             MaterialPageRoute(
               builder: (context) => const CloudTestsPage(),
+            ),
+          );
+        },
+      ),
+      ToolItem(
+        icon: Icons.calculate_outlined,
+        title: 'Calculator',
+        description: 'Scientific and standard calculator',
+        accentColor: Colors.amber,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const CalculatorPage(),
             ),
           );
         },
