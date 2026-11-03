@@ -2412,9 +2412,16 @@ $paperFontBlock    :root {
       line-height: 1;
       box-sizing: border-box;
     }
+    /* The answer sheet belongs to the paper, not to a page of its own. It starts
+       where the last question leaves off, and only moves down when the room
+       left on the page cannot hold what comes next. The old
+       `break-before: page` forced a fresh page even when the questions ended
+       halfway down a sheet, which is what put the MCQ উত্তরপত্র on a page by
+       itself. Rows stay whole, but the grid may still break between them so a
+       short paper does not leave the rest of the page blank. */
     .mcq-answer-sheet {
-      break-before: page;
-      page-break-before: always;
+      break-before: auto;
+      page-break-before: auto;
       margin-top: 18pt;
       border-top: 1px solid var(--border);
       padding-top: 12pt;
@@ -2423,6 +2430,8 @@ $paperFontBlock    :root {
       text-align: center;
       font-size: ${_cssFontSize(18, fontStep)};
       font-weight: 700;
+      break-after: avoid;
+      page-break-after: avoid;
     }
     .omr-grid {
       display: grid;
@@ -2439,6 +2448,8 @@ $paperFontBlock    :root {
       gap: 8px;
       min-height: 28px;
       font-size: ${_cssFontSize(13, fontStep)};
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .omr-number {
       width: 24px;
@@ -3947,10 +3958,11 @@ $paperFontBlock    :root {
       if (wrapMcq) buffer.write('    </div>\n');
     }
 
-    buffer.write('''
-    </div>
-''');
-
+    // The answer sheet and the foot band belong to this set: they follow the
+    // questions that set asks, and they travel with the set when a two-set
+    // paper is split over two sheets. Leaving them outside `.paper-set` put
+    // every set's উত্তরপত্র in the first sheet — both answer sheets could print
+    // together before the second set had even started.
     if (questions.any((q) => q.isMcq)) {
       _writeHtmlMcqAnswerSheet(
         buffer,
@@ -3962,6 +3974,9 @@ $paperFontBlock    :root {
           buffer, mcqAnswerSheetStyle, manualAnswerCount);
     }
     if (footerBand.isNotEmpty) buffer.write(footerBand);
+    buffer.write('''
+    </div>
+''');
   }
 
   static void _writeHtmlManualMcqAnswerSheet(

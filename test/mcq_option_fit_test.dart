@@ -281,6 +281,25 @@ void main() {
           contains('data-answer-style="serialAnswer" style="display:none;"'));
     });
 
+    test('the answer sheet begins where the questions end', () {
+      final html = sheetHtml(answerSheet: McqAnswerSheetStyle.omr);
+      final css = cssOf(html);
+
+      // A forced page break used to push the উত্তরপত্র onto a page of its own
+      // even when the last question ended halfway down the sheet. It should
+      // flow on from the question block and only move when the room runs out.
+      final sheet = rule(css, '.mcq-answer-sheet');
+      expect(decl(sheet, 'break-before'), anyOf(isNull, 'auto'));
+      expect(decl(sheet, 'page-break-before'), anyOf(isNull, 'auto'));
+      expect(decl(sheet, 'break-before'), isNot('page'));
+      expect(decl(sheet, 'page-break-before'), isNot('always'));
+
+      // If it does run over a page boundary, at least keep each OMR row whole
+      // and stop a title from being stranded at the foot of a page.
+      expect(decl(rule(css, '.omr-row'), 'break-inside'), 'avoid');
+      expect(decl(rule(css, '.answer-sheet-title'), 'break-after'), 'avoid');
+    });
+
     test('the optional serial answer sheet uses repeated number-answer pairs',
         () {
       final html = sheetHtml(answerSheet: McqAnswerSheetStyle.serialAnswer);

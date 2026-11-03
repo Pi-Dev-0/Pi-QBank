@@ -60,6 +60,7 @@ String generate(
   QuestionLayout cqLayout = QuestionLayout.single,
   QuestionLayout rqLayout = QuestionLayout.single,
   QuestionLayout mcqLayout = QuestionLayout.doubleColumn,
+  McqAnswerSheetStyle answerSheet = McqAnswerSheetStyle.none,
 }) =>
     HighSchoolExportService.generateHtml(
       schoolName: 'S',
@@ -74,6 +75,7 @@ String generate(
       cqLayout: cqLayout,
       rqLayout: rqLayout,
       mcqLayout: mcqLayout,
+      mcqAnswerSheetStyle: answerSheet,
     );
 
 /// One entry per printed sheet, in the order they appear.
@@ -190,6 +192,36 @@ void main() {
       expect(sheets(html).length, 1);
       expect(sets(html).length, 1);
       expect(sets(html).single, isNot(contains('সেট:')));
+    });
+
+    test('each set keeps its own answer sheet', () {
+      final a = mcqTest('ক-এর প্রশ্ন')..setLabel = 'ক';
+      final b = mcqTest('খ-এর প্রশ্ন')..setLabel = 'খ';
+
+      final printed = sets(generate(
+        [a, b],
+        setLabels: const ['ক', 'খ'],
+        answerSheet: McqAnswerSheetStyle.omr,
+      ));
+
+      // The উত্তরপত্র is part of the set it answers, not a sheet-level
+      // afterthought: when the pair is split over two pages, the second set
+      // must carry its own answer sheet with it instead of leaving it behind
+      // in the first sheet.
+      expect(printed[0], contains('class="mcq-answer-sheet"'));
+      expect(printed[1], contains('class="mcq-answer-sheet"'));
+      expect(occurrences(printed[0], 'class="mcq-answer-sheet"'), 1);
+      expect(occurrences(printed[1], 'class="mcq-answer-sheet"'), 1);
+
+      // And it follows the set's questions rather than preceding them.
+      expect(
+        printed[0].indexOf('class="mcq-answer-sheet"'),
+        greaterThan(printed[0].indexOf('ক-এর প্রশ্ন')),
+      );
+      expect(
+        printed[1].indexOf('class="mcq-answer-sheet"'),
+        greaterThan(printed[1].indexOf('খ-এর প্রশ্ন')),
+      );
     });
 
     test('the split between sets is decided by what fits, not in the markup',
