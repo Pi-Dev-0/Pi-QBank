@@ -241,6 +241,13 @@ class _HighSchoolQPaperGeneratorPageState
   /// Number of blank OMR/answer rows when no MCQ questions are selected.
   int _manualAnswerItemCount = 30;
 
+  /// How many columns the OMR bubble sheet prints.
+  ///
+  /// The rows are split evenly across these columns. Four is the old fixed
+  /// layout; the reader can narrow it to a single column for a large-print
+  /// sheet.
+  int _omrColumns = 4;
+
   /// How far every text size in the paper is moved from the size it was tuned
   /// at — one point per step.
   ///
@@ -392,6 +399,7 @@ class _HighSchoolQPaperGeneratorPageState
       _editingMode ||
       _imageSize != StemImageSize.small ||
       _mcqAnswerSheetStyle != McqAnswerSheetStyle.none ||
+      _omrColumns != 4 ||
       _detectRepeated;
 
   // ── Animation ─────────────────────────────────────────────────────────────
@@ -1260,6 +1268,7 @@ class _HighSchoolQPaperGeneratorPageState
         rqLayout: _rqLayout,
         mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
         manualAnswerCount: _manualAnswerItemCount,
+        omrColumns: _omrColumns,
         fontStep: _fontStep,
         font: _paperFont,
         cqInstruction: _cqInstruction,
@@ -1317,6 +1326,7 @@ class _HighSchoolQPaperGeneratorPageState
           rqLayout: _rqLayout,
           mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
           manualAnswerCount: _manualAnswerItemCount,
+          omrColumns: _omrColumns,
           fontStep: _fontStep,
           font: _paperFont,
           settingsBuilder: (context, onChanged) => _MobileSettingsSheet(
@@ -1356,6 +1366,7 @@ class _HighSchoolQPaperGeneratorPageState
       rqLayout: _rqLayout,
       mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
       manualAnswerCount: _manualAnswerItemCount,
+      omrColumns: _omrColumns,
       fontStep: _fontStep,
       font: _paperFont,
       cqInstruction: _cqInstruction,
@@ -2056,6 +2067,8 @@ class _HighSchoolQPaperGeneratorPageState
       _mcqLayout.name,
       _rqLayout.name,
       _mcqAnswerSheetStyle.name,
+      _manualAnswerItemCount,
+      _omrColumns,
       _fontStep,
       _paperFont.name,
       _paperFontsReady,
@@ -2086,6 +2099,7 @@ class _HighSchoolQPaperGeneratorPageState
         rqLayout: _rqLayout,
         mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
         manualAnswerCount: _manualAnswerItemCount,
+        omrColumns: _omrColumns,
         fontStep: _fontStep,
         font: _paperFont,
         desktopMode: true,
@@ -3079,8 +3093,16 @@ class _HighSchoolQPaperGeneratorPageState
             }
           },
         ),
+        if (_mcqAnswerSheetStyle == McqAnswerSheetStyle.omr)
+          _railSegmented<int>(
+            label: 'OMR কলাম',
+            value: _omrColumns,
+            items: const [1, 2, 3, 4],
+            itemLabel: (columns) => '$columns',
+            onChanged: (value) => setState(() => _omrColumns = value),
+          ),
         if (_selectedMcqs.isEmpty &&
-            _mcqAnswerSheetStyle == McqAnswerSheetStyle.omr)
+            _mcqAnswerSheetStyle != McqAnswerSheetStyle.none)
           _buildManualAnswerCountField(),
         _railSubheading('সহায়ক টুলস'),
         _railSwitch('পুনরাবৃত্ত প্রশ্ন শনাক্ত', _detectRepeated,
@@ -3451,7 +3473,7 @@ class _HighSchoolQPaperGeneratorPageState
     );
   }
 
-  Widget _buildManualAnswerCountField() {
+  Widget _buildManualAnswerCountField({VoidCallback? onChanged}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 5),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -3482,6 +3504,7 @@ class _HighSchoolQPaperGeneratorPageState
                 final count = int.tryParse(value);
                 if (count != null) {
                   setState(() => _manualAnswerItemCount = count.clamp(1, 200));
+                  onChanged?.call();
                 }
               },
             ),
@@ -7412,6 +7435,8 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
         .._editingMode = false
         .._imageSize = StemImageSize.small
         .._mcqAnswerSheetStyle = McqAnswerSheetStyle.none
+        .._manualAnswerItemCount = 30
+        .._omrColumns = 4
         .._detectRepeated = false;
     });
   }
@@ -8160,6 +8185,29 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
               ),
           ],
         ),
+        if (page._mcqAnswerSheetStyle == McqAnswerSheetStyle.omr) ...[
+          const SizedBox(height: 14),
+          _fieldLabel('OMR কলাম'),
+          const SizedBox(height: 7),
+          _segmented<int>(
+            values: const [1, 2, 3, 4],
+            value: page._omrColumns,
+            label: (columns) => '$columns',
+            onChanged: (v) => _apply(() => page._omrColumns = v),
+          ),
+        ],
+        // A paper without MCQs has no answers to count, so the OMR sheet asks
+        // the reader how many rows to print. The preview toolbar carried this
+        // field, but the phone settings sheet did not — which is exactly where
+        // the live preview is tuned on Android.
+        if (page._selectedMcqs.isEmpty &&
+            page._mcqAnswerSheetStyle != McqAnswerSheetStyle.none) ...[
+          const SizedBox(height: 10),
+          page._buildManualAnswerCountField(onChanged: () {
+            widget.onChanged?.call();
+            setState(() {});
+          }),
+        ],
       ],
     );
   }

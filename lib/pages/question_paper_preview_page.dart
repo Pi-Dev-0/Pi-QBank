@@ -40,6 +40,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.rqLayout = QuestionLayout.single,
     this.mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
     this.manualAnswerCount = 30,
+    this.omrColumns = 4,
     this.fontStep = 0,
     this.font = PaperFont.kalpurush,
     this.printSettings = const PaperPrintSettings(),
@@ -74,6 +75,9 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   final McqAnswerSheetStyle mcqAnswerSheetStyle;
 
   final int manualAnswerCount;
+
+  /// How many columns the OMR bubble sheet prints.
+  final int omrColumns;
 
   /// How far every text size in the paper is moved from its tuned size, in
   /// points; see the font-size control on the generator page.
@@ -160,6 +164,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   late QuestionLayout _rqLayout;
   late McqAnswerSheetStyle _answerSheet;
   late int _answerCount;
+  late int _answerColumns;
   late double _fontStep;
   late PaperFont _font;
   late PaperPrintSettings _printSettings;
@@ -184,6 +189,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         rqLayout: _rqLayout,
         mcqAnswerSheetStyle: _answerSheet,
         manualAnswerCount: _answerCount,
+        omrColumns: _answerColumns,
         fontStep: _fontStep,
         font: _font,
         printSettings: _printSettings,
@@ -202,6 +208,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     _rqLayout = widget.rqLayout;
     _answerSheet = widget.mcqAnswerSheetStyle;
     _answerCount = widget.manualAnswerCount;
+    _answerColumns = widget.omrColumns;
     _fontStep = widget.fontStep;
     _font = widget.font;
     _printSettings = widget.printSettings;
@@ -623,6 +630,9 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
                   'RQ কলাম', widget.rqLayout.label, Icons.subject_rounded),
               _previewSettingRow('MCQ উত্তরপত্র',
                   widget.mcqAnswerSheetStyle.label, Icons.fact_check_outlined),
+              if (widget.mcqAnswerSheetStyle == McqAnswerSheetStyle.omr)
+                _previewSettingRow('OMR কলাম', '${widget.omrColumns}',
+                    Icons.grid_view_rounded),
               const SizedBox(height: 8),
               const Text('পরিবর্তন করতে আগের পাতায় ফিরে যান।',
                   style: TextStyle(fontSize: 11.5, color: Colors.black45)),
@@ -830,6 +840,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
             Text(
                 'CQ: ${_cqLayout.label} · MCQ: ${_mcqLayout.label} · RQ: ${_rqLayout.label}'),
             Text('MCQ উত্তরপত্র: ${_answerSheet.label}'),
+            if (_answerSheet == McqAnswerSheetStyle.omr)
+              Text('OMR কলাম: $_answerColumns'),
             const SizedBox(height: 8),
             const Text('সম্পূর্ণ সেটিংস বদলাতে generator page ব্যবহার করুন।',
                 style: TextStyle(fontSize: 11.5, color: Colors.black45)),

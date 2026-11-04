@@ -1589,6 +1589,11 @@ class HighSchoolExportService {
     QuestionLayout rqLayout = QuestionLayout.single,
     McqAnswerSheetStyle mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
     int manualAnswerCount = 30,
+
+    /// How many OMR answer columns the bubble sheet uses. The number of rows
+    /// follows from the questions (or [manualAnswerCount]), so this only
+    /// changes how many of them sit side by side.
+    int omrColumns = 4,
     double fontStep = 0,
     Map<String, Uint8List>? imageBytes,
 
@@ -2569,6 +2574,12 @@ $paperFontBlock    :root {
           <button class="column-choice ${rqLayout.mcqColumns == 2 ? 'active' : ''}" data-column-kind="rq" data-columns="2" title="RQ দুই কলাম"><i></i><i></i></button>
           <button class="column-choice ${rqLayout.mcqColumns == 3 ? 'active' : ''}" data-column-kind="rq" data-columns="3" title="RQ তিন কলাম"><i></i><i></i><i></i></button>
         </div></div>
+        <div class="column-control"><span class="toolbar-group-label">OMR</span><div class="column-buttons">
+          <button class="column-choice ${omrColumns == 1 ? 'active' : ''}" data-column-kind="omr" data-columns="1" title="OMR এক কলাম"><i></i></button>
+          <button class="column-choice ${omrColumns == 2 ? 'active' : ''}" data-column-kind="omr" data-columns="2" title="OMR দুই কলাম"><i></i><i></i></button>
+          <button class="column-choice ${omrColumns == 3 ? 'active' : ''}" data-column-kind="omr" data-columns="3" title="OMR তিন কলাম"><i></i><i></i><i></i></button>
+          <button class="column-choice ${omrColumns == 4 ? 'active' : ''}" data-column-kind="omr" data-columns="4" title="OMR চার কলাম"><i></i><i></i><i></i><i></i></button>
+        </div></div>
       </div>
       <button class="btn btn-outline quick-fix-toggle" id="quickFixBtn" aria-expanded="false">⚡ Quick Fix</button>
       <div class="quick-fix-panel">
@@ -2656,6 +2667,7 @@ $paperFontBlock    :root {
         cqInstruction: cqInstruction,
         mcqAnswerSheetStyle: mcqAnswerSheetStyle,
         manualAnswerCount: manualAnswerCount,
+        omrColumns: omrColumns,
       );
     }
 
@@ -3206,41 +3218,61 @@ $paperFontBlock    :root {
         relayoutSoon();
       }
 
+      function renderOmrGrid(grid) {
+        if (!grid) return;
+        var count = Math.max(1, Math.min(200, Number(grid.getAttribute('data-omr-count')) || 1));
+        var columnCount = Math.max(1, Math.min(4, Number(grid.getAttribute('data-omr-columns')) || 4));
+        var letters = ['ক', 'খ', 'গ', 'ঘ'];
+        var columns = [];
+        for (var c = 0; c < columnCount; c++) columns.push([]);
+        for (var n = 1; n <= count; n++) {
+          // The same split as the export: a row's column comes from its
+          // position, so the columns finish level instead of leaving the last
+          // one empty.
+          var index = Math.min(columnCount - 1,
+              Math.floor((n - 1) * columnCount / count));
+          columns[index].push(n);
+        }
+        columns = columns.filter(function (column) { return column.length > 0; });
+        var usedColumns = columns.length < 1 ? 1 : columns.length;
+        grid.style.gridTemplateColumns = 'repeat(' + usedColumns + ', 1fr)';
+        grid.innerHTML = '';
+        for (var c = 0; c < columns.length; c++) {
+          var column = document.createElement('div');
+          column.className = 'omr-column';
+          for (var r = 0; r < columns[c].length; r++) {
+            var row = document.createElement('div');
+            row.className = 'omr-row';
+            row.innerHTML = '<span class="omr-number">' + columns[c][r] + '</span>' +
+                letters.map(function (letter) {
+                  return '<span class="omr-bubble">' + letter + '</span>';
+                }).join('');
+            column.appendChild(row);
+          }
+          grid.appendChild(column);
+        }
+      }
+
       function rebuildManualAnswerSheet() {
         var countInput = document.getElementById('answerItemCount');
         var count = countInput ? Math.max(1, Math.min(200, Number(countInput.value) || 1)) : 0;
         var sheets = document.querySelectorAll('[data-manual-answer-sheet="true"]');
-        var letters = ['ক', 'খ', 'গ', 'ঘ'];
         for (var s = 0; s < sheets.length; s++) {
           var sheet = sheets[s];
           var omrGrid = sheet.querySelector('.omr-grid');
+          // A toolbar-less studio has no number field. Keep the count the
+          // sheet was generated with rather than blanking the grid.
+          var sheetCount = count ||
+              (omrGrid ? Number(omrGrid.getAttribute('data-omr-count')) : 0) || 1;
           if (omrGrid) {
-            omrGrid.innerHTML = '';
-            var columns = [[], [], [], []];
-            var rowsPerColumn = Math.ceil(count / 4);
-            for (var n = 1; n <= count; n++) {
-              columns[Math.min(3, Math.floor((n - 1) / rowsPerColumn))].push(n);
-            }
-            for (var c = 0; c < columns.length; c++) {
-              var column = document.createElement('div');
-              column.className = 'omr-column';
-              for (var r = 0; r < columns[c].length; r++) {
-                var row = document.createElement('div');
-                row.className = 'omr-row';
-                row.innerHTML = '<span class="omr-number">' + columns[c][r] + '</span>' +
-                    letters.map(function (letter) {
-                      return '<span class="omr-bubble">' + letter + '</span>';
-                    }).join('');
-                column.appendChild(row);
-              }
-              omrGrid.appendChild(column);
-            }
+            omrGrid.setAttribute('data-omr-count', String(sheetCount));
+            renderOmrGrid(omrGrid);
           }
           var serial = sheet.querySelector('.answer-sheet-serial');
           if (serial) {
             serial.innerHTML = '';
-            for (var start = 1; start <= count; start += 15) {
-              var end = Math.min(count, start + 14);
+            for (var start = 1; start <= sheetCount; start += 15) {
+              var end = Math.min(sheetCount, start + 14);
               var table = document.createElement('table');
               table.className = 'serial-answer-table';
               table.style.width = ((end - start + 1) * 6.5) + 'mm';
@@ -3275,6 +3307,16 @@ $paperFontBlock    :root {
       }
 
       function setPreviewColumns(kind, value) {
+        if (kind === 'omr') {
+          var omrColumns = Math.max(1, Math.min(4, Number(value) || 1));
+          var omrGrids = document.querySelectorAll('.omr-grid');
+          for (var g = 0; g < omrGrids.length; g++) {
+            omrGrids[g].setAttribute('data-omr-columns', String(omrColumns));
+            renderOmrGrid(omrGrids[g]);
+          }
+          relayoutSoon();
+          return;
+        }
         var count = Math.max(1, Math.min(3, Number(value) || 1));
         var grids = document.querySelectorAll('.' + kind + '-grid');
         for (var i = 0; i < grids.length; i++) {
@@ -3635,6 +3677,11 @@ $paperFontBlock    :root {
       }
 
       function run() {
+        // Paint the answer sheet from the settings the file was generated
+        // with. The markup already carries it, but re-running the builder here
+        // keeps the OMR columns in step when the toolbar is hidden.
+        var initialAnswerSheet = document.getElementById('previewAnswerSheet');
+        if (initialAnswerSheet) setPreviewAnswerSheet(initialAnswerSheet.value);
         // Fonts and images decide how wide a line is and how tall a set is, so
         // wait for both before measuring anything.
         if (document.fonts && document.fonts.ready) {
@@ -3829,6 +3876,7 @@ $paperFontBlock    :root {
     String cqInstruction = '',
     required McqAnswerSheetStyle mcqAnswerSheetStyle,
     required int manualAnswerCount,
+    required int omrColumns,
   }) {
     final logo = _print.showLogo && _print.logoDataUri.trim().isNotEmpty
         ? '<img class="brand-logo" src="${_print.logoDataUri}" alt="লোগো">'
@@ -3968,10 +4016,11 @@ $paperFontBlock    :root {
         buffer,
         questions.where((q) => q.isMcq).toList(),
         mcqAnswerSheetStyle,
+        omrColumns,
       );
     } else {
       _writeHtmlManualMcqAnswerSheet(
-          buffer, mcqAnswerSheetStyle, manualAnswerCount);
+          buffer, mcqAnswerSheetStyle, manualAnswerCount, omrColumns);
     }
     if (footerBand.isNotEmpty) buffer.write(footerBand);
     buffer.write('''
@@ -3979,20 +4028,46 @@ $paperFontBlock    :root {
 ''');
   }
 
-  static void _writeHtmlManualMcqAnswerSheet(
-      StringBuffer buffer, McqAnswerSheetStyle style, int itemCount) {
+  /// Split [count] answer rows into [columns] contiguous columns.
+  ///
+  /// The split is taken from each row's position rather than from
+  /// `ceil(count / columns)`, so the columns finish level: five rows over four
+  /// columns give 2·1·1·1, not 2·2·1·0. The preview script mirrors this exactly,
+  /// so a column change made in the toolbar reflows the same way the export
+  /// prints.
+  static List<List<int>> _splitOmrRows(int count, int columns) {
+    final total = columns.clamp(1, 4);
+    final grouped = List.generate(total, (_) => <int>[]);
+    if (count < 1) return grouped;
+    for (var number = 1; number <= count; number++) {
+      final index = (((number - 1) * total) ~/ count).clamp(0, total - 1);
+      grouped[index].add(number);
+    }
+    return grouped;
+  }
+
+  static void _writeHtmlManualMcqAnswerSheet(StringBuffer buffer,
+      McqAnswerSheetStyle style, int itemCount, int columnCount) {
     final visible = style == McqAnswerSheetStyle.none ? 'display:none;' : '';
     final omrVisible = style == McqAnswerSheetStyle.omr ? '' : 'display:none;';
     final serialVisible =
         style == McqAnswerSheetStyle.serialAnswer ? '' : 'display:none;';
     final count = itemCount.clamp(1, 200);
+    final columns = columnCount.clamp(1, 4);
     const letters = ['ক', 'খ', 'গ', 'ঘ'];
+    final grouped =
+        _splitOmrRows(count, columns).where((column) => column.isNotEmpty);
+    final gridColumns = grouped.isEmpty ? 1 : grouped.length;
     final rows = StringBuffer();
-    for (var number = 1; number <= count; number++) {
-      rows.write('''
+    for (final column in grouped) {
+      rows.write('<div class="omr-column">');
+      for (final number in column) {
+        rows.write('''
         <div class="omr-row"><span class="omr-number">$number</span>
           ${letters.map((letter) => '<span class="omr-bubble">$letter</span>').join()}
         </div>''');
+      }
+      rows.write('</div>');
     }
 
     // The serial tables belong in the static sheet, not only in the script.
@@ -4019,7 +4094,7 @@ $paperFontBlock    :root {
     <section class="mcq-answer-sheet" data-manual-answer-sheet="true" style="$visible">
       <div class="answer-sheet-title">MCQ উত্তরপত্র</div>
       <div class="answer-sheet-variant answer-sheet-omr" data-answer-style="omr" style="$omrVisible">
-        <div class="omr-grid"><div class="omr-column">$rows</div></div>
+        <div class="omr-grid" data-omr-count="$count" data-omr-columns="$columns" style="grid-template-columns: repeat($gridColumns, 1fr);">$rows</div>
       </div>
       <div class="answer-sheet-variant answer-sheet-serial" data-answer-style="serialAnswer" style="$serialVisible">$serial</div>
     </section>
@@ -4031,6 +4106,7 @@ $paperFontBlock    :root {
     StringBuffer buffer,
     List<HighSchoolQuestion> mcqs,
     McqAnswerSheetStyle style,
+    int columnCount,
   ) {
     if (mcqs.isEmpty) return;
     final visible = style == McqAnswerSheetStyle.none ? 'display:none;' : '';
@@ -4044,15 +4120,14 @@ $paperFontBlock    :root {
         '<div class="answer-sheet-variant answer-sheet-omr" data-answer-style="omr" style="$omrVisible">');
     {
       const letters = ['ক', 'খ', 'গ', 'ঘ'];
-      final columns = <List<int>>[[], [], [], []];
-      final rowsPerColumn =
-          (mcqs.length + columns.length - 1) ~/ columns.length;
-      for (var i = 0; i < mcqs.length; i++) {
-        final column = (i ~/ rowsPerColumn).clamp(0, columns.length - 1);
-        columns[column].add(i + 1);
-      }
-      buffer.write('<div class="omr-grid">');
-      for (final column in columns) {
+      final columns = columnCount.clamp(1, 4);
+      final grouped = _splitOmrRows(mcqs.length, columns)
+          .where((column) => column.isNotEmpty)
+          .toList();
+      final gridColumns = grouped.isEmpty ? 1 : grouped.length;
+      buffer.write(
+          '<div class="omr-grid" data-omr-count="${mcqs.length}" data-omr-columns="$columns" style="grid-template-columns: repeat($gridColumns, 1fr);">');
+      for (final column in grouped) {
         buffer.write('<div class="omr-column">');
         for (final number in column) {
           buffer.write('''

@@ -35,6 +35,9 @@ String sheetHtml({
   QuestionLayout mcqLayout = QuestionLayout.single,
   List<String> options = const ['৩', '৪', '৫', '৬'],
   McqAnswerSheetStyle answerSheet = McqAnswerSheetStyle.none,
+  int omrColumns = 4,
+  int manualAnswerCount = 30,
+  List<HighSchoolQuestion>? questions,
 }) =>
     HighSchoolExportService.generateHtml(
       schoolName: 'S',
@@ -45,7 +48,9 @@ String sheetHtml({
       totalMarks: '10',
       mcqLayout: mcqLayout,
       mcqAnswerSheetStyle: answerSheet,
-      questions: [mcqWith(options)],
+      omrColumns: omrColumns,
+      manualAnswerCount: manualAnswerCount,
+      questions: questions ?? [mcqWith(options)],
     );
 
 /// The stylesheet of a generated paper.
@@ -279,6 +284,43 @@ void main() {
       expect(html, contains('data-answer-style="omr" style=""'));
       expect(html,
           contains('data-answer-style="serialAnswer" style="display:none;"'));
+    });
+
+    test('the OMR grid follows the selected column count', () {
+      final html = sheetHtml(
+        answerSheet: McqAnswerSheetStyle.omr,
+        omrColumns: 2,
+        manualAnswerCount: 5,
+        questions: const [],
+      );
+
+      expect(html, contains('data-manual-answer-sheet="true"'));
+      expect(html, contains('data-omr-count="5"'));
+      expect(html, contains('data-omr-columns="2"'));
+      expect(html, contains('grid-template-columns: repeat(2, 1fr)'));
+      expect(RegExp('class="omr-column"').allMatches(html).length, 2);
+      expect(html, contains('<span class="omr-number">1</span>'));
+      expect(html, contains('<span class="omr-number">5</span>'));
+      // The preview script must reflow the same way when the toolbar changes
+      // the count, rather than falling back to a fixed four.
+      final script = html.split('<script>')[1].split('</script>')[0];
+      expect(script, contains("getAttribute('data-omr-columns')"));
+      expect(script, contains('renderOmrGrid'));
+    });
+
+    test('an MCQ answer sheet uses the chosen columns too', () {
+      final html = sheetHtml(
+        answerSheet: McqAnswerSheetStyle.omr,
+        omrColumns: 3,
+        questions: [
+          for (var i = 0; i < 6; i++) mcqWith(const ['১', '২', '৩', '৪']),
+        ],
+      );
+
+      expect(html, contains('data-omr-count="6"'));
+      expect(html, contains('data-omr-columns="3"'));
+      expect(html, contains('grid-template-columns: repeat(3, 1fr)'));
+      expect(RegExp('class="omr-column"').allMatches(html).length, 3);
     });
 
     test('the answer sheet begins where the questions end', () {

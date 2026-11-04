@@ -425,6 +425,7 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
           _columnChoiceGroup('CQ', 'cq'),
           _columnChoiceGroup('MCQ', 'mcq'),
           _columnChoiceGroup('RQ', 'rq'),
+          _columnChoiceGroup('OMR', 'omr', maxColumns: 4),
           const SizedBox(height: 12),
           _settingsHeading('প্রশ্ন সংযুক্তি'),
           _settingsSwitch('উত্তরপত্র', _includeHeader, (value) {
@@ -753,7 +754,7 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
     );
   }
 
-  Widget _columnChoiceGroup(String label, String kind) {
+  Widget _columnChoiceGroup(String label, String kind, {int maxColumns = 3}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 5),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -765,7 +766,7 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
           SizedBox(
               width: 42,
               child: Text(label, style: const TextStyle(fontSize: 13))),
-          for (var columns = 1; columns <= 3; columns++)
+          for (var columns = 1; columns <= maxColumns; columns++)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
