@@ -2470,28 +2470,34 @@ $paperFontBlock    :root {
       justify-content: center;
       font-size: 11px;
     }
-    .serial-answer-table {
-      width: auto;
-      max-width: none;
-      display: table;
-      margin-left: auto;
-      margin-right: auto;
-      border-collapse: collapse;
-      table-layout: fixed;
+    .serial-answer-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: flex-start;
       font-size: ${_cssFontSize(13, fontStep)};
     }
-    .serial-answer-table th,
-    .serial-answer-table td {
-      border: 1px solid #94a3b8;
-      height: 6.5mm;
-      width: 6.5mm;
-      min-width: 6.5mm;
-      padding: 3px 2px;
+    .serial-answer-item {
+      flex: 0 0 6.3mm;
+      width: 6.3mm;
+      break-inside: avoid;
+    }
+    .serial-answer-number,
+    .serial-answer-cell {
+      width: 6.3mm;
+      height: 6.3mm;
+      box-sizing: border-box;
+      border: 0.5px solid #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
     }
-    .serial-answer-table th { font-weight: 700; }
-    .serial-answer-table td { height: 6.5mm; }
-    .serial-answer-table + .serial-answer-table { margin-top: 8px; }
+    .serial-answer-number {
+      font-weight: 700;
+      border-bottom: 1px solid #94a3b8;
+    }
+    .serial-answer-cell { border-top: none; }
     @media screen and (max-width: 700px) {
       .omr-grid { grid-template-columns: repeat(2, 1fr); }
     }
@@ -3271,22 +3277,21 @@ $paperFontBlock    :root {
           var serial = sheet.querySelector('.answer-sheet-serial');
           if (serial) {
             serial.innerHTML = '';
-            for (var start = 1; start <= sheetCount; start += 15) {
-              var end = Math.min(sheetCount, start + 14);
-              var table = document.createElement('table');
-              table.className = 'serial-answer-table';
-              table.style.width = ((end - start + 1) * 6.5) + 'mm';
-              table.innerHTML = '<tbody><tr></tr><tr class="serial-answer-row"></tr></tbody>';
-              var heads = table.querySelector('tr');
-              var answers = table.querySelector('.serial-answer-row');
-              for (var number = start; number <= end; number++) {
-                var head = document.createElement('th');
-                head.textContent = number;
-                heads.appendChild(head);
-                answers.appendChild(document.createElement('td'));
-              }
-              serial.appendChild(table);
+            var grid = document.createElement('div');
+            grid.className = 'serial-answer-grid';
+            for (var number = 1; number <= sheetCount; number++) {
+              var item = document.createElement('div');
+              item.className = 'serial-answer-item';
+              var head = document.createElement('div');
+              head.className = 'serial-answer-number';
+              head.textContent = number;
+              var answer = document.createElement('div');
+              answer.className = 'serial-answer-cell';
+              item.appendChild(head);
+              item.appendChild(answer);
+              grid.appendChild(item);
             }
+            serial.appendChild(grid);
           }
         }
       }
@@ -4046,6 +4051,22 @@ $paperFontBlock    :root {
     return grouped;
   }
 
+  /// Writes [count] fixed-size number/answer boxes.
+  ///
+  /// The boxes are a wrapping flex row, so the page width decides how many fit
+  /// per line. Their size stays the same on every paper size instead of
+  /// stretching to fill the sheet.
+  static void _writeSerialAnswerBoxes(
+      StringBuffer buffer, int count, {int start = 1}) {
+    buffer.write('<div class="serial-answer-grid">');
+    for (var i = 0; i < count; i++) {
+      final number = start + i;
+      buffer.write(
+          '<div class="serial-answer-item"><div class="serial-answer-number">$number</div><div class="serial-answer-cell"></div></div>');
+    }
+    buffer.write('</div>');
+  }
+
   static void _writeHtmlManualMcqAnswerSheet(StringBuffer buffer,
       McqAnswerSheetStyle style, int itemCount, int columnCount) {
     final visible = style == McqAnswerSheetStyle.none ? 'display:none;' : '';
@@ -4075,20 +4096,7 @@ $paperFontBlock    :root {
     // never fires the browser toolbar's change event, so an empty variant here
     // left only the section title on the page.
     final serial = StringBuffer();
-    const perTable = 15;
-    for (var start = 1; start <= count; start += perTable) {
-      final end = (start + perTable - 1).clamp(1, count);
-      serial.write(
-          '<table class="serial-answer-table" style="width:${(end - start + 1) * 6.5}mm"><tbody><tr>');
-      for (var number = start; number <= end; number++) {
-        serial.write('<th>$number</th>');
-      }
-      serial.write('</tr><tr class="serial-answer-row">');
-      for (var number = start; number <= end; number++) {
-        serial.write('<td></td>');
-      }
-      serial.write('</tr></tbody></table>');
-    }
+    _writeSerialAnswerBoxes(serial, count);
 
     buffer.write('''
     <section class="mcq-answer-sheet" data-manual-answer-sheet="true" style="$visible">
@@ -4146,23 +4154,8 @@ $paperFontBlock    :root {
         style == McqAnswerSheetStyle.serialAnswer ? '' : 'display:none;';
     buffer.write(
         '<div class="answer-sheet-variant answer-sheet-serial" data-answer-style="serialAnswer" style="$serialVisible">');
-    {
-      const columnsPerTable = 15;
-      for (var start = 0; start < mcqs.length; start += columnsPerTable) {
-        final end = (start + columnsPerTable).clamp(0, mcqs.length);
-        buffer.write(
-            '<table class="serial-answer-table" style="width:${(end - start) * 6.5}mm"><tbody><tr>');
-        for (var i = start; i < end; i++) {
-          buffer.write('<th>${i + 1}</th>');
-        }
-        buffer.write('</tr><tr class="serial-answer-row">');
-        for (var i = start; i < end; i++) {
-          buffer.write('<td></td>');
-        }
-        buffer.write('</tr></tbody></table>');
-      }
-      buffer.write('</div>');
-    }
+    _writeSerialAnswerBoxes(buffer, mcqs.length);
+    buffer.write('</div>');
     buffer.write('</section>');
   }
 

@@ -342,15 +342,16 @@ void main() {
       expect(decl(rule(css, '.answer-sheet-title'), 'break-after'), 'avoid');
     });
 
-    test('the optional serial answer sheet uses repeated number-answer pairs',
+    test('the optional serial answer sheet uses fixed-size number-answer boxes',
         () {
       final html = sheetHtml(answerSheet: McqAnswerSheetStyle.serialAnswer);
 
-      expect(html, contains('class="serial-answer-table"'));
+      expect(html, contains('class="serial-answer-grid"'));
       expect(
           html,
-          contains(
-              '<tr><th>1</th></tr><tr class="serial-answer-row"><td></td></tr>'));
+          contains('<div class="serial-answer-item">'
+              '<div class="serial-answer-number">1</div>'
+              '<div class="serial-answer-cell"></div></div>'));
       expect(html, contains('data-answer-style="serialAnswer" style=""'));
       expect(html, contains('data-answer-style="omr" style="display:none;"'));
 
@@ -368,6 +369,30 @@ void main() {
           RegExp('</div>').allMatches(omrMarkup).length);
     });
 
+    test('serial answer boxes stay square and let the page decide the rows', () {
+      final html = sheetHtml(
+        answerSheet: McqAnswerSheetStyle.serialAnswer,
+        questions: [
+          for (var i = 0; i < 30; i++)
+            mcqWith(const ['১', '২', '৩', '৪']),
+        ],
+      );
+      final css = cssOf(html);
+      final boxRule = RegExp(
+              r'\.serial-answer-number,\s*\.serial-answer-cell\s*\{([^}]*)\}')
+          .firstMatch(css)
+          ?.group(1) ??
+          '';
+
+      expect(RegExp('class="serial-answer-item"').allMatches(html).length, 30);
+      expect(html, isNot(contains('serial-answer-table')));
+      expect(decl(rule(css, '.serial-answer-item'), 'width'), '6.3mm');
+      expect(decl(rule(css, '.serial-answer-item'), 'flex'), '0 0 6.3mm');
+      expect(decl(boxRule, 'width'), '6.3mm');
+      expect(decl(boxRule, 'height'), '6.3mm');
+      expect(decl(rule(css, '.serial-answer-grid'), 'flex-wrap'), 'wrap');
+    });
+
     test('a manual serial sheet is filled before the script runs', () {
       final html = HighSchoolExportService.generateHtml(
         schoolName: 'S',
@@ -382,10 +407,12 @@ void main() {
       );
 
       expect(html, contains('data-manual-answer-sheet="true"'));
+      expect(RegExp('class="serial-answer-item"').allMatches(html).length, 3);
       expect(
         html,
-        contains('<tr><th>1</th><th>2</th><th>3</th></tr>'
-            '<tr class="serial-answer-row"><td></td><td></td><td></td></tr>'),
+        contains('<div class="serial-answer-item">'
+            '<div class="serial-answer-number">3</div>'
+            '<div class="serial-answer-cell"></div></div>'),
       );
       // The chosen variant is visible in the markup itself: the Android
       // preview and the exported file both open with the style pre-selected
