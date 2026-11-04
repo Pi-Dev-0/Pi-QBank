@@ -4139,6 +4139,7 @@ $paperFontBlock    :root {
         buffer.write('</div>');
       }
       buffer.write('</div>');
+      buffer.write('</div>');
     }
 
     final serialVisible =

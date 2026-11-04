@@ -353,6 +353,19 @@ void main() {
               '<tr><th>1</th></tr><tr class="serial-answer-row"><td></td></tr>'));
       expect(html, contains('data-answer-style="serialAnswer" style=""'));
       expect(html, contains('data-answer-style="omr" style="display:none;"'));
+
+      // The serial variant must be a sibling of the OMR variant, not nested in
+      // it: otherwise it inherits the OMR variant's display:none and vanishes
+      // whenever the paper has MCQs.
+      final omrStart = html.indexOf(
+          '<div class="answer-sheet-variant answer-sheet-omr"');
+      final serialStart = html.indexOf(
+          '<div class="answer-sheet-variant answer-sheet-serial"');
+      expect(omrStart, greaterThan(-1));
+      expect(serialStart, greaterThan(omrStart));
+      final omrMarkup = html.substring(omrStart, serialStart);
+      expect(RegExp(r'<div\b').allMatches(omrMarkup).length,
+          RegExp('</div>').allMatches(omrMarkup).length);
     });
 
     test('a manual serial sheet is filled before the script runs', () {
