@@ -63,16 +63,11 @@ class _PdfReaderPageState extends State<PdfReaderPage>
       loading = true;
     });
 
-    // Request storage permission
+    // Storage permissions only exist for the Android scan. permission_handler
+    // has no Linux implementation, so calling it there throws instead of
+    // letting the app's own documents folder be listed.
     if (Platform.isAndroid) {
       if (!await Permission.manageExternalStorage.request().isGranted) {
-        setState(() {
-          loading = false;
-        });
-        return;
-      }
-    } else {
-      if (!await Permission.storage.request().isGranted) {
         setState(() {
           loading = false;
         });

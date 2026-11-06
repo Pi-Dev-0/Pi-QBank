@@ -201,7 +201,7 @@ class _QuestionPaperCardState extends State<QuestionPaperCard> {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (Platform.isAndroid || Platform.isIOS || Platform.isLinux) {
         if (!mounted) {
           return; // Check mounted before using context for navigation
         }

@@ -16,6 +16,11 @@ cmake_policy(SET CMP0063 NEW)
 # Load bundled libraries from the lib/ directory relative to the binary.
 set(CMAKE_INSTALL_RPATH "$ORIGIN/lib")
 
+# `printing` and `pdfrx` both bundle a library named libpdfium.so. Keep them on
+# the same PDFium release so whichever copy the build installs is valid for
+# both plugins. pdfrx 1.0.101 links against chromium/6555.
+set(PDFIUM_VERSION "6555" CACHE STRING "PDFium version used by printing" FORCE)
+
 # Root filesystem for cross-building.
 if(FLUTTER_TARGET_PLATFORM_SYSROOT)
   set(CMAKE_SYSROOT ${FLUTTER_TARGET_PLATFORM_SYSROOT})

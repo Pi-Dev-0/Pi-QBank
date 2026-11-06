@@ -10,6 +10,10 @@ set(BINARY_NAME "blogger")
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
 
+# Keep `printing` on the same PDFium release as `pdfrx`; both bundle
+# a library named pdfium.dll. pdfrx 1.0.101 links against chromium/6555.
+set(PDFIUM_VERSION "6555" CACHE STRING "PDFium version used by printing" FORCE)
+
 # Define build configuration option.
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTICONFIG)

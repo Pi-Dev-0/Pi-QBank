@@ -63,6 +63,7 @@ dependencies:
   # third_party/webview_cef/common/webview_handler.cc.
   webview_cef:
     path: third_party/webview_cef
+  pdfrx: 1.0.101
 
 dev_dependencies:
   flutter_test:

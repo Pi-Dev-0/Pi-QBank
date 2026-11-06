@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/loading_widget.dart';
+import 'linux_pdf_viewer_page.dart';
 
 class PDFViewerPage extends StatefulWidget {
   final String filePath;
@@ -621,6 +624,15 @@ class _PDFViewerPageState extends State<PDFViewerPage>
 
   @override
   Widget build(BuildContext context) {
+    // flutter_pdfview has no Linux implementation. Use the in-app PDFium
+    // reader instead of handing the file to an external application.
+    if (defaultTargetPlatform == TargetPlatform.linux) {
+      return LinuxPdfViewerPage(
+        filePath: widget.filePath,
+        title: widget.title,
+      );
+    }
+
     return Scaffold(
       backgroundColor:
           _nightMode ? const Color(0xFF121212) : Colors.grey.shade100,

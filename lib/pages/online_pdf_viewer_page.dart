@@ -5,6 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../widgets/loading_widget.dart';
 import '../widgets/custom_app_bar.dart';
+import 'linux_pdf_viewer_page.dart';
 
 class OnlinePDFViewerPage extends StatefulWidget {
   const OnlinePDFViewerPage({
@@ -158,6 +159,15 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
   @override
   Widget build(BuildContext context) {
     if (!_isWebViewSupported) {
+      // Linux shows the PDF inside the app with the PDFium-based reader.
+      // Other unsupported platforms keep the browser fallback below.
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) {
+        return LinuxPdfViewerPage(
+          pdfUrl: widget.pdfUrl,
+          title: widget.title,
+        );
+      }
+
       return Scaffold(
         backgroundColor: Colors.grey.shade50,
         appBar: CustomAppBar(
