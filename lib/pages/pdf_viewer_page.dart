@@ -6,7 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/loading_widget.dart';
-import 'linux_pdf_viewer_page.dart';
+import 'in_app_pdf_viewer_page.dart';
 
 class PDFViewerPage extends StatefulWidget {
   final String filePath;
@@ -624,12 +624,14 @@ class _PDFViewerPageState extends State<PDFViewerPage>
 
   @override
   Widget build(BuildContext context) {
-    // flutter_pdfview has no Linux implementation. Use the in-app PDFium
-    // reader instead of handing the file to an external application.
-    if (defaultTargetPlatform == TargetPlatform.linux) {
-      return LinuxPdfViewerPage(
+    // flutter_pdfview has no Linux implementation, and the PDFium-based
+    // reader gives Android continuous scrolling, search and a richer toolbar.
+    if (defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.android) {
+      return InAppPdfViewerPage(
         filePath: widget.filePath,
         title: widget.title,
+        password: widget.password,
       );
     }
 

@@ -5,7 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../widgets/loading_widget.dart';
 import '../widgets/custom_app_bar.dart';
-import 'linux_pdf_viewer_page.dart';
+import 'in_app_pdf_viewer_page.dart';
 
 class OnlinePDFViewerPage extends StatefulWidget {
   const OnlinePDFViewerPage({
@@ -25,10 +25,16 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
   bool _isLoading = true;
   bool _hasError = false;
 
-  bool get _isWebViewSupported =>
+  /// Android and Linux use the in-app PDFium reader. It gives a much better
+  /// experience than an embedded Google Docs viewer, including continuous
+  /// scrolling, pinch zoom, search and bookmarks.
+  bool get _useInAppViewer =>
       !kIsWeb &&
-      defaultTargetPlatform != TargetPlatform.linux &&
-      WebViewPlatform.instance != null;
+      (defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.android);
+
+  bool get _isWebViewSupported =>
+      !kIsWeb && !_useInAppViewer && WebViewPlatform.instance != null;
 
   @override
   void initState() {
@@ -158,16 +164,15 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isWebViewSupported) {
-      // Linux shows the PDF inside the app with the PDFium-based reader.
-      // Other unsupported platforms keep the browser fallback below.
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) {
-        return LinuxPdfViewerPage(
-          pdfUrl: widget.pdfUrl,
-          title: widget.title,
-        );
-      }
+    if (_useInAppViewer) {
+      return InAppPdfViewerPage(
+        pdfUrl: widget.pdfUrl,
+        title: widget.title,
+      );
+    }
 
+    if (!_isWebViewSupported) {
+      // Other unsupported platforms keep the browser fallback below.
       return Scaffold(
         backgroundColor: Colors.grey.shade50,
         appBar: CustomAppBar(
@@ -212,7 +217,7 @@ class _OnlinePDFViewerPageState extends State<OnlinePDFViewerPage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Embedded PDF viewing is not supported on Linux desktop. You can open and view this PDF directly in your browser or document viewer.',
+                        'Embedded PDF viewing is not supported on this platform. You can open and view this PDF directly in your browser or document viewer.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontSize: 14,
