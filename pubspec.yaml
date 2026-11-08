@@ -31,7 +31,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_pdfview: ^1.4.3
   webview_flutter: ^4.9.0
   webview_flutter_android: ^3.16.9
 

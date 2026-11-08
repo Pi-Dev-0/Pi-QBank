@@ -13,12 +13,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../widgets/custom_app_bar.dart';
 
-/// An in-app PDF viewer for Android and Linux.
+/// An in-app PDF viewer for local and online PDFs.
 ///
-/// `flutter_pdfview` remains the iOS reader, while Android and Linux use this
-/// PDFium-based viewer through `pdfrx`. It provides continuous scrolling,
-/// pinch/scroll zoom, page navigation, full-text search, bookmarks and lazy
-/// page rendering for long textbooks.
+/// This PDFium-based viewer is built on `pdfrx` and is shared by every
+/// supported platform. It provides continuous scrolling, pinch/scroll zoom,
+/// page navigation, full-text search, bookmarks and lazy page rendering for
+/// long textbooks.
 class InAppPdfViewerPage extends StatefulWidget {
   const InAppPdfViewerPage({
     super.key,
@@ -1058,10 +1058,8 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                     }
                   },
                   itemBuilder: (context) {
-                    final showShortcuts =
-                        !Platform.isAndroid && !Platform.isIOS;
+                    final showShortcuts = !Platform.isAndroid;
                     final canShare = Platform.isAndroid ||
-                        Platform.isIOS ||
                         Platform.isMacOS ||
                         Platform.isWindows;
 

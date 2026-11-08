@@ -58,7 +58,7 @@ The application boasts a wide array of features to cater to different learning n
   - `flutter/cupertino_icons`: For iOS-style icons.
   - `provider`: For state management.
 - **File & Device Access:**
-  - `flutter_pdfview`: To render PDF files.
+  - `pdfrx`: To render PDF files in the in-app reader.
   - `path_provider` / `open_file` / `file_picker`: For handling files and storage.
   - `permission_handler`: To request and manage device permissions.
   - `image_picker`: For selecting images from the gallery or camera.
