@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pi_qbank/models/highschool_question.dart';
 import 'package:pi_qbank/pages/cloud_tests_page.dart';
+import 'package:pi_qbank/services/highschool_export_service.dart';
+import 'package:pi_qbank/utils/mcq_stem_units.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// `MCQTestPage` reads a question payload with two contracts that both fail at
@@ -18,6 +20,8 @@ void main() {
     List<String> options,
     String correct, {
     String text = '2 + 2 = ?',
+    String stem = '',
+    String image = '',
   }) =>
       HighSchoolQuestion.fromJson({
         'id': id,
@@ -26,8 +30,8 @@ void main() {
         'chapter_number': '1',
         'chapter_name': 'সেট',
         'question_type': 'MCQ',
-        'stem_text': '',
-        'stem_image_url': '',
+        'stem_text': stem,
+        'stem_image_url': image,
         'sub_questions_json':
             '{"text":"$text","options":${_jsonList(options)},"correct_ans":"$correct"}',
         'board_year_tag': '',
@@ -80,6 +84,27 @@ void main() {
       final p = CloudTestsPage.mcqPayload(mcq('a', [], ''));
       expect(p['options'], isEmpty);
       expect(p['question'], '2 + 2 = ?');
+    });
+
+    test('carries the question image to the runner', () {
+      final p = CloudTestsPage.mcqPayload(
+        mcq(
+          'a',
+          ['৪', '৫'],
+          '৫',
+          image: 'https://drive.google.com/file/d/abc123/view?usp=sharing',
+        ),
+      );
+
+      expect(
+        p['image_url'],
+        'https://drive.google.com/uc?export=download&id=abc123',
+      );
+    });
+
+    test('omits image_url when the question has no image', () {
+      final p = CloudTestsPage.mcqPayload(mcq('a', ['৪', '৫'], '৫'));
+      expect(p.containsKey('image_url'), isFalse);
     });
   });
 
@@ -138,6 +163,83 @@ void main() {
 
       expect(p['options'], isEmpty);
       expect(p['correct_answer'], '');
+    });
+  });
+
+  group('shared-stimulus runs', () {
+    const intro = 'নিচের উদ্দীপকের আলোকে ৬ ও ৭ নং প্রশ্নের উত্তর দাও :';
+
+    test('two questions under one intro are one selectable unit', () {
+      final first = mcq('a', ['১', '২'], '২', stem: intro);
+      final second = mcq('b', ['৩', '৪'], '৪', stem: intro);
+      final alone = mcq('c', ['৫', '৬'], '৬');
+
+      final units = mcqStemUnits([first, second, alone]);
+
+      expect(units.map((unit) => unit.map((q) => q.id).toList()), [
+        ['a', 'b'],
+        ['c'],
+      ]);
+    });
+
+    test('picking one half expands to the whole run', () {
+      final first = mcq('a', ['১', '২'], '২', stem: intro);
+      final second = mcq('b', ['৩', '৪'], '৪', stem: intro);
+      final alone = mcq('c', ['৫', '৬'], '৬');
+
+      expect(
+        expandMcqStemPicks({'b'}, [first, second, alone]),
+        {'a', 'b'},
+      );
+    });
+
+    test('the intro numbers are rewritten to the paper positions', () {
+      final rewritten = HighSchoolExportService.stemWithNumbers(
+        intro,
+        [15, 16],
+      );
+
+      expect(rewritten, contains('১৫ ও ১৬'));
+      expect(rewritten, isNot(contains('৬ ও ৭')));
+    });
+
+    test('a later question in the run can omit the repeated intro', () {
+      final q = mcq('a', ['১', '২'], '২',
+          stem: intro, image: 'https://example.com/figure.png');
+
+      final p = CloudTestsPage.mcqPayload(q, stem: '', includeImage: false);
+
+      expect(p['question'], isNot(contains(intro)));
+      expect(p.containsKey('image_url'), isFalse);
+    });
+
+    test('the paper payload numbers the run and prints the intro once', () {
+      final first = mcq(
+        'a',
+        ['১', '২'],
+        '২',
+        text: 'প্রথম প্রশ্ন?',
+        stem: intro,
+        image: 'https://example.com/figure.png',
+      );
+      final second = mcq(
+        'b',
+        ['৩', '৪'],
+        '৪',
+        text: 'দ্বিতীয় প্রশ্ন?',
+        stem: intro,
+        image: 'https://example.com/figure.png',
+      );
+
+      final payloads = CloudTestsPage.mcqPaperPayloads([first, second]);
+
+      expect(payloads, hasLength(2));
+      expect(payloads[0]['question'], contains('প্রথম প্রশ্ন?'));
+      expect(payloads[0]['question'], contains('১ ও ২'));
+      expect(payloads[0]['question'], isNot(contains('৬ ও ৭')));
+      expect(payloads[0]['image_url'], contains('example.com'));
+      expect(payloads[1]['question'], 'দ্বিতীয় প্রশ্ন?');
+      expect(payloads[1].containsKey('image_url'), isFalse);
     });
   });
 

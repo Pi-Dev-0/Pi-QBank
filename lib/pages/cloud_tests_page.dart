@@ -5,7 +5,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:pi_qbank/models/highschool_question.dart';
 import 'package:pi_qbank/pages/mcq_test_page.dart';
+import 'package:pi_qbank/services/highschool_export_service.dart';
 import 'package:pi_qbank/services/highschool_qbank_service.dart';
+import 'package:pi_qbank/utils/mcq_stem_units.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -49,6 +51,9 @@ class CloudTestsPage extends StatefulWidget {
   ///    shared stimulus lives in `stem_text`. The runner shows one block of
   ///    text, so the stimulus has to travel with the question or the student
   ///    answers something they were never shown.
+  ///  * The stimulus or question figure lives in `stem_image_url`, outside the
+  ///    MCQ payload. It has to be carried explicitly as `image_url` or the
+  ///    online runner shows only the text and silently drops the diagram.
   ///
   /// Exposed for tests: this is the contract between the two pages and nothing
   /// else exercises it.
@@ -57,10 +62,17 @@ class CloudTestsPage extends StatefulWidget {
   /// `correct_answer` pointing at the right one. Without it, question 3's
   /// answer is always option 2 and the paper can be passed by pattern rather
   /// than by knowing the subject.
+  ///
+  /// [stem] overrides the introduction the question carries. A shared-stimulus
+  /// run passes the rewritten intro on its first question and an empty string
+  /// on the rest, so the intro and its figure are shown once, not repeated
+  /// under every question in the run.
   static Map<String, dynamic> mcqPayload(
     HighSchoolQuestion q, {
     bool shuffleOptions = false,
     Random? random,
+    String? stem,
+    bool includeImage = true,
   }) {
     final data = q.mcqData;
     final texts = data?.options ?? const <String>[];
@@ -87,15 +99,58 @@ class CloudTestsPage extends StatefulWidget {
       }
     }
 
-    final stem = q.mcqStemText.trim();
+    final stemText = (stem ?? q.mcqStemText).trim();
     final question = (data?.text ?? '').trim();
-    final shown = stem.isEmpty ? question : '$stem\n\n$question';
+    final shown = stemText.isEmpty ? question : '$stemText\n\n$question';
+    final imageUrl = includeImage
+        ? HighSchoolExportService.resolveImageUrl(q.mcqStemImageUrl)
+        : '';
 
     return {
       'question': shown,
       'options': options,
       'correct_answer': correctKey,
+      if (imageUrl.isNotEmpty) 'image_url': imageUrl,
     };
+  }
+
+  /// Build the runner payloads for a whole paper, in paper order.
+  ///
+  /// A shared-stimulus run is printed once: its first question carries the
+  /// intro, rewritten to the numbers the run actually occupies in this paper,
+  /// and the following questions carry only their own text. Without this the
+  /// source numbers ("answer 6 and 7") stay frozen while the runner numbers
+  /// the card 15, and each question repeats an intro that belongs to the run.
+  ///
+  /// Exposed for tests: this is where the run contract is applied.
+  static List<Map<String, dynamic>> mcqPaperPayloads(
+    List<HighSchoolQuestion> questions, {
+    bool shuffleOptions = false,
+    Random? random,
+  }) {
+    final payloads = <Map<String, dynamic>>[];
+    for (var i = 0; i < questions.length; i++) {
+      final question = questions[i];
+      final previous = i == 0 ? null : questions[i - 1];
+      final opensStem = question.opensMcqStemGroup(previous);
+      final sharesStem = question.sharesMcqStemWith(previous);
+      final stem = opensStem
+          ? HighSchoolExportService.stemWithNumbers(
+              question.mcqStemText,
+              HighSchoolExportService.mcqStemRunNumbers(questions, i),
+            )
+          : '';
+      payloads.add(
+        mcqPayload(
+          question,
+          shuffleOptions: shuffleOptions,
+          random: random,
+          stem: stem,
+          includeImage: !sharesStem,
+        ),
+      );
+    }
+    return payloads;
   }
 
   @override
@@ -301,10 +356,11 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     final savedPicked = prefs.getStringList(_prefsPicked) ?? const [];
     if (savedPicked.isEmpty) return;
     final available = _scopedMcqs.map((question) => question.id).toSet();
+    final restored = savedPicked.where(available.contains).toSet();
     setState(() {
       _pickedIds
         ..clear()
-        ..addAll(savedPicked.where(available.contains));
+        ..addAll(expandMcqStemPicks(restored, _scopedMcqs));
     });
   }
 
@@ -661,6 +717,13 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     }
     final ids = scoped.map((question) => question.id).toSet();
     _pickedIds.removeWhere((id) => !ids.contains(id));
+    // A shared-stimulus pair is one unit. Expanding here repairs a selection
+    // restored from before run-aware picking and keeps the figure and its two
+    // questions together after a chapter change.
+    final expanded = expandMcqStemPicks(_pickedIds, scoped);
+    _pickedIds
+      ..clear()
+      ..addAll(expanded);
     _draw = null;
     _drawKey = null;
   }
@@ -673,9 +736,12 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       if (_pickedIds.isEmpty) return const [];
       // Bank order, not the order they were ticked: a list reordered by tapping
       // reads as random, and two students picking the same questions should get
-      // the same paper.
-      return _scopedMcqs
-          .where((question) => _pickedIds.contains(question.id))
+      // the same paper. Expanding the ids keeps a shared-stimulus run whole
+      // even if a restored selection only named one half of it.
+      final pool = _scopedMcqs;
+      final picked = expandMcqStemPicks(_pickedIds, pool);
+      return pool
+          .where((question) => picked.contains(question.id))
           .toList(growable: false);
     }
 
@@ -703,20 +769,31 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     final target = min(_mcqCount, pool.length);
     if (target <= 0) return const [];
 
+    // Select whole shared-stimulus runs. Splitting a pair leaves a question
+    // whose intro says "answer 6 and 7" while only 6 is on the paper, and the
+    // intro's numbers then disagree with the card number as well.
+    final units = mcqStemUnits(pool);
+    if (units.isEmpty) return const [];
+
     if (!_balanceChapters || _scopeChapterCount < 2) {
-      final list = List<HighSchoolQuestion>.from(pool);
+      final list = List<List<HighSchoolQuestion>>.from(units);
       if (_shuffle) list.shuffle(random);
-      return list.take(target).toList(growable: false);
+      final out = <HighSchoolQuestion>[];
+      for (final unit in list) {
+        if (out.length >= target) break;
+        out.addAll(unit);
+      }
+      return out;
     }
 
-    // Round-robin one chapter at a time, so the paper reaches every chapter
-    // before it takes a second question from any of them. The final shuffle
-    // stops the paper from running chapter 1, chapter 1, chapter 2.
-    final groups = <String, List<HighSchoolQuestion>>{};
-    for (final question in pool) {
+    // Round-robin one unit at a time, so the paper reaches every chapter
+    // before it takes a second run from any of them.
+    final groups = <String, List<List<HighSchoolQuestion>>>{};
+    for (final unit in units) {
       groups
-          .putIfAbsent(question.chapterNumber, () => <HighSchoolQuestion>[])
-          .add(question);
+          .putIfAbsent(
+              unit.first.chapterNumber, () => <List<HighSchoolQuestion>>[])
+          .add(unit);
     }
     final buckets = groups.values.toList(growable: false);
     for (final bucket in buckets) {
@@ -732,22 +809,11 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       for (final index in order) {
         if (out.length >= target) break;
         if (cursor[index] < buckets[index].length) {
-          out.add(buckets[index][cursor[index]++]);
+          out.addAll(buckets[index][cursor[index]++]);
           added = true;
         }
       }
     }
-
-    // Some chapters ran dry before the target; top up from the rest.
-    if (out.length < target) {
-      final used = out.map((question) => question.id).toSet();
-      final rest = pool
-          .where((question) => !used.contains(question.id))
-          .toList(growable: false);
-      if (_shuffle) rest.shuffle(random);
-      out.addAll(rest.take(target - out.length));
-    }
-    if (_shuffle) out.shuffle(random);
     return out;
   }
 
@@ -817,14 +883,17 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       backgroundColor: Colors.transparent,
       builder: (_) => FractionallySizedBox(
         heightFactor: 0.93,
-        child: QuestionPicker(questions: _scopedMcqs, initial: _pickedIds),
+        child: QuestionPicker(
+          questions: _scopedMcqs,
+          initial: expandMcqStemPicks(_pickedIds, _scopedMcqs),
+        ),
       ),
     );
     if (result == null || !mounted) return;
     setState(() {
       _pickedIds
         ..clear()
-        ..addAll(result);
+        ..addAll(expandMcqStemPicks(result, _scopedMcqs));
       _draw = null;
       _drawKey = null;
     });
@@ -844,13 +913,10 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         numberOfQuestions: picked.length,
         testTimeInMinutes: _plannedMinutes,
         aiResponse: jsonEncode({
-          'questions': [
-            for (final question in picked)
-              CloudTestsPage.mcqPayload(
-                question,
-                shuffleOptions: _shuffleOptions,
-              ),
-          ],
+          'questions': CloudTestsPage.mcqPaperPayloads(
+            picked,
+            shuffleOptions: _shuffleOptions,
+          ),
         }),
         language: 'Bangla',
         showAllQuestions: true,
@@ -3456,7 +3522,15 @@ class QuestionPicker extends StatefulWidget {
 }
 
 class _QuestionPickerState extends State<QuestionPicker> {
-  late final Set<String> _picked = {...widget.initial};
+  late final Set<String> _picked =
+      expandMcqStemPicks(widget.initial, widget.questions);
+
+  /// Every question maps to the shared-stimulus run it belongs to.
+  late final Map<String, List<HighSchoolQuestion>> _runs = {
+    for (final unit in mcqStemUnits(widget.questions))
+      for (final question in unit) question.id: unit,
+  };
+
   final Set<String> _expanded = <String>{};
 
   String _search = '';
@@ -3505,15 +3579,36 @@ class _QuestionPickerState extends State<QuestionPicker> {
   }
 
   void _toggle(String id) => setState(() {
-        if (!_picked.remove(id)) _picked.add(id);
-      });
-
-  void _setShown(bool select) => setState(() {
-        for (final question in _visible) {
+        final unit = _runs[id];
+        if (unit == null) {
+          if (!_picked.remove(id)) _picked.add(id);
+          return;
+        }
+        final select = !_picked.contains(id);
+        for (final question in unit) {
           if (select) {
             _picked.add(question.id);
           } else {
             _picked.remove(question.id);
+          }
+        }
+      });
+
+  void _setShown(bool select) => setState(() {
+        final ids = <String>{};
+        for (final question in _visible) {
+          final unit = _runs[question.id];
+          if (unit == null) {
+            ids.add(question.id);
+          } else {
+            ids.addAll(unit.map((item) => item.id));
+          }
+        }
+        for (final id in ids) {
+          if (select) {
+            _picked.add(id);
+          } else {
+            _picked.remove(id);
           }
         }
       });
@@ -4165,7 +4260,15 @@ class _PreviewSheet extends StatelessWidget {
     final options = data?.options ?? const <String>[];
     final correct = (data?.correctAns ?? '').trim();
     final text = (data?.text ?? '').trim();
-    final stem = question.mcqStemText.trim();
+    final previous = index == 0 ? null : questions[index - 1];
+    final opensStem = question.opensMcqStemGroup(previous);
+    final sharesStem = question.sharesMcqStemWith(previous);
+    final stem = opensStem
+        ? HighSchoolExportService.stemWithNumbers(
+            question.mcqStemText,
+            HighSchoolExportService.mcqStemRunNumbers(questions, index),
+          ).trim()
+        : '';
     final chapter = question.chapterName.trim();
 
     return Container(
@@ -4214,6 +4317,10 @@ class _PreviewSheet extends StatelessWidget {
                 ),
               ),
             ),
+          ],
+          if (!sharesStem && question.mcqStemImageUrl.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _previewImage(question.mcqStemImageUrl),
           ],
           const SizedBox(height: 8),
           Text(
@@ -4284,6 +4391,57 @@ class _PreviewSheet extends StatelessWidget {
               style: TextStyle(fontSize: 11, color: _C.warning),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _previewImage(String rawUrl) {
+    final url = HighSchoolExportService.resolveImageUrl(rawUrl);
+    if (url.isEmpty) return const SizedBox.shrink();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.network(
+        url,
+        width: double.infinity,
+        fit: BoxFit.contain,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const SizedBox(
+            height: 120,
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: _C.dangerSoft,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFFECACA)),
+          ),
+          child: const Row(
+            children: [
+              Icon(
+                Icons.broken_image_outlined,
+                size: 17,
+                color: _C.danger,
+              ),
+              SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  'The question image could not be loaded.',
+                  style: TextStyle(fontSize: 11, color: _C.danger),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

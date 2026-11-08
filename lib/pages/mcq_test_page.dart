@@ -205,6 +205,7 @@ class _MCQTestPageState extends State<MCQTestPage>
 
       _mcqResults.add({
         'question': question['question'],
+        'image_url': question['image_url'],
         'selected_option': selectedOption,
         'correct_answer': correctAnswer,
         'is_correct': isCorrect,
@@ -213,6 +214,7 @@ class _MCQTestPageState extends State<MCQTestPage>
 
       questionsAndAnswers.add({
         'question': question['question'],
+        'image_url': question['image_url'],
         'correctAnswer': correctAnswer,
         'userAnswer': selectedOption,
         'isCorrect': isCorrect,
@@ -983,6 +985,10 @@ class _MCQTestPageState extends State<MCQTestPage>
               height: 1.35,
             ),
           ),
+          if ((question['image_url'] ?? '').toString().trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _questionImage(question['image_url']),
+          ],
           const SizedBox(height: 12),
           if (options.isEmpty)
             const Text('This question has no options.',
@@ -997,6 +1003,65 @@ class _MCQTestPageState extends State<MCQTestPage>
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       child: card,
+    );
+  }
+
+  Widget _questionImage(Object? rawUrl) {
+    final url = (rawUrl ?? '').toString().trim();
+    if (url.isEmpty) return const SizedBox.shrink();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        color: _McqPalette.canvas,
+        child: Image.network(
+          url,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const SizedBox(
+              height: 130,
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          },
+          errorBuilder: (_, __, ___) => Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _McqPalette.red.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _McqPalette.red.withOpacity(0.2),
+              ),
+            ),
+            child: const Row(
+              children: [
+                Icon(
+                  Icons.broken_image_outlined,
+                  size: 17,
+                  color: _McqPalette.red,
+                ),
+                SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'The question image could not be loaded.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: _McqPalette.red,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1978,6 +2043,10 @@ class _MCQTestPageState extends State<MCQTestPage>
           children: [
             const Divider(height: 1, color: Color(0xFFF1F5F9)),
             const SizedBox(height: 8),
+            if ((result['image_url'] ?? '').toString().trim().isNotEmpty) ...[
+              _questionImage(result['image_url']),
+              const SizedBox(height: 8),
+            ],
             // The collapsed row only has room for two lines; expanding keeps
             // the whole question readable.
             Text(

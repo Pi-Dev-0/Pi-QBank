@@ -57,6 +57,26 @@ Future<void> closePaper(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('shows the question image carried by the payload',
+      (tester) async {
+    final response = jsonEncode({
+      'questions': [
+        {
+          'question': 'Identify the diagram.',
+          'image_url': 'https://example.com/diagram.png',
+          'options': {'1': 'A', '2': 'B', '3': 'C', '4': 'D'},
+          'correct_answer': '1',
+        },
+      ],
+    });
+
+    await openPaper(tester, 1, response: response);
+
+    expect(find.byType(Image), findsOneWidget);
+
+    await closePaper(tester);
+  });
+
   testWidgets('shows the whole paper at once, with a live answer HUD',
       (tester) async {
     await openPaper(tester, 3);

@@ -36,6 +36,53 @@ List<HighSchoolQuestion> bank({
   return out;
 }
 
+/// Two MCQs sharing one উদ্দীপক, plus an ordinary question after them.
+List<HighSchoolQuestion> sharedStemBank() {
+  const intro = 'নিচের উদ্দীপকের আলোকে ৬ ও ৭ নং প্রশ্নের উত্তর দাও :';
+  HighSchoolQuestion mcq(String id, String text) =>
+      HighSchoolQuestion.fromJson({
+        'id': id,
+        'class': 'Class 8',
+        'subject': 'গণিত',
+        'chapter_number': '1',
+        'chapter_name': 'অধ্যায় 1',
+        'question_type': 'MCQ',
+        'stem_text': intro,
+        'stem_image_url': '',
+        'sub_questions_json': jsonEncode({
+          'text': text,
+          'options': ['১', '২', '৩', '৪'],
+          'correct_ans': '২',
+        }),
+        'board_year_tag': '',
+        'short_mark': '',
+      });
+
+  final alone = HighSchoolQuestion.fromJson({
+    'id': 'c1-q3',
+    'class': 'Class 8',
+    'subject': 'গণিত',
+    'chapter_number': '1',
+    'chapter_name': 'অধ্যায় 1',
+    'question_type': 'MCQ',
+    'stem_text': '',
+    'stem_image_url': '',
+    'sub_questions_json': jsonEncode({
+      'text': 'Ordinary question?',
+      'options': ['১', '২', '৩', '৪'],
+      'correct_ans': '২',
+    }),
+    'board_year_tag': '',
+    'short_mark': '',
+  });
+
+  return [
+    mcq('c1-q1', 'Shared question 1?'),
+    mcq('c1-q2', 'Shared question 2?'),
+    alone,
+  ];
+}
+
 /// Host the picker the way the page does, capturing what it hands back.
 Future<Set<String>? Function()> openPicker(
   WidgetTester tester,
@@ -251,5 +298,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(result(), isEmpty);
+  });
+
+  testWidgets('ticking one shared-stimulus question ticks its whole run',
+      (tester) async {
+    await openPicker(tester, sharedStemBank());
+
+    await tester.tap(find.text('Shared question 1?'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 selected'), findsOneWidget);
+    expect(find.text('Q1'), findsOneWidget);
+    expect(find.text('Q2'), findsOneWidget);
+  });
+
+  testWidgets('a restored half-run is expanded when the picker opens',
+      (tester) async {
+    await openPicker(
+      tester,
+      sharedStemBank(),
+      initial: {'c1-q2'},
+    );
+
+    expect(find.text('2 selected'), findsOneWidget,
+        reason: 'a saved selection from before run-aware picking is repaired');
   });
 }
