@@ -272,6 +272,11 @@ class _HighSchoolQPaperGeneratorPageState
   PaperSize _paperSize = PaperSize.a4;
   PaperTextAlign _textAlign = PaperTextAlign.justify;
   bool _pageNumbers = false;
+
+  /// Start the MCQ block on a fresh page instead of letting it follow the CQ
+  /// or short-question block down the same sheet.
+  bool _mcqOnNewPage = false;
+
   McqOptionStyle _optionStyle = McqOptionStyle.parentheses;
   bool _columnDivider = true;
   double _questionGap = 0;
@@ -337,6 +342,7 @@ class _HighSchoolQPaperGeneratorPageState
         paperSize: _paperSize,
         textAlign: _textAlign,
         pageNumbers: _pageNumbers,
+        mcqOnNewPage: _mcqOnNewPage,
         optionStyle: _optionStyle,
         columnDivider: _columnDivider,
         questionGap: _questionGap,
@@ -378,6 +384,7 @@ class _HighSchoolQPaperGeneratorPageState
       _paperSize != PaperSize.a4 ||
       _textAlign != PaperTextAlign.justify ||
       _pageNumbers ||
+      _mcqOnNewPage ||
       _optionStyle != McqOptionStyle.parentheses ||
       !_columnDivider ||
       _questionGap != 0 ||
@@ -3017,6 +3024,13 @@ class _HighSchoolQPaperGeneratorPageState
         ),
         _railSwitch('পৃষ্ঠা নম্বর', _pageNumbers,
             (value) => setState(() => _pageNumbers = value)),
+        _railSegmented<bool>(
+          label: 'MCQ পৃষ্ঠা',
+          value: _mcqOnNewPage,
+          items: const [false, true],
+          itemLabel: (value) => value ? 'আলাদা পৃষ্ঠায়' : 'আগের প্রশ্নের সাথে',
+          onChanged: (value) => setState(() => _mcqOnNewPage = value),
+        ),
         _railSubheading('টাইপোগ্রাফি ও কলাম'),
         _railSegmented<McqOptionStyle>(
           label: 'অপশন স্টাইল',
@@ -7408,6 +7422,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
         .._paperSize = PaperSize.a4
         .._textAlign = PaperTextAlign.justify
         .._pageNumbers = false
+        .._mcqOnNewPage = false
         .._optionStyle = McqOptionStyle.parentheses
         .._columnDivider = true
         .._questionGap = 0
@@ -7872,6 +7887,20 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
       children: [
         for (var index = 0; index < page._sectionOrder.length; index++)
           _sectionRow(index),
+        _hair(),
+        _fieldLabel('MCQ পৃষ্ঠা'),
+        const SizedBox(height: 7),
+        _segmented<bool>(
+          values: const [false, true],
+          value: page._mcqOnNewPage,
+          label: (value) => value ? 'আলাদা পৃষ্ঠায়' : 'আগের প্রশ্নের সাথে',
+          onChanged: (v) => _apply(() => page._mcqOnNewPage = v),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'আলাদা পৃষ্ঠায় দিলে MCQ বিভাগ নতুন পাতা থেকে শুরু হবে।',
+          style: TextStyle(fontSize: 10.5, height: 1.3, color: _muted),
+        ),
         const SizedBox(height: 4),
         const Text(
           'প্রতিটি বিভাগের কলাম আলাদাভাবে বদলানো যায়।',

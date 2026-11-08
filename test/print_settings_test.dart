@@ -26,6 +26,21 @@ HighSchoolQuestion mcq({bool important = false}) =>
     })
       ..isImportant = important;
 
+HighSchoolQuestion cq() => HighSchoolQuestion.fromJson({
+      'id': 'cq',
+      'class': 'Class (9-10) SSC',
+      'subject': 'গণিত',
+      'chapter_number': '1',
+      'chapter_name': 'অনুশীলনী',
+      'question_type': 'CQ',
+      'stem_text': 'একটি উদ্দীপক',
+      'stem_image_url': '',
+      'sub_questions_json': [
+        {'label': 'ক', 'mark': 2, 'text': 'সমাধান করো।'},
+      ],
+      'board_year_tag': '',
+    });
+
 String sheet(PaperPrintSettings settings) =>
     HighSchoolExportService.generateHtml(
       schoolName: 'স্কুল',
@@ -35,6 +50,18 @@ String sheet(PaperPrintSettings settings) =>
       time: '২ ঘণ্টা',
       totalMarks: '১০০',
       questions: [mcq()],
+      printSettings: settings,
+    );
+
+String mixedSheet(PaperPrintSettings settings) =>
+    HighSchoolExportService.generateHtml(
+      schoolName: 'স্কুল',
+      examName: 'পরীক্ষা',
+      subject: 'গণিত',
+      className: 'দশম',
+      time: '২ ঘণ্টা',
+      totalMarks: '১০০',
+      questions: [cq(), mcq()],
       printSettings: settings,
     );
 
@@ -109,6 +136,23 @@ void main() {
     expect(html, contains('বিষয় কোড: ১০১'));
     expect(html, contains('অধ্যায়: অনুশীলনী'));
     expect(html, contains('<div class="question-info">'));
+  });
+
+  test('the MCQ block starts on a new page only while asked', () {
+    final off = mixedSheet(const PaperPrintSettings());
+    final on = mixedSheet(const PaperPrintSettings(mcqOnNewPage: true));
+
+    expect(off, isNot(contains('mcq-section-separator top new-page')));
+    expect(on, contains('mcq-section-separator top new-page'));
+    expect(on, contains('.mcq-section-separator.new-page'));
+    expect(on, contains('break-before: page'));
+
+    // With nothing before the MCQs there is no page to break away from. The
+    // stylesheet still defines the class, so only the markup is checked here.
+    expect(
+      bodyOf(sheet(const PaperPrintSettings(mcqOnNewPage: true))),
+      isNot(contains('mcq-section-separator top new-page')),
+    );
   });
 
   test('option style and the column divider reach the CSS and options', () {

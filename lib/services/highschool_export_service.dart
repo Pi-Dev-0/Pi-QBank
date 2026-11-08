@@ -244,6 +244,7 @@ class PaperPrintSettings {
     this.paperSize = PaperSize.a4,
     this.textAlign = PaperTextAlign.left,
     this.pageNumbers = false,
+    this.mcqOnNewPage = false,
     this.optionStyle = McqOptionStyle.parentheses,
     this.columnDivider = true,
     this.questionGap = 0,
@@ -277,6 +278,14 @@ class PaperPrintSettings {
   final PaperSize paperSize;
   final PaperTextAlign textAlign;
   final bool pageNumbers;
+
+  /// Start the MCQ block on a fresh sheet instead of letting it follow the
+  /// previous block wherever that one runs out.
+  ///
+  /// Only a paper that has something before the MCQs is affected: when the MCQ
+  /// block is first, there is no page to break away from.
+  final bool mcqOnNewPage;
+
   final McqOptionStyle optionStyle;
   final bool columnDivider;
   final double questionGap;
@@ -326,6 +335,7 @@ class PaperPrintSettings {
         paperSize.name,
         textAlign.name,
         pageNumbers,
+        mcqOnNewPage,
         optionStyle.name,
         columnDivider,
         questionGap,
@@ -2314,6 +2324,13 @@ $paperFontBlock    :root {
     .mcq-section-separator.bottom {
       border-bottom: 1px dashed var(--border);
     }
+    /* «MCQ নতুন পৃষ্ঠায়» in the print settings. The break lives on the whole
+       block, so the section banner starts the sheet instead of being stranded
+       at the foot of the previous one. */
+    .mcq-section-separator.new-page {
+      break-before: page;
+      page-break-before: always;
+    }
     /* No frame around a question. The two sides are divided by one vertical
        line down the gutter — set on the flow containers with `column-rule` —
        instead of every question carrying a box of its own, which is what made
@@ -3984,12 +4001,16 @@ $paperFontBlock    :root {
       final hasNextSection = sections
           .skip(i + 1)
           .any((section) => questions.any((q) => _sectionOf(q) == section));
+      final mcqStartsNewPage =
+          kind == PaperSection.mcq && _print.mcqOnNewPage && hasPreviousSection;
       final mcqClasses = <String>[
         if (hasPreviousSection) 'top',
         if (hasNextSection) 'bottom',
+        if (mcqStartsNewPage) 'new-page',
       ];
-      final wrapMcq =
-          kind == PaperSection.mcq && declares && mcqClasses.isNotEmpty;
+      final wrapMcq = kind == PaperSection.mcq &&
+          (declares || mcqStartsNewPage) &&
+          mcqClasses.isNotEmpty;
       if (wrapMcq) {
         buffer.write(
             '    <div class="mcq-section-separator ${mcqClasses.join(' ')}">\n');
@@ -4056,8 +4077,8 @@ $paperFontBlock    :root {
   /// The boxes are a wrapping flex row, so the page width decides how many fit
   /// per line. Their size stays the same on every paper size instead of
   /// stretching to fill the sheet.
-  static void _writeSerialAnswerBoxes(
-      StringBuffer buffer, int count, {int start = 1}) {
+  static void _writeSerialAnswerBoxes(StringBuffer buffer, int count,
+      {int start = 1}) {
     buffer.write('<div class="serial-answer-grid">');
     for (var i = 0; i < count; i++) {
       final number = start + i;
