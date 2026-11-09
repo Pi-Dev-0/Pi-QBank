@@ -237,6 +237,31 @@ void main() {
       expect(html, contains("querySelectorAll(':scope > .paper-set')"));
       expect(html, contains('break-before: page'));
 
+      // The fit test runs at the paper's width, not the preview pane's. A
+      // narrow preview (and Android's print WebView) shrinks the sheet through
+      // `max-width: 100%`, which wraps more lines and used to split a pair that
+      // fits on the printed page.
+      expect(html, contains("sheet.style.maxWidth = 'none'"));
+      expect(html, contains('sheet.style.maxWidth = maxWidth'));
+      // The option grid and the set pair are both measured in that same
+      // paper-width pass; measuring the options at pane width makes the pair
+      // taller and can split it even after the set measurement is fixed.
+      expect(html, contains('function layoutPaper()'));
+      expect(html, contains('layoutPaper();'));
+      // A snapshot taken after an earlier split must be able to come back
+      // together; otherwise the print WebView reloads two sheets forever.
+      expect(html, contains('function mergeSheets()'));
+      expect(html, contains('mergeSheets();'));
+      // The preview still has to be readable when the pane is narrower than the
+      // paper; the container query reflows only for display, while the inline
+      // paper-width grid stays in the markup for print.
+      expect(html, contains('container-type: inline-size'));
+      expect(html, contains('@container (max-width: 430px)'));
+      // The page box comes from the chosen paper, so Letter/A5 do not borrow
+      // A4's height.
+      expect(html, contains('var pageHeight = style.minHeight'));
+      expect(html, contains("pageHeight = '297mm'"));
+
       // A pair that does fit keeps the page's leftover space between the sets,
       // so the second one ends at the foot of the page.
       expect(html, contains('divider.style.marginTop'));

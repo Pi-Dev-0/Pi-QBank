@@ -7372,6 +7372,46 @@ class _MobileSettingsButton extends StatelessWidget {
   }
 }
 
+/// The four groups the mobile settings sheet is arranged into.
+///
+/// The sheet used to be one long list of eleven cards. The reader had to scroll
+/// past the paper setup to reach the answer sheet, then past branding to find
+/// the set tools. These groups give the eye a few clear stops and give the
+/// quick-jump strip at the top somewhere to land.
+enum _SettingsGroup {
+  layout(
+    'পেপার ও লেআউট',
+    'লেআউট',
+    Icons.dashboard_customize_rounded,
+  ),
+  mcq(
+    'MCQ ও ছবি',
+    'MCQ ও ছবি',
+    Icons.quiz_rounded,
+  ),
+  header(
+    'হেডার ও ব্র্যান্ডিং',
+    'হেডার',
+    Icons.web_rounded,
+  ),
+  sets(
+    'সেট ও সহায়ক',
+    'সেট ও টুলস',
+    Icons.copy_all_rounded,
+  );
+
+  const _SettingsGroup(this.label, this.shortLabel, this.icon);
+
+  /// The heading printed above the group's cards.
+  final String label;
+
+  /// The shorter name used by the quick-jump chip, where horizontal room is
+  /// tight.
+  final String shortLabel;
+
+  final IconData icon;
+}
+
 /// The desktop settings rail, compressed into a mobile bottom sheet and opened
 /// from the floating "সেটিংস" button on narrow screens.
 ///
@@ -7399,10 +7439,38 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
 
   _HighSchoolQPaperGeneratorPageState get page => widget.parent;
 
+  final ScrollController _scroll = ScrollController();
+
+  /// One anchor per group heading, so the quick-jump strip can bring a group
+  /// to the top of the sheet instead of making the reader hunt for it.
+  final Map<_SettingsGroup, GlobalKey> _groupKeys = {
+    for (final group in _SettingsGroup.values) group: GlobalKey(),
+  };
+
+  _SettingsGroup? _activeGroup;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
   void _apply(VoidCallback change) {
     page.setState(change);
     widget.onChanged?.call();
     setState(() {});
+  }
+
+  Future<void> _jumpToGroup(_SettingsGroup group) async {
+    setState(() => _activeGroup = group);
+    final target = _groupKeys[group]?.currentContext;
+    if (target == null) return;
+    await Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: 0.02,
+    );
   }
 
   /// Runs a page action that already calls its own `setState`, then refreshes
@@ -7484,23 +7552,35 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
             ),
           ),
           _header(),
+          _quickNav(),
           Expanded(
-            child: ListView(
+            // The sheet has a fixed set of cards, not a feed: building them all
+            // lets the quick-jump strip reach a heading even before the reader
+            // has scrolled near it.
+            child: SingleChildScrollView(
               key: const ValueKey('mobile-settings-list'),
+              controller: _scroll,
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              children: [
-                _summaryStrip(),
-                _sectionsCard(),
-                _pageCard(),
-                _typographyCard(),
-                _optionCard(),
-                _headerCard(),
-                _brandingCard(),
-                _extrasCard(),
-                _mediaCard(),
-                _setsCard(),
-                _toolsCard(),
-              ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _summaryStrip(),
+                  _groupHeader(_SettingsGroup.layout),
+                  _sectionsCard(),
+                  _pageCard(),
+                  _typographyCard(),
+                  _groupHeader(_SettingsGroup.mcq),
+                  _optionCard(),
+                  _mediaCard(),
+                  _groupHeader(_SettingsGroup.header),
+                  _headerCard(),
+                  _extrasCard(),
+                  _brandingCard(),
+                  _groupHeader(_SettingsGroup.sets),
+                  _setsCard(),
+                  _toolsCard(),
+                ],
+              ),
             ),
           ),
           _footer(context),
@@ -7559,6 +7639,101 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
             ),
           ),
           _circleButton(Icons.close_rounded, () => Navigator.of(context).pop()),
+        ],
+      ),
+    );
+  }
+
+  /// The sticky strip that jumps to a group heading.
+  ///
+  /// It sits outside the scrolling child on purpose: the reader can reach any
+  /// group from any scroll position, which is the part a plain grouped list
+  /// cannot give them.
+  Widget _quickNav() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFF1EFFA))),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var i = 0; i < _SettingsGroup.values.length; i++) ...[
+              if (i > 0) const SizedBox(width: 7),
+              _quickNavChip(_SettingsGroup.values[i]),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _quickNavChip(_SettingsGroup group) {
+    final selected = _activeGroup == group;
+    return Material(
+      color: selected ? _kPrimary : Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => _jumpToGroup(group),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected ? _kPrimary : const Color(0xFFE4E0F4),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                group.icon,
+                size: 14,
+                color: selected ? Colors.white : _kPrimary,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                group.shortLabel,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : _ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A small heading between card clusters, not another card.
+  Widget _groupHeader(_SettingsGroup group) {
+    return Container(
+      key: _groupKeys[group],
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Row(
+        children: [
+          Icon(group.icon, size: 15, color: _kPrimary),
+          const SizedBox(width: 7),
+          Text(
+            group.label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: _kPrimary,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: _line,
+            ),
+          ),
         ],
       ),
     );

@@ -2155,6 +2155,10 @@ $paperFontBlock    :root {
       border-radius: 8px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
       zoom: var(--paper-scale, 1);
+      /* The option grid is measured at this sheet's width, so a preview pane
+         narrower than the paper needs a container query to reflow it for
+         reading without changing the measured print layout. */
+      container-type: inline-size;
       text-align: ${_print.textAlign.css};
       /* The paper's base size, set where the PDF sets its body style. Text with
          no size of its own — an MCQ stem, for one — has to move with the
@@ -2422,6 +2426,14 @@ $paperFontBlock    :root {
       gap: 0 6px;
       padding-left: 6px;
       font-size: ${_cssFontSize(15, fontStep)};
+    }
+    /* The fitting script picks the grid at the paper's width, which is what
+       prints. In a preview pane narrower than the paper that grid would be
+       squeezed into unreadable slivers, so reflow it to one option per line
+       for reading. Print lays the sheet out at the paper's width, where this
+       query does not match and the measured grid stays in force. */
+    @container (max-width: 430px) {
+      .mcq-options { grid-template-columns: 1fr !important; }
     }
     .mcq-circle-marker {
       display: inline-flex;
@@ -2793,10 +2805,14 @@ $paperFontBlock    :root {
         var padBottom = parseFloat(style.paddingBottom);
 
         // A page's worth of room, from the page box itself rather than a
-        // hard-coded number of pixels.
+        // hard-coded number of pixels. The sheet's own min-height is the paper
+        // height the settings chose, so Letter and A5 measure correctly too.
+        var pageHeight = style.minHeight;
+        if (!pageHeight || pageHeight === 'auto') pageHeight = '297mm';
         var probe = document.createElement('div');
         probe.style.cssText =
-            'position:absolute;visibility:hidden;width:0;height:297mm;';
+            'position:absolute;visibility:hidden;width:0;height:' +
+            pageHeight + ';';
         document.body.appendChild(probe);
         var room = probe.getBoundingClientRect().height - padTop - padBottom;
         probe.remove();
@@ -2813,10 +2829,21 @@ $paperFontBlock    :root {
         // What the sets take right now — the rule between them and every margin
         // included. Measured with the page's own minimum height out of the way,
         // so a short pair reports its real height and not a full page.
+        //
+        // Measure at the paper's own width, not the preview pane's. The sheet
+        // carries a fixed paper width with `max-width: 100%`, so a narrow
+        // preview (or the narrow WebView Android uses to print the snapshot)
+        // squeezes it and wraps lines that the printed page would keep on one
+        // line. The pair then looks taller than the page and gets split even
+        // though it fits — the "two sets, always two pages" bug. Temporarily
+        // drop the ceiling, measure, then put the pane's layout back.
         var minHeight = sheet.style.minHeight;
+        var maxWidth = sheet.style.maxWidth;
         sheet.style.minHeight = '0';
+        sheet.style.maxWidth = 'none';
         var used = sheet.getBoundingClientRect().height - padTop - padBottom;
         sheet.style.minHeight = minHeight;
+        sheet.style.maxWidth = maxWidth;
 
         if (used <= room) {
           if (divider) {
@@ -2842,6 +2869,58 @@ $paperFontBlock    :root {
           anchor = next;
         }
         if (divider) divider.remove();
+      }
+
+      /* A previous pass may have split the sets onto separate sheets. Put them
+         back before measuring: otherwise a later edit that makes the paper
+         shorter can never bring the sets together again, and a print snapshot
+         taken from that state stays on two pages. */
+      function mergeSheets() {
+        var sheets = Array.prototype.slice.call(
+            document.querySelectorAll('.paper-sheet'));
+        if (sheets.length < 2) return;
+        var first = sheets[0];
+        var dividers = first.querySelectorAll(':scope > .set-divider');
+        for (var d = 0; d < dividers.length; d++) dividers[d].remove();
+        for (var i = 1; i < sheets.length; i++) {
+          var sets = sheets[i].querySelectorAll(':scope > .paper-set');
+          for (var s = 0; s < sets.length; s++) {
+            var last = first.lastElementChild;
+            if (last && last.classList &&
+                last.classList.contains('paper-set')) {
+              var divider = document.createElement('div');
+              divider.className = 'set-divider';
+              first.appendChild(divider);
+            }
+            first.appendChild(sets[s]);
+          }
+          sheets[i].remove();
+        }
+      }
+
+      /* Lay the sheet out at the width the printer uses. The preview pane can
+         be narrower than the paper; measuring the MCQ option grid or the set
+         pair there wraps text that fits on paper and splits a pair that should
+         share a page. The sheet goes back to the pane's width as soon as the
+         layout is decided, so the preview still fits the window. */
+      function layoutPaper() {
+        mergeSheets();
+        var sheets = Array.prototype.slice.call(
+            document.querySelectorAll('.paper-sheet'));
+        var widths = sheets.map(function (sheet) {
+          return sheet.style.maxWidth;
+        });
+        for (var i = 0; i < sheets.length; i++) {
+          sheets[i].style.maxWidth = 'none';
+        }
+        try {
+          fitOptions();
+          decide();
+        } finally {
+          for (var j = 0; j < sheets.length; j++) {
+            sheets[j].style.maxWidth = widths[j];
+          }
+        }
       }
 
       /* ── Live edit ──────────────────────────────────────────────────────
@@ -3028,8 +3107,7 @@ $paperFontBlock    :root {
       function relayoutSoon() {
         clearTimeout(relayout);
         relayout = setTimeout(function () {
-          fitOptions();
-          decide();
+          layoutPaper();
           // A split makes a new sheet, and the new sheet has to be editable too.
           setEditing(isEditing());
         }, 260);
@@ -3708,12 +3786,10 @@ $paperFontBlock    :root {
         // wait for both before measuring anything.
         if (document.fonts && document.fonts.ready) {
           document.fonts.ready.then(function () {
-            fitOptions();
-            decide();
+            layoutPaper();
           });
         } else {
-          fitOptions();
-          decide();
+          layoutPaper();
         }
       }
 
