@@ -7570,6 +7570,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
                   _pageCard(),
                   _typographyCard(),
                   _groupHeader(_SettingsGroup.mcq),
+                  _mcqPageCard(),
                   _optionCard(),
                   _mediaCard(),
                   _groupHeader(_SettingsGroup.header),
@@ -8063,22 +8064,30 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
         for (var index = 0; index < page._sectionOrder.length; index++)
           _sectionRow(index),
         _hair(),
-        _fieldLabel('MCQ পৃষ্ঠা'),
-        const SizedBox(height: 7),
+        const Text(
+          'প্রতিটি বিভাগের কলাম আলাদাভাবে বদলানো যায়।',
+          style: TextStyle(fontSize: 10.5, height: 1.3, color: _muted),
+        ),
+      ],
+    );
+  }
+
+  /// Where the MCQ section starts on the paper.
+  Widget _mcqPageCard() {
+    return _card(
+      icon: Icons.insert_page_break_outlined,
+      title: 'MCQ পৃষ্ঠা',
+      subtitle: 'MCQ বিভাগ কোথায় শুরু হবে',
+      children: [
         _segmented<bool>(
           values: const [false, true],
           value: page._mcqOnNewPage,
           label: (value) => value ? 'আলাদা পৃষ্ঠায়' : 'আগের প্রশ্নের সাথে',
           onChanged: (v) => _apply(() => page._mcqOnNewPage = v),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 5),
         const Text(
           'আলাদা পৃষ্ঠায় দিলে MCQ বিভাগ নতুন পাতা থেকে শুরু হবে।',
-          style: TextStyle(fontSize: 10.5, height: 1.3, color: _muted),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'প্রতিটি বিভাগের কলাম আলাদাভাবে বদলানো যায়।',
           style: TextStyle(fontSize: 10.5, height: 1.3, color: _muted),
         ),
       ],
