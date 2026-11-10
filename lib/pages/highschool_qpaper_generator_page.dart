@@ -2737,10 +2737,6 @@ class _HighSchoolQPaperGeneratorPageState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('ফিল্টার',
-            style: TextStyle(
-                fontSize: 11.5, fontWeight: FontWeight.w700, color: _kSubText)),
-        const SizedBox(height: 5),
         SizedBox(
           height: 30,
           child: TextField(
