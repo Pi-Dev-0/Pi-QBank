@@ -964,17 +964,6 @@ class _HighSchoolQPaperGeneratorPageState
     });
   }
 
-  /// Unticks what is on screen — and with it the run of any shared MCQ in it, so
-  /// a partner hidden by the filter cannot be left behind on its own.
-  void _deselectAll() {
-    final runs = _mcqStemRuns();
-    setState(() {
-      for (final q in _visibleQuestions) {
-        _applySelection(q, false, runs);
-      }
-    });
-  }
-
   void _selectChapter(String chapterNumber) {
     final runs = _mcqStemRuns();
     setState(() {
@@ -2717,8 +2706,6 @@ class _HighSchoolQPaperGeneratorPageState
                   _buildRailFilters(),
                   const SizedBox(height: 8),
                   _buildRailRandomSelector(),
-                  _buildRailHeading('Select'),
-                  _buildPickerActions(),
                 ],
                 _buildRailHeading('পরীক্ষার তথ্য'),
                 _buildRailPaperInfo(),
@@ -4385,61 +4372,6 @@ class _HighSchoolQPaperGeneratorPageState
   List<String> get _pickerChapterNumbers => [
         for (final c in _fetchedQuestions.map((q) => q.chapterNumber).toSet()) c
       ]..sort(compareChapterNumbers);
-
-  /// Select all / none, plus hand entry.
-  ///
-  /// The rail is narrow, so the three actions sit two-up over one full-width
-  /// row rather than each taking a line of its own. Compact tap targets keep
-  /// the block short without making the buttons hard to hit.
-  Widget _buildPickerActions() {
-    final style = TextButton.styleFrom(
-      minimumSize: const Size(0, 30),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-      alignment: Alignment.centerLeft,
-      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-    );
-    final allLabel = _pickIsNarrowed ? 'Select list' : 'Select all';
-    final noneLabel = _pickIsNarrowed ? 'Exclude list' : 'Clear';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextButton.icon(
-                icon: const Icon(Icons.done_all_rounded, size: 16),
-                label: Text(allLabel,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                style: style,
-                onPressed: _selectAll,
-              ),
-            ),
-            const SizedBox(width: 2),
-            Expanded(
-              child: TextButton.icon(
-                icon: const Icon(Icons.remove_done_rounded, size: 16),
-                label: Text(noneLabel,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                style: style.copyWith(
-                    foregroundColor: WidgetStatePropertyAll(Colors.grey)),
-                onPressed: _deselectAll,
-              ),
-            ),
-          ],
-        ),
-        TextButton.icon(
-          icon: const Icon(Icons.edit_note_rounded, size: 16),
-          label: const Text('Add question'),
-          style: style.copyWith(
-              foregroundColor: WidgetStatePropertyAll(_kPrimary)),
-          onPressed: _openManualQuestion,
-        ),
-      ],
-    );
-  }
 
   /// The scrolling question list, on the same light panel the browser studio
   /// uses. It is the whole left pane of the desktop studio, and the bottom half
