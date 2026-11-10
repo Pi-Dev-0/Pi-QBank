@@ -1781,6 +1781,37 @@ class _HighSchoolQPaperGeneratorPageState
         ],
       ),
       actions: [
+        if (selectedCount > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Tooltip(
+              message: _editingMode
+                  ? 'লাইভ এডিট বন্ধ করুন'
+                  : 'প্রশ্নপত্রে সরাসরি লিখুন',
+              child: TextButton.icon(
+                onPressed: () => setState(() => _editingMode = !_editingMode),
+                icon: Icon(
+                  _editingMode
+                      ? Icons.check_circle_rounded
+                      : Icons.edit_rounded,
+                  size: 18,
+                ),
+                label: Text(_editingMode ? 'এডিট শেষ' : 'লাইভ এডিট'),
+                style: TextButton.styleFrom(
+                  foregroundColor:
+                      _editingMode ? const Color(0xFF047857) : _kPrimary,
+                  backgroundColor: _editingMode
+                      ? const Color(0xFFECFDF5)
+                      : const Color(0xFFF5F3FF),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                ),
+              ),
+            ),
+          ),
         IconButton(
           tooltip: _desktopSettingsOpen ? 'সেটিংস গুটান' : 'সেটিংস খুলুন',
           onPressed: () =>
@@ -3214,8 +3245,6 @@ class _HighSchoolQPaperGeneratorPageState
           ),
         ],
         _railSubheading('ডকুমেন্ট কাস্টমাইজেশন'),
-        _railSwitch('এডিটিং মোড', _editingMode,
-            (value) => setState(() => _editingMode = value)),
         _railSegmented<PaperTextAlign>(
           label: 'টেক্সট এলাইনমেন্ট',
           value: _textAlign,

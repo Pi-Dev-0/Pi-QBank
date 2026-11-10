@@ -759,6 +759,11 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           backgroundColor: const Color(0xFF5C35E3),
           foregroundColor: Colors.white,
           actions: [
+            if (ExactHtmlPreview.supported)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: _buildTopEditAction(),
+              ),
             IconButton(
               icon: const Icon(Icons.save_alt_rounded),
               tooltip: 'এডিট করা HTML সংরক্ষণ',
@@ -794,17 +799,55 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     );
   }
 
+  /// The Linux preview keeps live edit in the AppBar, where the other page
+  /// actions are. A phone keeps its floating round button instead.
+  Widget _buildTopEditAction() {
+    final canEdit = _controller != null || _exactController != null;
+    final on = _editingMode;
+    final compact = MediaQuery.sizeOf(context).width < 640;
+
+    if (compact) {
+      return IconButton(
+        tooltip: on ? 'এডিট শেষ' : 'লাইভ এডিট',
+        color: Colors.white,
+        onPressed: canEdit ? _toggleEditingMode : null,
+        icon: Icon(
+          on ? Icons.check_circle_rounded : Icons.edit_rounded,
+          size: 21,
+        ),
+      );
+    }
+
+    return TextButton.icon(
+      onPressed: canEdit ? _toggleEditingMode : null,
+      icon: Icon(
+        on ? Icons.check_circle_rounded : Icons.edit_rounded,
+        size: 18,
+      ),
+      label: Text(on ? 'এডিট শেষ' : 'লাইভ এডিট'),
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.white,
+        disabledForegroundColor: Colors.white54,
+        backgroundColor: Colors.white.withOpacity(on ? 0.20 : 0.12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(9),
+        ),
+      ),
+    );
+  }
+
   /// The settings pill, with the live-edit control stacked above it on a phone.
   ///
   /// Editing belongs next to the page, not inside the settings sheet: opening
   /// the sheet to find it was what made an edit look like it had been undone.
   Widget _buildFloatingActions() {
-    // A phone layout is what this button is for. Checking the width as well as
-    // the platform keeps it visible on an Android build, an iOS build, and any
-    // narrow preview pane; a wide desktop window keeps only the settings pill.
-    final mobile = defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS ||
-        MediaQuery.sizeOf(context).width < 700;
+    // Linux owns live edit in the AppBar. A phone keeps the round button above
+    // the settings pill; a wide desktop window keeps only the settings pill.
+    final mobile = !ExactHtmlPreview.supported &&
+        (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS ||
+            MediaQuery.sizeOf(context).width < 700);
     final canEdit = _controller != null || _exactController != null;
     final settings = FloatingActionButton.extended(
       heroTag: 'preview-settings',
