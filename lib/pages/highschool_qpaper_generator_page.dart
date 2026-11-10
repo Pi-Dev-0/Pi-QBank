@@ -301,6 +301,8 @@ class _HighSchoolQPaperGeneratorPageState
   bool _showFooter = false;
   bool _showWatermark = false;
   bool _showAddress = false;
+  bool _showAuthor = false;
+  AuthorPlacement _authorPlacement = AuthorPlacement.right;
 
   bool _detectRepeated = false;
   bool _shortcutHints = false;
@@ -308,6 +310,9 @@ class _HighSchoolQPaperGeneratorPageState
   final _subjectCodeCtrl = TextEditingController();
   final _addressCtrl = TextEditingController();
   final _headerNoteCtrl = TextEditingController();
+  final _authorNameCtrl = TextEditingController();
+  final _authorDetailsCtrl = TextEditingController();
+  final _authorLinkCtrl = TextEditingController();
   final _watermarkCtrl = TextEditingController(text: 'নমুনা');
   String _logoDataUri = '';
   String _logoName = '';
@@ -365,6 +370,11 @@ class _HighSchoolQPaperGeneratorPageState
         showFooter: _showFooter,
         showWatermark: _showWatermark,
         showAddress: _showAddress,
+        showAuthor: _showAuthor,
+        authorPlacement: _authorPlacement,
+        authorName: _authorNameCtrl.text.trim(),
+        authorDetails: _authorDetailsCtrl.text.trim(),
+        authorLink: _authorLinkCtrl.text.trim(),
         chapter: _chapterLabel,
         subjectCode: _subjectCodeCtrl.text.trim(),
         address: _addressCtrl.text.trim(),
@@ -403,6 +413,8 @@ class _HighSchoolQPaperGeneratorPageState
       _showObtainedMarks ||
       _showQuestionInfo ||
       _showImportant ||
+      _showAuthor ||
+      _authorPlacement != AuthorPlacement.right ||
       _editingMode ||
       _imageSize != StemImageSize.small ||
       _mcqAnswerSheetStyle != McqAnswerSheetStyle.none ||
@@ -450,6 +462,9 @@ class _HighSchoolQPaperGeneratorPageState
     _subjectCodeCtrl.dispose();
     _addressCtrl.dispose();
     _headerNoteCtrl.dispose();
+    _authorNameCtrl.dispose();
+    _authorDetailsCtrl.dispose();
+    _authorLinkCtrl.dispose();
     _watermarkCtrl.dispose();
     super.dispose();
   }
@@ -3000,6 +3015,39 @@ class _HighSchoolQPaperGeneratorPageState
             (value) => setState(() => _showExam = value)),
         _railSwitch('নির্দেশনা', _showInstructions,
             (value) => setState(() => _showInstructions = value)),
+        _railSwitch('লেখক / শিক্ষক তথ্য', _showAuthor,
+            (value) => setState(() => _showAuthor = value)),
+        if (_showAuthor) ...[
+          const SizedBox(height: 4),
+          _buildTextField(
+            ctrl: _authorNameCtrl,
+            label: 'লেখকের নাম',
+            hintText: 'যেমন: মো. রশিদ সহরিয়ার',
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 6),
+          _buildTextField(
+            ctrl: _authorDetailsCtrl,
+            label: 'পরিচিতি',
+            hintText: 'ডিগ্রি, পদবি, প্রতিষ্ঠান (প্রতি লাইনে আলাদা)',
+            maxLines: 3,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 6),
+          _buildTextField(
+            ctrl: _authorLinkCtrl,
+            label: 'লিংক (ঐচ্ছিক)',
+            hintText: 'https://...',
+            onChanged: (_) => setState(() {}),
+          ),
+          _railSegmented<AuthorPlacement>(
+            label: 'লেখক তথ্যের অবস্থান',
+            value: _authorPlacement,
+            items: AuthorPlacement.values,
+            itemLabel: (placement) => placement.label,
+            onChanged: (value) => setState(() => _authorPlacement = value),
+          ),
+        ],
         _railSubheading('ডকুমেন্ট কাস্টমাইজেশন'),
         _railSwitch('এডিটিং মোড', _editingMode,
             (value) => setState(() => _editingMode = value)),
@@ -5381,11 +5429,13 @@ class _HighSchoolQPaperGeneratorPageState
     String? hintText,
     String? helperText,
     ValueChanged<String>? onChanged,
+    int maxLines = 1,
   }) {
     return TextField(
       controller: ctrl,
       keyboardType: keyboardType,
       onChanged: onChanged,
+      maxLines: maxLines,
       style: const TextStyle(color: _kDarkText, fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
@@ -7514,6 +7564,11 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
         .._showFooter = false
         .._showWatermark = false
         .._showAddress = false
+        .._showAuthor = false
+        .._authorPlacement = AuthorPlacement.right
+        .._authorNameCtrl.clear()
+        .._authorDetailsCtrl.clear()
+        .._authorLinkCtrl.clear()
         .._twoSets = false
         .._editingMode = false
         .._imageSize = StemImageSize.small
@@ -7575,6 +7630,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
                   _mediaCard(),
                   _groupHeader(_SettingsGroup.header),
                   _headerCard(),
+                  _authorCard(),
                   _extrasCard(),
                   _brandingCard(),
                   _groupHeader(_SettingsGroup.sets),
@@ -7948,10 +8004,12 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
     required String label,
     required String hint,
     ValueChanged<String>? onChanged,
+    int maxLines = 1,
   }) {
     return TextField(
       controller: controller,
       onChanged: onChanged,
+      maxLines: maxLines,
       style: const TextStyle(fontSize: 13, color: _ink),
       decoration: InputDecoration(
         labelText: label,
@@ -8242,6 +8300,57 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
             (v) => _apply(() => page._showExam = v)),
         _toggleRow('নির্দেশনা', null, page._showInstructions,
             (v) => _apply(() => page._showInstructions = v)),
+      ],
+    );
+  }
+
+  /// Optional author or teacher details at the top of the paper.
+  Widget _authorCard() {
+    return _card(
+      icon: Icons.badge_outlined,
+      title: 'লেখক / শিক্ষক তথ্য',
+      subtitle: 'উপরে নাম, পরিচিতি ও লিংক ছাপা হবে',
+      children: [
+        _toggleRow(
+          'লেখক তথ্য দেখাও',
+          'বন্ধ থাকলে কোনো লেখা ছাপা হবে না',
+          page._showAuthor,
+          (v) => _apply(() => page._showAuthor = v),
+          switchKey: const ValueKey('author-info-switch'),
+        ),
+        if (page._showAuthor) ...[
+          const SizedBox(height: 6),
+          _textField(
+            controller: page._authorNameCtrl,
+            label: 'নাম',
+            hint: 'যেমন: মো. রশিদ সহরিয়ার',
+            onChanged: (_) => _apply(() {}),
+          ),
+          const SizedBox(height: 8),
+          _textField(
+            controller: page._authorDetailsCtrl,
+            label: 'পরিচিতি',
+            hint: 'ডিগ্রি, পদবি, প্রতিষ্ঠান (প্রতি লাইনে আলাদা)',
+            maxLines: 3,
+            onChanged: (_) => _apply(() {}),
+          ),
+          const SizedBox(height: 8),
+          _textField(
+            controller: page._authorLinkCtrl,
+            label: 'লিংক (ঐচ্ছিক)',
+            hint: 'https://...',
+            onChanged: (_) => _apply(() {}),
+          ),
+          const SizedBox(height: 10),
+          _fieldLabel('অবস্থান'),
+          const SizedBox(height: 6),
+          _segmented<AuthorPlacement>(
+            values: AuthorPlacement.values,
+            value: page._authorPlacement,
+            label: (value) => value.label,
+            onChanged: (v) => _apply(() => page._authorPlacement = v),
+          ),
+        ],
       ],
     );
   }

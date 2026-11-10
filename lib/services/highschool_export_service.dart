@@ -208,6 +208,17 @@ extension PaperTextAlignLabels on PaperTextAlign {
   String get css => name;
 }
 
+/// Where the optional author/teacher block sits at the top of a paper.
+enum AuthorPlacement { left, center, right }
+
+extension AuthorPlacementLabels on AuthorPlacement {
+  String get label => switch (this) {
+        AuthorPlacement.left => 'বাম',
+        AuthorPlacement.center => 'মাঝে',
+        AuthorPlacement.right => 'ডানে',
+      };
+}
+
 /// How an MCQ option's letter is written.
 enum McqOptionStyle { circle, parentheses, dot, closeParenthesis }
 
@@ -267,6 +278,11 @@ class PaperPrintSettings {
     this.showFooter = false,
     this.showWatermark = false,
     this.showAddress = false,
+    this.showAuthor = false,
+    this.authorPlacement = AuthorPlacement.right,
+    this.authorName = '',
+    this.authorDetails = '',
+    this.authorLink = '',
     this.chapter = '',
     this.subjectCode = '',
     this.address = '',
@@ -314,6 +330,13 @@ class PaperPrintSettings {
   final bool showWatermark;
   final bool showAddress;
 
+  /// The optional name and introduction at the top of the paper.
+  final bool showAuthor;
+  final AuthorPlacement authorPlacement;
+  final String authorName;
+  final String authorDetails;
+  final String authorLink;
+
   final String chapter;
   final String subjectCode;
   final String address;
@@ -358,6 +381,11 @@ class PaperPrintSettings {
         showFooter,
         showWatermark,
         showAddress,
+        showAuthor,
+        authorPlacement.name,
+        authorName,
+        authorDetails,
+        authorLink,
         chapter,
         subjectCode,
         address,
@@ -2171,6 +2199,7 @@ $paperFontBlock    :root {
     .paper-sheet + .paper-sheet { margin-top: 24px; }
     /* One set. Sets share the sheet while the pair fits on a page. */
     .set-head {
+      display: flow-root;
       break-inside: avoid;
       break-after: avoid;
     }
@@ -2184,6 +2213,35 @@ $paperFontBlock    :root {
     .school-title { font-size: ${_cssFontSize(24, fontStep)}; font-weight: 700; text-align: center; margin-bottom: 4px; }
     .exam-title { font-size: ${_cssFontSize(18, fontStep)}; font-weight: 600; text-align: center; }
     .header-note { font-size: ${_cssFontSize(12, fontStep)}; color: var(--muted); text-align: center; margin-top: 2px; }
+    /* An optional author/teacher block at the top of the sheet. The block sits
+       in the chosen corner, but its lines stay left-aligned so a multi-line
+       introduction reads as one paragraph rather than a stack of right edges. */
+    .author-block {
+      width: fit-content;
+      max-width: 42%;
+      margin-bottom: 6px;
+      text-align: left;
+      line-height: 1.35;
+      break-inside: avoid;
+    }
+    /* Left and right ride beside the masthead instead of taking a row of their
+       own. The center placement is the one case that has to sit in the flow,
+       because a float cannot be centered in the line. */
+    .author-left { float: left; margin-right: 12px; }
+    .author-center { margin-left: auto; margin-right: auto; }
+    .author-right { float: right; margin-left: 12px; }
+    .author-name { font-size: ${_cssFontSize(13.5, fontStep)}; font-weight: 700; }
+    .author-details {
+      font-size: ${_cssFontSize(10.5, fontStep)};
+      color: var(--muted);
+      white-space: pre-line;
+    }
+    .author-link {
+      font-size: ${_cssFontSize(10.5, fontStep)};
+      color: #1d4ed8;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+    }
     /* The optional branding band above the masthead. */
     .brand-header {
       display: flex;
@@ -4003,10 +4061,25 @@ $paperFontBlock    :root {
     final footerBand = _print.showFooter && footerText.isNotEmpty
         ? '<div class="brand-footer">${_escapeXml(footerText)}</div>'
         : '';
+    final authorName = _print.authorName.trim();
+    final authorDetails = _print.authorDetails.trim();
+    final authorLink = _print.authorLink.trim();
+    final authorBlock = _print.showAuthor &&
+            (authorName.isNotEmpty ||
+                authorDetails.isNotEmpty ||
+                authorLink.isNotEmpty)
+        ? '''
+        <div class="author-block author-${_print.authorPlacement.name}">
+          ${authorName.isNotEmpty ? '<div class="author-name">${_escapeXml(authorName)}</div>' : ''}
+          ${authorDetails.isNotEmpty ? '<div class="author-details">${_escapeXml(authorDetails)}</div>' : ''}
+          ${authorLink.isNotEmpty ? '<div class="author-link">${_escapeXml(authorLink)}</div>' : ''}
+        </div>'''
+        : '';
 
     buffer.write('''
     <div class="paper-set">
       <div class="set-head">
+        $authorBlock
         $brandHeader
         ${_print.showSchool && schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
         $addressLine

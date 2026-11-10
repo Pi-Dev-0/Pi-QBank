@@ -245,4 +245,33 @@ void main() {
     expect(html, contains('class="brand-logo"'));
     expect(html, contains('data:image/png;base64,AAAA'));
   });
+
+  test('author details sit in the chosen corner', () {
+    for (final placement in AuthorPlacement.values) {
+      final html = bodyOf(sheet(PaperPrintSettings(
+        showAuthor: true,
+        authorPlacement: placement,
+        authorName: 'MD. Rashid Sahriar',
+        authorDetails: 'B.Sc. (Hons.) in Mathematics\nDhaka College',
+        authorLink: 'https://example.com',
+      )));
+      expect(html, contains('class="author-block author-${placement.name}"'));
+      expect(
+          html, contains('<div class="author-name">MD. Rashid Sahriar</div>'));
+      expect(html, contains('B.Sc. (Hons.) in Mathematics\nDhaka College'));
+      expect(
+          html, contains('<div class="author-link">https://example.com</div>'));
+    }
+  });
+
+  test('the author block only prints while the switch is on', () {
+    final off = bodyOf(sheet(const PaperPrintSettings(
+      authorName: 'MD. Rashid Sahriar',
+    )));
+    final empty = bodyOf(sheet(const PaperPrintSettings(
+      showAuthor: true,
+    )));
+    expect(off, isNot(contains('class="author-block')));
+    expect(empty, isNot(contains('class="author-block')));
+  });
 }
