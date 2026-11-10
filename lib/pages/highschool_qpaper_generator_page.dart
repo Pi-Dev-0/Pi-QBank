@@ -304,6 +304,20 @@ class _HighSchoolQPaperGeneratorPageState
   bool _showAuthor = false;
   AuthorPlacement _authorPlacement = AuthorPlacement.right;
 
+  /// The embedded Chromium view and the live text it holds.
+  ///
+  /// A correction exists only in that browser. The controller lets the studio
+  /// copy it before a settings change reloads the page, and lets Export use the
+  /// edited sheet instead of rebuilding the old one.
+  ExactHtmlPreviewController? _studioPreviewController;
+  String? _studioPendingEdits;
+
+  /// The last live page returned by the full preview, and the studio state it
+  /// was built from. Export only uses it while the signature still matches, so
+  /// a later settings change cannot be silently overridden by an old page.
+  String? _liveExportHtml;
+  String? _liveExportSignature;
+
   bool _detectRepeated = false;
   bool _shortcutHints = false;
 
@@ -1265,8 +1279,38 @@ class _HighSchoolQPaperGeneratorPageState
     return '$sub$exam'.replaceAll(RegExp(r'[^\w\u0980-\u09FF-]'), '_');
   }
 
+  String? _freshLiveExportHtml() {
+    final html = _liveExportHtml;
+    if (html == null || _liveExportSignature != _paperPreviewSignature) {
+      return null;
+    }
+    return html;
+  }
+
   Future<void> _exportHtml({bool open = true}) async {
     try {
+      // A live correction is the reader's actual paper. Prefer the page
+      // returned by the full preview, then the studio's current page; only
+      // fall back to rebuilding from state when neither is current.
+      final liveHtml =
+          _freshLiveExportHtml() ?? await _captureStudioPreviewHtml();
+      if (liveHtml != null) {
+        final file = await HighSchoolFileExportService.saveFile(
+          content: _withStandaloneToolbar(liveHtml),
+          fileName: '${_getBaseFileName()}.html',
+        );
+        if (!mounted) return;
+        if (open) {
+          await HighSchoolFileExportService.openExportedFile(context, file);
+        } else {
+          await HighSchoolFileExportService.shareExportedFile(
+            file,
+            text: '${_examCtrl.text} - HTML Web Page',
+          );
+        }
+        return;
+      }
+
       // A face the app ships is written into the file, so load it before the
       // sheet is built; see [HighSchoolExportService.preloadPaperFonts].
       await HighSchoolExportService.preloadPaperFonts();
@@ -1358,6 +1402,10 @@ class _HighSchoolQPaperGeneratorPageState
           liveHtmlBuilder: _buildPaperHtml,
           onEditingModeChanged: (value) {
             if (mounted) setState(() => _editingMode = value);
+          },
+          onLiveHtmlChanged: (html) {
+            _liveExportHtml = html;
+            _liveExportSignature = _paperPreviewSignature;
           },
         ),
       ),
@@ -2063,6 +2111,14 @@ class _HighSchoolQPaperGeneratorPageState
         fileName: 'studio_live_preview.html',
         placeholderBuilder: (_) => _buildNativePaperPreview(),
         fallbackBuilder: (_) => _buildNativePaperPreview(),
+        onControllerReady: (controller) {
+          _studioPreviewController = controller;
+          if (_studioPendingEdits != null) {
+            unawaited(_restoreStudioEdits());
+          }
+        },
+        onPageFinished: () => unawaited(_restoreStudioEdits()),
+        onBeforeReload: _captureStudioEdits,
       );
     }
     return _buildNativePaperPreview();
@@ -2102,32 +2158,141 @@ class _HighSchoolQPaperGeneratorPageState
     return parts.join('~');
   }
 
+  /// A short token that ties a live DOM back to the state that built it.
+  String get _previewToken => _paperPreviewSignature.hashCode.toRadixString(16);
+
   /// The exact sheet the export writes, with the live preview's settings.
-  String _buildPaperHtml() => HighSchoolExportService.generateHtml(
-        schoolName: _schoolCtrl.text,
-        examName: _examCtrl.text,
-        subject: _subjectCtrl.text,
-        className: _classCtrl.text,
-        time: _timeCtrl.text,
-        totalMarks: _marksCtrl.text,
-        questions: _selectedQuestions,
-        cqInstruction: _cqInstruction,
-        printSettings: _printSettings,
-        setLabels: _twoSets ? _setLabels : const [],
-        sectionOrder: _paperSectionOrder,
-        imageSize: _imageSize,
-        cqLayout: _cqLayout,
-        mcqLayout: _mcqLayout,
-        rqLayout: _rqLayout,
-        mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
-        manualAnswerCount: _manualAnswerItemCount,
-        omrColumns: _omrColumns,
-        fontStep: _fontStep,
-        font: _paperFont,
-        desktopMode: true,
-        // The browser studio moves the toolbar into its settings rail; the
-        // pane is the paper, not the editor.
-        includeToolbar: false,
+  String _buildPaperHtml() {
+    // A page returned from the full preview already carries corrections the
+    // reader typed. Show that page again instead of rebuilding the original.
+    final live = _freshLiveExportHtml();
+    if (live != null) {
+      return live.replaceFirst(
+        '<body ',
+        '<body data-pi-preview="$_previewToken" ',
+      );
+    }
+    final html = HighSchoolExportService.generateHtml(
+      schoolName: _schoolCtrl.text,
+      examName: _examCtrl.text,
+      subject: _subjectCtrl.text,
+      className: _classCtrl.text,
+      time: _timeCtrl.text,
+      totalMarks: _marksCtrl.text,
+      questions: _selectedQuestions,
+      cqInstruction: _cqInstruction,
+      printSettings: _printSettings,
+      setLabels: _twoSets ? _setLabels : const [],
+      sectionOrder: _paperSectionOrder,
+      imageSize: _imageSize,
+      cqLayout: _cqLayout,
+      mcqLayout: _mcqLayout,
+      rqLayout: _rqLayout,
+      mcqAnswerSheetStyle: _mcqAnswerSheetStyle,
+      manualAnswerCount: _manualAnswerItemCount,
+      omrColumns: _omrColumns,
+      fontStep: _fontStep,
+      font: _paperFont,
+      desktopMode: true,
+      // The browser studio moves the toolbar into its settings rail; the
+      // pane is the paper, not the editor.
+      includeToolbar: false,
+    );
+    // Only the preview carries this marker. Export snapshots are checked
+    // against it, so a page that is still reloading cannot replace the state
+    // the settings currently describe.
+    return html.replaceFirst(
+      '<body ',
+      '<body data-pi-preview="$_previewToken" ',
+    );
+  }
+
+  /// Copy the text currently in the studio's live browser before a rebuild.
+  Future<void> _captureStudioEdits() async {
+    final controller = _studioPreviewController;
+    if (controller == null) return;
+    try {
+      final raw = await controller.evaluateJavascript(
+        'JSON.stringify(window.__piQbankCaptureEdits '
+        '? window.__piQbankCaptureEdits() : null)',
+      );
+      _studioPendingEdits = _decodeCapturedEdits(raw);
+    } catch (_) {
+      // The old page may already be going away; there is nothing to capture.
+    }
+  }
+
+  /// Put captured text back after the studio's browser reloads.
+  Future<void> _restoreStudioEdits() async {
+    final edits = _studioPendingEdits;
+    if (edits == null) return;
+    _studioPendingEdits = null;
+    final controller = _studioPreviewController;
+    if (controller == null) return;
+    try {
+      await controller.executeJavaScript(
+        'window.__piQbankRestoreEdits && '
+        'window.__piQbankRestoreEdits(JSON.parse(${jsonEncode(edits)}));',
+      );
+    } catch (_) {
+      // The page never came up; the next load has nothing to restore into.
+    }
+  }
+
+  String? _decodeCapturedEdits(Object? raw) {
+    if (raw is Map || raw is List) {
+      if (raw is Map && raw.isEmpty) return null;
+      return jsonEncode(raw);
+    }
+    if (raw is! String || raw.isEmpty || raw == 'null') return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is String) {
+        return decoded.isEmpty || decoded == '{}' ? null : decoded;
+      }
+      if (decoded is Map && decoded.isEmpty) return null;
+      if (decoded is Map || decoded is List) return raw;
+    } on FormatException {
+      return null;
+    }
+    return null;
+  }
+
+  /// The studio's page, but only while it still matches the current settings.
+  Future<String?> _captureStudioPreviewHtml() async {
+    final controller = _studioPreviewController;
+    if (controller == null) return null;
+    try {
+      final raw = await controller.evaluateJavascript(
+        'JSON.stringify({'
+        'token: (document.body && document.body.getAttribute("data-pi-preview")) || "",'
+        'html: window.__piQbankSnapshotHtml ? window.__piQbankSnapshotHtml() '
+        ': document.documentElement.outerHTML'
+        '})',
+      );
+      final decoded = raw is String ? jsonDecode(raw) : raw;
+      if (decoded is! Map) return null;
+      if (decoded['token'] != _previewToken) return null;
+      final html = decoded['html'];
+      if (html is! String || html.isEmpty) return null;
+      return _withDoctype(html);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _withDoctype(String html) {
+    final trimmed = html.trimLeft();
+    if (trimmed.toLowerCase().startsWith('<!doctype')) return html;
+    return '<!DOCTYPE html>\n$html';
+  }
+
+  /// The preview hides the in-page toolbar to keep the paper clean. A saved
+  /// file is opened on its own, so give it the print/edit bar back.
+  String _withStandaloneToolbar(String html) => html.replaceFirstMapped(
+        RegExp(r'<body([^>]*)>'),
+        (match) => '<body'
+            '${(match[1] ?? '').replaceFirst(' toolbar-hidden', '')}>',
       );
 
   /// The same sheet drawn in Flutter: the placeholder and the fallback.

@@ -25,7 +25,8 @@ HighSchoolQuestion rq() => HighSchoolQuestion.fromJson({
       'short_mark': 1,
     });
 
-String sheetHtml({PaperPrintSettings printSettings = const PaperPrintSettings()}) =>
+String sheetHtml(
+        {PaperPrintSettings printSettings = const PaperPrintSettings()}) =>
     HighSchoolExportService.generateHtml(
       schoolName: 'S',
       examName: 'E',
@@ -75,6 +76,16 @@ void main() {
 
       expect(html, contains('id="printBtn"'));
       expect(html, contains('window.print()'));
+    });
+
+    test('can hand back a cleaned copy of the live sheet', () {
+      final html =
+          sheetHtml(printSettings: const PaperPrintSettings(editingMode: true));
+
+      expect(html, contains('window.__piQbankSnapshotHtml = function'));
+      expect(html, contains("body.classList.remove('editing')"));
+      expect(html, contains("body.removeAttribute('data-pi-preview')"));
+      expect(html, contains("removeAttribute('contenteditable')"));
     });
   });
 }

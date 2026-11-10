@@ -47,6 +47,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.settingsBuilder,
     this.liveHtmlBuilder,
     this.onEditingModeChanged,
+    this.onLiveHtmlChanged,
   });
 
   final String schoolName;
@@ -103,6 +104,13 @@ class QuestionPaperPreviewPage extends StatefulWidget {
   /// a reload or a later export starts in the same mode the reader left.
   final ValueChanged<bool>? onEditingModeChanged;
 
+  /// Hands the live page back when the reader leaves the preview.
+  ///
+  /// A correction exists only inside the browser. Passing the cleaned snapshot
+  /// back lets the studio's export and print actions use it after the preview
+  /// has closed, instead of silently writing the pre-edit sheet.
+  final ValueChanged<String>? onLiveHtmlChanged;
+
   /// A WebView cannot be hosted on every platform this app targets.
   static bool get supportsWebView =>
       !kIsWeb &&
@@ -155,6 +163,9 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   /// Kept here rather than in the settings sheet: on a phone the button rides
   /// the preview itself, so editing is never buried under a rebuild.
   bool _editingMode = false;
+
+  /// Guards the asynchronous snapshot in [PopScope] against a second back tap.
+  bool _leaving = false;
 
   // A preview is an editor too: keep a private, mutable copy of every paper
   // setting so the floating panel can update the sheet without navigating back.
@@ -433,6 +444,12 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
       await _runJavascript(
         'window.__piQbankSetEditing && window.__piQbankSetEditing(${on ? 'true' : 'false'});',
       );
+      // Finishing an edit is the reader saying the paper is right. Keep that
+      // page in the studio now, not only when the preview route closes.
+      if (!on) {
+        final html = await _snapshotLiveHtml();
+        if (mounted) widget.onLiveHtmlChanged?.call(html);
+      }
     } catch (_) {
       // The view went away between the tap and the script.
     }
@@ -486,24 +503,68 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     }
   }
 
+  /// The sheet as it stands in the browser, with the editor's screen-only
+  /// state removed.
+  ///
+  /// This is the only copy that carries text the reader typed. Printing,
+  /// saving, and leaving the preview all use it, so a correction cannot be
+  /// silently replaced by the original generated HTML.
+  Future<String> _snapshotLiveHtml() async {
+    var liveHtml = _cachedHtml ?? _html;
+    try {
+      final rawHtml = await _evaluateJavascript(
+        'window.__piQbankSnapshotHtml ? window.__piQbankSnapshotHtml() '
+        ': document.documentElement.outerHTML',
+      );
+      final snapshot = _decodeJavascriptString(rawHtml);
+      if (snapshot != null && snapshot.isNotEmpty) liveHtml = snapshot;
+    } catch (_) {
+      // Fall back to the generated sheet if the host is between pages.
+    }
+    return _withDoctype(liveHtml);
+  }
+
+  /// Save the edited sheet wherever the reader chooses.
+  Future<void> _saveLiveHtml() async {
+    try {
+      final html = await _snapshotLiveHtml();
+      final base = HighSchoolExportService.safeFileName(
+        widget.examName.trim().isEmpty ? 'QuestionPaper' : widget.examName,
+      );
+      final file = await HighSchoolFileExportService.saveFileAs(
+        // The preview hides its in-page toolbar; a saved file should keep the
+        // print and edit controls it would have if exported directly.
+        content: _withStandaloneToolbar(html),
+        fileName: '$base.html',
+      );
+      if (!mounted || file == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('HTML সংরক্ষণ হয়েছে: ${file.path}'),
+          backgroundColor: const Color(0xFF0E9F6E),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('HTML সংরক্ষণ করা যায়নি: $error'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   /// Open the platform's print flow from the preview AppBar.
   Future<void> _printPreview() async {
     if (ExactHtmlPreview.supported) {
       // CEF does not implement `window.print()`; hand the same file to the
-      // browser, whose print dialog is the real one. Read the live DOM first:
-      // what the reader typed (and any image change) exists only there.
-      var liveHtml = _cachedHtml ?? _html;
-      try {
-        final rawHtml = await _evaluateJavascript(
-          'document.documentElement.outerHTML',
-        );
-        final snapshot = _decodeJavascriptString(rawHtml);
-        if (snapshot != null && snapshot.isNotEmpty) liveHtml = snapshot;
-      } catch (_) {
-        // Fall back to the generated sheet if CEF is between pages.
-      }
+      // browser, whose print dialog is the real one.
+      final liveHtml = await _snapshotLiveHtml();
       final file = await HighSchoolFileExportService.saveFile(
-        content: _withDoctype(liveHtml),
+        content: liveHtml,
         fileName: 'question_paper_print.html',
       );
       if (!mounted) return;
@@ -569,6 +630,12 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     if (trimmed.toLowerCase().startsWith('<!doctype')) return html;
     return '<!DOCTYPE html>\n$html';
   }
+
+  String _withStandaloneToolbar(String html) => html.replaceFirstMapped(
+        RegExp(r'<body([^>]*)>'),
+        (match) => '<body'
+            '${(match[1] ?? '').replaceFirst(' toolbar-hidden', '')}>',
+      );
 
   /// Keep the preview controls reachable without leaving the paper. The
   /// preview receives an immutable settings snapshot, so this is a compact
@@ -672,37 +739,58 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     final withImages =
         widget.questions.where((q) => q.stemImageUrl.trim().isNotEmpty).length;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F3FF),
-      appBar: AppBar(
-        title: const Text('প্রশ্নপত্র প্রিভিউ'),
-        backgroundColor: const Color(0xFF5C35E3),
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.print_rounded),
-            tooltip: 'প্রিন্ট করুন',
-            onPressed: (_controller == null && !ExactHtmlPreview.supported)
-                ? null
-                : _printPreview,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'প্রিভিউ রিফ্রেশ করুন',
-            onPressed: (_controller == null && !ExactHtmlPreview.supported)
-                ? null
-                : _reload,
-          ),
-        ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop || _leaving) return;
+        _leaving = true;
+        final navigator = Navigator.of(context);
+        // A correction lives only in the browser. Hand the cleaned page back
+        // before the route disappears, so the studio can export it later.
+        final liveHtml = await _snapshotLiveHtml();
+        if (!mounted) return;
+        widget.onLiveHtmlChanged?.call(liveHtml);
+        navigator.pop(result);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F3FF),
+        appBar: AppBar(
+          title: const Text('প্রশ্নপত্র প্রিভিউ'),
+          backgroundColor: const Color(0xFF5C35E3),
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.save_alt_rounded),
+              tooltip: 'এডিট করা HTML সংরক্ষণ',
+              onPressed: (_controller == null && !ExactHtmlPreview.supported)
+                  ? null
+                  : _saveLiveHtml,
+            ),
+            IconButton(
+              icon: const Icon(Icons.print_rounded),
+              tooltip: 'প্রিন্ট করুন',
+              onPressed: (_controller == null && !ExactHtmlPreview.supported)
+                  ? null
+                  : _printPreview,
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'প্রিভিউ রিফ্রেশ করুন',
+              onPressed: (_controller == null && !ExactHtmlPreview.supported)
+                  ? null
+                  : _reload,
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            _buildInfoBar(withImages),
+            Expanded(child: _buildPreviewBody()),
+          ],
+        ),
+        floatingActionButton: _buildFloatingActions(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
-      body: Column(
-        children: [
-          _buildInfoBar(withImages),
-          Expanded(child: _buildPreviewBody()),
-        ],
-      ),
-      floatingActionButton: _buildFloatingActions(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 

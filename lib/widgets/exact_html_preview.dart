@@ -26,6 +26,7 @@ class ExactHtmlPreview extends StatefulWidget {
     this.fallbackBuilder,
     this.onControllerReady,
     this.onPageFinished,
+    this.onBeforeReload,
   });
 
   /// A cheap value that changes whenever the sheet would change.
@@ -58,6 +59,14 @@ class ExactHtmlPreview extends StatefulWidget {
   /// Called after every completed page load, including reloads triggered by a
   /// new [signature]. The preview page uses it to put captured edits back.
   final VoidCallback? onPageFinished;
+
+  /// Called before a new [signature] replaces the page.
+  ///
+  /// The studio uses this to copy the text typed into the live sheet before a
+  /// settings change rebuilds it, then puts that text back from
+  /// [onPageFinished]. Without it a switch in the settings rail would look as
+  /// if it had undone the reader's corrections.
+  final Future<void> Function()? onBeforeReload;
 
   static bool get supported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
@@ -195,6 +204,8 @@ class _ExactHtmlPreviewState extends State<ExactHtmlPreview> {
     if (_renderedSignature == widget.signature) return;
     final signature = widget.signature;
     try {
+      await widget.onBeforeReload?.call();
+      if (!mounted) return;
       final file = await _write(widget.buildHtml());
       if (!mounted) return;
       final url = Uri.file(file.path).toString();

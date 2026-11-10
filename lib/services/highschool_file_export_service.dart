@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
@@ -24,6 +26,36 @@ class HighSchoolFileExportService {
     if (bytes != null) {
       await file.writeAsBytes(bytes);
     } else {
+      await file.writeAsString(content, encoding: utf8);
+    }
+    return file;
+  }
+
+  /// Let the reader choose a real location for an edited sheet.
+  ///
+  /// The ordinary [saveFile] writes into the app's temporary directory, which
+  /// is right for "open this in a browser" but not for keeping a corrected
+  /// paper. This opens the platform save dialog instead. A cancelled dialog
+  /// returns null; the caller should leave the page untouched in that case.
+  static Future<File?> saveFileAs({
+    required String content,
+    required String fileName,
+  }) async {
+    final safeName = HighSchoolExportService.safeFileName(fileName);
+    final bytes = Uint8List.fromList(utf8.encode(content));
+    final mobile = Platform.isAndroid || Platform.isIOS;
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'HTML সংরক্ষণ করুন',
+      fileName: safeName,
+      type: FileType.custom,
+      allowedExtensions: const ['html'],
+      bytes: mobile ? bytes : null,
+    );
+    if (path == null) return null;
+    final file = File(path);
+    // Android and iOS receive the bytes through the picker. The desktop
+    // pickers only choose a path, so write the document here.
+    if (!mobile) {
       await file.writeAsString(content, encoding: utf8);
     }
     return file;

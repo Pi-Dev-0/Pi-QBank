@@ -3129,6 +3129,36 @@ $paperFontBlock    :root {
         relayoutSoon();
       };
 
+      /* A saved copy must not carry the editor's screen-only state: the dashed
+         outline, the selected image, or the marker that says this is a live
+         preview. Clone first, clean the clone, and leave the page the reader is
+         typing in untouched. */
+      window.__piQbankSnapshotHtml = function () {
+        var root = document.documentElement.cloneNode(true);
+        var body = root.querySelector('body');
+        if (body) {
+          body.classList.remove('editing');
+          body.removeAttribute('data-pi-preview');
+        }
+        var sheets = root.querySelectorAll('.paper-sheet');
+        for (var i = 0; i < sheets.length; i++) {
+          sheets[i].removeAttribute('contenteditable');
+          sheets[i].removeAttribute('spellcheck');
+        }
+        // Keep the live-edit marks: if the reader reopens this page and then
+        // changes another setting, the capture/restore pass needs to know which
+        // blocks carry their words. The attribute has no visual effect.
+        var selected = root.querySelectorAll('.image-selected');
+        for (var k = 0; k < selected.length; k++) {
+          selected[k].classList.remove('image-selected');
+        }
+        var hint = root.querySelector('#editHint');
+        if (hint) hint.hidden = true;
+        var button = root.querySelector('#editBtn');
+        if (button) button.textContent = '✏️ লাইভ এডিট';
+        return root.outerHTML;
+      };
+
       function isEditing() {
         return document.body.classList.contains('editing');
       }
