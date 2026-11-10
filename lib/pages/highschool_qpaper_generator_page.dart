@@ -1842,9 +1842,20 @@ class _HighSchoolQPaperGeneratorPageState
         AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           width: _desktopSettingsOpen ? 300 : 48,
-          child: _desktopSettingsOpen
-              ? _buildStudioSettingsRail()
-              : _buildCollapsedSettingsRail(),
+          // While the rail is opening, its width passes through values far too
+          // narrow for the header and buttons. Lay the open rail out at its
+          // final width and let the animated container reveal it, instead of
+          // squeezing every row through a 40px frame.
+          child: ClipRect(
+            child: _desktopSettingsOpen
+                ? OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    minWidth: 300,
+                    maxWidth: 300,
+                    child: _buildStudioSettingsRail(),
+                  )
+                : _buildCollapsedSettingsRail(),
+          ),
         ),
       ],
     );
