@@ -46,6 +46,7 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.printSettings = const PaperPrintSettings(),
     this.settingsBuilder,
     this.liveHtmlBuilder,
+    this.fileNameBuilder,
     this.onEditingModeChanged,
     this.onLiveHtmlChanged,
   });
@@ -97,6 +98,12 @@ class QuestionPaperPreviewPage extends StatefulWidget {
 
   /// Rebuilds HTML from the generator's live state after a setting changes.
   final String Function()? liveHtmlBuilder;
+
+  /// Names the saved file from the generator's current state.
+  ///
+  /// The preview's settings panel can change the sheet's title after the page
+  /// opened, so the constructor's [examName] is not always the current one.
+  final String Function()? fileNameBuilder;
 
   /// Tells the generator that the preview's floating edit button moved.
   ///
@@ -528,8 +535,9 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   Future<void> _saveLiveHtml() async {
     try {
       final html = await _snapshotLiveHtml();
+      final name = widget.fileNameBuilder?.call() ?? widget.examName;
       final base = HighSchoolExportService.safeFileName(
-        widget.examName.trim().isEmpty ? 'QuestionPaper' : widget.examName,
+        name.trim().isEmpty ? 'QuestionPaper' : name,
       );
       final file = await HighSchoolFileExportService.saveFileAs(
         // The preview hides its in-page toolbar; a saved file should keep the

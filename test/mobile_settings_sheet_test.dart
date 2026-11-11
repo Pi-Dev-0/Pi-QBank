@@ -297,7 +297,8 @@ void main() {
         reason: 'the arrange step is where the paper is tuned');
   });
 
-  testWidgets('the phone picker folds the random draw away', (tester) async {
+  testWidgets('the phone picker keeps the random draw behind a floating action',
+      (tester) async {
     HttpOverrides.global = _FakeOverrides(_questionPayload);
     addTearDown(() => HttpOverrides.global = _FakeOverrides(
           jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
@@ -305,29 +306,25 @@ void main() {
 
     await _openPickerOnPhone(tester);
 
-    final toggle = find.byKey(const ValueKey('random-selector-toggle'));
-    expect(toggle, findsOneWidget);
-    expect(find.descendant(of: toggle, matching: find.text('খুলুন')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('cq-count-field')), findsNothing,
-        reason: 'the draw starts folded so the question list has room');
-    expect(find.text('বাছাই'), findsNothing);
+    expect(find.byKey(const ValueKey('random-selector-toggle')), findsNothing,
+        reason: 'the top bar is gone so the question list has room');
+    expect(find.byKey(const ValueKey('cq-count-field')), findsNothing);
 
-    await tester.tap(toggle);
+    final randomFab = find.byKey(const ValueKey('picker-random-fab'));
+    expect(randomFab, findsOneWidget);
+
+    await tester.tap(randomFab);
     await tester.pumpAndSettle();
 
-    expect(find.descendant(of: toggle, matching: find.text('গুটান')),
-        findsOneWidget);
+    expect(find.text('এলোমেলো নির্বাচন'), findsOneWidget);
     expect(find.byKey(const ValueKey('cq-count-field')), findsOneWidget);
     expect(find.byKey(const ValueKey('mcq-count-field')), findsOneWidget);
     expect(find.byKey(const ValueKey('rq-count-field')), findsOneWidget);
     expect(find.text('বাছাই'), findsOneWidget);
 
-    await tester.tap(toggle);
+    await tester.tap(find.byTooltip('বন্ধ করুন'));
     await tester.pumpAndSettle();
 
-    expect(find.descendant(of: toggle, matching: find.text('খুলুন')),
-        findsOneWidget);
     expect(find.byKey(const ValueKey('cq-count-field')), findsNothing);
   });
 

@@ -4118,10 +4118,10 @@ $paperFontBlock    :root {
 
         <div class="meta-bar">
           ${_print.showSet && setLabel.isNotEmpty ? '<div>সেট: ${_escapeXml(setLabel)}</div>' : ''}
-          ${_print.showSubject ? '<div>বিষয়: ${_escapeXml(subject)}</div>' : ''}
-          ${_print.showClass ? '<div>শ্রেণি: ${_escapeXml(className)}</div>' : ''}
-          <div>সময়: ${_escapeXml(time)}</div>
-          <div>পূর্ণমান: ${_escapeXml(totalMarks)}</div>
+          ${_print.showSubject && subject.trim().isNotEmpty ? '<div>বিষয়: ${_escapeXml(subject)}</div>' : ''}
+          ${_print.showClass && className.trim().isNotEmpty ? '<div>শ্রেণি: ${_escapeXml(className)}</div>' : ''}
+          ${time.trim().isNotEmpty ? '<div>সময়: ${_escapeXml(time)}</div>' : ''}
+          ${totalMarks.trim().isNotEmpty ? '<div>পূর্ণমান: ${_escapeXml(totalMarks)}</div>' : ''}
           ${_print.showSubjectCode && _print.subjectCode.trim().isNotEmpty ? '<div>বিষয় কোড: ${_escapeXml(_print.subjectCode.trim())}</div>' : ''}
           ${_print.showChapter && _print.chapter.trim().isNotEmpty ? '<div>অধ্যায়: ${_escapeXml(_print.chapter.trim())}</div>' : ''}
           ${_print.showInstructions && cqInstruction.trim().isNotEmpty ? '<div class="meta-note">[ ${_escapeXml(cqInstruction.trim())} ]</div>' : ''}
