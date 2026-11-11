@@ -845,19 +845,38 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     );
   }
 
-  /// The settings pill, with the live-edit control stacked above it on a phone.
+  /// The settings pill, with the compact live-edit control beside it on a
+  /// phone.
   ///
   /// Editing belongs next to the page, not inside the settings sheet: opening
   /// the sheet to find it was what made an edit look like it had been undone.
+  /// A phone lays the two controls in one low row instead of a tall stack, so
+  /// they cover as little of the paper as possible.
   Widget _buildFloatingActions() {
-    // Linux owns live edit in the AppBar. A phone keeps the round button above
+    // Linux owns live edit in the AppBar. A phone keeps the round button beside
     // the settings pill; a wide desktop window keeps only the settings pill.
     final mobile = !ExactHtmlPreview.supported &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS ||
             MediaQuery.sizeOf(context).width < 700);
     final canEdit = _controller != null || _exactController != null;
-    final settings = FloatingActionButton.extended(
+    final settings = _buildSettingsFab(compact: mobile);
+
+    if (!mobile) return settings;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _buildEditButton(canEdit),
+        const SizedBox(width: 8),
+        settings,
+      ],
+    );
+  }
+
+  Widget _buildSettingsFab({required bool compact}) {
+    final fab = FloatingActionButton.extended(
       heroTag: 'preview-settings',
       onPressed: widget.settingsBuilder == null
           ? _showPreviewSettings
@@ -871,21 +890,34 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
               ),
       backgroundColor: const Color(0xFF5C35E3),
       foregroundColor: Colors.white,
-      icon: const Icon(Icons.tune_rounded, size: 19),
-      label:
-          const Text('সেটিংস', style: TextStyle(fontWeight: FontWeight.w700)),
+      elevation: compact ? 3 : null,
+      icon: Icon(Icons.tune_rounded, size: compact ? 17 : 19),
+      label: Text(
+        'সেটিংস',
+        style: TextStyle(
+          fontSize: compact ? 12.5 : null,
+          fontWeight: FontWeight.w700,
+          letterSpacing: compact ? 0.2 : null,
+        ),
+      ),
+      extendedIconLabelSpacing: compact ? 6 : null,
+      extendedPadding:
+          compact ? const EdgeInsetsDirectional.only(start: 14, end: 16) : null,
     );
+    if (!compact) return fab;
 
-    if (!mobile) return settings;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        _buildEditButton(canEdit),
-        const SizedBox(height: 10),
-        settings,
-      ],
+    // The extended FAB's height comes from the theme, not a constructor
+    // argument. A local theme lets the phone pill sit lower than the stock
+    // 56px one without changing the desktop preview.
+    return Theme(
+      data: Theme.of(context).copyWith(
+        floatingActionButtonTheme:
+            Theme.of(context).floatingActionButtonTheme.copyWith(
+                  extendedSizeConstraints:
+                      const BoxConstraints.tightFor(height: 44),
+                ),
+      ),
+      child: fab,
     );
   }
 
@@ -903,8 +935,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeOutCubic,
-          width: 58,
-          height: 58,
+          width: 48,
+          height: 48,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: LinearGradient(
@@ -916,15 +948,15 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
             ),
             border: Border.all(
               color: Colors.white.withOpacity(0.24),
-              width: 1.2,
+              width: 1,
             ),
             boxShadow: [
               BoxShadow(
                 color: (on ? const Color(0xFF047857) : const Color(0xFF6D28D9))
-                    .withOpacity(0.38),
-                blurRadius: 20,
-                spreadRadius: 1,
-                offset: const Offset(0, 8),
+                    .withOpacity(0.32),
+                blurRadius: 14,
+                spreadRadius: 0.5,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
@@ -948,7 +980,7 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
                     on ? Icons.check_rounded : Icons.edit_rounded,
                     key: ValueKey(on),
                     color: Colors.white,
-                    size: 27,
+                    size: 23,
                   ),
                 ),
               ),
