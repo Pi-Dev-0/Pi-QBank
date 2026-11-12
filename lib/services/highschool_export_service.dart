@@ -2213,10 +2213,12 @@ $paperFontBlock    :root {
     .top-head { display: block; }
     /* The author strip and the masthead share one row, so a tall strip does
        not leave a band of unused paper under it. Equal side columns keep the
-       masthead centred on the page while the strip takes the side it chose. */
+       masthead centred on the page while the strip takes the side it chose.
+       The sides are deliberately wider than a quarter of the sheet: a teacher
+       line such as a university and city should not break in the middle. */
     .set-head.has-author .top-head {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 50%) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 40%) minmax(0, 1fr);
       align-items: start;
     }
     .set-head.has-author .top-head > .masthead {
