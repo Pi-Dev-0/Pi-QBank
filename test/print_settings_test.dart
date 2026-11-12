@@ -283,6 +283,32 @@ void main() {
     expect(withoutAuthor, isNot(contains('class="set-head has-author"')));
   });
 
+  test('the author card is a plain black-and-white rounded box', () {
+    final html = sheet(const PaperPrintSettings(
+      showAuthor: true,
+      authorName: 'Rashid Sahriar',
+      authorLink: 'example.com',
+    ));
+
+    String ruleAt(String selector) {
+      final start = html.indexOf('$selector {');
+      final end = html.indexOf('}', start);
+      return html.substring(start, end + 1);
+    }
+
+    final block = ruleAt('.author-block');
+    expect(block, contains('border: 1px solid #000000;'));
+    expect(block, contains('border-radius: 9px;'));
+    expect(block, contains('background: #ffffff;'));
+    expect(block, isNot(contains('linear-gradient')));
+
+    final link = ruleAt('.author-link');
+    expect(link, contains('border: 1px solid #000000;'));
+    expect(link, contains('background: #ffffff;'));
+    expect(link, contains('color: #000000;'));
+    expect(link, isNot(contains('#1d4ed8')));
+  });
+
   test('a bare author domain is linked over HTTPS', () {
     final html = bodyOf(sheet(const PaperPrintSettings(
       showAuthor: true,

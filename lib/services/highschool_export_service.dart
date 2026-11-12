@@ -2266,16 +2266,18 @@ $paperFontBlock    :root {
        paper under it; centre takes its own row because two centred blocks
        cannot share a line. Its lines stay left-aligned so a multi-line
        introduction reads as one paragraph rather than a stack of right edges.
-       The quiet tint and accent rule give it an identity without turning it
-       into a card. */
+       A plain black border and white paper keep it unmistakably part of the
+       printed sheet. */
     .author-block {
+      box-sizing: border-box;
       width: fit-content;
       max-width: 42%;
       margin: 0;
-      padding: 1px 9px 2px 9px;
-      border-left: 3px solid var(--primary);
-      border-radius: 0 6px 6px 0;
-      background: linear-gradient(90deg, rgba(79, 70, 229, 0.075), rgba(79, 70, 229, 0));
+      padding: 6px 10px 7px 10px;
+      border: 1px solid #000000;
+      border-radius: 9px;
+      background: #ffffff;
+      color: #000000;
       text-align: left;
       line-height: 1.35;
       break-inside: avoid;
@@ -2289,7 +2291,7 @@ $paperFontBlock    :root {
     .author-right { margin-left: auto; }
     .author-name {
       font-size: ${_cssFontSize(13.5, fontStep)};
-      color: #1b1735;
+      color: #000000;
       font-weight: 800;
       letter-spacing: 0.1px;
       line-height: 1.25;
@@ -2298,31 +2300,33 @@ $paperFontBlock    :root {
     .author-details {
       margin-top: 1px;
       font-size: ${_cssFontSize(10.5, fontStep)};
-      color: #5f5a75;
+      color: #000000;
       line-height: 1.45;
       white-space: pre-line;
       overflow-wrap: anywhere;
     }
     /* The first line is usually the qualification; giving it a little more
        weight makes the tiny block readable at a glance. */
-    .author-details::first-line { color: #3f3a5c; font-weight: 600; }
+    .author-details::first-line { color: #000000; font-weight: 600; }
     .author-link {
+      box-sizing: border-box;
       display: inline-block;
       max-width: 100%;
-      margin-top: 3px;
+      margin-top: 4px;
       padding: 1px 8px;
+      border: 1px solid #000000;
       border-radius: 999px;
-      background: #eef2ff;
+      background: #ffffff;
       font-size: ${_cssFontSize(10.5, fontStep)};
-      color: #1d4ed8;
+      color: #000000;
       line-height: 1.45;
       text-decoration: none;
       overflow-wrap: anywhere;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .author-link:hover { background: #e0e7ff; }
-    .author-link-plain { background: #f1f5f9; color: var(--muted); }
+    .author-link:hover { background: #ffffff; text-decoration: underline; }
+    .author-link-plain { background: #ffffff; color: #000000; }
     /* The optional branding band above the masthead. */
     .brand-header {
       display: flex;
