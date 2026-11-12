@@ -246,7 +246,7 @@ void main() {
     expect(html, contains('data:image/png;base64,AAAA'));
   });
 
-  test('author details sit in the chosen corner', () {
+  test('author details sit in the chosen top corner', () {
     for (final placement in AuthorPlacement.values) {
       final html = bodyOf(sheet(PaperPrintSettings(
         showAuthor: true,
@@ -255,13 +255,53 @@ void main() {
         authorDetails: 'B.Sc. (Hons.) in Mathematics\nDhaka College',
         authorLink: 'https://example.com',
       )));
+      expect(html, contains('class="set-head has-author"'));
+      expect(html, contains('class="top-head"'));
+      expect(html.indexOf('class="top-head"'),
+          lessThan(html.indexOf('class="author-block')));
       expect(html, contains('class="author-block author-${placement.name}"'));
       expect(
           html, contains('<div class="author-name">MD. Rashid Sahriar</div>'));
       expect(html, contains('B.Sc. (Hons.) in Mathematics\nDhaka College'));
       expect(
-          html, contains('<div class="author-link">https://example.com</div>'));
+          html, contains('<a class="author-link" href="https://example.com"'));
+      expect(html, contains('>example.com</a>'));
+      expect(html.indexOf('class="author-block'),
+          lessThan(html.indexOf('class="masthead"')));
     }
+  });
+
+  test('an author strip drops only the meta-bar top rule', () {
+    final withAuthor = sheet(const PaperPrintSettings(
+      showAuthor: true,
+      authorName: 'MD. Rashid Sahriar',
+    ));
+    expect(withAuthor,
+        contains('.set-head.has-author .meta-bar { border-top: none; }'));
+    final withoutAuthor = bodyOf(sheet(const PaperPrintSettings()));
+    expect(withoutAuthor, contains('class="set-head"'));
+    expect(withoutAuthor, isNot(contains('class="set-head has-author"')));
+  });
+
+  test('a bare author domain is linked over HTTPS', () {
+    final html = bodyOf(sheet(const PaperPrintSettings(
+      showAuthor: true,
+      authorName: 'MD. Rashid Sahriar',
+      authorLink: 'rashid-sahriar.blogspot.com',
+    )));
+    expect(html, contains('href="https://rashid-sahriar.blogspot.com"'));
+    expect(html, contains('>rashid-sahriar.blogspot.com</a>'));
+  });
+
+  test('free text in the author-link field stays unlinked', () {
+    final html = bodyOf(sheet(const PaperPrintSettings(
+      showAuthor: true,
+      authorName: 'MD. Rashid Sahriar',
+      authorLink: 'Facebook page',
+    )));
+    expect(html, contains('class="author-link author-link-plain"'));
+    expect(html, contains('>Facebook page</span>'));
+    expect(html, isNot(contains('href="https://Facebook page"')));
   });
 
   test('the author block only prints while the switch is on', () {

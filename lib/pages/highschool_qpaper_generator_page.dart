@@ -3457,7 +3457,7 @@ class _HighSchoolQPaperGeneratorPageState
           _buildTextField(
             ctrl: _authorLinkCtrl,
             label: 'লিংক (ঐচ্ছিক)',
-            hintText: 'https://...',
+            hintText: 'example.com বা https://...',
             onChanged: (_) => setState(() {}),
           ),
           _railSegmented<AuthorPlacement>(
@@ -9562,7 +9562,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
           _textField(
             controller: page._authorLinkCtrl,
             label: 'লিংক (ঐচ্ছিক)',
-            hint: 'https://...',
+            hint: 'example.com বা https://...',
             onChanged: (_) => _apply(() {}),
           ),
           const SizedBox(height: 10),

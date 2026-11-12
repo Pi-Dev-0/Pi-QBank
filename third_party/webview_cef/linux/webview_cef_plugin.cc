@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <unordered_map>
+#include <unordered_set>
 #include <webview_plugin.h>
 #include "webview_cef_keyevent.h"
 #include "webview_cef_texture.h"
@@ -25,6 +26,12 @@ struct _WebviewCefPlugin
 G_DEFINE_TYPE(WebviewCefPlugin, webview_cef_plugin, g_object_get_type())
 
 std::unordered_map<int64_t, std::shared_ptr<webview_cef::WebviewPlugin>> webviewPlugins;
+
+// Hardware key codes whose key-down was forwarded to CEF. The matching
+// key-up must stay consumed even if the browser loses focus between the two
+// events; otherwise Flutter sees half a key sequence and its HardwareKeyboard
+// can end up believing the key is still pressed.
+std::unordered_set<guint> forwarded_keycodes;
 
 class WebviewTextureRenderer : public webview_cef::WebviewTexture
 {
@@ -298,69 +305,97 @@ FLUTTER_PLUGIN_EXPORT void initCEFProcesses(int argc, char **argv)
 FLUTTER_PLUGIN_EXPORT gboolean processKeyEventForCEF(GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
   int64_t _id = int64_t(widget);
-  if (webviewPlugins.find(_id) != webviewPlugins.end() && webviewPlugins[_id]->getAnyBrowserFocused())
+  if (webviewPlugins.find(_id) == webviewPlugins.end())
   {
-    CefKeyEvent key_event;
-    KeyboardCode windows_key_code = GdkEventToWindowsKeyCode(event);
-    key_event.windows_key_code =
-        GetWindowsKeyCodeWithoutLocation(windows_key_code);
-    key_event.native_key_code = event->hardware_keycode;
-
-    key_event.modifiers = GetCefStateModifiers(event->state);
-    if (event->keyval >= GDK_KP_Space && event->keyval <= GDK_KP_9)
-    {
-      key_event.modifiers |= EVENTFLAG_IS_KEY_PAD;
-    }
-    if (key_event.modifiers & EVENTFLAG_ALT_DOWN)
-    {
-      key_event.is_system_key = true;
-    }
-
-    if (windows_key_code == VKEY_RETURN)
-    {
-      // We need to treat the enter key as a key press of character \r.  This
-      // is apparently just how webkit handles it and what it expects.
-      key_event.unmodified_character = '\r';
-    }
-    else if((windows_key_code == KeyboardCode::VKEY_V) && (key_event.modifiers & EVENTFLAG_CONTROL_DOWN) && (event->type == GDK_KEY_PRESS)){
-      //try to fix copy request freeze process problem(flutter engine will send a copy request when ctrl+v pressed)
-      int res = 0;
-      if(system("xclip -o -sel clipboard | xclip -i -sel clipboard  &>/dev/null") == 0){
-        res = system("xclip -o -sel clipboard | xclip -i &>/dev/null");
-      }
-      // Suppress unused variable warning
-      (void)res;
-    }
-    else {
-      // FIXME: fix for non BMP chars
-      key_event.unmodified_character =
-          static_cast<int>(gdk_keyval_to_unicode(event->keyval));
-    }
-
-    // If ctrl key is pressed down, then control character shall be input.
-    if (key_event.modifiers & EVENTFLAG_CONTROL_DOWN)
-    {
-      key_event.character = GetControlCharacter(
-          windows_key_code, key_event.modifiers & EVENTFLAG_SHIFT_DOWN);
-    }
-    else
-    {
-      key_event.character = key_event.unmodified_character;
-    }
-    if (event->type == GDK_KEY_PRESS)
-    {
-      key_event.type = KEYEVENT_RAWKEYDOWN;
-      webviewPlugins[_id]->sendKeyEvent(key_event);
-      key_event.type = KEYEVENT_CHAR;
-    }
-    else
-    {
-      key_event.type = KEYEVENT_KEYUP;
-    }
-    webviewPlugins[_id]->sendKeyEvent(key_event);
-
-    return TRUE;
+    return FALSE;
   }
-  // processKeyEventForFlutter need return FALSE
-  return FALSE;
+
+  const bool is_press = event->type == GDK_KEY_PRESS;
+  bool consume;
+  if (is_press)
+  {
+    const bool already_forwarded =
+        forwarded_keycodes.find(event->hardware_keycode) !=
+        forwarded_keycodes.end();
+    // Keep auto-repeat of a CEF key consumed even if focus moved away after
+    // the first press; otherwise Flutter would see a repeat without its
+    // matching key-down.
+    consume = already_forwarded ||
+              webviewPlugins[_id]->getAnyBrowserFocused();
+    if (consume)
+    {
+      forwarded_keycodes.insert(event->hardware_keycode);
+    }
+  }
+  else
+  {
+    // Only consume a release whose press was consumed. A key pressed while
+    // Flutter had focus must also deliver its release to Flutter.
+    consume = forwarded_keycodes.erase(event->hardware_keycode) > 0;
+  }
+  if (!consume)
+  {
+    return FALSE;
+  }
+
+  CefKeyEvent key_event;
+  KeyboardCode windows_key_code = GdkEventToWindowsKeyCode(event);
+  key_event.windows_key_code =
+      GetWindowsKeyCodeWithoutLocation(windows_key_code);
+  key_event.native_key_code = event->hardware_keycode;
+
+  key_event.modifiers = GetCefStateModifiers(event->state);
+  if (event->keyval >= GDK_KP_Space && event->keyval <= GDK_KP_9)
+  {
+    key_event.modifiers |= EVENTFLAG_IS_KEY_PAD;
+  }
+  if (key_event.modifiers & EVENTFLAG_ALT_DOWN)
+  {
+    key_event.is_system_key = true;
+  }
+
+  if (windows_key_code == VKEY_RETURN)
+  {
+    // We need to treat the enter key as a key press of character \r.  This
+    // is apparently just how webkit handles it and what it expects.
+    key_event.unmodified_character = '\r';
+  }
+  else if((windows_key_code == KeyboardCode::VKEY_V) && (key_event.modifiers & EVENTFLAG_CONTROL_DOWN) && (event->type == GDK_KEY_PRESS)){
+    //try to fix copy request freeze process problem(flutter engine will send a copy request when ctrl+v pressed)
+    int res = 0;
+    if(system("xclip -o -sel clipboard | xclip -i -sel clipboard  &>/dev/null") == 0){
+      res = system("xclip -o -sel clipboard | xclip -i &>/dev/null");
+    }
+    // Suppress unused variable warning
+    (void)res;
+  }
+  else {
+    // FIXME: fix for non BMP chars
+    key_event.unmodified_character =
+        static_cast<int>(gdk_keyval_to_unicode(event->keyval));
+  }
+
+  // If ctrl key is pressed down, then control character shall be input.
+  if (key_event.modifiers & EVENTFLAG_CONTROL_DOWN)
+  {
+    key_event.character = GetControlCharacter(
+        windows_key_code, key_event.modifiers & EVENTFLAG_SHIFT_DOWN);
+  }
+  else
+  {
+    key_event.character = key_event.unmodified_character;
+  }
+  if (event->type == GDK_KEY_PRESS)
+  {
+    key_event.type = KEYEVENT_RAWKEYDOWN;
+    webviewPlugins[_id]->sendKeyEvent(key_event);
+    key_event.type = KEYEVENT_CHAR;
+  }
+  else
+  {
+    key_event.type = KEYEVENT_KEYUP;
+  }
+  webviewPlugins[_id]->sendKeyEvent(key_event);
+
+  return TRUE;
 }

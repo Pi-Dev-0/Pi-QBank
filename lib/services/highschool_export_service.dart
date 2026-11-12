@@ -2170,16 +2170,18 @@ $paperFontBlock    :root {
     }
 
     /* The sheet *is* an A4 page: the same 210×297mm canvas the PDF export uses,
-       the same 18pt at the head and 40pt down each side, and a foot of 18px.
-       Same paper, same text width, so a line that wraps here wraps the same way
-       in the PDF: the canvas on screen is what the printer produces. */
+       40pt down each side, and a foot of 18px. The head padding belongs to the
+       masthead instead of the sheet so an author strip can start at the very
+       top edge, with nothing above it. Same paper, same text width, so a line
+       that wraps here wraps the same way in the PDF: the canvas on screen is
+       what the printer produces. */
     .paper-sheet {
       width: ${_print.paperSize.widthCss};
       max-width: 100%;
       min-height: ${_print.paperSize.heightCss};
       margin: 0 auto;
       background: white;
-      padding: 18pt ${_print.paperSize.sidePaddingPt.round()}pt 18px;
+      padding: 0 ${_print.paperSize.sidePaddingPt.round()}pt 18px;
       border-radius: 8px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
       zoom: var(--paper-scale, 1);
@@ -2203,6 +2205,52 @@ $paperFontBlock    :root {
       break-inside: avoid;
       break-after: avoid;
     }
+    /* The old 18pt head lives on the masthead now. A second set sharing this
+       sheet already gets its separation from the dashed divider, so it needs
+       no extra head. */
+    .masthead { margin-top: 18pt; }
+    .set-divider + .paper-set .masthead { margin-top: 0; }
+    .top-head { display: block; }
+    /* The author strip and the masthead share one row, so a tall strip does
+       not leave a band of unused paper under it. Equal side columns keep the
+       masthead centred on the page while the strip takes the side it chose. */
+    .set-head.has-author .top-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 50%) minmax(0, 1fr);
+      align-items: start;
+    }
+    .set-head.has-author .top-head > .masthead {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: center;
+      margin-top: 0;
+    }
+    .set-head.has-author .top-head > .author-left {
+      grid-column: 1;
+      grid-row: 1;
+      justify-self: start;
+    }
+    .set-head.has-author .top-head > .author-right {
+      grid-column: 3;
+      grid-row: 1;
+      justify-self: end;
+    }
+    .set-head.has-author .top-head > .author-left,
+    .set-head.has-author .top-head > .author-right {
+      max-width: 100%;
+    }
+    /* A centred strip needs a row of its own: on the masthead's row it would
+       cover the centred title. */
+    .set-head.has-author .top-head > .author-center {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      justify-self: center;
+    }
+    .set-head.has-author .top-head > .author-center ~ .masthead {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      margin-top: 6px;
+    }
     /* The dashed rule the PDF draws between two sets that share a sheet, with
        the same gaps above and below it. */
     .set-divider {
@@ -2213,35 +2261,68 @@ $paperFontBlock    :root {
     .school-title { font-size: ${_cssFontSize(24, fontStep)}; font-weight: 700; text-align: center; margin-bottom: 4px; }
     .exam-title { font-size: ${_cssFontSize(18, fontStep)}; font-weight: 600; text-align: center; }
     .header-note { font-size: ${_cssFontSize(12, fontStep)}; color: var(--muted); text-align: center; margin-top: 2px; }
-    /* An optional author/teacher block at the top of the sheet. The block sits
-       in the chosen corner, but its lines stay left-aligned so a multi-line
-       introduction reads as one paragraph rather than a stack of right edges. */
+    /* An optional author/teacher strip in the sheet's top row. Left and right
+       sit beside the masthead so a tall strip does not leave a band of unused
+       paper under it; centre takes its own row because two centred blocks
+       cannot share a line. Its lines stay left-aligned so a multi-line
+       introduction reads as one paragraph rather than a stack of right edges.
+       The quiet tint and accent rule give it an identity without turning it
+       into a card. */
     .author-block {
       width: fit-content;
       max-width: 42%;
-      margin-bottom: 6px;
+      margin: 0;
+      padding: 1px 9px 2px 9px;
+      border-left: 3px solid var(--primary);
+      border-radius: 0 6px 6px 0;
+      background: linear-gradient(90deg, rgba(79, 70, 229, 0.075), rgba(79, 70, 229, 0));
       text-align: left;
       line-height: 1.35;
       break-inside: avoid;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    /* Left and right ride beside the masthead instead of taking a row of their
-       own. The center placement is the one case that has to sit in the flow,
-       because a float cannot be centered in the line. */
-    .author-left { float: left; margin-right: 12px; }
+    /* Auto side margins place the strip at the left, centre or right edge both
+       in the top grid and when a centred strip has a row of its own. */
+    .author-left { margin-right: auto; }
     .author-center { margin-left: auto; margin-right: auto; }
-    .author-right { float: right; margin-left: 12px; }
-    .author-name { font-size: ${_cssFontSize(13.5, fontStep)}; font-weight: 700; }
-    .author-details {
-      font-size: ${_cssFontSize(10.5, fontStep)};
-      color: var(--muted);
-      white-space: pre-line;
+    .author-right { margin-left: auto; }
+    .author-name {
+      font-size: ${_cssFontSize(13.5, fontStep)};
+      color: #1b1735;
+      font-weight: 800;
+      letter-spacing: 0.1px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
     }
-    .author-link {
+    .author-details {
+      margin-top: 1px;
       font-size: ${_cssFontSize(10.5, fontStep)};
-      color: #1d4ed8;
+      color: #5f5a75;
+      line-height: 1.45;
       white-space: pre-line;
       overflow-wrap: anywhere;
     }
+    /* The first line is usually the qualification; giving it a little more
+       weight makes the tiny block readable at a glance. */
+    .author-details::first-line { color: #3f3a5c; font-weight: 600; }
+    .author-link {
+      display: inline-block;
+      max-width: 100%;
+      margin-top: 3px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: #eef2ff;
+      font-size: ${_cssFontSize(10.5, fontStep)};
+      color: #1d4ed8;
+      line-height: 1.45;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .author-link:hover { background: #e0e7ff; }
+    .author-link-plain { background: #f1f5f9; color: var(--muted); }
     /* The optional branding band above the masthead. */
     .brand-header {
       display: flex;
@@ -2323,6 +2404,7 @@ $paperFontBlock    :root {
     }
     .meta-bar {
       display: flex;
+      clear: both;
       justify-content: space-between;
       flex-wrap: wrap;
       padding: 2px 0;
@@ -2331,6 +2413,10 @@ $paperFontBlock    :root {
       font-weight: 600;
       font-size: ${_cssFontSize(15, fontStep)};
     }
+    /* With a writer/teacher strip above the masthead, the top rule would read
+       as a second header line. Keep the bar's lower rule and drop only the
+       upper one. */
+    .set-head.has-author .meta-bar { border-top: none; }
     /* The CQ instruction rides inside the bar, on a line of its own between
        the two rules — the bar is the one band on the sheet that states what
        the paper wants, so the instruction belongs there rather than in a
@@ -2623,7 +2709,9 @@ $paperFontBlock    :root {
         min-height: 0;
         box-shadow: none;
         border-radius: 0;
-        padding: 18pt ${_print.paperSize.sidePaddingPt.round()}pt 18px;
+        /* The head space is on `.masthead`, so an author strip can begin at
+           the physical page edge. */
+        padding: 0 ${_print.paperSize.sidePaddingPt.round()}pt 18px;
       }
       .paper-sheet + .paper-sheet { break-before: page; margin-top: 0; }
     }
@@ -4094,6 +4182,13 @@ $paperFontBlock    :root {
     final authorName = _print.authorName.trim();
     final authorDetails = _print.authorDetails.trim();
     final authorLink = _print.authorLink.trim();
+    final authorHref = _authorHref(authorLink);
+    final authorLinkLabel = _authorLinkLabel(authorLink, authorHref);
+    final authorLinkHtml = authorLink.isEmpty
+        ? ''
+        : authorHref == null
+            ? '<span class="author-link author-link-plain">${_escapeXml(authorLinkLabel)}</span>'
+            : '<a class="author-link" href="${_escapeXml(authorHref)}" target="_blank" rel="noopener noreferrer">${_escapeXml(authorLinkLabel)}</a>';
     final authorBlock = _print.showAuthor &&
             (authorName.isNotEmpty ||
                 authorDetails.isNotEmpty ||
@@ -4102,19 +4197,23 @@ $paperFontBlock    :root {
         <div class="author-block author-${_print.authorPlacement.name}">
           ${authorName.isNotEmpty ? '<div class="author-name">${_escapeXml(authorName)}</div>' : ''}
           ${authorDetails.isNotEmpty ? '<div class="author-details">${_escapeXml(authorDetails)}</div>' : ''}
-          ${authorLink.isNotEmpty ? '<div class="author-link">${_escapeXml(authorLink)}</div>' : ''}
+          ${authorLinkHtml.isNotEmpty ? '<div>$authorLinkHtml</div>' : ''}
         </div>'''
         : '';
 
     buffer.write('''
     <div class="paper-set">
-      <div class="set-head">
-        $authorBlock
-        $brandHeader
-        ${_print.showSchool && schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
-        $addressLine
-        ${_print.showExam && examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
-        ${_print.headerNote.trim().isNotEmpty ? '<div class="header-note">${_escapeXml(_print.headerNote.trim())}</div>' : ''}
+      <div class="set-head${authorBlock.isNotEmpty ? ' has-author' : ''}">
+        <div class="top-head">
+          $authorBlock
+          <div class="masthead">
+            $brandHeader
+            ${_print.showSchool && schoolName.trim().isNotEmpty ? '<div class="school-title">${_escapeXml(schoolName)}</div>' : ''}
+            $addressLine
+            ${_print.showExam && examName.trim().isNotEmpty ? '<div class="exam-title">${_escapeXml(examName)}</div>' : ''}
+            ${_print.headerNote.trim().isNotEmpty ? '<div class="header-note">${_escapeXml(_print.headerNote.trim())}</div>' : ''}
+          </div>
+        </div>
 
         <div class="meta-bar">
           ${_print.showSet && setLabel.isNotEmpty ? '<div>সেট: ${_escapeXml(setLabel)}</div>' : ''}
@@ -4903,6 +5002,33 @@ $paperFontBlock    :root {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
+    );
+  }
+
+  /// Turns the optional author link into a safe href. A bare domain is treated
+  /// as HTTPS; free text is left unlinked so a printed line cannot become a
+  /// broken URL.
+  static String? _authorHref(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+    if (RegExp(r'^https?://\S+$', caseSensitive: false).hasMatch(value)) {
+      return value;
+    }
+    if (!RegExp(r'\s').hasMatch(value) &&
+        !value.contains('@') &&
+        value.contains('.')) {
+      return 'https://$value';
+    }
+    return null;
+  }
+
+  /// The link's visible label: the scheme is redundant inside the pill.
+  static String _authorLinkLabel(String raw, String? href) {
+    final value = raw.trim();
+    if (href == null) return value;
+    return value.replaceFirst(
+      RegExp(r'^https?://', caseSensitive: false),
+      '',
     );
   }
 

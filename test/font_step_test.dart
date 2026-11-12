@@ -151,12 +151,13 @@ void main() {
       final big = rule(cssOf(generate(6)), '.paper-sheet');
 
       // Text grows into the same A4 page: only the sizes move, never the page or
-      // the margins, which is what keeps a line wrapping in the same place as in
-      // the PDF.
+      // the side margins, which is what keeps a line wrapping in the same place
+      // as in the PDF. The head padding lives on `.masthead` so an author strip
+      // can start at the very top of the sheet.
       for (final sheet in [small, big]) {
         expect(decl(sheet, 'width'), '210mm');
         expect(decl(sheet, 'min-height'), '297mm');
-        expect(decl(sheet, 'padding'), '18pt 40pt 18px');
+        expect(decl(sheet, 'padding'), '0 40pt 18px');
       }
     });
   });

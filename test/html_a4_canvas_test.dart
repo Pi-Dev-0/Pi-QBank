@@ -95,11 +95,13 @@ void main() {
     expect(points('297mm'), closeTo(PdfLayout.a4Height, 0.05));
   });
 
-  test('the canvas keeps the PDF page margins', () {
+  test('the canvas keeps the PDF side margins', () {
     final sides = paddingSides(decl(rule(css, '.paper-sheet'), 'padding')!);
 
-    // padding: top right bottom — left follows the right.
-    expect(sides[0], PdfLayout.pageMarginTop);
+    // padding: top right bottom — left follows the right. The head is no longer
+    // the sheet's padding: `.masthead` owns the 18pt, leaving the top edge free
+    // for an author strip.
+    expect(sides[0], 0);
     expect(sides[1], PdfLayout.pageMarginH);
     // The foot is a shade deeper than the PDF's own: the last line of a full
     // page ends clear of the paper's edge instead of on it.
@@ -119,9 +121,10 @@ void main() {
 
     final printed = css.split('@media print')[1];
 
-    // Same margins as on screen, so a printed page breaks where the PDF's does.
+    // Same side margins as on screen. The sheet's top edge is free so an author
+    // strip can begin there; `.masthead` carries the 18pt head space.
     expect(paddingSides(decl(rule(printed, '.paper-sheet'), 'padding')!), [
-      PdfLayout.pageMarginTop,
+      0,
       PdfLayout.pageMarginH,
       points('18px'),
     ]);

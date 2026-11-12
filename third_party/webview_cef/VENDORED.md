@@ -12,6 +12,11 @@ patching the pub cache after every `flutter pub get`.
 - `common/webview_handler.cc` no longer flips `deltaY` on Linux. Upstream flips
   it for both Windows and Linux, which made the page scroll opposite to the
   wheel. The flip is still applied on Windows.
+- `linux/webview_cef_plugin.cc` remembers which hardware keys were consumed
+  by CEF and consumes their matching releases too, even if browser focus
+  changes between the press and the release. Without that, Flutter could see
+  only half a key sequence and its `HardwareKeyboard` could assert that a
+  physical key is already pressed (or never pressed) on a later event.
 
 ## Updating
 
