@@ -2617,12 +2617,12 @@ class _HighSchoolQPaperGeneratorPageState
     // fall back to the platform default and lose HindSiliguri.
     final base = Theme.of(context).textTheme.bodyMedium ??
         DefaultTextStyle.of(context).style;
+    final resolved = base.merge(style).copyWith(
+          color: style?.color ?? const Color(0xFF1F2937),
+        );
     return RichText(
       text: TextSpan(
-        text: text,
-        style: base.merge(style).copyWith(
-              color: style?.color ?? const Color(0xFF1F2937),
-            ),
+        children: mathInlineSpans(text, style: resolved),
       ),
       textAlign: textAlign ?? TextAlign.start,
       textDirection: TextDirection.ltr,
@@ -5284,7 +5284,7 @@ class _HighSchoolQPaperGeneratorPageState
                   if (intro.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 6, bottom: 2),
-                      child: Text(
+                      child: mathText(
                         intro,
                         style: const TextStyle(
                             fontSize: 12, height: 1.3, color: _kSubText),
@@ -5292,7 +5292,7 @@ class _HighSchoolQPaperGeneratorPageState
                     ),
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text(
+                    child: mathText(
                       _previewText(q),
                       style: TextStyle(
                         fontSize: isAndroid ? 14.5 : 15,
@@ -5454,7 +5454,7 @@ class _HighSchoolQPaperGeneratorPageState
                   ),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(
+                    child: mathText(
                       sub.text,
                       style: const TextStyle(fontSize: 13, height: 1.3),
                     ),

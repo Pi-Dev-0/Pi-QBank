@@ -73,32 +73,41 @@ List<InlineSpan> mathInlineSpans(
           final fractionStyle = (math
                   ? currentStyle.copyWith(fontStyle: FontStyle.italic)
                   : currentStyle)
-              .copyWith(fontSize: size * fracFontScale);
+              .copyWith(fontSize: size * fracFontScale, height: 1.0);
           final ruleColor = fractionStyle.color ?? Colors.black;
           result.add(WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
+            alignment: PlaceholderAlignment.middle,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text.rich(TextSpan(
-                      children: renderSegments(
-                    parseMath(numerator),
-                    currentStyle: fractionStyle,
-                  ))),
-                  Container(
-                    height: 1,
-                    constraints: const BoxConstraints(minWidth: 8),
-                    color: ruleColor,
-                  ),
-                  Text.rich(TextSpan(
-                      children: renderSegments(
-                    parseMath(denominator),
-                    currentStyle: fractionStyle,
-                  ))),
-                ],
+              // IntrinsicWidth keeps the rule as wide as the wider of the
+              // numerator and denominator. Without it the rule is a childless
+              // Container inside a Column, which expands to the full line and
+              // draws a fraction bar right across the card.
+              child: IntrinsicWidth(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text.rich(TextSpan(
+                        children: renderSegments(
+                      parseMath(numerator),
+                      currentStyle: fractionStyle,
+                    ))),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Container(
+                        key: const ValueKey('math-fraction-rule'),
+                        height: 1,
+                        color: ruleColor,
+                      ),
+                    ),
+                    Text.rich(TextSpan(
+                        children: renderSegments(
+                      parseMath(denominator),
+                      currentStyle: fractionStyle,
+                    ))),
+                  ],
+                ),
               ),
             ),
           ));

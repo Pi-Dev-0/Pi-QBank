@@ -438,6 +438,68 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the phone picker typesets equations instead of showing markup',
+      (tester) async {
+    HttpOverrides.global = _FakeOverrides(jsonEncode({
+      'status': 'SUCCESS',
+      'data': [
+        {
+          'id': 'latex-cq',
+          'class': 'Class (9-10) SSC',
+          'subject': 'গণিত',
+          'chapter_number': '1',
+          'chapter_name': 'অনুশীলনী ১',
+          'question_type': 'CQ',
+          'stem_text':
+              r'$\frac{x}{2}+\frac{y}{3}=1 \quad \text{এবং} \quad \frac{4x}{7}-\frac{2y}{9}=-1$',
+          'stem_image_url': '',
+          'sub_questions_json': [
+            {
+              'label': 'ক',
+              'mark': 2,
+              'text':
+                  r'$(4,3)$ বিন্দুটি $\left(\frac{1}{2}\right)$ সমীকরণকে সিদ্ধ করে কি না যাচাই করো।',
+            },
+          ],
+          'board_year_tag': '',
+        },
+      ],
+    }));
+    addTearDown(() => HttpOverrides.global = _FakeOverrides(
+          jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+        ));
+
+    tester.view.physicalSize = const Size(420, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: HighSchoolQPaperGeneratorPage()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('ক্লাস নির্বাচন করুন'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Class (9-10) SSC').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('বিষয় নির্বাচন করুন'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('উচ্চতর গণিত').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('পরবর্তী'));
+    await tester.pumpAndSettle();
+
+    // The card typesets the stem and the sub-question: no raw command or
+    // delimiter should survive in the visible text.
+    expect(find.textContaining(r'\frac'), findsNothing);
+    expect(find.textContaining(r'\left'), findsNothing);
+    expect(find.textContaining(r'\quad'), findsNothing);
+    expect(find.textContaining('সমীকরণকে সিদ্ধ'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the phone picker hides its controls behind floating actions',
       (tester) async {
     HttpOverrides.global = _FakeOverrides(jsonEncode({
