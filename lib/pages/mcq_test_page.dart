@@ -7,6 +7,8 @@ import 'package:pi_qbank/pages/tools_page.dart';
 import 'package:pi_qbank/models/test_result.dart'; // Import TestResult
 import 'package:pi_qbank/services/test_result_service.dart'; // Import TestResultService
 import 'package:pi_qbank/services/saved_test_service.dart'; // Import SavedTestService
+import 'package:pi_qbank/utils/math_rich_text.dart';
+import 'package:pi_qbank/utils/math_text.dart';
 import 'package:pi_qbank/widgets/upload_test_button.dart';
 
 /// Deliberately small, page-local palette. Keeping the exam chrome in one
@@ -976,7 +978,7 @@ class _MCQTestPageState extends State<MCQTestPage>
             ],
           ),
           const SizedBox(height: 10),
-          Text(
+          mathText(
             (question['question'] ?? '').toString(),
             style: const TextStyle(
               fontSize: 15.5,
@@ -1169,6 +1171,12 @@ class _MCQTestPageState extends State<MCQTestPage>
   bool _optionsFitTwoColumns(
       BuildContext context, List<String> texts, double maxWidth) {
     if (texts.length < 2) return false;
+    // A stacked fraction or a radical is taller than the line it sits in. The
+    // half-width tile cannot measure that from the raw LaTeX string, so keep
+    // those choices on full-width rows instead of guessing.
+    bool hasTallMath(String text) => parseMath(text)
+        .any((segment) => segment is MathFraction || segment is MathRadical);
+    if (texts.any(hasTallMath)) return false;
     const gap = 8.0;
     final textWidth = (maxWidth - gap) / 2 - 69;
     if (textWidth < 30) return false;
@@ -1255,7 +1263,7 @@ class _MCQTestPageState extends State<MCQTestPage>
               ),
               SizedBox(width: badgeGap),
               Expanded(
-                child: Text(
+                child: mathText(
                   text,
                   style: TextStyle(
                     fontSize: 14,
@@ -2029,7 +2037,7 @@ class _MCQTestPageState extends State<MCQTestPage>
           ),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text(
+            child: mathText(
               (result['question'] ?? '').toString(),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -2049,7 +2057,7 @@ class _MCQTestPageState extends State<MCQTestPage>
             ],
             // The collapsed row only has room for two lines; expanding keeps
             // the whole question readable.
-            Text(
+            mathText(
               (result['question'] ?? '').toString(),
               style: const TextStyle(
                 fontSize: 12.5,
@@ -2188,7 +2196,7 @@ class _MCQTestPageState extends State<MCQTestPage>
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
+                mathText(
                   answer,
                   style: const TextStyle(
                     fontSize: 12.5,

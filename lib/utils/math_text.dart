@@ -173,7 +173,15 @@ const Map<String, String> kVulgarFractions = {
 /// literally rather than swallowing the rest of the question, because a
 /// question that prints slightly wrong is recoverable and one that prints
 /// nothing is not.
-List<MathSegment> parseMath(String text) {
+///
+/// [allowBareSuperscript] is for the on-screen rich text only. Question banks
+/// often write `x^2` without the surrounding `$...$`, and the app should show
+/// that as a power. The PDF/HTML writers keep the historical behaviour, where a
+/// bare `^` is prose and is left exactly as typed.
+List<MathSegment> parseMath(
+  String text, {
+  bool allowBareSuperscript = false,
+}) {
   if (text.isEmpty) return const [];
 
   // A JSON string such as `"\\frac{x}{y}"` is unfortunately accepted by
@@ -334,17 +342,31 @@ List<MathSegment> parseMath(String text) {
 
     // ── super/subscript ────────────────────────────────────────────────
     //
-    // Only inside `$...$`. Outside it these are ordinary characters: `^` turns
-    // up in prose and in identifiers, and quietly typesetting the next word as
-    // a raised script loses it. `\frac` is deliberately *not* restricted this
-    // way, because question banks write it without delimiters.
+    // Inside `$...$` these are always scripts. Outside, `^` is only a script
+    // when the rich-text caller opts in and it is attached to the next token
+    // (`x^2`, `x^{n}`); a caret in prose or at the end of a line stays as
+    // typed. `_` is deliberately never promoted outside maths: Bijoy encodes
+    // Bengali letters with it, so treating it as a subscript there loses the
+    // letter. `\frac` is not restricted this way either, because question banks
+    // write it without delimiters.
     if ((c == '^' || c == '_') && i + 1 < text.length) {
+      final next = text[i + 1];
+      final barePower = allowBareSuperscript &&
+          c == '^' &&
+          next != ' ' &&
+          next != '\t' &&
+          next != '\r' &&
+          next != '\n' &&
+          next != '\\' &&
+          next != '^' &&
+          next != '_';
+      final asScript = math || barePower;
       final arg = _readGroup(text, i + 1);
-      final body = arg?.body ?? (i + 2 <= text.length ? text[i + 1] : '');
+      final body = arg?.body ?? (i + 2 <= text.length ? next : '');
       if (arg != null) {
-        if (math) {
+        if (asScript) {
           flush();
-          out.add(MathScript(body, superscript: c == '^', math: true));
+          out.add(MathScript(body, superscript: c == '^', math: math));
         } else {
           // Kept exactly as written, braces and all, so nothing disappears.
           buffer
@@ -353,9 +375,9 @@ List<MathSegment> parseMath(String text) {
         }
         i = arg.end;
       } else if (i + 2 <= text.length) {
-        if (math) {
+        if (asScript) {
           flush();
-          out.add(MathScript(body, superscript: c == '^', math: true));
+          out.add(MathScript(body, superscript: c == '^', math: math));
         } else {
           buffer
             ..write(c)

@@ -126,6 +126,48 @@ Future<Set<String>? Function()> openPicker(
 }
 
 void main() {
+  testWidgets('typesets equations instead of showing raw markup',
+      (tester) async {
+    final question = HighSchoolQuestion.fromJson({
+      'id': 'latex-q',
+      'class': 'Class 8',
+      'subject': 'গণিত',
+      'chapter_number': '1',
+      'chapter_name': 'অধ্যায় 1',
+      'question_type': 'MCQ',
+      'stem_text': '',
+      'stem_image_url': '',
+      'sub_questions_json': jsonEncode({
+        'text': r'$\frac{x}{2}+\frac{y}{3}=1$ হলে $x$ কত?',
+        'options': [
+          r'$\frac{1}{2}$',
+          r'$\sqrt{3}$',
+          r'$x^2$',
+          r'$4$',
+        ],
+        'correct_ans': r'$\frac{1}{2}$',
+      }),
+      'board_year_tag': '',
+      'short_mark': '',
+    });
+
+    await openPicker(tester, [question]);
+
+    expect(find.textContaining(r'\frac'), findsNothing);
+    expect(find.textContaining(r'\sqrt'), findsNothing);
+    expect(find.textContaining(r'$'), findsNothing);
+    expect(find.byKey(const ValueKey('math-fraction-rule')), findsWidgets);
+
+    await tester.tap(find.byTooltip('Show choices'));
+    await tester.pumpAndSettle();
+
+    // The choices and the answer line are typeset too.
+    expect(find.textContaining(r'\frac'), findsNothing);
+    expect(find.textContaining(r'\sqrt'), findsNothing);
+    expect(find.textContaining(r'$'), findsNothing);
+    expect(find.byKey(const ValueKey('math-fraction-rule')), findsWidgets);
+  });
+
   testWidgets('lists every question it was given', (tester) async {
     await openPicker(tester, bank(chapters: 1, perChapter: 3));
 

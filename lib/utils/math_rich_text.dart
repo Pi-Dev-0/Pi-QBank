@@ -11,6 +11,11 @@ List<InlineSpan> mathInlineSpans(
 }) {
   final size = style.fontSize ?? 14;
 
+  // Rich text is the one surface where a bare caret is a power: the question
+  // banks write forms such as `x^2` without wrapping every one in `$...$`.
+  List<MathSegment> parse(String value) =>
+      parseMath(value, allowBareSuperscript: true);
+
   List<InlineSpan> renderSegments(
     List<MathSegment> segments, {
     required TextStyle currentStyle,
@@ -37,7 +42,7 @@ List<InlineSpan> mathInlineSpans(
               offset: Offset(0, superscript ? -size * 0.3 : size * 0.12),
               child: Text.rich(TextSpan(
                 children:
-                    renderSegments(parseMath(text), currentStyle: scriptStyle),
+                    renderSegments(parse(text), currentStyle: scriptStyle),
               )),
             ),
           ));
@@ -62,7 +67,7 @@ List<InlineSpan> mathInlineSpans(
                   padding: const EdgeInsets.only(left: 2, right: 2),
                   child: Text.rich(TextSpan(
                       children: renderSegments(
-                    parseMath(body),
+                    parse(body),
                     currentStyle: radicalStyle,
                   ))),
                 ),
@@ -90,7 +95,7 @@ List<InlineSpan> mathInlineSpans(
                   children: [
                     Text.rich(TextSpan(
                         children: renderSegments(
-                      parseMath(numerator),
+                      parse(numerator),
                       currentStyle: fractionStyle,
                     ))),
                     Padding(
@@ -103,7 +108,7 @@ List<InlineSpan> mathInlineSpans(
                     ),
                     Text.rich(TextSpan(
                         children: renderSegments(
-                      parseMath(denominator),
+                      parse(denominator),
                       currentStyle: fractionStyle,
                     ))),
                   ],
@@ -116,7 +121,7 @@ List<InlineSpan> mathInlineSpans(
     return result;
   }
 
-  return renderSegments(parseMath(raw), currentStyle: style);
+  return renderSegments(parse(raw), currentStyle: style);
 }
 
 Widget mathText(

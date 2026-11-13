@@ -7,6 +7,7 @@ import 'package:pi_qbank/models/highschool_question.dart';
 import 'package:pi_qbank/pages/mcq_test_page.dart';
 import 'package:pi_qbank/services/highschool_export_service.dart';
 import 'package:pi_qbank/services/highschool_qbank_service.dart';
+import 'package:pi_qbank/utils/math_rich_text.dart';
 import 'package:pi_qbank/utils/mcq_stem_units.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -2013,7 +2014,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  mathText(
                     text.isEmpty ? '(no question text)' : text,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2321,7 +2322,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          mathText(
                             (picked[i].mcqData?.text ?? '').trim(),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -3910,7 +3911,7 @@ class _QuestionPickerState extends State<QuestionPicker> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        mathText(
                           (data?.text ?? '').trim(),
                           maxLines: open ? null : 2,
                           overflow: open ? null : TextOverflow.ellipsis,
@@ -3936,7 +3937,7 @@ class _QuestionPickerState extends State<QuestionPicker> {
                                 ),
                               ),
                             if (correct.isNotEmpty)
-                              Text(
+                              mathText(
                                 'Answer: $correct',
                                 style: const TextStyle(
                                   fontSize: 11,
@@ -3998,7 +3999,7 @@ class _QuestionPickerState extends State<QuestionPicker> {
                                 ),
                                 const SizedBox(width: 7),
                                 Expanded(
-                                  child: Text(
+                                  child: mathText(
                                     option,
                                     style: TextStyle(
                                       fontSize: 12.5,
@@ -4308,7 +4309,7 @@ class _PreviewSheet extends StatelessWidget {
                 color: _C.primarySoft,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(
+              child: mathText(
                 stem,
                 style: const TextStyle(
                   fontSize: 11.5,
@@ -4323,7 +4324,7 @@ class _PreviewSheet extends StatelessWidget {
             _previewImage(question.mcqStemImageUrl),
           ],
           const SizedBox(height: 8),
-          Text(
+          mathText(
             text.isEmpty ? '(no question text)' : text,
             style: const TextStyle(
               fontSize: 13.5,
@@ -4362,7 +4363,7 @@ class _PreviewSheet extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
+                    child: mathText(
                       options[i],
                       style: TextStyle(
                         fontSize: 12.5,

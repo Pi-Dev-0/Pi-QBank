@@ -77,6 +77,33 @@ void main() {
     await closePaper(tester);
   });
 
+  testWidgets('typesets equations in the question and its options',
+      (tester) async {
+    final response = jsonEncode({
+      'questions': [
+        {
+          'question': r'$\frac{x}{2}+\frac{y}{3}=1$ হলে $x$ কত?',
+          'options': {
+            '1': r'$\frac{1}{2}$',
+            '2': r'$\sqrt{3}$',
+            '3': r'$x^2$',
+            '4': r'$4$',
+          },
+          'correct_answer': '1',
+        },
+      ],
+    });
+
+    await openPaper(tester, 1, response: response);
+
+    expect(find.textContaining(r'\frac'), findsNothing);
+    expect(find.textContaining(r'\sqrt'), findsNothing);
+    expect(find.textContaining(r'$'), findsNothing);
+    expect(find.byKey(const ValueKey('math-fraction-rule')), findsWidgets);
+
+    await closePaper(tester);
+  });
+
   testWidgets('shows the whole paper at once, with a live answer HUD',
       (tester) async {
     await openPaper(tester, 3);

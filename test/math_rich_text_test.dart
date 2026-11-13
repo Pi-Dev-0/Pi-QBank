@@ -24,6 +24,38 @@ void main() {
     expect(tester.getSize(rule).width, lessThan(80),
         reason: 'the bar belongs to the fraction, not the whole line');
   });
+
+  testWidgets('a bare caret is shown as a power in rich text', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Center(child: _PowerSample()),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('^'), findsNothing);
+
+    final script = tester.widget<Text>(find.text('2'));
+    final children = (script.textSpan! as TextSpan).children!;
+    final power = children.whereType<TextSpan>().firstWhere(
+          (span) => span.text == '2',
+        );
+    expect(power.style!.fontSize, lessThan(20),
+        reason: 'the power is set smaller than the base text');
+  });
+}
+
+class _PowerSample extends StatelessWidget {
+  const _PowerSample();
+
+  @override
+  Widget build(BuildContext context) {
+    return mathText(
+      'x^2 + 3',
+      style: const TextStyle(fontSize: 20),
+    );
+  }
 }
 
 class _FractionSample extends StatelessWidget {
