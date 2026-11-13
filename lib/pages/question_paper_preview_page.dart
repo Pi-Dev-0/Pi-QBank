@@ -786,7 +786,11 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
           backgroundColor: const Color(0xFF5C35E3),
           foregroundColor: Colors.white,
           actions: [
-            if (ExactHtmlPreview.supported)
+            // Live edit belongs in the AppBar on every native preview, phones
+            // included. It stays visible while the WebView loads and enables
+            // itself once the controller is ready, so the toolbar does not
+            // shift when the page finishes loading.
+            if (!kIsWeb)
               Padding(
                 padding: const EdgeInsets.only(right: 4),
                 child: _buildTopEditAction(),
@@ -827,7 +831,8 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   }
 
   /// The Linux preview keeps live edit in the AppBar, where the other page
-  /// actions are. A phone keeps its floating round button instead.
+  /// actions are. A phone uses the same AppBar action instead of a second
+  /// floating control.
   Widget _buildTopEditAction() {
     final canEdit = _controller != null || _exactController != null;
     final on = _editingMode;
@@ -864,34 +869,16 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     );
   }
 
-  /// The settings pill, with the compact live-edit control beside it on a
-  /// phone.
-  ///
-  /// Editing belongs next to the page, not inside the settings sheet: opening
-  /// the sheet to find it was what made an edit look like it had been undone.
-  /// A phone lays the two controls in one low row instead of a tall stack, so
-  /// they cover as little of the paper as possible.
+  /// The settings pill alone. Live edit lives in the AppBar on every platform,
+  /// so the phone preview is not covered by a second floating control.
   Widget _buildFloatingActions() {
-    // Linux owns live edit in the AppBar. A phone keeps the round button beside
-    // the settings pill; a wide desktop window keeps only the settings pill.
+    // A phone gets a lower, slimmer settings pill; a wide desktop window keeps
+    // the stock extended FAB.
     final mobile = !ExactHtmlPreview.supported &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS ||
             MediaQuery.sizeOf(context).width < 700);
-    final canEdit = _controller != null || _exactController != null;
-    final settings = _buildSettingsFab(compact: mobile);
-
-    if (!mobile) return settings;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        _buildEditButton(canEdit),
-        const SizedBox(width: 8),
-        settings,
-      ],
-    );
+    return _buildSettingsFab(compact: mobile);
   }
 
   Widget _buildSettingsFab({required bool compact}) {
@@ -937,76 +924,6 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
                 ),
       ),
       child: fab,
-    );
-  }
-
-  /// A round, glowing edit control instead of a second text pill.
-  ///
-  /// The settings pill already carries the only label the reader needs; this
-  /// one is pure affordance, with its state in the icon and colour.
-  Widget _buildEditButton(bool canEdit) {
-    final on = _editingMode;
-    return Tooltip(
-      message: on ? 'এডিট শেষ' : 'লাইভ এডিট',
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 180),
-        opacity: canEdit ? 1 : 0.55,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOutCubic,
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: on
-                  ? const [Color(0xFF34D399), Color(0xFF047857)]
-                  : const [Color(0xFF8B5CF6), Color(0xFF4C1D95)],
-            ),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.24),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: (on ? const Color(0xFF047857) : const Color(0xFF6D28D9))
-                    .withOpacity(0.32),
-                blurRadius: 14,
-                spreadRadius: 0.5,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: canEdit ? _toggleEditingMode : null,
-              child: Center(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  switchInCurve: Curves.easeOutBack,
-                  switchOutCurve: Curves.easeIn,
-                  transitionBuilder: (child, animation) => ScaleTransition(
-                    scale: animation,
-                    child: FadeTransition(opacity: animation, child: child),
-                  ),
-                  child: Icon(
-                    on ? Icons.check_rounded : Icons.edit_rounded,
-                    key: ValueKey(on),
-                    color: Colors.white,
-                    size: 23,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
