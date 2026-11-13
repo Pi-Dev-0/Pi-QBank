@@ -508,6 +508,12 @@ const double fracRuleHeight = 0.5;
 /// neighbours.
 const double fracPaddingX = 1.5;
 
+/// Thickness of the bar over a radical's body.
+const double radicalRuleHeight = 0.5;
+
+/// Space either side of a radical, so it does not touch its neighbours.
+const double radicalPaddingX = 1.5;
+
 /// Size of a super/subscript, as a fraction of the surrounding font size.
 const double scriptFontScale = 0.68;
 

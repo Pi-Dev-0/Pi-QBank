@@ -204,7 +204,9 @@ class PdfTextMetrics {
       case MathScript(:final text):
         return textWidth(text, fontSize: scriptFontScale, bold: bold);
       case MathRadical(:final body):
-        return textWidth('√${latexToPlainText(body)}', fontSize: 1, bold: bold);
+        return textWidth('√', fontSize: 1, bold: bold) +
+            textWidth(body, fontSize: 1, bold: bold) +
+            radicalPaddingX * 2 / baseFontSize;
       case MathText(:final text):
         return textWidth(text, fontSize: 1, bold: bold);
     }
@@ -224,8 +226,10 @@ class PdfTextMetrics {
       case MathScript(:final text):
         return lineHeight(text, fontSize: scriptFontScale, bold: bold);
       case MathRadical(:final body):
-        return lineHeight('√${latexToPlainText(body)}',
-            fontSize: 1, bold: bold);
+        final sign = lineHeight('√', fontSize: 1, bold: bold);
+        final content = lineHeight(body, fontSize: 1, bold: bold) +
+            radicalRuleHeight / baseFontSize;
+        return sign > content ? sign : content;
       case MathText(:final text):
         return lineHeight(text, fontSize: 1, bold: bold);
     }

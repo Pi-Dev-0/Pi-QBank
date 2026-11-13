@@ -91,7 +91,10 @@ void main() {
       expect(latexToPlainText(r'a \geq b'), 'a ≥ b');
       expect(latexToPlainText(r'a \neq b'), 'a ≠ b');
       expect(latexToPlainText(r'\pi r^2'), 'π r^2');
-      expect(latexToPlainText(r'\sqrt{2}'), '√2');
+      // The radicand is parenthesised so a compound group cannot be mistaken
+      // for several terms outside the root: `\sqrt{2+3}` is √(2+3), not √2+3.
+      expect(latexToPlainText(r'\sqrt{2}'), '√(2)');
+      expect(latexToPlainText(r'\sqrt{2+3}'), '√(2+3)');
     });
 
     test('an unknown command stays visible instead of vanishing', () {

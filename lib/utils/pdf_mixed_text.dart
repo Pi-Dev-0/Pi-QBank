@@ -188,15 +188,19 @@ List<pw.InlineSpan> _spansForParsed(
                         symbolCoverage: symbolCoverage)))));
 
       case MathRadical(:final body, :final math):
-        // The PDF fallback keeps the full radicand together and readable. The
-        // HTML/browser renderer adds the overbar around the same body.
-        out.addAll(_textSpans('√(${latexToPlainText(body)})',
-            banglaStyle: banglaStyle,
-            latin: latin,
+        out.add(_radicalSpan(body,
+            style: _anchorStyle(banglaStyle, math),
             bold: bold,
-            math: math,
-            symbolFont: symbolFont,
-            symbolCoverage: symbolCoverage));
+            render: (t, at) => pw.RichText(
+                text: pw.TextSpan(
+                    style: at,
+                    children: _spansForRaw(t,
+                        banglaStyle: at,
+                        latin: latin,
+                        bold: bold,
+                        measure: measure,
+                        symbolFont: symbolFont,
+                        symbolCoverage: symbolCoverage)))));
 
       case MathText(:final text, :final math):
         out.addAll(_textSpans(text,
@@ -345,6 +349,47 @@ pw.WidgetSpan _fractionSpan(
           pw.SizedBox(width: ruleWidth, child: render(denominator, small)),
         ],
       ),
+    ),
+  );
+}
+
+/// A radical with its bar drawn over the complete body.
+///
+/// The pdf package has no stretched radical glyph, so this mirrors the HTML and
+/// Flutter renderers: a normal `√` followed by a body with a top border. The
+/// body is kept as rich text, so a nested fraction or script still lays out
+/// through the same path as the surrounding line.
+pw.WidgetSpan _radicalSpan(
+  String body, {
+  required pw.TextStyle style,
+  required bool bold,
+  required pw.Widget Function(String, pw.TextStyle) render,
+}) {
+  final ruleColor = style.color ?? PdfColors.black;
+
+  return pw.WidgetSpan(
+    // The row's top is the line's ascender, the same place the surrounding
+    // text starts, so the radical sign and its body sit on the normal baseline.
+    baseline: 0,
+    style: style,
+    child: pw.Row(
+      mainAxisSize: pw.MainAxisSize.min,
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        render('√', style),
+        pw.Container(
+          decoration: pw.BoxDecoration(
+            border: pw.Border(
+              top: pw.BorderSide(
+                width: radicalRuleHeight,
+                color: ruleColor,
+              ),
+            ),
+          ),
+          padding: const pw.EdgeInsets.symmetric(horizontal: radicalPaddingX),
+          child: render(body, style),
+        ),
+      ],
     ),
   );
 }
