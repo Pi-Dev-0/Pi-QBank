@@ -251,6 +251,67 @@ void main() {
     expect(find.text('সময়'), findsOneWidget);
   });
 
+  testWidgets('the desktop rail sizes CQ, SQ and MCQ separately',
+      (tester) async {
+    tester.view.physicalSize = const Size(1400, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: HighSchoolQPaperGeneratorPage()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('studio-class-field')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Class (9-10) SSC').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('studio-subject-field')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('উচ্চতর গণিত').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('প্রশ্ন লোড করুন'));
+    await tester.pumpAndSettle();
+
+    final rail = find.byKey(const PageStorageKey('studio-settings-rail'));
+    final scrollable =
+        find.descendant(of: rail, matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.text('CQ ফন্ট সাইজ'), 250,
+        scrollable: scrollable);
+    await tester.ensureVisible(find.text('CQ ফন্ট সাইজ'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('সাধারণ ফন্ট সাইজ'), findsOneWidget);
+    expect(find.text('CQ ফন্ট সাইজ'), findsOneWidget);
+    expect(find.text('SQ ফন্ট সাইজ'), findsOneWidget);
+    expect(find.text('MCQ ফন্ট সাইজ'), findsOneWidget);
+
+    final cqRow = find
+        .ancestor(of: find.text('CQ ফন্ট সাইজ'), matching: find.byType(Row))
+        .first;
+    final sqRow = find
+        .ancestor(of: find.text('SQ ফন্ট সাইজ'), matching: find.byType(Row))
+        .first;
+    String rowValue(Finder row) => tester
+        .widgetList<Text>(find.descendant(of: row, matching: find.byType(Text)))
+        .last
+        .data!;
+
+    expect(rowValue(cqRow), '15');
+    expect(rowValue(sqRow), '15');
+
+    await tester.tap(find.descendant(
+        of: cqRow, matching: find.byIcon(Icons.add_circle_outline)));
+    await tester.pumpAndSettle();
+
+    expect(rowValue(cqRow), '16');
+    expect(rowValue(sqRow), '15',
+        reason: 'the CQ control must not move the short questions');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the phone card fills its width and fits the practice switch',
       (tester) async {
     HttpOverrides.global = _FakeOverrides(jsonEncode({
@@ -302,6 +363,78 @@ void main() {
     expect(find.text('পূর্ণমান'), findsNothing);
     expect(find.text('সময়'), findsNothing);
     expect(find.text('নির্দেশনা (ঐচ্ছিক)'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the phone typography card keeps its font controls compact',
+      (tester) async {
+    HttpOverrides.global = _FakeOverrides(jsonEncode({
+      'status': 'SUCCESS',
+      'data': [_cqJson()],
+    }));
+    addTearDown(() => HttpOverrides.global = _FakeOverrides(
+          jsonEncode({'status': 'SUCCESS', 'data': <Object>[]}),
+        ));
+
+    tester.view.physicalSize = const Size(420, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      const MaterialApp(home: HighSchoolQPaperGeneratorPage()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('ক্লাস নির্বাচন করুন'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Class (9-10) SSC').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('বিষয় নির্বাচন করুন'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('উচ্চতর গণিত').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('পরবর্তী'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('একটি উদ্দীপক').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('সাজান'),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('সেটিংস'));
+    await tester.pumpAndSettle();
+
+    final list = find
+        .descendant(
+          of: find.byKey(const ValueKey('mobile-settings-list')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(find.text('টাইপোগ্রাফি ও ফাঁক'), 300,
+        scrollable: list);
+    await tester.pumpAndSettle();
+
+    final general = find.byKey(const ValueKey('general-font-size'));
+    expect(general, findsOneWidget);
+    expect(tester.getSize(general).height, lessThan(52),
+        reason: 'the general control should be one low line, not two');
+
+    final cq = find.byKey(const ValueKey('font-size-CQ'));
+    final sq = find.byKey(const ValueKey('font-size-SQ'));
+    final mcq = find.byKey(const ValueKey('font-size-MCQ'));
+    expect(cq, findsOneWidget);
+    expect(sq, findsOneWidget);
+    expect(mcq, findsOneWidget);
+    expect(tester.getSize(cq).height, lessThan(70),
+        reason: 'the three family controls share one compact row');
+    expect(
+        (tester.getCenter(cq).dy - tester.getCenter(sq).dy).abs(), lessThan(1));
+    expect((tester.getCenter(sq).dy - tester.getCenter(mcq).dy).abs(),
+        lessThan(1));
     expect(tester.takeException(), isNull);
   });
 

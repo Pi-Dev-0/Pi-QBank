@@ -323,6 +323,31 @@ void main() {
       expect(RegExp('class="omr-column"').allMatches(html).length, 3);
     });
 
+    test('five OMR columns are supported and stay inside the paper', () {
+      final html = sheetHtml(
+        answerSheet: McqAnswerSheetStyle.omr,
+        omrColumns: 5,
+        manualAnswerCount: 30,
+        questions: const [],
+      );
+
+      expect(html, contains('data-omr-columns="5"'));
+      expect(html, contains('grid-template-columns: repeat(5, 1fr)'));
+      expect(RegExp('class="omr-column"').allMatches(html).length, 5);
+      // The fifth choice has to exist in the browser toolbar as well as the
+      // generator's segmented control.
+      expect(html, contains('data-column-kind="omr" data-columns="5"'));
+
+      // Five columns get tighter bubbles and gutters so the grid still fits
+      // the A4 text column instead of spilling off the page.
+      final css = cssOf(html);
+      expect(decl(rule(css, '.omr-grid[data-omr-columns="5"]'), 'gap'), '8px');
+      expect(
+          decl(rule(css, '.omr-grid[data-omr-columns="5"] .omr-bubble'),
+              'width'),
+          '20px');
+    });
+
     test('the answer sheet begins where the questions end', () {
       final html = sheetHtml(answerSheet: McqAnswerSheetStyle.omr);
       final css = cssOf(html);
@@ -358,10 +383,10 @@ void main() {
       // The serial variant must be a sibling of the OMR variant, not nested in
       // it: otherwise it inherits the OMR variant's display:none and vanishes
       // whenever the paper has MCQs.
-      final omrStart = html.indexOf(
-          '<div class="answer-sheet-variant answer-sheet-omr"');
-      final serialStart = html.indexOf(
-          '<div class="answer-sheet-variant answer-sheet-serial"');
+      final omrStart =
+          html.indexOf('<div class="answer-sheet-variant answer-sheet-omr"');
+      final serialStart =
+          html.indexOf('<div class="answer-sheet-variant answer-sheet-serial"');
       expect(omrStart, greaterThan(-1));
       expect(serialStart, greaterThan(omrStart));
       final omrMarkup = html.substring(omrStart, serialStart);
@@ -369,20 +394,20 @@ void main() {
           RegExp('</div>').allMatches(omrMarkup).length);
     });
 
-    test('serial answer boxes stay square and let the page decide the rows', () {
+    test('serial answer boxes stay square and let the page decide the rows',
+        () {
       final html = sheetHtml(
         answerSheet: McqAnswerSheetStyle.serialAnswer,
         questions: [
-          for (var i = 0; i < 30; i++)
-            mcqWith(const ['১', '২', '৩', '৪']),
+          for (var i = 0; i < 30; i++) mcqWith(const ['১', '২', '৩', '৪']),
         ],
       );
       final css = cssOf(html);
-      final boxRule = RegExp(
-              r'\.serial-answer-number,\s*\.serial-answer-cell\s*\{([^}]*)\}')
-          .firstMatch(css)
-          ?.group(1) ??
-          '';
+      final boxRule =
+          RegExp(r'\.serial-answer-number,\s*\.serial-answer-cell\s*\{([^}]*)\}')
+                  .firstMatch(css)
+                  ?.group(1) ??
+              '';
 
       expect(RegExp('class="serial-answer-item"').allMatches(html).length, 30);
       expect(html, isNot(contains('serial-answer-table')));

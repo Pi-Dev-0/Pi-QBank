@@ -425,7 +425,7 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
           _columnChoiceGroup('CQ', 'cq'),
           _columnChoiceGroup('MCQ', 'mcq'),
           _columnChoiceGroup('RQ', 'rq'),
-          _columnChoiceGroup('OMR', 'omr', maxColumns: 4),
+          _columnChoiceGroup('OMR', 'omr', maxColumns: 5),
           const SizedBox(height: 12),
           _settingsHeading('প্রশ্ন সংযুক্তি'),
           _settingsSwitch('উত্তরপত্র', _includeHeader, (value) {

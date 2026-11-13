@@ -336,11 +336,11 @@ class _HighSchoolQPaperGeneratorPageState
   /// Number of blank OMR/answer rows when no MCQ questions are selected.
   int _manualAnswerItemCount = 30;
 
-  /// How many columns the OMR bubble sheet prints.
+  /// How many columns the OMR bubble sheet prints, from one to five.
   ///
   /// The rows are split evenly across these columns. Four is the old fixed
-  /// layout; the reader can narrow it to a single column for a large-print
-  /// sheet.
+  /// layout; one gives a large-print sheet, while five prints the grid more
+  /// tightly so it still fits the A4 text column.
   int _omrColumns = 4;
 
   /// How far every text size in the paper is moved from the size it was tuned
@@ -350,7 +350,17 @@ class _HighSchoolQPaperGeneratorPageState
   /// text and the marks; the sheet carries it as `calc(… + Npt)`.
   double _fontStep = 0;
 
-  /// The range the control allows. Below −3 the text stops being comfortable on
+  /// Extra steps for one question family.
+  ///
+  /// These are added to [_fontStep], so the general control still scales the
+  /// whole sheet while each family can be made larger or smaller on its own.
+  /// The CQ step reaches the stem and its sub-questions, the SQ step the short
+  /// questions, and the MCQ step the shared stem, question and options.
+  double _cqFontStep = 0;
+  double _rqFontStep = 0;
+  double _mcqFontStep = 0;
+
+  /// The range the controls allow. Below −3 the text stops being comfortable on
   /// paper; +6 is already half again the height of a paper at 0.
   static const double _fontStepMin = -3;
   static const double _fontStepMax = 6;
@@ -509,6 +519,9 @@ class _HighSchoolQPaperGeneratorPageState
       _questionGap != 0 ||
       _columnGap != 15 ||
       _fontStep != 0 ||
+      _cqFontStep != 0 ||
+      _rqFontStep != 0 ||
+      _mcqFontStep != 0 ||
       _paperFont != PaperFont.kalpurush ||
       !_showSchool ||
       !_showExam ||
@@ -1482,6 +1495,9 @@ class _HighSchoolQPaperGeneratorPageState
         manualAnswerCount: _manualAnswerItemCount,
         omrColumns: _omrColumns,
         fontStep: _fontStep,
+        cqFontStep: _cqFontStep,
+        rqFontStep: _rqFontStep,
+        mcqFontStep: _mcqFontStep,
         font: _paperFont,
         cqInstruction: _paperInstruction,
         printSettings: _printSettings,
@@ -1540,6 +1556,9 @@ class _HighSchoolQPaperGeneratorPageState
           manualAnswerCount: _manualAnswerItemCount,
           omrColumns: _omrColumns,
           fontStep: _fontStep,
+          cqFontStep: _cqFontStep,
+          rqFontStep: _rqFontStep,
+          mcqFontStep: _mcqFontStep,
           font: _paperFont,
           settingsBuilder: (context, onChanged) => _MobileSettingsSheet(
             parent: this,
@@ -1585,6 +1604,9 @@ class _HighSchoolQPaperGeneratorPageState
       manualAnswerCount: _manualAnswerItemCount,
       omrColumns: _omrColumns,
       fontStep: _fontStep,
+      cqFontStep: _cqFontStep,
+      rqFontStep: _rqFontStep,
+      mcqFontStep: _mcqFontStep,
       font: _paperFont,
       cqInstruction: _paperInstruction,
       printSettings: _printSettings,
@@ -2390,6 +2412,9 @@ class _HighSchoolQPaperGeneratorPageState
       _manualAnswerItemCount,
       _omrColumns,
       _fontStep,
+      _cqFontStep,
+      _rqFontStep,
+      _mcqFontStep,
       _paperFont.name,
       _paperFontsReady,
       _printSettings.signature,
@@ -2434,6 +2459,9 @@ class _HighSchoolQPaperGeneratorPageState
       manualAnswerCount: _manualAnswerItemCount,
       omrColumns: _omrColumns,
       fontStep: _fontStep,
+      cqFontStep: _cqFontStep,
+      rqFontStep: _rqFontStep,
+      mcqFontStep: _mcqFontStep,
       font: _paperFont,
       desktopMode: true,
       // The browser studio moves the toolbar into its settings rail; the
@@ -3366,7 +3394,10 @@ class _HighSchoolQPaperGeneratorPageState
     final globalColumns = _cqLayout == _mcqLayout && _mcqLayout == _rqLayout
         ? _cqLayout
         : _mcqLayout;
-    final fontSize = (14 + _fontStep).round();
+    final fontSize = (15 + _fontStep).round();
+    final cqFontSize = (15 + _fontStep + _cqFontStep).round();
+    final sqFontSize = (15 + _fontStep + _rqFontStep).round();
+    final mcqFontSize = (15 + _fontStep + _mcqFontStep).round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3515,11 +3546,35 @@ class _HighSchoolQPaperGeneratorPageState
           },
         ),
         _railStepper(
-          label: 'ফন্ট সাইজ',
+          label: 'সাধারণ ফন্ট সাইজ',
           value: fontSize,
-          min: (14 + _fontStepMin).round(),
-          max: (14 + _fontStepMax).round(),
-          onChanged: (value) => setState(() => _fontStep = value - 14.0),
+          min: (15 + _fontStepMin).round(),
+          max: (15 + _fontStepMax).round(),
+          onChanged: (value) => setState(() => _fontStep = value - 15.0),
+        ),
+        _railStepper(
+          label: 'CQ ফন্ট সাইজ',
+          value: cqFontSize,
+          min: (15 + _fontStep + _fontStepMin).round(),
+          max: (15 + _fontStep + _fontStepMax).round(),
+          onChanged: (value) =>
+              setState(() => _cqFontStep += value - cqFontSize),
+        ),
+        _railStepper(
+          label: 'SQ ফন্ট সাইজ',
+          value: sqFontSize,
+          min: (15 + _fontStep + _fontStepMin).round(),
+          max: (15 + _fontStep + _fontStepMax).round(),
+          onChanged: (value) =>
+              setState(() => _rqFontStep += value - sqFontSize),
+        ),
+        _railStepper(
+          label: 'MCQ ফন্ট সাইজ',
+          value: mcqFontSize,
+          min: (15 + _fontStep + _fontStepMin).round(),
+          max: (15 + _fontStep + _fontStepMax).round(),
+          onChanged: (value) =>
+              setState(() => _mcqFontStep += value - mcqFontSize),
         ),
         _railSegmented<QuestionLayout>(
           label: 'কলাম (সব বিভাগে)',
@@ -3577,7 +3632,7 @@ class _HighSchoolQPaperGeneratorPageState
           _railSegmented<int>(
             label: 'OMR কলাম',
             value: _omrColumns,
-            items: const [1, 2, 3, 4],
+            items: const [1, 2, 3, 4, 5],
             itemLabel: (columns) => '$columns',
             onChanged: (value) => setState(() => _omrColumns = value),
           ),
@@ -8762,6 +8817,9 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
         .._questionGap = 0
         .._columnGap = 15
         .._fontStep = 0
+        .._cqFontStep = 0
+        .._rqFontStep = 0
+        .._mcqFontStep = 0
         .._paperFont = PaperFont.kalpurush
         .._showSchool = true
         .._showExam = true
@@ -9440,10 +9498,14 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
         _fieldLabel('ফন্ট'),
         const SizedBox(height: 7),
         _fontDropdown(),
-        const SizedBox(height: 14),
-        _fieldLabel('ফন্ট সাইজ'),
-        const SizedBox(height: 7),
+        const SizedBox(height: 12),
+        _fieldLabel('সাধারণ ফন্ট সাইজ'),
+        const SizedBox(height: 6),
         _fontSizeRow(),
+        const SizedBox(height: 10),
+        _fieldLabel('প্রশ্নভেদে ফন্ট সাইজ'),
+        const SizedBox(height: 6),
+        _questionFontSizes(),
         _hair(),
         _sliderRow(
           'প্রশ্নের নিচের গ্যাপ',
@@ -9736,7 +9798,7 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
           _fieldLabel('OMR কলাম'),
           const SizedBox(height: 7),
           _segmented<int>(
-            values: const [1, 2, 3, 4],
+            values: const [1, 2, 3, 4, 5],
             value: page._omrColumns,
             label: (columns) => '$columns',
             onChanged: (v) => _apply(() => page._omrColumns = v),
@@ -10032,12 +10094,13 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
   }
 
   Widget _fontSizeRow() {
-    final size = (14 + page._fontStep).clamp(10, 26).toDouble();
+    final size = (15 + page._fontStep).clamp(10, 26).toDouble();
     return Container(
-      padding: const EdgeInsets.all(8),
+      key: const ValueKey('general-font-size'),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
         color: _soft,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(11),
         border: Border.all(color: _softLine),
       ),
       child: Row(
@@ -10047,9 +10110,11 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
             page._fontStep > _HighSchoolQPaperGeneratorPageState._fontStepMin
                 ? () => _apply(() => page._fontStep -= 1)
                 : null,
+            size: 34,
           ),
           Expanded(
-            child: Column(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   'আ',
@@ -10057,14 +10122,14 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
                     fontSize: size,
                     fontWeight: FontWeight.w700,
                     color: _ink,
-                    height: 1.15,
+                    height: 1,
                   ),
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(width: 7),
                 Text(
-                  '${(14 + page._fontStep).round()} px',
+                  '${(15 + page._fontStep).round()} px',
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                     color: _kPrimary,
                   ),
@@ -10077,29 +10142,183 @@ class _MobileSettingsSheetState extends State<_MobileSettingsSheet> {
             page._fontStep < _HighSchoolQPaperGeneratorPageState._fontStepMax
                 ? () => _apply(() => page._fontStep += 1)
                 : null,
+            size: 34,
           ),
         ],
       ),
     );
   }
 
-  Widget _stepButton(IconData icon, VoidCallback? onTap) {
+  /// The three per-question-family size controls under the general one.
+  ///
+  /// A family's value includes the general step, so the numbers read as the
+  /// size that will print. Turning one row only moves that family; the other
+  /// two and the masthead stay where they were.
+  Widget _questionFontSizes() {
+    final cqSize = (15 + page._fontStep + page._cqFontStep).round();
+    final sqSize = (15 + page._fontStep + page._rqFontStep).round();
+    final mcqSize = (15 + page._fontStep + page._mcqFontStep).round();
+    final min =
+        (15 + page._fontStep + _HighSchoolQPaperGeneratorPageState._fontStepMin)
+            .round();
+    final max =
+        (15 + page._fontStep + _HighSchoolQPaperGeneratorPageState._fontStepMax)
+            .round();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      decoration: BoxDecoration(
+        color: _soft,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: _softLine),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: _questionFontColumn(
+              label: 'CQ',
+              color: _kCqColor,
+              value: cqSize,
+              min: min,
+              max: max,
+              onChanged: (value) =>
+                  _apply(() => page._cqFontStep += value - cqSize),
+            ),
+          ),
+          _fontColumnDivider(),
+          Expanded(
+            child: _questionFontColumn(
+              label: 'SQ',
+              color: _kRqColor,
+              value: sqSize,
+              min: min,
+              max: max,
+              onChanged: (value) =>
+                  _apply(() => page._rqFontStep += value - sqSize),
+            ),
+          ),
+          _fontColumnDivider(),
+          Expanded(
+            child: _questionFontColumn(
+              label: 'MCQ',
+              color: _kMcqColor,
+              value: mcqSize,
+              min: min,
+              max: max,
+              onChanged: (value) =>
+                  _apply(() => page._mcqFontStep += value - mcqSize),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A hairline between two family columns. Keeping the three controls on one
+  /// row saves the height three stacked rows used to take.
+  Widget _fontColumnDivider() {
+    return Container(
+      width: 1,
+      height: 36,
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      color: _softLine,
+    );
+  }
+
+  Widget _questionFontColumn({
+    required String label,
+    required Color color,
+    required int value,
+    required int min,
+    required int max,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Padding(
+      key: ValueKey('font-size-$label'),
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              _stepButton(
+                Icons.remove_rounded,
+                value > min ? () => onChanged(value - 1) : null,
+                size: 30,
+                iconSize: 17,
+                radius: 8,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '$value px',
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: _kPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              _stepButton(
+                Icons.add_rounded,
+                value < max ? () => onChanged(value + 1) : null,
+                size: 30,
+                iconSize: 17,
+                radius: 8,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepButton(
+    IconData icon,
+    VoidCallback? onTap, {
+    double size = 42,
+    double iconSize = 20,
+    double radius = 10,
+  }) {
     final disabled = onTap == null;
     return Material(
       color: disabled ? const Color(0xFFEDEBF7) : Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(radius),
         side: const BorderSide(color: _softLine),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(radius),
         onTap: onTap,
         child: SizedBox(
-          width: 42,
-          height: 42,
+          width: size,
+          height: size,
           child: Icon(
             icon,
-            size: 20,
+            size: iconSize,
             color: disabled ? const Color(0xFFB8B2D6) : _kPrimary,
           ),
         ),

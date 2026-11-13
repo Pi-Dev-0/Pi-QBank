@@ -42,6 +42,9 @@ class QuestionPaperPreviewPage extends StatefulWidget {
     this.manualAnswerCount = 30,
     this.omrColumns = 4,
     this.fontStep = 0,
+    this.cqFontStep = 0,
+    this.rqFontStep = 0,
+    this.mcqFontStep = 0,
     this.font = PaperFont.kalpurush,
     this.printSettings = const PaperPrintSettings(),
     this.settingsBuilder,
@@ -78,12 +81,19 @@ class QuestionPaperPreviewPage extends StatefulWidget {
 
   final int manualAnswerCount;
 
-  /// How many columns the OMR bubble sheet prints.
+  /// How many columns the OMR bubble sheet prints, from one to five.
   final int omrColumns;
 
   /// How far every text size in the paper is moved from its tuned size, in
   /// points; see the font-size control on the generator page.
   final double fontStep;
+
+  /// Extra steps for one question family, added to [fontStep]. The generator's
+  /// CQ/SQ/MCQ size controls use these; they default to zero so a preview built
+  /// without them prints exactly the old sheet.
+  final double cqFontStep;
+  final double rqFontStep;
+  final double mcqFontStep;
 
   /// The face the sheet is set in; see [PaperFont].
   final PaperFont font;
@@ -184,6 +194,9 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
   late int _answerCount;
   late int _answerColumns;
   late double _fontStep;
+  late double _cqFontStep;
+  late double _rqFontStep;
+  late double _mcqFontStep;
   late PaperFont _font;
   late PaperPrintSettings _printSettings;
 
@@ -209,6 +222,9 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
         manualAnswerCount: _answerCount,
         omrColumns: _answerColumns,
         fontStep: _fontStep,
+        cqFontStep: _cqFontStep,
+        rqFontStep: _rqFontStep,
+        mcqFontStep: _mcqFontStep,
         font: _font,
         printSettings: _printSettings,
         // The preview shows the page as a desktop browser lays it out, not as a
@@ -228,6 +244,9 @@ class _QuestionPaperPreviewPageState extends State<QuestionPaperPreviewPage> {
     _answerCount = widget.manualAnswerCount;
     _answerColumns = widget.omrColumns;
     _fontStep = widget.fontStep;
+    _cqFontStep = widget.cqFontStep;
+    _rqFontStep = widget.rqFontStep;
+    _mcqFontStep = widget.mcqFontStep;
     _font = widget.font;
     _printSettings = widget.printSettings;
     _editingMode = widget.printSettings.editingMode;

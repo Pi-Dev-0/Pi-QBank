@@ -1628,11 +1628,20 @@ class HighSchoolExportService {
     McqAnswerSheetStyle mcqAnswerSheetStyle = McqAnswerSheetStyle.none,
     int manualAnswerCount = 30,
 
-    /// How many OMR answer columns the bubble sheet uses. The number of rows
-    /// follows from the questions (or [manualAnswerCount]), so this only
+    /// How many OMR answer columns the bubble sheet uses (1–5). The number of
+    /// rows follows from the questions (or [manualAnswerCount]), so this only
     /// changes how many of them sit side by side.
     int omrColumns = 4,
+
+    /// The overall step every text size in the sheet takes, in points.
     double fontStep = 0,
+
+    /// Extra steps for one question family. [fontStep] still moves the whole
+    /// sheet; these let a teacher set CQ, short questions and MCQ text at
+    /// different sizes without changing the masthead or the other sections.
+    double cqFontStep = 0,
+    double rqFontStep = 0,
+    double mcqFontStep = 0,
     Map<String, Uint8List>? imageBytes,
 
     /// The face the sheet is set in. Fetched from Google Fonts when it is a web
@@ -1656,6 +1665,14 @@ class HighSchoolExportService {
     bool includeToolbar = true,
   }) {
     _print = printSettings;
+
+    // The question families take the sheet-wide step plus their own. Keeping
+    // the two separate means the general control still works as a master,
+    // while the section controls can correct one family without moving the
+    // masthead or the other two.
+    final cqStep = fontStep + cqFontStep;
+    final rqStep = fontStep + rqFontStep;
+    final mcqStep = fontStep + mcqFontStep;
 
     // The page box. Page numbers need a foot of room for the margin box; the
     // sheet itself keeps its own side padding either way.
@@ -2500,7 +2517,7 @@ $paperFontBlock    :root {
       orphans: 2;
       widows: 2;
     }
-    .cq-stem { font-size: ${_cssFontSize(15, fontStep)}; margin-bottom: 5px; }
+    .cq-stem { font-size: ${_cssFontSize(15, cqStep)}; margin-bottom: 5px; }
     .cq-stem-img {
       display: block;
       max-width: 100%;
@@ -2514,7 +2531,7 @@ $paperFontBlock    :root {
     .cq-sub-item {
       display: flex;
       justify-content: space-between;
-      font-size: ${_cssFontSize(14, fontStep)};
+      font-size: ${_cssFontSize(14, cqStep)};
       padding-left: 6px;
     }
     .cq-mark {
@@ -2547,11 +2564,11 @@ $paperFontBlock    :root {
     /* The question and its options are one block of text, set at one size: the
        PDF draws both from the same style, and an option smaller than the
        question it belongs to reads as a footnote to it. */
-    .mcq-question { font-size: ${_cssFontSize(15, fontStep)}; }
+    .mcq-question { font-size: ${_cssFontSize(15, mcqStep)}; }
     /* The intro an MCQ shares with the question below it — printed once, at the
        head of the first question of the group, and never numbered. */
     .mcq-stem {
-      font-size: ${_cssFontSize(15, fontStep)};
+      font-size: ${_cssFontSize(15, mcqStep)};
       margin-bottom: 4px;
     }
     /* The intro and its figure ride with the question they introduce, exactly as
@@ -2575,7 +2592,7 @@ $paperFontBlock    :root {
          gutter with `columnGap`, so they may be changed here alone. */
       gap: 0 6px;
       padding-left: 6px;
-      font-size: ${_cssFontSize(15, fontStep)};
+      font-size: ${_cssFontSize(15, mcqStep)};
     }
     /* The fitting script picks the grid at the paper's width, which is what
        prints. In a preview pane narrower than the paper that grid would be
@@ -2649,6 +2666,20 @@ $paperFontBlock    :root {
       justify-content: center;
       font-size: 11px;
     }
+    /* Five columns leave less room per row, so the bubbles and their gutters
+       tighten just enough to keep the whole grid inside the text column. */
+    .omr-grid[data-omr-columns="5"] { gap: 8px; }
+    .omr-grid[data-omr-columns="5"] .omr-column { padding: 6px; }
+    .omr-grid[data-omr-columns="5"] .omr-row {
+      gap: 4px;
+      min-height: 24px;
+    }
+    .omr-grid[data-omr-columns="5"] .omr-number { width: 18px; }
+    .omr-grid[data-omr-columns="5"] .omr-bubble {
+      width: 20px;
+      height: 20px;
+      font-size: 10px;
+    }
     .serial-answer-grid {
       display: flex;
       flex-wrap: wrap;
@@ -2692,7 +2723,7 @@ $paperFontBlock    :root {
       justify-content: space-between;
       align-items: flex-start;
       gap: 8px;
-      font-size: ${_cssFontSize(15, fontStep)};
+      font-size: ${_cssFontSize(15, rqStep)};
       ${_print.questionGap > 0 ? 'margin-bottom: ${_print.questionGap.round()}px;' : ''}
       page-break-inside: avoid;
       break-inside: avoid;
@@ -2766,6 +2797,7 @@ $paperFontBlock    :root {
           <button class="column-choice ${omrColumns == 2 ? 'active' : ''}" data-column-kind="omr" data-columns="2" title="OMR দুই কলাম"><i></i><i></i></button>
           <button class="column-choice ${omrColumns == 3 ? 'active' : ''}" data-column-kind="omr" data-columns="3" title="OMR তিন কলাম"><i></i><i></i><i></i></button>
           <button class="column-choice ${omrColumns == 4 ? 'active' : ''}" data-column-kind="omr" data-columns="4" title="OMR চার কলাম"><i></i><i></i><i></i><i></i></button>
+          <button class="column-choice ${omrColumns == 5 ? 'active' : ''}" data-column-kind="omr" data-columns="5" title="OMR পাঁচ কলাম"><i></i><i></i><i></i><i></i><i></i></button>
         </div></div>
       </div>
       <button class="btn btn-outline quick-fix-toggle" id="quickFixBtn" aria-expanded="false">⚡ Quick Fix</button>
@@ -3504,7 +3536,7 @@ $paperFontBlock    :root {
       function renderOmrGrid(grid) {
         if (!grid) return;
         var count = Math.max(1, Math.min(200, Number(grid.getAttribute('data-omr-count')) || 1));
-        var columnCount = Math.max(1, Math.min(4, Number(grid.getAttribute('data-omr-columns')) || 4));
+        var columnCount = Math.max(1, Math.min(5, Number(grid.getAttribute('data-omr-columns')) || 4));
         var letters = ['ক', 'খ', 'গ', 'ঘ'];
         var columns = [];
         for (var c = 0; c < columnCount; c++) columns.push([]);
@@ -3590,7 +3622,7 @@ $paperFontBlock    :root {
 
       function setPreviewColumns(kind, value) {
         if (kind === 'omr') {
-          var omrColumns = Math.max(1, Math.min(4, Number(value) || 1));
+          var omrColumns = Math.max(1, Math.min(5, Number(value) || 1));
           var omrGrids = document.querySelectorAll('.omr-grid');
           for (var g = 0; g < omrGrids.length; g++) {
             omrGrids[g].setAttribute('data-omr-columns', String(omrColumns));
@@ -4346,7 +4378,7 @@ $paperFontBlock    :root {
   /// so a column change made in the toolbar reflows the same way the export
   /// prints.
   static List<List<int>> _splitOmrRows(int count, int columns) {
-    final total = columns.clamp(1, 4);
+    final total = columns.clamp(1, 5);
     final grouped = List.generate(total, (_) => <int>[]);
     if (count < 1) return grouped;
     for (var number = 1; number <= count; number++) {
@@ -4379,7 +4411,7 @@ $paperFontBlock    :root {
     final serialVisible =
         style == McqAnswerSheetStyle.serialAnswer ? '' : 'display:none;';
     final count = itemCount.clamp(1, 200);
-    final columns = columnCount.clamp(1, 4);
+    final columns = columnCount.clamp(1, 5);
     const letters = ['ক', 'খ', 'গ', 'ঘ'];
     final grouped =
         _splitOmrRows(count, columns).where((column) => column.isNotEmpty);
@@ -4433,7 +4465,7 @@ $paperFontBlock    :root {
         '<div class="answer-sheet-variant answer-sheet-omr" data-answer-style="omr" style="$omrVisible">');
     {
       const letters = ['ক', 'খ', 'গ', 'ঘ'];
-      final columns = columnCount.clamp(1, 4);
+      final columns = columnCount.clamp(1, 5);
       final grouped = _splitOmrRows(mcqs.length, columns)
           .where((column) => column.isNotEmpty)
           .toList();

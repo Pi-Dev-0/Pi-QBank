@@ -1,12 +1,15 @@
-// The paper's font-size control moves every text size in the paper by one point
-// per step — the same step in the PDF and in the HTML sheet.
+// The paper's font-size controls: a general step moves every text size in the
+// paper by one point per step, and CQ/SQ/MCQ each have an extra step of their
+// own. The general step is shared by the PDF and the HTML sheet; the family
+// steps are HTML-only, where the separate section sizes are chosen.
 //
-// Two things have to hold. The sheet must move *every* size, including the ones
-// it leaves to be inherited (an MCQ stem), or a paper grows unevenly as the step
-// is turned up. And the step has to reach the layout's height estimators as well
-// as the styles it draws with: an estimator that keeps budgeting room for 11pt
-// text while 13pt text is drawn under-estimates the paper, and a column overflows
-// the allowance the flow gave it. Hence one guard per estimator.
+// Two things have to hold. The general step must move *every* size, including
+// the ones it leaves to be inherited (an MCQ stem), or a paper grows unevenly as
+// the step is turned up. And a family step must move only its own text. The
+// general step also has to reach the layout's height estimators as well as the
+// styles it draws with: an estimator that keeps budgeting room for 11pt text
+// while 13pt text is drawn under-estimates the paper, and a column overflows the
+// allowance the flow gave it. Hence one guard per estimator.
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -63,8 +66,15 @@ HighSchoolQuestion mcqTest(String text) => HighSchoolQuestion.fromJson({
       'board_year_tag': '',
     });
 
-/// A paper with one block of each kind, generated at [fontStep].
-String generate(double fontStep) => HighSchoolExportService.generateHtml(
+/// A paper with one block of each kind, generated at [fontStep] plus the
+/// optional per-family steps.
+String generate(
+  double fontStep, {
+  double cqFontStep = 0,
+  double rqFontStep = 0,
+  double mcqFontStep = 0,
+}) =>
+    HighSchoolExportService.generateHtml(
       schoolName: 'S',
       examName: 'E',
       subject: 'গণিত',
@@ -77,6 +87,9 @@ String generate(double fontStep) => HighSchoolExportService.generateHtml(
         rqTest('সংক্ষেপে উত্তর দাও।'),
       ],
       fontStep: fontStep,
+      cqFontStep: cqFontStep,
+      rqFontStep: rqFontStep,
+      mcqFontStep: mcqFontStep,
     );
 
 /// The stylesheet of a generated paper.
@@ -137,6 +150,36 @@ void main() {
         expect(decl(rule(css, entry.key), 'font-size'), entry.value,
             reason: entry.key);
       }
+    });
+
+    test('each question family can take its own extra step', () {
+      final css = cssOf(generate(
+        1,
+        cqFontStep: 2,
+        rqFontStep: -1,
+        mcqFontStep: 3,
+      ));
+
+      // CQ: general +1 and CQ +2.
+      expect(decl(rule(css, '.cq-stem'), 'font-size'), 'calc(15px + 3pt)');
+      expect(decl(rule(css, '.cq-sub-item'), 'font-size'), 'calc(14px + 3pt)');
+      // SQ: +1 and −1 cancel, so the rule keeps the plain tuned size.
+      expect(decl(rule(css, '.rq-item'), 'font-size'), '15px');
+      // MCQ: general +1 and MCQ +3.
+      expect(decl(rule(css, '.mcq-question'), 'font-size'), 'calc(15px + 4pt)');
+      expect(decl(rule(css, '.mcq-stem'), 'font-size'), 'calc(15px + 4pt)');
+      expect(decl(rule(css, '.mcq-options'), 'font-size'), 'calc(15px + 4pt)');
+      // The families must not drag the masthead or each other along.
+      expect(decl(rule(css, '.school-title'), 'font-size'), 'calc(24px + 1pt)');
+      expect(decl(rule(css, '.exam-title'), 'font-size'), 'calc(18px + 1pt)');
+    });
+
+    test('a family step on its own leaves the other families alone', () {
+      final css = cssOf(generate(0, cqFontStep: 2));
+
+      expect(decl(rule(css, '.cq-stem'), 'font-size'), 'calc(15px + 2pt)');
+      expect(decl(rule(css, '.rq-item'), 'font-size'), '15px');
+      expect(decl(rule(css, '.mcq-question'), 'font-size'), '15px');
     });
 
     test('a negative step subtracts instead of adding a signed value', () {
