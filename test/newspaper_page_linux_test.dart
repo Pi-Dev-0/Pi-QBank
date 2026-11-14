@@ -48,6 +48,11 @@ void main() {
           if (call.method == 'close') {
             return null;
           }
+          if (call.method == 'goBack' ||
+              call.method == 'goForward' ||
+              call.method == 'reload') {
+            return null;
+          }
           return null;
         });
 
@@ -84,9 +89,26 @@ void main() {
         expect(find.byType(Texture), findsOneWidget);
         expect(find.text('Prothom Alo'), findsOneWidget);
         expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+        expect(find.byIcon(Icons.chevron_left_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
         expect(find.byIcon(Icons.open_in_browser), findsOneWidget);
+        expect(find.byIcon(Icons.close_rounded), findsOneWidget);
         expect(find.textContaining('Embedded web view is not supported'),
             findsNothing);
+
+        // Test navigation buttons invoke CEF methods
+        await tester.tap(find.byIcon(Icons.chevron_left_rounded));
+        await tester.pump();
+        expect(methodCalls.map((c) => c.method), contains('goBack'));
+
+        await tester.tap(find.byIcon(Icons.chevron_right_rounded));
+        await tester.pump();
+        expect(methodCalls.map((c) => c.method), contains('goForward'));
+
+        await tester.tap(find.byIcon(Icons.refresh_rounded));
+        await tester.pump();
+        expect(methodCalls.map((c) => c.method), contains('reload'));
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

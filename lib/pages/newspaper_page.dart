@@ -105,6 +105,31 @@ class _NewspaperPageState extends State<NewspaperPage>
     }
   }
 
+  Future<void> _goForward() async {
+    if (_webController != null) {
+      _webController!.goForward();
+    } else if (_cefController != null) {
+      await _cefController!.goForward();
+    }
+  }
+
+  Future<void> _reload() async {
+    if (_webController != null) {
+      _webController!.reload();
+    } else if (_cefController != null) {
+      await _cefController!.reload();
+    }
+  }
+
+  Future<void> _handleBack() async {
+    if (await _canGoBack()) {
+      await _goBack();
+    } else {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _loadDarkMode() async {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool(_darkModePrefKey) ?? false;
@@ -880,9 +905,25 @@ class _NewspaperPageState extends State<NewspaperPage>
           centerTitle: true,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.of(context).pop(),
+            tooltip: 'Back',
+            onPressed: _handleBack,
           ),
           actions: [
+            IconButton(
+              tooltip: 'Previous page',
+              icon: const Icon(Icons.chevron_left_rounded, size: 28),
+              onPressed: _goBack,
+            ),
+            IconButton(
+              tooltip: 'Next page',
+              icon: const Icon(Icons.chevron_right_rounded, size: 28),
+              onPressed: _goForward,
+            ),
+            IconButton(
+              tooltip: 'Reload',
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: _reload,
+            ),
             IconButton(
               tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
               icon: AnimatedSwitcher(
@@ -934,6 +975,11 @@ class _NewspaperPageState extends State<NewspaperPage>
                     ),
                   ),
               ],
+            ),
+            IconButton(
+              tooltip: 'Close newspaper',
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () => Navigator.of(context).pop(),
             ),
           ],
         ),
@@ -998,6 +1044,34 @@ class _NewspaperPageState extends State<NewspaperPage>
             ? Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  FloatingActionButton(
+                    heroTag: 'newspaper_prev_fab',
+                    mini: true,
+                    tooltip: 'Previous page',
+                    onPressed: _goBack,
+                    backgroundColor:
+                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+                    elevation: 4,
+                    child: Icon(
+                      Icons.chevron_left_rounded,
+                      color: Colors.deepOrange.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FloatingActionButton(
+                    heroTag: 'newspaper_next_fab',
+                    mini: true,
+                    tooltip: 'Next page',
+                    onPressed: _goForward,
+                    backgroundColor:
+                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+                    elevation: 4,
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.deepOrange.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   FloatingActionButton(
                     heroTag: 'newspaper_dark_mode_fab',
                     mini: true,
@@ -1075,6 +1149,20 @@ class _NewspaperPageState extends State<NewspaperPage>
                             ),
                           ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FloatingActionButton(
+                    heroTag: 'newspaper_close_fab',
+                    mini: true,
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    backgroundColor:
+                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+                    elevation: 4,
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: Colors.deepOrange.shade700,
                     ),
                   ),
                 ],
