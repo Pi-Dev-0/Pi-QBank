@@ -1247,9 +1247,10 @@ class HighSchoolExportService {
     .frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }
     .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
     .frac-den { display:block; padding:0 .25em; }
-    .radical { display:inline-flex; align-items:flex-start; vertical-align:middle; margin:0 .08em; }
-    .radical-sign { line-height:1; }
-    .radical-body { display:inline-block; border-top:1px solid currentColor; padding:0 .12em 0 .08em; line-height:1.05; }
+    .radical { display:inline-flex; align-items:stretch; vertical-align:middle; margin:0 .08em; }
+    .radical-sign { display:flex; align-items:stretch; flex-shrink:0; width:.6em; }
+    .radical-sign svg { display:block; width:100%; height:100%; }
+    .radical-body { display:inline-block; border-top:1.5px solid currentColor; padding:.08em .12em 0 .08em; line-height:1.05; }
     .mathv { font-style:italic; }
     /* One face for maths symbols: the text faces cover ∩ but not ∪, which
        used to leave the union drawn by a different face than the intersection. */
@@ -2783,9 +2784,10 @@ $paperFontBlock    :root {
     .frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }
     .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
     .frac-den { display:block; padding:0 .25em; }
-    .radical { display:inline-flex; align-items:flex-start; vertical-align:middle; margin:0 .08em; }
-    .radical-sign { line-height:1; }
-    .radical-body { display:inline-block; border-top:1px solid currentColor; padding:0 .12em 0 .08em; line-height:1.05; }
+    .radical { display:inline-flex; align-items:stretch; vertical-align:middle; margin:0 .08em; }
+    .radical-sign { display:flex; align-items:stretch; flex-shrink:0; width:.6em; }
+    .radical-sign svg { display:block; width:100%; height:100%; }
+    .radical-body { display:inline-block; border-top:1.5px solid currentColor; padding:.08em .12em 0 .08em; line-height:1.05; }
     .mathv { font-style:italic; }
     /* One face for maths symbols: the text faces cover ∩ but not ∪, which
        used to leave the union drawn by a different face than the intersection. */

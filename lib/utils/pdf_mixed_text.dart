@@ -378,9 +378,10 @@ pw.WidgetSpan _radicalSpan(
     style: style,
     child: pw.Row(
       mainAxisSize: pw.MainAxisSize.min,
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      crossAxisAlignment: pw.CrossAxisAlignment.end,
       children: [
-        render('√', style),
+        render('√', style.copyWith(
+            fontSize: (style.fontSize ?? 11) * 0.75)),
         pw.Container(
           decoration: pw.BoxDecoration(
             border: pw.Border(
@@ -388,9 +389,16 @@ pw.WidgetSpan _radicalSpan(
                 width: radicalRuleHeight,
                 color: ruleColor,
               ),
+              left: pw.BorderSide(
+                width: radicalRuleHeight,
+                color: ruleColor,
+              ),
             ),
           ),
-          padding: const pw.EdgeInsets.symmetric(horizontal: radicalPaddingX),
+          padding: const pw.EdgeInsets.only(
+              left: radicalPaddingX,
+              right: radicalPaddingX,
+              top: 1),
           child: render(body, style),
         ),
       ],

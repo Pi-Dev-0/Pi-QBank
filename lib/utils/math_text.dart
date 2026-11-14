@@ -566,7 +566,12 @@ String mathToHtml(List<MathSegment> segments) {
       case MathRadical(:final body, :final math):
         final inner = nested(body);
         out.write('<span class="radical${math ? ' mathv' : ''}">'
-            '<span class="radical-sign">√</span>'
+            '<span class="radical-sign">'
+            '<svg viewBox="0 0 26 48" preserveAspectRatio="none">'
+            '<path d="M0,30 L7,30 L11,46 L26,0" '
+            'stroke="currentColor" stroke-width="1.5" fill="none" '
+            'vector-effect="non-scaling-stroke" stroke-linejoin="miter"/>'
+            '</svg></span>'
             '<span class="radical-body">$inner</span>'
             '</span>');
       case MathText(:final text, :final math):
@@ -596,9 +601,10 @@ const String kMathCss =
     '.frac .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }'
     '.frac .frac-den { display:block; padding:0 .25em; }'
     '.mathv { font-style:italic; }'
-    '.radical { display:inline-flex; align-items:flex-start; vertical-align:middle; margin:0 .08em; }'
-    '.radical-sign { line-height:1; }'
-    '.radical-body { display:inline-block; border-top:1px solid currentColor; padding:0 .12em 0 .08em; line-height:1.05; }'
+    '.radical { display:inline-flex; align-items:stretch; vertical-align:middle; margin:0 .08em; }'
+    '.radical-sign { display:flex; align-items:stretch; flex-shrink:0; width:.6em; }'
+    '.radical-sign svg { display:block; width:100%; height:100%; }'
+    '.radical-body { display:inline-block; border-top:1.5px solid currentColor; padding:.08em .12em 0 .08em; line-height:1.05; }'
     '.m { font-family: $kMathFontStack; font-style: normal; }';
 
 /// Wrap each run of maths symbols in `<span class="m">`, which sets the face
