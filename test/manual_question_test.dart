@@ -722,6 +722,32 @@ void main() {
       expect(edited.mcqData!.correctAns, '৪');
     });
 
+    test('an edit changes the content fingerprint the live preview watches',
+        () {
+      final original =
+          HighSchoolQuestion.fromJson(_mcq('m1', '1', 'মূল প্রশ্ন'));
+
+      final edited = HighSchoolQuestion.edited(
+        original: original,
+        chapterNumber: '1',
+        chapterName: 'অধ্যায় 1',
+        text: 'মূল প্রশ্ন',
+        options: const [
+          'AB = CD',
+          'AB > CD',
+          'AB < CD',
+          r'AB = \frac{1}{2} CD',
+        ],
+        correctAnswer: r'AB = \frac{1}{2} CD',
+      );
+
+      // The id and chapter are unchanged, so the live-preview signature has to
+      // include the payload as well; otherwise the page keeps the pre-edit
+      // sheet and the export snapshot copies it.
+      expect(jsonEncode(edited.toJson()), isNot(jsonEncode(original.toJson())));
+      expect(edited.mcqData!.options.last, r'AB = \frac{1}{2} CD');
+    });
+
     test('editing a hand-typed question leaves it hand-typed', () {
       final typed = _typed(type: 'RQ', text: 'বৃত্ত কাকে বলে?', mark: 2);
 

@@ -2387,10 +2387,13 @@ class _HighSchoolQPaperGeneratorPageState
     return _buildNativePaperPreview();
   }
 
-  /// A cheap value that moves whenever the exported sheet would change.
+  /// A value that moves whenever the exported sheet would change.
   ///
   /// The embedded browser reloads only when this moves, so a hover or a scroll
-  /// does not rebuild a megabyte of HTML.
+  /// does not rebuild a megabyte of HTML. Question content is part of the
+  /// fingerprint: an in-place edit keeps the same id and chapter, so an id-only
+  /// signature left the live preview and the cached export on the pre-edit
+  /// sheet.
   String get _paperPreviewSignature {
     final parts = <Object?>[
       _paperPurpose.name,
@@ -2420,7 +2423,8 @@ class _HighSchoolQPaperGeneratorPageState
       _printSettings.signature,
     ];
     for (final q in _selectedQuestions) {
-      parts.add('${q.id}:${q.setLabel}:${q.hashCode}:${q.isImportant}');
+      parts.add('${q.id}:${q.setLabel}:${q.isImportant}:'
+          '${jsonEncode(q.toJson())}');
     }
     return parts.join('~');
   }

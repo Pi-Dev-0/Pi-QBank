@@ -1456,9 +1456,22 @@ class HighSchoolExportService {
     // Options for one question, as an HTML fragment.
     String optionsHtml(List<String> options) {
       final b = StringBuffer();
-      for (int opt = 0; opt < options.length; opt += 2) {
+      // A three-column paper gives the question a third of the text width;
+      // two options inside it would each get only a sixth. Word cannot measure
+      // and reflow like the HTML sheet, so let one option use the whole cell
+      // there. One- and two-column papers keep the compact two-per-row table
+      // they already print.
+      final perRow = layout.mcqColumns == 3 ? 1 : 2;
+      for (int opt = 0; opt < options.length; opt += perRow) {
         final l1 =
             opt < bengaliLetters.length ? bengaliLetters[opt] : '${opt + 1}';
+        if (perRow == 1) {
+          b.write('''
+      <tr>
+        <td class="mcq-opt-cell" colspan="2" style="width:100%;">($l1) ${_htmlText(options[opt], latex: true)}</td>
+      </tr>''');
+          continue;
+        }
         final has2 = opt + 1 < options.length;
         final l2 = has2 && (opt + 1) < bengaliLetters.length
             ? bengaliLetters[opt + 1]
@@ -2597,6 +2610,18 @@ $paperFontBlock    :root {
       padding-left: 6px;
       font-size: ${_cssFontSize(15, mcqStep)};
     }
+    /* Three questions across leaves each option block only a third of the
+       text width. Keep the options with their question there: a card split
+       across a column boundary strands the last options above the next
+       column's question, which is what made the compact sheet look jumbled.
+       A little row air separates two rows of options without loosening the
+       tight stack the one- and two-column sheets use. */
+    .mcq-card[data-columns="3"] { break-inside: avoid; }
+    .mcq-options[data-columns="3"] { row-gap: 2px; }
+    /* A long Bengali word can be wider than one option cell. Let it break
+       rather than push the next cell off the row; the rule only engages when
+       the word would otherwise overflow. */
+    .mcq-options > div { min-width: 0; overflow-wrap: break-word; }
     /* The fitting script picks the grid at the paper's width, which is what
        prints. In a preview pane narrower than the paper that grid would be
        squeezed into unreadable slivers, so reflow it to one option per line
@@ -2887,6 +2912,7 @@ $paperFontBlock    :root {
         sections: sections,
         twoColumnBlocks: twoColumnBlocks,
         mergeCqAndShort: mergeCqAndShort,
+        mcqLayout: mcqLayout,
         imageSize: imageSize,
         imageBytes: imageBytes,
         cqInstruction: cqInstruction,
@@ -2947,9 +2973,13 @@ $paperFontBlock    :root {
           var room = list.clientWidth - parseFloat(style.paddingLeft) -
               parseFloat(style.paddingRight);
           var gutter = parseFloat(style.columnGap) || 0;
-          var wanted = cells.map(function (cell) {
-            return wantedWidth(cell, style.fontSize);
-          });
+          var wanted = cells.map(wantedWidth);
+          // Three columns are the tight case: a cell can fit its text by a
+          // fraction of a pixel and still wrap once the browser rounds the
+          // tracks. Leave a little breathing room there, and only there, so
+          // the one- and two-column grids keep their existing fit.
+          var slack =
+              list.getAttribute('data-columns') === '3' ? 4 : 1;
 
           var counts = [4, 2, 1];
           for (var c = 0; c < counts.length; c++) {
@@ -2957,7 +2987,7 @@ $paperFontBlock    :root {
             if (count > wanted.length) continue;
             var cell = (room - (count - 1) * gutter) / count;
             var fits = wanted.every(function (width) {
-              return width <= cell;
+              return width + slack <= cell;
             });
             // A smaller count always gives every option more room, so one per
             // line always fits and the search ends there.
@@ -2969,14 +2999,25 @@ $paperFontBlock    :root {
         }
       }
 
-      /* How wide one option wants to be unwrapped: the same text, at the size
-         the options print at, in a plain box out of the flow. */
-      function wantedWidth(cell, fontSize) {
-        var probe = document.createElement('span');
+      /* How wide one option wants to be unwrapped: a copy of the real cell,
+         with its fractions, radicals and scripts intact, set nowrap out of the
+         flow. A plain text probe used to under-measure those spans, so a narrow
+         three-column cell could be picked for four options and then wrap the
+         last one. Reading the copy's computed font keeps Bengali metrics and
+         the paper's chosen face in the measurement too. */
+      function wantedWidth(cell) {
+        var style = getComputedStyle(cell);
+        var probe = cell.cloneNode(true);
         probe.style.cssText = 'position:absolute;left:-10000px;top:0;' +
-            'white-space:nowrap;visibility:hidden;margin:0;padding:0;' +
-            'font-size:' + fontSize + ';';
-        probe.textContent = cell.textContent;
+            'display:inline-block;white-space:nowrap;visibility:hidden;' +
+            'margin:0;padding:0;border:0;' +
+            'font-family:' + style.fontFamily + ';' +
+            'font-size:' + style.fontSize + ';' +
+            'font-weight:' + style.fontWeight + ';' +
+            'font-style:' + style.fontStyle + ';' +
+            'letter-spacing:' + style.letterSpacing + ';' +
+            'word-spacing:' + style.wordSpacing + ';' +
+            'line-height:' + style.lineHeight + ';';
         document.body.appendChild(probe);
         var width = probe.getBoundingClientRect().width;
         probe.parentNode.removeChild(probe);
@@ -4189,6 +4230,7 @@ $paperFontBlock    :root {
     required List<PaperSection> sections,
     required Set<PaperSection> twoColumnBlocks,
     required bool mergeCqAndShort,
+    required QuestionLayout mcqLayout,
     required StemImageSize imageSize,
     Map<String, Uint8List>? imageBytes,
     String cqInstruction = '',
@@ -4344,7 +4386,9 @@ $paperFontBlock    :root {
           break;
         case PaperSection.mcq:
           _writeHtmlMcqSection(buffer, inSection, heading, imageSize,
-              imageBytes: imageBytes, declarationInFlow: declarationInFlow);
+              imageBytes: imageBytes,
+              declarationInFlow: declarationInFlow,
+              mcqLayout: mcqLayout);
           break;
         case PaperSection.rq:
           _writeHtmlRqSection(buffer, inSection, heading, imageSize,
@@ -4668,6 +4712,7 @@ $paperFontBlock    :root {
     StemImageSize imageSize, {
     Map<String, Uint8List>? imageBytes,
     required bool declarationInFlow,
+    required QuestionLayout mcqLayout,
   }) {
     if (!declarationInFlow) {
       _writeHtmlDeclaration(buffer, heading, inFlow: false);
@@ -4701,7 +4746,7 @@ $paperFontBlock    :root {
               : '';
 
       buffer.write('''
-      <div class="mcq-card" title="${_idTooltip(q)}">
+      <div class="mcq-card" data-columns="${mcqLayout.mcqColumns}" title="${_idTooltip(q)}">
         <div class="mcq-head">
 ''');
       if (opensStem) {
@@ -4714,7 +4759,7 @@ $paperFontBlock    :root {
           ${_questionInfoMarkup(q)}
           $questionImageHtml
         </div>
-        <div class="mcq-options" data-fit="1">
+        <div class="mcq-options" data-fit="1" data-columns="${mcqLayout.mcqColumns}">
 ''');
       final options = mcq.options;
       for (int opt = 0; opt < options.length; opt++) {

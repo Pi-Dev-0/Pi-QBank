@@ -22,6 +22,46 @@ HighSchoolQuestion radicalMcq() => HighSchoolQuestion.fromJson({
     });
 
 void main() {
+  test('an edited MCQ option with a fraction is typeset', () {
+    final q = HighSchoolQuestion.fromJson({
+      'id': 'm2',
+      'class': 'Class 8',
+      'subject': 'সাধারণ গণিত',
+      'chapter_number': '10',
+      'chapter_name': 'বৃত্ত',
+      'question_type': 'MCQ',
+      'stem_text': '',
+      'stem_image_url': '',
+      'sub_questions_json': {
+        'text': 'কোনটি সঠিক?',
+        'options': const [
+          'AB = CD',
+          'AB > CD',
+          'AB < CD',
+          r'AB = \frac{1}{2} CD',
+        ],
+        'correct_ans': r'AB = \frac{1}{2} CD',
+      },
+      'board_year_tag': '',
+    });
+
+    final html = HighSchoolExportService.generateHtml(
+      schoolName: 'S',
+      examName: 'E',
+      subject: 'সাধারণ গণিত',
+      className: 'Class 8',
+      time: 'T',
+      totalMarks: '10',
+      questions: [q],
+    );
+
+    expect(
+        html,
+        contains('<span class="frac"><span class="frac-num">1</span>'
+            '<span class="frac-den">2</span></span>'));
+    expect(html, isNot(contains(r'\frac')));
+  });
+
   test('an MCQ question is typeset in both the HTML and Word sheets', () {
     final html = HighSchoolExportService.generateHtml(
       schoolName: 'S',

@@ -251,9 +251,22 @@ void main() {
       final html = sheetHtml(mcqLayout: QuestionLayout.tripleColumn);
 
       expect(html, contains('column-count: 3'));
+      // The compact block tags the cards and option lists with their column
+      // count so the stylesheet can keep a card whole and give its rows air.
+      expect(html, contains('class="mcq-card" data-columns="3"'));
+      expect(
+          html, contains('class="mcq-options" data-fit="1" data-columns="3"'));
+
+      final css = cssOf(html);
+      expect(decl(rule(css, '.mcq-card[data-columns="3"]'), 'break-inside'),
+          'avoid');
+      expect(
+          decl(rule(css, '.mcq-options[data-columns="3"]'), 'row-gap'), '2px');
+      expect(
+          decl(rule(css, '.mcq-options > div'), 'overflow-wrap'), 'break-word');
     });
 
-    test('the script tries four, then two, then one', () {
+    test('the fitting script tries four, then two, then one', () {
       final script = sheetHtml(mcqLayout: QuestionLayout.single)
           .split('<script>')[1]
           .split('</script>')[0];
@@ -261,6 +274,38 @@ void main() {
       expect(script, contains("'.mcq-options[data-fit]'"));
       expect(script, contains('var counts = [4, 2, 1]'));
       expect(script, contains("'repeat(' + count + ', 1fr)'"));
+    });
+
+    test('the fitting script measures the real option markup', () {
+      final script = sheetHtml(mcqLayout: QuestionLayout.tripleColumn)
+          .split('<script>')[1]
+          .split('</script>')[0];
+
+      // Fractions, radicals and scripts make an option wider than its plain
+      // text, and the Bengali face has different metrics from the probe font
+      // this used to use. Measuring a clone of the cell keeps both.
+      expect(script, contains('cell.cloneNode(true)'));
+      expect(script, contains("getComputedStyle(cell)"));
+      expect(script, contains("list.getAttribute('data-columns')"));
+      expect(script, contains('width + slack <= cell'));
+    });
+
+    test('a three-column Word MCQ gives each option the full cell', () {
+      final word = HighSchoolExportService.generateWordDoc(
+        schoolName: 'S',
+        examName: 'E',
+        subject: 'গণিত',
+        className: 'C',
+        time: 'T',
+        totalMarks: '10',
+        mcqLayout: QuestionLayout.tripleColumn,
+        questions: [
+          mcqWith(const ['ক', 'খ', 'গ', 'ঘ'])
+        ],
+      );
+
+      expect(word, contains('colspan="2" style="width:100%;"'));
+      expect(RegExp('class="mcq-opt-cell"').allMatches(word).length, 4);
     });
 
     test('the options are fitted before the two-set heights are measured', () {
