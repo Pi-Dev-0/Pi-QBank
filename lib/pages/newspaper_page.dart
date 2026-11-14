@@ -56,6 +56,12 @@ class _NewspaperPageState extends State<NewspaperPage>
   bool get _isCefPlatform =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
 
+  bool get _isDesktop =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
   // ─── SharedPreferences helpers ────────────────────────────────────────────
 
   Future<void> _runJavaScript(String code) async {
@@ -862,7 +868,8 @@ class _NewspaperPageState extends State<NewspaperPage>
       child: Scaffold(
         backgroundColor:
             _isDarkMode ? const Color(0xFF121212) : Colors.white,
-        appBar: MediaQuery.orientationOf(context) == Orientation.landscape
+        appBar: (!_isDesktop &&
+                MediaQuery.orientationOf(context) == Orientation.landscape)
             ? null
             : AppBar(
           backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : null,
@@ -986,7 +993,8 @@ class _NewspaperPageState extends State<NewspaperPage>
               ),
         )],
         ),
-        floatingActionButton: MediaQuery.orientationOf(context) == Orientation.landscape
+        floatingActionButton: (!_isDesktop &&
+                MediaQuery.orientationOf(context) == Orientation.landscape)
             ? Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
