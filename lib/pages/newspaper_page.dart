@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_cef/webview_cef.dart' as cef;
 import 'package:pi_qbank/widgets/loading_widget.dart';
 
 class NewspaperPage extends StatefulWidget {
@@ -16,28 +17,117 @@ class NewspaperPage extends StatefulWidget {
     required this.url,
   });
 
+  @visibleForTesting
+  static void resetCefInitialization() {
+    _NewspaperPageState._cefInitializing = null;
+  }
+
   @override
   State<NewspaperPage> createState() => _NewspaperPageState();
 }
 
 class _NewspaperPageState extends State<NewspaperPage>
     with TickerProviderStateMixin {
-  // Controller is declared nullable and initialized only on supported platforms
-  WebViewController? _controller;
+  static const String _darkModePrefKey = 'newspaper_dark_mode';
+
+  // Controllers for the two supported embedded-webview backends.
+  // webview_flutter is used on mobile/desktop (non-Linux); CEF is used on Linux.
+  WebViewController? _webController;
+  cef.WebViewController? _cefController;
+  static Future<void>? _cefInitializing;
+  bool _cefFailed = false;
   bool _isLoading = true;
   double _progress = 0;
   bool _isPickerActive = false;
+  bool _isDarkMode = false;
   List<String> _userRules = [];
   late String _siteKey;
   late AnimationController _bannerAnimController;
   late Animation<double> _bannerAnim;
 
-  bool get _isWebViewSupported =>
+  bool get _hasController => _webController != null || _cefController != null;
+
+  bool get _isEmbeddedWebViewSupported =>
       !kIsWeb &&
-      defaultTargetPlatform != TargetPlatform.linux &&
-      WebViewPlatform.instance != null;
+      ((defaultTargetPlatform != TargetPlatform.linux &&
+              WebViewPlatform.instance != null) ||
+          (defaultTargetPlatform == TargetPlatform.linux));
+
+  bool get _isCefPlatform =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
 
   // ─── SharedPreferences helpers ────────────────────────────────────────────
+
+  Future<void> _runJavaScript(String code) async {
+    try {
+      if (_webController != null) {
+        await _webController!.runJavaScript(code);
+      } else if (_cefController != null) {
+        await _cefController!.executeJavaScript(code);
+      }
+    } catch (_) {
+      // Ignore JS errors before the page is ready.
+    }
+  }
+
+  Future<bool> _canGoBack() async {
+    if (_webController != null) {
+      try {
+        return await _webController!.canGoBack();
+      } catch (_) {
+        return false;
+      }
+    }
+    if (_cefController != null) {
+      try {
+        final result = await _cefController!.evaluateJavascript(
+          'Boolean(window.navigation ? window.navigation.canGoBack : (window.history.length > 1))',
+        );
+        return result == true || result == 'true';
+      } catch (_) {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _goBack() async {
+    if (_webController != null) {
+      _webController!.goBack();
+    } else if (_cefController != null) {
+      await _cefController!.goBack();
+    }
+  }
+
+  Future<void> _loadDarkMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool(_darkModePrefKey) ?? false;
+    if (!mounted) return;
+    setState(() => _isDarkMode = enabled);
+    if (_webController != null) {
+      try {
+        await _webController!.setBackgroundColor(
+          enabled ? const Color(0xFF121212) : Colors.white,
+        );
+      } catch (_) {}
+    }
+    if (_hasController && enabled) _applyDarkMode();
+  }
+
+  Future<void> _toggleDarkMode() async {
+    final next = !_isDarkMode;
+    setState(() => _isDarkMode = next);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_darkModePrefKey, next);
+    if (_webController != null) {
+      try {
+        await _webController!.setBackgroundColor(
+          next ? const Color(0xFF121212) : Colors.white,
+        );
+      } catch (_) {}
+    }
+    if (_hasController) _applyDarkMode();
+  }
 
   Future<void> _loadUserRules() async {
     final prefs = await SharedPreferences.getInstance();
@@ -57,20 +147,75 @@ class _NewspaperPageState extends State<NewspaperPage>
     await prefs.setString(_siteKey, json.encode(_userRules));
   }
 
+  // ─── Dark Mode CSS injection ──────────────────────────────────────────────
+
+  void _applyDarkMode() {
+    if (!_hasController) return;
+
+    if (!_isDarkMode) {
+      _runJavaScript('''
+        (function() {
+          if (window.__piDarkModeTimer) {
+            clearInterval(window.__piDarkModeTimer);
+            window.__piDarkModeTimer = null;
+          }
+          var el = document.getElementById('pi-darkmode-style');
+          if (el && el.parentNode) {
+            el.parentNode.removeChild(el);
+          }
+        })();
+      ''');
+      return;
+    }
+
+    const darkCss = 'html { filter: invert(1) hue-rotate(180deg) !important; background-color: #f3f3f3 !important; color-scheme: dark !important; } '
+        'img, video, canvas, iframe, [style*="background-image"] { filter: invert(1) hue-rotate(180deg) !important; } '
+        '[style*="background-image"] img, [style*="background-image"] video, [style*="background-image"] canvas, iframe img { filter: none !important; }';
+    final safeDarkCSS = json.encode(darkCss);
+
+    _runJavaScript('''
+      (function() {
+        var styleId = 'pi-darkmode-style';
+        var cssText = $safeDarkCSS;
+
+        if (window.__piDarkModeTimer) {
+          clearInterval(window.__piDarkModeTimer);
+        }
+
+        function applyDarkStyle() {
+          var target = document.head || document.documentElement;
+          if (!target) return;
+          var el = document.getElementById(styleId);
+          if (!el) {
+            el = document.createElement('style');
+            el.id = styleId;
+            target.appendChild(el);
+          }
+          if (el.innerHTML !== cssText) {
+            el.innerHTML = cssText;
+          }
+        }
+
+        applyDarkStyle();
+        window.__piDarkModeTimer = setInterval(applyDarkStyle, 1000);
+      })();
+    ''');
+  }
+
   // ─── CSS injection ────────────────────────────────────────────────────────
   // Uses json.encode() to produce a safe JS string literal — handles quotes,
   // backslashes, and other special characters in selectors gracefully.
   // Clears previous interval via window.__piAdblockTimer to avoid accumulation.
 
   void _applyAllBlockRules() {
-    if (_controller == null || _userRules.isEmpty) return;
+    if (!_hasController || _userRules.isEmpty) return;
 
     // Build the full CSS text and safely encode it as a JS string literal.
     final cssContent =
         '${_userRules.join(', ')} { display: none !important; visibility: hidden !important; opacity: 0 !important; max-height: 0 !important; overflow: hidden !important; }';
     final safeCSS = json.encode(cssContent); // produces "..." with escaping
 
-    _controller!.runJavaScript('''
+    _runJavaScript('''
       (function() {
         var styleId = 'pi-adblock-style';
         var cssText = $safeCSS;
@@ -188,7 +333,10 @@ class _NewspaperPageState extends State<NewspaperPage>
       e.preventDefault();
       e.stopPropagation();
       var sel = getSelector(e.target);
-      if (sel) AdBlockerChannel.postMessage(sel);
+      if (sel) {
+        if (typeof AdBlockerChannel === 'function') AdBlockerChannel(sel);
+        else if (AdBlockerChannel && typeof AdBlockerChannel.postMessage === 'function') AdBlockerChannel.postMessage(sel);
+      }
       cleanup();
     }
 
@@ -200,7 +348,10 @@ class _NewspaperPageState extends State<NewspaperPage>
       var el = document.elementFromPoint(touch.clientX, touch.clientY);
       if (el) {
         var sel = getSelector(el);
-        if (sel) AdBlockerChannel.postMessage(sel);
+        if (sel) {
+          if (typeof AdBlockerChannel === 'function') AdBlockerChannel(sel);
+          else if (AdBlockerChannel && typeof AdBlockerChannel.postMessage === 'function') AdBlockerChannel.postMessage(sel);
+        }
       }
       cleanup();
     }
@@ -227,23 +378,23 @@ class _NewspaperPageState extends State<NewspaperPage>
   // ─── Picker toggle ────────────────────────────────────────────────────────
 
   void _togglePicker() {
-    if (_controller == null) return;
+    if (!_hasController) return;
     setState(() => _isPickerActive = !_isPickerActive);
     if (_isPickerActive) {
       _bannerAnimController.forward();
-      _controller!.runJavaScript(_pickerJS);
+      _runJavaScript(_pickerJS);
     } else {
       _bannerAnimController.reverse();
-      _controller!.runJavaScript(_disablePickerJS);
+      _runJavaScript(_disablePickerJS);
     }
   }
 
   void _disablePicker() {
-    if (_controller == null) return;
+    if (!_hasController) return;
     if (_isPickerActive) {
       setState(() => _isPickerActive = false);
       _bannerAnimController.reverse();
-      _controller!.runJavaScript(_disablePickerJS);
+      _runJavaScript(_disablePickerJS);
     }
   }
 
@@ -260,47 +411,69 @@ class _NewspaperPageState extends State<NewspaperPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : null,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Icon(Icons.block, color: Colors.deepOrange.shade700, size: 22),
             const SizedBox(width: 8),
-            const Text('Block this element?',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(
+              'Block this element?',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: _isDarkMode ? Colors.white : null,
+              ),
+            ),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('CSS Selector:',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('CSS Selector:',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: _isDarkMode ? Colors.grey.shade400 : Colors.grey)),
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: _isDarkMode
+                    ? const Color(0xFF2A2A2A)
+                    : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(
+                  color: _isDarkMode
+                      ? Colors.grey.shade700
+                      : Colors.grey.shade300,
+                ),
               ),
               child: SelectableText(
                 selector,
-                style: const TextStyle(
+                style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 12,
-                    color: Color(0xFF1565C0)),
+                    color: _isDarkMode
+                        ? const Color(0xFF64B5F6)
+                        : const Color(0xFF1565C0)),
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
                 'This element will be hidden every time you visit this site.',
-                style: TextStyle(fontSize: 13, color: Colors.grey)),
+                style: TextStyle(
+                    fontSize: 13,
+                    color: _isDarkMode ? Colors.grey.shade400 : Colors.grey)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: _isDarkMode ? Colors.grey.shade300 : null),
+            ),
           ),
           FilledButton.icon(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -338,6 +511,7 @@ class _NewspaperPageState extends State<NewspaperPage>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _AdBlockerPanel(
+        isDarkMode: _isDarkMode,
         isPickerActive: _isPickerActive,
         userRules: List.from(_userRules),
         onTogglePicker: () {
@@ -355,7 +529,7 @@ class _NewspaperPageState extends State<NewspaperPage>
           setState(() => _userRules.clear());
           await _saveUserRules();
           // Remove the style tag entirely when there are no custom rules
-          _controller?.runJavaScript('''
+          _runJavaScript('''
             (function() {
               if (window.__piAdblockTimer) clearInterval(window.__piAdblockTimer);
               var el = document.getElementById('pi-adblock-style');
@@ -383,8 +557,11 @@ class _NewspaperPageState extends State<NewspaperPage>
     _bannerAnim =
         CurvedAnimation(parent: _bannerAnimController, curve: Curves.easeOut);
 
-    if (_isWebViewSupported) {
-      _controller = WebViewController()
+    if (_isCefPlatform) {
+      _isLoading = true;
+      _startCef();
+    } else if (_isEmbeddedWebViewSupported) {
+      _webController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..addJavaScriptChannel(
           'AdBlockerChannel',
@@ -396,6 +573,9 @@ class _NewspaperPageState extends State<NewspaperPage>
           NavigationDelegate(
             onProgress: (int progress) {
               setState(() => _progress = progress / 100);
+              if (_isDarkMode && progress >= 30) {
+                _applyDarkMode();
+              }
             },
             onPageStarted: (String url) {
               setState(() {
@@ -409,6 +589,7 @@ class _NewspaperPageState extends State<NewspaperPage>
               setState(() => _isLoading = false);
               // Apply merged rules (server + user) once page DOM is ready
               _applyAllBlockRules();
+              if (_isDarkMode) _applyDarkMode();
             },
             onWebResourceError: (WebResourceError error) {},
           ),
@@ -420,6 +601,85 @@ class _NewspaperPageState extends State<NewspaperPage>
       _loadUserRules();
     } else {
       _isLoading = false;
+    }
+
+    _loadDarkMode();
+  }
+
+  Future<void> _startCef() async {
+    try {
+      if (!cef.WebviewManager().value) {
+        _cefInitializing ??= cef.WebviewManager().initialize();
+        await _cefInitializing;
+      }
+      if (!mounted) return;
+
+      final controller = cef.WebviewManager().createWebView();
+      controller.setWebviewListener(
+        cef.WebviewEventsListener(
+          onLoadStart: (_, __) {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = true;
+              _progress = 0;
+              _isPickerActive = false;
+            });
+            _bannerAnimController.reset();
+          },
+          onLoadEnd: (_, __) {
+            if (!mounted) return;
+            setState(() => _isLoading = false);
+            _registerCefChannels(controller);
+            _applyAllBlockRules();
+            if (_isDarkMode) _applyDarkMode();
+          },
+        ),
+      );
+
+      await controller.initialize(widget.url);
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      await _registerCefChannels(controller);
+
+      setState(() {
+        _cefController = controller;
+      });
+
+      // Load persisted rules in background.
+      _loadUserRules();
+    } catch (e, stack) {
+      debugPrint('Failed to initialize CEF for NewspaperPage: $e\n$stack');
+      _cefInitializing = null;
+      if (!mounted) return;
+      setState(() {
+        _cefFailed = true;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _registerCefChannels(cef.WebViewController controller) async {
+    try {
+      await controller.setJavaScriptChannels({
+        cef.JavascriptChannel(
+          name: 'AdBlockerChannel',
+          onMessageReceived: (cef.JavascriptMessage msg) {
+            var value = msg.message;
+            try {
+              final decoded = jsonDecode(value);
+              if (decoded is String) value = decoded;
+            } on FormatException {
+              // Already a bare string.
+            }
+            _onSelectorReceived(value);
+          },
+        ),
+      });
+    } catch (e) {
+      debugPrint('Failed to set CEF JavaScript channels: $e');
     }
   }
 
@@ -433,6 +693,7 @@ class _NewspaperPageState extends State<NewspaperPage>
   @override
   void dispose() {
     _bannerAnimController.dispose();
+    _cefController?.dispose();
     super.dispose();
   }
 
@@ -440,10 +701,13 @@ class _NewspaperPageState extends State<NewspaperPage>
 
   @override
   Widget build(BuildContext context) {
-    if (!_isWebViewSupported) {
+    if (!_isEmbeddedWebViewSupported || _cefFailed) {
       return Scaffold(
-        backgroundColor: Colors.grey.shade50,
+        backgroundColor:
+            _isDarkMode ? const Color(0xFF121212) : Colors.grey.shade50,
         appBar: AppBar(
+          backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : null,
+          foregroundColor: _isDarkMode ? Colors.white : null,
           title: Text(widget.name,
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
           centerTitle: true,
@@ -452,6 +716,19 @@ class _NewspaperPageState extends State<NewspaperPage>
             onPressed: () => Navigator.of(context).pop(),
           ),
           actions: [
+            IconButton(
+              tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
+              icon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: Icon(
+                  _isDarkMode
+                      ? Icons.light_mode_rounded
+                      : Icons.dark_mode_rounded,
+                  key: ValueKey(_isDarkMode),
+                ),
+              ),
+              onPressed: _toggleDarkMode,
+            ),
             IconButton(
               tooltip: 'Open in Browser',
               icon: const Icon(Icons.open_in_browser),
@@ -465,6 +742,7 @@ class _NewspaperPageState extends State<NewspaperPage>
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Card(
+                color: _isDarkMode ? const Color(0xFF1E1E1E) : null,
                 elevation: 2,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
@@ -476,7 +754,9 @@ class _NewspaperPageState extends State<NewspaperPage>
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.deepOrange.shade50,
+                          color: _isDarkMode
+                              ? Colors.deepOrange.shade900.withOpacity(0.3)
+                              : Colors.deepOrange.shade50,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(Icons.newspaper,
@@ -486,23 +766,33 @@ class _NewspaperPageState extends State<NewspaperPage>
                       Text(
                         widget.name,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: _isDarkMode ? Colors.white : null,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         widget.url,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                            fontSize: 13, color: Colors.grey.shade600),
+                            fontSize: 13,
+                            color: _isDarkMode
+                                ? Colors.grey.shade400
+                                : Colors.grey.shade600),
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Embedded web view is not supported on Linux desktop. You can read ${widget.name} directly in your default browser.',
+                        _isCefPlatform
+                            ? 'Embedded web view could not be loaded. You can read ${widget.name} directly in your default browser.'
+                            : 'Embedded web view is not supported on this platform. You can read ${widget.name} directly in your default browser.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey.shade700,
+                            color: _isDarkMode
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade700,
                             height: 1.4),
                       ),
                       const SizedBox(height: 28),
@@ -526,6 +816,11 @@ class _NewspaperPageState extends State<NewspaperPage>
                           OutlinedButton(
                             onPressed: () => Navigator.of(context).pop(),
                             style: OutlinedButton.styleFrom(
+                              foregroundColor:
+                                  _isDarkMode ? Colors.white70 : null,
+                              side: _isDarkMode
+                                  ? BorderSide(color: Colors.grey.shade700)
+                                  : null,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 20, vertical: 12),
                               shape: RoundedRectangleBorder(
@@ -545,22 +840,33 @@ class _NewspaperPageState extends State<NewspaperPage>
       );
     }
 
+    if (_isCefPlatform && _cefController == null && !_cefFailed) {
+      return Scaffold(
+        backgroundColor:
+            _isDarkMode ? const Color(0xFF121212) : Colors.grey.shade50,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) return;
-        if (_controller != null && await _controller!.canGoBack()) {
-          _controller!.goBack();
+        if (await _canGoBack()) {
+          await _goBack();
         } else {
           if (!context.mounted) return;
           Navigator.of(context).pop();
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor:
+            _isDarkMode ? const Color(0xFF121212) : Colors.white,
         appBar: MediaQuery.orientationOf(context) == Orientation.landscape
             ? null
             : AppBar(
+          backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : null,
+          foregroundColor: _isDarkMode ? Colors.white : null,
           title: Text(widget.name,
               style:
                   const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
@@ -570,6 +876,24 @@ class _NewspaperPageState extends State<NewspaperPage>
             onPressed: () => Navigator.of(context).pop(),
           ),
           actions: [
+            IconButton(
+              tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
+              icon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: Icon(
+                  _isDarkMode
+                      ? Icons.light_mode_rounded
+                      : Icons.dark_mode_rounded,
+                  key: ValueKey(_isDarkMode),
+                ),
+              ),
+              onPressed: _toggleDarkMode,
+            ),
+            IconButton(
+              tooltip: 'Open in Browser',
+              icon: const Icon(Icons.open_in_browser),
+              onPressed: _openInBrowser,
+            ),
             Stack(
               alignment: Alignment.center,
               children: [
@@ -608,7 +932,17 @@ class _NewspaperPageState extends State<NewspaperPage>
         ),
         body: Stack(
           children: [
-            if (_controller != null) WebViewWidget(controller: _controller!),
+            if (_webController != null)
+              Positioned.fill(
+                child: WebViewWidget(controller: _webController!),
+              ),
+            if (_cefController != null)
+              Positioned.fill(
+                child: Container(
+                  color: _isDarkMode ? const Color(0xFF121212) : Colors.white,
+                  child: _cefController!.webviewWidget,
+                ),
+              ),
             if (_isLoading) LoadingWidget(progress: _progress),
             // Picker active banner
             Positioned(
@@ -653,39 +987,89 @@ class _NewspaperPageState extends State<NewspaperPage>
         )],
         ),
         floatingActionButton: MediaQuery.orientationOf(context) == Orientation.landscape
-            ? FloatingActionButton(
-                mini: true,
-                onPressed: _showAdBlockerPanel,
-                backgroundColor: Colors.white,
-                elevation: 4,
-                child: Stack(
-                  alignment: Alignment.center,
-                  clipBehavior: Clip.none,
-                  children: [
-                    AnimatedSwitcher(
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton(
+                    heroTag: 'newspaper_dark_mode_fab',
+                    mini: true,
+                    tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
+                    onPressed: _toggleDarkMode,
+                    backgroundColor:
+                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+                    elevation: 4,
+                    child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 250),
                       child: Icon(
-                        _isPickerActive ? Icons.shield : Icons.shield_outlined,
-                        key: ValueKey(_isPickerActive),
-                        color: Colors.deepOrange.shade700,
+                        _isDarkMode
+                            ? Icons.light_mode_rounded
+                            : Icons.dark_mode_rounded,
+                        key: ValueKey(_isDarkMode),
+                        color: _isDarkMode
+                            ? Colors.amber.shade400
+                            : Colors.deepOrange.shade700,
                       ),
                     ),
-                    if (_userRules.isNotEmpty)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
+                  ),
+                  const SizedBox(height: 8),
+                  FloatingActionButton(
+                    heroTag: 'newspaper_open_in_browser_fab',
+                    mini: true,
+                    tooltip: 'Open in Browser',
+                    onPressed: _openInBrowser,
+                    backgroundColor:
+                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+                    elevation: 4,
+                    child: Icon(
+                      Icons.open_in_browser,
+                      color: Colors.deepOrange.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FloatingActionButton(
+                    heroTag: 'newspaper_ad_blocker_fab',
+                    mini: true,
+                    onPressed: _showAdBlockerPanel,
+                    backgroundColor:
+                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
+                    elevation: 4,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      clipBehavior: Clip.none,
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          child: Icon(
+                            _isPickerActive
+                                ? Icons.shield
+                                : Icons.shield_outlined,
+                            key: ValueKey(_isPickerActive),
                             color: Colors.deepOrange.shade700,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
                           ),
                         ),
-                      ),
-                  ],
-                ),
+                        if (_userRules.isNotEmpty)
+                          Positioned(
+                            top: -2,
+                            right: -2,
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: Colors.deepOrange.shade700,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: _isDarkMode
+                                      ? const Color(0xFF2C2C2C)
+                                      : Colors.white,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               )
             : null,
       ),
@@ -696,6 +1080,7 @@ class _NewspaperPageState extends State<NewspaperPage>
 // ─── Ad Blocker Bottom Sheet Panel ───────────────────────────────────────────
 
 class _AdBlockerPanel extends StatelessWidget {
+  final bool isDarkMode;
   final bool isPickerActive;
   final List<String> userRules;
   final VoidCallback onTogglePicker;
@@ -703,6 +1088,7 @@ class _AdBlockerPanel extends StatelessWidget {
   final VoidCallback onClearAll;
 
   const _AdBlockerPanel({
+    required this.isDarkMode,
     required this.isPickerActive,
     required this.userRules,
     required this.onTogglePicker,
@@ -712,6 +1098,11 @@ class _AdBlockerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sheetBg = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final titleColor = isDarkMode ? Colors.white : Colors.black87;
+    final subColor = isDarkMode ? Colors.grey.shade400 : Colors.grey;
+    final dividerColor = isDarkMode ? Colors.grey.shade800 : null;
+
     return DraggableScrollableSheet(
       initialChildSize: 0.55,
       minChildSize: 0.35,
@@ -719,9 +1110,9 @@ class _AdBlockerPanel extends StatelessWidget {
       expand: false,
       builder: (ctx, scrollCtrl) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SingleChildScrollView(
             controller: scrollCtrl,
@@ -734,7 +1125,7 @@ class _AdBlockerPanel extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -747,30 +1138,33 @@ class _AdBlockerPanel extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.deepOrange.shade50,
+                        color: isDarkMode
+                            ? Colors.deepOrange.shade900.withOpacity(0.3)
+                            : Colors.deepOrange.shade50,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(Icons.shield,
                           color: Colors.deepOrange.shade700, size: 22),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Ad Blocker',
                               style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold)),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: titleColor)),
                           Text('Block unwanted elements on this site',
-                              style:
-                                  TextStyle(fontSize: 12, color: Colors.grey)),
+                              style: TextStyle(fontSize: 12, color: subColor)),
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 1),
+              Divider(height: 1, color: dividerColor),
               // Picker toggle
               Padding(
                 padding:
@@ -788,7 +1182,12 @@ class _AdBlockerPanel extends StatelessWidget {
                                 Colors.deepOrange.shade600,
                                 Colors.orange.shade500
                               ]
-                            : [Colors.grey.shade100, Colors.grey.shade50],
+                            : isDarkMode
+                                ? [
+                                    const Color(0xFF2A2A2A),
+                                    const Color(0xFF242424),
+                                  ]
+                                : [Colors.grey.shade100, Colors.grey.shade50],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -796,7 +1195,9 @@ class _AdBlockerPanel extends StatelessWidget {
                       border: Border.all(
                         color: isPickerActive
                             ? Colors.deepOrange.shade400
-                            : Colors.grey.shade200,
+                            : isDarkMode
+                                ? Colors.grey.shade700
+                                : Colors.grey.shade200,
                       ),
                     ),
                     child: Row(
@@ -822,7 +1223,7 @@ class _AdBlockerPanel extends StatelessWidget {
                                   fontSize: 15,
                                   color: isPickerActive
                                       ? Colors.white
-                                      : Colors.black87,
+                                      : titleColor,
                                 ),
                               ),
                               Text(
@@ -833,7 +1234,9 @@ class _AdBlockerPanel extends StatelessWidget {
                                   fontSize: 12,
                                   color: isPickerActive
                                       ? Colors.white70
-                                      : Colors.grey.shade600,
+                                      : isDarkMode
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade600,
                                 ),
                               ),
                             ],
@@ -861,8 +1264,10 @@ class _AdBlockerPanel extends StatelessWidget {
                   children: [
                     Text(
                       'Blocked Elements (${userRules.length})',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: titleColor),
                     ),
                     if (userRules.isNotEmpty)
                       TextButton.icon(
@@ -880,7 +1285,7 @@ class _AdBlockerPanel extends StatelessWidget {
                   ],
                 ),
               ),
-              const Divider(height: 1),
+              Divider(height: 1, color: dividerColor),
               // Rules list
               userRules.isEmpty
                   ? Padding(
@@ -889,16 +1294,23 @@ class _AdBlockerPanel extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.block,
-                              size: 48, color: Colors.grey.shade300),
+                              size: 48,
+                              color: isDarkMode
+                                  ? Colors.grey.shade700
+                                  : Colors.grey.shade300),
                           const SizedBox(height: 12),
                           Text('No custom rules yet',
                               style: TextStyle(
-                                  color: Colors.grey.shade500,
+                                  color: isDarkMode
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade500,
                                   fontSize: 15)),
                           const SizedBox(height: 4),
                           Text('Use the element picker to block ads',
                               style: TextStyle(
-                                  color: Colors.grey.shade400,
+                                  color: isDarkMode
+                                      ? Colors.grey.shade600
+                                      : Colors.grey.shade400,
                                   fontSize: 12)),
                         ],
                       ),
@@ -917,10 +1329,15 @@ class _AdBlockerPanel extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
+                              color: isDarkMode
+                                  ? const Color(0xFF2A2A2A)
+                                  : Colors.grey.shade50,
                               borderRadius: BorderRadius.circular(10),
-                              border:
-                                  Border.all(color: Colors.grey.shade200),
+                              border: Border.all(
+                                color: isDarkMode
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade200,
+                              ),
                             ),
                             child: Row(
                               children: [
@@ -931,10 +1348,12 @@ class _AdBlockerPanel extends StatelessWidget {
                                 Expanded(
                                   child: Text(
                                     rule,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: 'monospace',
                                       fontSize: 12,
-                                      color: Color(0xFF1565C0),
+                                      color: isDarkMode
+                                          ? const Color(0xFF64B5F6)
+                                          : const Color(0xFF1565C0),
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                     maxLines: 2,
