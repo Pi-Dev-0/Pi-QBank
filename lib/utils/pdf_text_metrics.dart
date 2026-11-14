@@ -121,10 +121,12 @@ class PdfTextMetrics {
   /// [buildPdfTextSpan] exactly. Doing it the other way round parses Bijoy's
   /// legacy encoding, where `থ` is `_` and `স্ব` is `^` — so every `থ` became a
   /// subscript and every `স্ব` a superscript, in the drawing *and* here.
-  List<_Segment> _segments(String text, bool bold) {
+  List<_Segment> _segments(String text, bool bold,
+      {bool allowBareSuperscript = false}) {
     final out = <_Segment>[];
 
-    for (final piece in parseMath(text)) {
+    for (final piece
+        in parseMath(text, allowBareSuperscript: allowBareSuperscript)) {
       switch (piece) {
         case MathFraction():
           // One item for the whole stack: it cannot be broken across a line,
@@ -198,17 +200,22 @@ class PdfTextMetrics {
   double _mathWidthEm(MathSegment piece, bool bold, double baseFontSize) {
     switch (piece) {
       case MathFraction(:final numerator, :final denominator):
-        final n = textWidth(numerator, fontSize: fracFontScale, bold: bold);
-        final d = textWidth(denominator, fontSize: fracFontScale, bold: bold);
+        final n = textWidth(numerator,
+            fontSize: fracFontScale, bold: bold, allowBareSuperscript: true);
+        final d = textWidth(denominator,
+            fontSize: fracFontScale, bold: bold, allowBareSuperscript: true);
         return (n > d ? n : d) + fracPaddingX * 2 / baseFontSize;
       case MathScript(:final text):
-        return textWidth(text, fontSize: scriptFontScale, bold: bold);
+        return textWidth(text,
+            fontSize: scriptFontScale, bold: bold, allowBareSuperscript: true);
       case MathRadical(:final body):
         return textWidth('√', fontSize: 1, bold: bold) +
-            textWidth(body, fontSize: 1, bold: bold) +
+            textWidth(body,
+                fontSize: 1, bold: bold, allowBareSuperscript: true) +
             radicalPaddingX * 2 / baseFontSize;
       case MathText(:final text):
-        return textWidth(text, fontSize: 1, bold: bold);
+        return textWidth(text,
+            fontSize: 1, bold: bold, allowBareSuperscript: true);
     }
   }
 
@@ -220,18 +227,27 @@ class PdfTextMetrics {
   double _mathHeightEm(MathSegment piece, bool bold, double baseFontSize) {
     switch (piece) {
       case MathFraction(:final numerator, :final denominator):
-        return lineHeight(numerator, fontSize: fracFontScale, bold: bold) +
+        return lineHeight(numerator,
+                fontSize: fracFontScale,
+                bold: bold,
+                allowBareSuperscript: true) +
             fracRuleHeight / baseFontSize +
-            lineHeight(denominator, fontSize: fracFontScale, bold: bold);
+            lineHeight(denominator,
+                fontSize: fracFontScale,
+                bold: bold,
+                allowBareSuperscript: true);
       case MathScript(:final text):
-        return lineHeight(text, fontSize: scriptFontScale, bold: bold);
+        return lineHeight(text,
+            fontSize: scriptFontScale, bold: bold, allowBareSuperscript: true);
       case MathRadical(:final body):
         final sign = lineHeight('√', fontSize: 1, bold: bold);
-        final content = lineHeight(body, fontSize: 1, bold: bold) +
+        final content = lineHeight(body,
+                fontSize: 1, bold: bold, allowBareSuperscript: true) +
             radicalRuleHeight / baseFontSize;
         return sign > content ? sign : content;
       case MathText(:final text):
-        return lineHeight(text, fontSize: 1, bold: bold);
+        return lineHeight(text,
+            fontSize: 1, bold: bold, allowBareSuperscript: true);
     }
   }
 
@@ -249,10 +265,14 @@ class PdfTextMetrics {
   }
 
   /// Width of [text] in points at [fontSize].
-  double textWidth(String text, {required double fontSize, bool bold = false}) {
+  double textWidth(String text,
+      {required double fontSize,
+      bool bold = false,
+      bool allowBareSuperscript = false}) {
     if (text.isEmpty) return 0;
     var em = 0.0;
-    for (final segment in _segments(text, bold)) {
+    for (final segment
+        in _segments(text, bold, allowBareSuperscript: allowBareSuperscript)) {
       final piece = segment.math;
       if (piece != null) {
         em += _mathWidthEm(piece, bold, fontSize);
@@ -270,8 +290,11 @@ class PdfTextMetrics {
   /// Derived from the same metrics the pdf package uses, so a line box that
   /// holds Latin text is correctly taller than one holding only Bangla.
   double lineHeight(String text,
-      {required double fontSize, bool bold = false}) {
-    final em = _lineHeightEm(_tokenize(text, bold, fontSize));
+      {required double fontSize,
+      bool bold = false,
+      bool allowBareSuperscript = false}) {
+    final em = _lineHeightEm(_tokenize(text, bold, fontSize,
+        allowBareSuperscript: allowBareSuperscript));
     // Nothing measurable in the string: fall back to Helvetica's box so a
     // blank span is never treated as zero-height when the pdf package would
     // still reserve a line.
@@ -395,9 +418,11 @@ class PdfTextMetrics {
 
   /// Split into space-separated tokens, keeping each token's own width in em so
   /// no font mixing is lost at the wrap points.
-  List<_Token> _tokenize(String text, bool bold, double baseFontSize) {
+  List<_Token> _tokenize(String text, bool bold, double baseFontSize,
+      {bool allowBareSuperscript = false}) {
     final tokens = <_Token>[];
-    for (final segment in _segments(text, bold)) {
+    for (final segment
+        in _segments(text, bold, allowBareSuperscript: allowBareSuperscript)) {
       final piece = segment.math;
       if (piece != null) {
         // A typeset stack or script is drawn as one box and must not be broken

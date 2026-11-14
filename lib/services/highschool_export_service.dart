@@ -1247,6 +1247,9 @@ class HighSchoolExportService {
     .frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }
     .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
     .frac-den { display:block; padding:0 .25em; }
+    .radical { display:inline-flex; align-items:flex-start; vertical-align:middle; margin:0 .08em; }
+    .radical-sign { line-height:1; }
+    .radical-body { display:inline-block; border-top:1px solid currentColor; padding:0 .12em 0 .08em; line-height:1.05; }
     .mathv { font-style:italic; }
     /* One face for maths symbols: the text faces cover ∩ but not ∪, which
        used to leave the union drawn by a different face than the intersection. */
@@ -1494,7 +1497,7 @@ class HighSchoolExportService {
       return '''
     <td class="mcq-col-cell">
       ${opensStem ? '<div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, index - 1)), latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
-      <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
+      <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText, latex: true)}</div>
       $questionImageHtml
       <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
     </td>''';
@@ -2755,6 +2758,9 @@ $paperFontBlock    :root {
     .frac { display:inline-block; vertical-align:middle; text-align:center; margin:0 .15em; line-height:1.05; }
     .frac-num { display:block; padding:0 .25em; border-bottom:1px solid #000; }
     .frac-den { display:block; padding:0 .25em; }
+    .radical { display:inline-flex; align-items:flex-start; vertical-align:middle; margin:0 .08em; }
+    .radical-sign { line-height:1; }
+    .radical-body { display:inline-block; border-top:1px solid currentColor; padding:0 .12em 0 .08em; line-height:1.05; }
     .mathv { font-style:italic; }
     /* One face for maths symbols: the text faces cover ∩ but not ∪, which
        used to leave the union drawn by a different face than the intersection. */
@@ -4704,7 +4710,7 @@ $paperFontBlock    :root {
 ''');
       }
       buffer.write('''
-          <div class="mcq-question">${_importantStar(q)}<b>$index.</b> ${_htmlText(q.paperQuestionText)}</div>
+          <div class="mcq-question">${_importantStar(q)}<b>$index.</b> ${_htmlText(q.paperQuestionText, latex: true)}</div>
           ${_questionInfoMarkup(q)}
           $questionImageHtml
         </div>

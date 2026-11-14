@@ -247,6 +247,16 @@ void main() {
     expect(decl(rule(css, '.rq-mark'), 'font-weight'), '400');
   });
 
+  test('a radical keeps its overbar on the printed sheet', () {
+    final radical = rule(css, '.radical');
+    final body = rule(css, '.radical-body');
+
+    expect(radical, contains('inline-flex'));
+    expect(decl(body, 'display'), 'inline-block');
+    expect(decl(body, 'border-top'), contains('solid'));
+    expect(decl(body, 'padding'), isNotNull);
+  });
+
   test('the exported page keeps the device width', () {
     // The file a reader prints is laid out at the device's own width, so a
     // desktop browser shows the sheet centred and a phone can pinch-zoom it.

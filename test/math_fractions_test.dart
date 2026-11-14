@@ -183,6 +183,27 @@ void main() {
       expect(latexToHtml('A ∪ B'), 'A <span class="m">∪</span> B');
     });
 
+    test('bare powers become superscripts in HTML', () {
+      expect(latexToHtml('3(x^2 + y^2)'), '3(x<sup>2</sup> + y<sup>2</sup>)');
+      expect(latexToHtml(r'\sqrt{1-16a^2}'),
+          contains('<span class="radical-body">1-16a<sup>2</sup></span>'));
+    });
+
+    test('nested fractions and powers are typeset in HTML', () {
+      expect(
+          latexToHtml(r'\frac{3x}{\frac{a}{b}}'),
+          '<span class="frac"><span class="frac-num">3x</span>'
+          '<span class="frac-den"><span class="frac">'
+          '<span class="frac-num">a</span><span class="frac-den">b</span>'
+          '</span></span></span>');
+      expect(latexToHtml(r'\frac{12x}{x^5 + 4x + 3}'),
+          contains('<span class="frac-den">x<sup>5</sup> + 4x + 3</span>'));
+      expect(
+          latexToHtml(r'x^{\frac{a}{b}}'),
+          contains('<sup><span class="frac">'
+              '<span class="frac-num">a</span>'));
+    });
+
     test('prose, entities and maths italics are left as they are', () {
       expect(
           latexToHtml('A &amp; B ∪ C'), 'A &amp; B <span class="m">∪</span> C');
@@ -193,6 +214,19 @@ void main() {
           '<span class="mathv">a </span>'
           '<span class="mathv"><span class="m">∪</span></span>'
           '<span class="mathv"> b</span>');
+    });
+
+    test('a radical emits the wrapper the stylesheet draws', () {
+      expect(
+          latexToHtml(r'\sqrt{2}'),
+          '<span class="radical"><span class="radical-sign">√</span>'
+          '<span class="radical-body">2</span></span>');
+      expect(kMathCss, contains('.radical-body'));
+      expect(kMathCss, contains('border-top'));
+      expect(
+          latexToHtml(r'\sqrt{1-16a^2}'),
+          '<span class="radical"><span class="radical-sign">√</span>'
+          '<span class="radical-body">1-16a<sup>2</sup></span></span>');
     });
 
     test('the maths face covers both symbols and is fetched', () {

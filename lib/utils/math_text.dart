@@ -174,10 +174,11 @@ const Map<String, String> kVulgarFractions = {
 /// question that prints slightly wrong is recoverable and one that prints
 /// nothing is not.
 ///
-/// [allowBareSuperscript] is for the on-screen rich text only. Question banks
-/// often write `x^2` without the surrounding `$...$`, and the app should show
-/// that as a power. The PDF/HTML writers keep the historical behaviour, where a
-/// bare `^` is prose and is left exactly as typed.
+/// [allowBareSuperscript] is for the surfaces that typeset bare carets as
+/// powers: the on-screen rich text and the HTML/Word writer. Question banks
+/// often write `x^2` without the surrounding `$...$`. Plain-text flattening
+/// keeps the historical behaviour, where a bare `^` is prose and is left
+/// exactly as typed.
 List<MathSegment> parseMath(
   String text, {
   bool allowBareSuperscript = false,
@@ -544,17 +545,26 @@ const double fracBaselineShift = 0.62;
 /// emitted here — the caller escapes the surrounding prose.
 String mathToHtml(List<MathSegment> segments) {
   final out = StringBuffer();
+
+  // A numerator, denominator, script or radical body was lifted out of the
+  // surrounding `$...$`, so it is parsed again here. Without this a nested
+  // `\frac{a}{b}` or `x^5` inside a fraction printed as raw LaTeX in the
+  // HTML/Word sheets while the Flutter preview typeset it correctly.
+  String nested(String value) =>
+      mathToHtml(parseMath(value, allowBareSuperscript: true));
+
   for (final segment in segments) {
     switch (segment) {
       case MathFraction(:final numerator, :final denominator):
         out.write('<span class="frac">'
-            '<span class="frac-num">$numerator</span>'
-            '<span class="frac-den">$denominator</span>'
+            '<span class="frac-num">${nested(numerator)}</span>'
+            '<span class="frac-den">${nested(denominator)}</span>'
             '</span>');
       case MathScript(:final text, :final superscript):
-        out.write(superscript ? '<sup>$text</sup>' : '<sub>$text</sub>');
+        final inner = nested(text);
+        out.write(superscript ? '<sup>$inner</sup>' : '<sub>$inner</sub>');
       case MathRadical(:final body, :final math):
-        final inner = mathToHtml(parseMath(body));
+        final inner = nested(body);
         out.write('<span class="radical${math ? ' mathv' : ''}">'
             '<span class="radical-sign">√</span>'
             '<span class="radical-body">$inner</span>'
@@ -644,4 +654,8 @@ bool isMathSymbol(int rune) {
 }
 
 /// Parse and render as HTML in one step.
-String latexToHtml(String text) => mathToHtml(parseMath(text));
+String latexToHtml(String text) =>
+    // Question banks often write `x^2` without the surrounding `$...$`, and
+    // the web/Word sheet should show it as a power just like the on-screen
+    // rich text. Plain-text/PDF flattening keeps its historical literal form.
+    mathToHtml(parseMath(text, allowBareSuperscript: true));

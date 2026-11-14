@@ -111,8 +111,9 @@ List<pw.InlineSpan> _spansForRaw(
   MathTextMeasurer? measure,
   pw.Font? symbolFont,
   Set<int>? symbolCoverage,
+  bool allowBareSuperscript = false,
 }) =>
-    _spansForParsed(parseMath(raw),
+    _spansForParsed(parseMath(raw, allowBareSuperscript: allowBareSuperscript),
         banglaStyle: banglaStyle,
         latin: latin,
         bold: bold,
@@ -169,7 +170,8 @@ List<pw.InlineSpan> _spansForParsed(
                         bold: bold,
                         measure: measure,
                         symbolFont: symbolFont,
-                        symbolCoverage: symbolCoverage)))));
+                        symbolCoverage: symbolCoverage,
+                        allowBareSuperscript: true)))));
 
       case MathScript(:final text, :final superscript, :final math):
         out.add(_scriptSpan(text,
@@ -185,7 +187,8 @@ List<pw.InlineSpan> _spansForParsed(
                         bold: bold,
                         measure: measure,
                         symbolFont: symbolFont,
-                        symbolCoverage: symbolCoverage)))));
+                        symbolCoverage: symbolCoverage,
+                        allowBareSuperscript: true)))));
 
       case MathRadical(:final body, :final math):
         out.add(_radicalSpan(body,
@@ -200,7 +203,8 @@ List<pw.InlineSpan> _spansForParsed(
                         bold: bold,
                         measure: measure,
                         symbolFont: symbolFont,
-                        symbolCoverage: symbolCoverage)))));
+                        symbolCoverage: symbolCoverage,
+                        allowBareSuperscript: true)))));
 
       case MathText(:final text, :final math):
         out.addAll(_textSpans(text,
