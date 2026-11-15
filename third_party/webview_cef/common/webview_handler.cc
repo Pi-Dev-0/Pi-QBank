@@ -222,7 +222,9 @@ void WebviewHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
 
 void WebviewHandler::OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                  CefLoadHandler::TransitionType transition_type) {
-    if(onLoadStart){
+    // Only report the main frame. Sub-frame/iframe navigations would otherwise
+    // toggle the host app's loading overlay several times during one page load.
+    if(frame->IsMain() && onLoadStart){
         onLoadStart(browser->GetIdentifier(), frame->GetURL());
     }
     return;
@@ -230,7 +232,9 @@ void WebviewHandler::OnLoadStart(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFra
 
 void WebviewHandler::OnLoadEnd(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                int httpStatusCode) {
-    if(onLoadEnd){
+    // Match OnLoadStart: ignore iframes so one page load produces one pair of
+    // start/end events.
+    if(frame->IsMain() && onLoadEnd){
         onLoadEnd(browser->GetIdentifier(), frame->GetURL());
     }
     return;

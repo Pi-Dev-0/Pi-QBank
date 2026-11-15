@@ -156,6 +156,12 @@ void WebviewApp::OnBeforeCommandLineProcessing(const CefString &process_type, Ce
 		}
     }
 
+    // Chromium 119+ refuses the automatic software WebGL fallback unless this
+    // is opted into, and logs an error on every page that probes WebGL. Set it
+    // for every process (browser, renderer, GPU) so the fallback is allowed
+    // regardless of which one first initialises WebGL.
+    command_line->AppendSwitch("enable-unsafe-swiftshader");
+
 #ifdef __APPLE__
     command_line->AppendSwitch("use-mock-keychain");
     command_line->AppendSwitch("single-process");

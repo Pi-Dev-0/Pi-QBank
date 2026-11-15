@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +39,9 @@ class _NewspaperPageState extends State<NewspaperPage>
   bool _cefFailed = false;
   bool _isLoading = true;
   double _progress = 0;
+  Timer? _loadingShowTimer;
+  Timer? _loadingHideTimer;
+  bool _initialLoadDone = false;
   bool _isPickerActive = false;
   bool _isDarkMode = false;
   List<String> _userRules = [];
@@ -128,6 +132,52 @@ class _NewspaperPageState extends State<NewspaperPage>
       if (!mounted) return;
       Navigator.of(context).pop();
     }
+  }
+
+  // ─── Loading overlay state ───────────────────────────────────────────────
+  // A page load can emit several start/end pairs (redirects, client-side
+  // navigation, iframes). Showing the full-screen loader for each pair makes it
+  // flash repeatedly. The first load keeps the branded loader; later loads only
+  // show a slim progress bar when they last long enough to notice.
+
+  void _handleLoadStarted() {
+    _loadingShowTimer?.cancel();
+    _loadingHideTimer?.cancel();
+
+    if (_bannerAnimController.isAnimating || _isPickerActive) {
+      _bannerAnimController.reset();
+    }
+    if (mounted) {
+      setState(() {
+        _progress = 0;
+        _isPickerActive = false;
+      });
+    }
+
+    if (!_initialLoadDone) {
+      if (!_isLoading) setState(() => _isLoading = true);
+      return;
+    }
+
+    _loadingShowTimer = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      if (!_isLoading) setState(() => _isLoading = true);
+    });
+  }
+
+  void _handleLoadFinished() {
+    _loadingShowTimer?.cancel();
+    _loadingHideTimer?.cancel();
+
+    // Wait one paint before hiding. A redirect in that window starts a new load
+    // that cancels this timer, so the overlay never flickers between hops.
+    _loadingHideTimer = Timer(const Duration(milliseconds: 150), () {
+      if (!mounted) return;
+      if (_isLoading) setState(() => _isLoading = false);
+      _initialLoadDone = true;
+      _applyAllBlockRules();
+      if (_isDarkMode) _applyDarkMode();
+    });
   }
 
   Future<void> _loadDarkMode() async {
@@ -603,25 +653,14 @@ class _NewspaperPageState extends State<NewspaperPage>
         ..setNavigationDelegate(
           NavigationDelegate(
             onProgress: (int progress) {
+              if (!mounted) return;
               setState(() => _progress = progress / 100);
               if (_isDarkMode && progress >= 30) {
                 _applyDarkMode();
               }
             },
-            onPageStarted: (String url) {
-              setState(() {
-                _isLoading = true;
-                _progress = 0;
-                _isPickerActive = false;
-              });
-              _bannerAnimController.reset();
-            },
-            onPageFinished: (String url) {
-              setState(() => _isLoading = false);
-              // Apply merged rules (server + user) once page DOM is ready
-              _applyAllBlockRules();
-              if (_isDarkMode) _applyDarkMode();
-            },
+            onPageStarted: (String url) => _handleLoadStarted(),
+            onPageFinished: (String url) => _handleLoadFinished(),
             onWebResourceError: (WebResourceError error) {},
           ),
         )
@@ -648,21 +687,10 @@ class _NewspaperPageState extends State<NewspaperPage>
       final controller = cef.WebviewManager().createWebView();
       controller.setWebviewListener(
         cef.WebviewEventsListener(
-          onLoadStart: (_, __) {
-            if (!mounted) return;
-            setState(() {
-              _isLoading = true;
-              _progress = 0;
-              _isPickerActive = false;
-            });
-            _bannerAnimController.reset();
-          },
+          onLoadStart: (_, __) => _handleLoadStarted(),
           onLoadEnd: (_, __) {
-            if (!mounted) return;
-            setState(() => _isLoading = false);
             _registerCefChannels(controller);
-            _applyAllBlockRules();
-            if (_isDarkMode) _applyDarkMode();
+            _handleLoadFinished();
           },
         ),
       );
@@ -723,9 +751,99 @@ class _NewspaperPageState extends State<NewspaperPage>
 
   @override
   void dispose() {
+    _loadingShowTimer?.cancel();
+    _loadingHideTimer?.cancel();
     _bannerAnimController.dispose();
     _cefController?.dispose();
     super.dispose();
+  }
+
+  // ─── App bar actions ──────────────────────────────────────────────────────
+
+  Widget _darkModeAction() {
+    return IconButton(
+      tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        child: Icon(
+          _isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+          key: ValueKey(_isDarkMode),
+        ),
+      ),
+      onPressed: _toggleDarkMode,
+    );
+  }
+
+  Widget _adBlockerAction() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        IconButton(
+          tooltip: 'Ad Blocker',
+          icon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: Icon(
+              _isPickerActive ? Icons.shield : Icons.shield_outlined,
+              key: ValueKey(_isPickerActive),
+              color: _isPickerActive ? Colors.deepOrange.shade600 : null,
+            ),
+          ),
+          onPressed: _showAdBlockerPanel,
+        ),
+        if (_userRules.isNotEmpty)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: Colors.deepOrange.shade700,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _moreMenuAction() {
+    return PopupMenuButton<String>(
+      tooltip: 'More options',
+      icon: const Icon(Icons.more_vert_rounded),
+      onSelected: (value) {
+        switch (value) {
+          case 'reload':
+            _reload();
+            break;
+          case 'browser':
+            _openInBrowser();
+            break;
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem<String>(
+          value: 'reload',
+          child: Row(
+            children: [
+              Icon(Icons.refresh_rounded, size: 20),
+              SizedBox(width: 12),
+              Text('Reload'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'browser',
+          child: Row(
+            children: [
+              Icon(Icons.open_in_browser, size: 20),
+              SizedBox(width: 12),
+              Text('Open in browser'),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────
@@ -893,95 +1011,60 @@ class _NewspaperPageState extends State<NewspaperPage>
       child: Scaffold(
         backgroundColor:
             _isDarkMode ? const Color(0xFF121212) : Colors.white,
-        appBar: (!_isDesktop &&
-                MediaQuery.orientationOf(context) == Orientation.landscape)
-            ? null
-            : AppBar(
+        appBar: AppBar(
           backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : null,
           foregroundColor: _isDarkMode ? Colors.white : null,
-          title: Text(widget.name,
-              style:
-                  const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          titleSpacing: 0,
+          title: Text(
+            widget.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+          ),
           centerTitle: true,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             tooltip: 'Back',
             onPressed: _handleBack,
           ),
-          actions: [
-            IconButton(
-              tooltip: 'Previous page',
-              icon: const Icon(Icons.chevron_left_rounded, size: 28),
-              onPressed: _goBack,
-            ),
-            IconButton(
-              tooltip: 'Next page',
-              icon: const Icon(Icons.chevron_right_rounded, size: 28),
-              onPressed: _goForward,
-            ),
-            IconButton(
-              tooltip: 'Reload',
-              icon: const Icon(Icons.refresh_rounded),
-              onPressed: _reload,
-            ),
-            IconButton(
-              tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
-              icon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                child: Icon(
-                  _isDarkMode
-                      ? Icons.light_mode_rounded
-                      : Icons.dark_mode_rounded,
-                  key: ValueKey(_isDarkMode),
-                ),
-              ),
-              onPressed: _toggleDarkMode,
-            ),
-            IconButton(
-              tooltip: 'Open in Browser',
-              icon: const Icon(Icons.open_in_browser),
-              onPressed: _openInBrowser,
-            ),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  tooltip: 'Ad Blocker',
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: Icon(
-                      _isPickerActive
-                          ? Icons.shield
-                          : Icons.shield_outlined,
-                      key: ValueKey(_isPickerActive),
-                      color: _isPickerActive
-                          ? Colors.deepOrange.shade600
-                          : null,
-                    ),
+          actions: _isDesktop
+              ? [
+                  IconButton(
+                    tooltip: 'Previous page',
+                    icon: const Icon(Icons.chevron_left_rounded, size: 28),
+                    onPressed: _goBack,
                   ),
-                  onPressed: _showAdBlockerPanel,
-                ),
-                if (_userRules.isNotEmpty)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.deepOrange.shade700,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
+                  IconButton(
+                    tooltip: 'Next page',
+                    icon: const Icon(Icons.chevron_right_rounded, size: 28),
+                    onPressed: _goForward,
                   ),
-              ],
-            ),
-            IconButton(
-              tooltip: 'Close newspaper',
-              icon: const Icon(Icons.close_rounded),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
+                  IconButton(
+                    tooltip: 'Reload',
+                    icon: const Icon(Icons.refresh_rounded),
+                    onPressed: _reload,
+                  ),
+                  _darkModeAction(),
+                  IconButton(
+                    tooltip: 'Open in Browser',
+                    icon: const Icon(Icons.open_in_browser),
+                    onPressed: _openInBrowser,
+                  ),
+                  _adBlockerAction(),
+                  IconButton(
+                    tooltip: 'Close newspaper',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ]
+              : [
+                  // Android/mobile: only the actions a reader needs. Back
+                  // handles history, and reload/open-in-browser live in the
+                  // overflow menu so the bar stays uncluttered.
+                  _darkModeAction(),
+                  _adBlockerAction(),
+                  _moreMenuAction(),
+                ],
         ),
         body: Stack(
           children: [
@@ -996,7 +1079,18 @@ class _NewspaperPageState extends State<NewspaperPage>
                   child: _cefController!.webviewWidget,
                 ),
               ),
-            if (_isLoading) LoadingWidget(progress: _progress),
+            if (_isLoading)
+              _initialLoadDone
+                  ? const Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: LinearProgressIndicator(
+                        minHeight: 3,
+                        color: Colors.deepOrange,
+                      ),
+                    )
+                  : LoadingWidget(progress: _progress),
             // Picker active banner
             Positioned(
               top: 0,
@@ -1039,135 +1133,6 @@ class _NewspaperPageState extends State<NewspaperPage>
               ),
         )],
         ),
-        floatingActionButton: (!_isDesktop &&
-                MediaQuery.orientationOf(context) == Orientation.landscape)
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  FloatingActionButton(
-                    heroTag: 'newspaper_prev_fab',
-                    mini: true,
-                    tooltip: 'Previous page',
-                    onPressed: _goBack,
-                    backgroundColor:
-                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
-                    elevation: 4,
-                    child: Icon(
-                      Icons.chevron_left_rounded,
-                      color: Colors.deepOrange.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FloatingActionButton(
-                    heroTag: 'newspaper_next_fab',
-                    mini: true,
-                    tooltip: 'Next page',
-                    onPressed: _goForward,
-                    backgroundColor:
-                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
-                    elevation: 4,
-                    child: Icon(
-                      Icons.chevron_right_rounded,
-                      color: Colors.deepOrange.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FloatingActionButton(
-                    heroTag: 'newspaper_dark_mode_fab',
-                    mini: true,
-                    tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
-                    onPressed: _toggleDarkMode,
-                    backgroundColor:
-                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
-                    elevation: 4,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      child: Icon(
-                        _isDarkMode
-                            ? Icons.light_mode_rounded
-                            : Icons.dark_mode_rounded,
-                        key: ValueKey(_isDarkMode),
-                        color: _isDarkMode
-                            ? Colors.amber.shade400
-                            : Colors.deepOrange.shade700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FloatingActionButton(
-                    heroTag: 'newspaper_open_in_browser_fab',
-                    mini: true,
-                    tooltip: 'Open in Browser',
-                    onPressed: _openInBrowser,
-                    backgroundColor:
-                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
-                    elevation: 4,
-                    child: Icon(
-                      Icons.open_in_browser,
-                      color: Colors.deepOrange.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FloatingActionButton(
-                    heroTag: 'newspaper_ad_blocker_fab',
-                    mini: true,
-                    onPressed: _showAdBlockerPanel,
-                    backgroundColor:
-                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
-                    elevation: 4,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      clipBehavior: Clip.none,
-                      children: [
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 250),
-                          child: Icon(
-                            _isPickerActive
-                                ? Icons.shield
-                                : Icons.shield_outlined,
-                            key: ValueKey(_isPickerActive),
-                            color: Colors.deepOrange.shade700,
-                          ),
-                        ),
-                        if (_userRules.isNotEmpty)
-                          Positioned(
-                            top: -2,
-                            right: -2,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: Colors.deepOrange.shade700,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: _isDarkMode
-                                      ? const Color(0xFF2C2C2C)
-                                      : Colors.white,
-                                  width: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FloatingActionButton(
-                    heroTag: 'newspaper_close_fab',
-                    mini: true,
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).pop(),
-                    backgroundColor:
-                        _isDarkMode ? const Color(0xFF2C2C2C) : Colors.white,
-                    elevation: 4,
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: Colors.deepOrange.shade700,
-                    ),
-                  ),
-                ],
-              )
-            : null,
       ),
     );
   }
