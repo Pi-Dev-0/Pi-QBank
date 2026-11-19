@@ -2248,11 +2248,13 @@ $paperFontBlock    :root {
     /* The author strip and the masthead share one row, so a tall strip does
        not leave a band of unused paper under it. Equal side columns keep the
        masthead centred on the page while the strip takes the side it chose.
-       The sides are deliberately wider than a quarter of the sheet: a teacher
-       line such as a university and city should not break in the middle. */
+       A third of the sheet a side is deliberately wider than a quarter: a
+       teacher line such as a university and city should stay on one line, and
+       the middle column still holds the school title and exam name without
+       wrapping. */
     .set-head.has-author .top-head {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 40%) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 34%) minmax(0, 1fr);
       align-items: start;
     }
     .set-head.has-author .top-head > .masthead {
@@ -2307,7 +2309,10 @@ $paperFontBlock    :root {
     .author-block {
       box-sizing: border-box;
       width: fit-content;
-      max-width: 42%;
+      /* Left and right strips are already capped by their grid column; this
+         cap is what keeps a centred strip from running wide. 55% lets a full
+         qualification and university line stay on one line. */
+      max-width: 55%;
       margin: 0;
       padding: 6px 10px 7px 10px;
       border: 1px solid #000000;

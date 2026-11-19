@@ -264,6 +264,25 @@ void main() {
       expect(find.text('Load questions'), findsOneWidget);
     });
 
+    testWidgets('class and subject are picked from a single row of dropdowns',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await pumpTall(tester);
+
+      final dropdowns = find.byType(DropdownButton<String>);
+      expect(dropdowns, findsNWidgets(2));
+      expect(find.text('Choose class'), findsOneWidget);
+      expect(find.text('Pick class first'), findsOneWidget);
+
+      await tester.tap(dropdowns.first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Class 6').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Class 6'), findsOneWidget);
+      expect(find.text('Choose subject'), findsOneWidget);
+    });
+
     testWidgets('offers Random and Pick, and defaults to Random',
         (tester) async {
       await pumpTall(tester);

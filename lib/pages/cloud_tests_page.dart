@@ -40,8 +40,8 @@ class CloudTestsPage extends StatefulWidget {
   /// silently:
   ///
   ///  * `options` is a **Map**, not a list. The runner iterates it as
-  ///    `question['options'].entries` and renders a `RadioListTile` whose
-  ///    `value` is `option.key`. Handing it a list throws
+  ///    `question['options'].entries` and files the chosen answer under
+  ///    `option.key`. Handing it a list throws
   ///    `List<dynamic> is not a subtype of Map<String, dynamic>` the moment the
   ///    first question is built.
   ///  * The student's answer is that **key**, so `correct_answer` has to be a
@@ -168,21 +168,24 @@ enum _PickMode { random, manual }
 class _C {
   _C._();
 
-  static const primary = Color(0xFF4338CA);
+  static const primary = Color(0xFF4F46E5);
   static const primaryDeep = Color(0xFF312E81);
   static const violet = Color(0xFF7C3AED);
   static const primarySoft = Color(0xFFEEF2FF);
-  static const primaryLine = Color(0xFFC7D2FE);
-  static const canvas = Color(0xFFF6F7FB);
-  static const line = Color(0xFFE6E8F1);
+  static const primaryLine = Color(0xFFDDE3FF);
+  static const violetSoft = Color(0xFFF5F3FF);
+  static const info = Color(0xFF0891B2);
+  static const infoSoft = Color(0xFFECFEFF);
+  static const canvas = Color(0xFFF5F7FC);
+  static const line = Color(0xFFE7EAF3);
   static const ink = Color(0xFF0F172A);
   static const muted = Color(0xFF64748B);
   static const faint = Color(0xFF94A3B8);
-  static const success = Color(0xFF047857);
+  static const success = Color(0xFF059669);
   static const successSoft = Color(0xFFECFDF5);
-  static const warning = Color(0xFFB45309);
+  static const warning = Color(0xFFD97706);
   static const warningSoft = Color(0xFFFFFBEB);
-  static const danger = Color(0xFFB91C1C);
+  static const danger = Color(0xFFDC2626);
   static const dangerSoft = Color(0xFFFEF2F2);
 }
 
@@ -921,6 +924,9 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         }),
         language: 'Bangla',
         showAllQuestions: true,
+        // The online exam answers like a live one: ক/খ/গ/ঘ bubbles, only the
+        // bubble is tappable, and the first pick is final.
+        liveExamOptions: true,
         aiTopic: _examTopic,
       ),
     );
@@ -983,45 +989,28 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 900;
-            final main = <Widget>[
-              _hero(),
-              const SizedBox(height: 14),
-              _sourceCard(),
-              const SizedBox(height: 14),
-              _buildCard(),
-              const SizedBox(height: 8),
-            ];
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: _backdrop()),
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1120),
-                  child: wide
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: main,
-                              ),
-                            ),
-                            const SizedBox(width: 18),
-                            SizedBox(width: 330, child: _paperPanel(picked)),
-                          ],
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: main,
-                        ),
+                  constraints: const BoxConstraints(maxWidth: 900),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _sourceCard(),
+                      const SizedBox(height: 14),
+                      _buildCard(),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
                 ),
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: _bottomBar(picked),
@@ -1035,366 +1024,148 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       _allQuestions.isNotEmpty ||
       _pickedIds.isNotEmpty;
 
-  // ── hero ─────────────────────────────────────────────────────────────────
+  // ── backdrop ─────────────────────────────────────────────────────────────
 
-  Widget _hero() {
-    final loaded = _poolFetched;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_C.primary, _C.violet],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+  /// Soft depth behind the cards. Two blurred colour fields, no expensive
+  /// backdrop filters — the page stays smooth while scrolling a long paper.
+  Widget _backdrop() => IgnorePointer(
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFF8FAFF), _C.canvas, Color(0xFFF6F4FF)],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                top: -130,
+                right: -110,
+                child: _glowBlob(340, const Color(0x1F4F46E5)),
+              ),
+              Positioned(
+                top: 520,
+                left: -150,
+                child: _glowBlob(360, const Color(0x1406B6D4)),
+              ),
+              Positioned(
+                bottom: 80,
+                right: -120,
+                child: _glowBlob(300, const Color(0x14EC4899)),
+              ),
+            ],
           ),
         ),
-        child: Stack(
-          children: [
-            Positioned(right: -36, top: -48, child: _heroBubble(150)),
-            Positioned(right: 70, bottom: -54, child: _heroBubble(100)),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.16),
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.18),
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.fact_check_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Exam builder',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 19,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.1,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'MCQs from the High School bank, marked for you.',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                                height: 1.35,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.14),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: const Text(
-                          'MCQ only',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (loaded) ...[
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        _heroStat('${_usableMcqs.length}', 'MCQs'),
-                        _heroDivider(),
-                        _heroStat('${_allChapters.length}', 'chapters'),
-                        _heroDivider(),
-                        _heroStat('${_allQuestions.length}', 'rows loaded'),
-                      ],
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _loadingPool
-                          ? 'Reading the question bank…'
-                          : _error != null
-                              ? 'The question bank could not be read.'
-                              : 'Choose a class and subject to begin.',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                  if (_loadingPool) ...[
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(99),
-                      child: const LinearProgressIndicator(
-                        minHeight: 3,
-                        color: Colors.white,
-                        backgroundColor: Colors.white24,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+      );
 
-  Widget _heroBubble(double size) => Container(
+  Widget _glowBlob(double size, Color color) => Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withOpacity(0.06),
-        ),
-      );
-
-  Widget _heroStat(String value, String label) => Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                height: 1.1,
-              ),
-            ),
-            const SizedBox(height: 1),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 10,
-                height: 1.2,
-              ),
-            ),
-          ],
-        ),
-      );
-
-  Widget _heroDivider() => Container(
-        width: 1,
-        height: 26,
-        margin: const EdgeInsets.symmetric(horizontal: 10),
-        color: Colors.white.withOpacity(0.22),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
       );
 
   // ── source ───────────────────────────────────────────────────────────────
 
   Widget _sourceCard() {
     final status = _loadingPool || _loadingChapters
-        ? _statusPill('Loading', _C.warning, _C.warningSoft, busy: true)
+        ? _statusPill('Reading', _C.warning, _C.warningSoft, busy: true)
         : _error != null
             ? _statusPill('Error', _C.danger, _C.dangerSoft)
             : _poolFetched
-                ? _statusPill('Loaded', _C.success, _C.successSoft)
-                : _statusPill('Not loaded', _C.muted, const Color(0xFFF1F5F9));
+                ? _statusPill('Ready', _C.success, _C.successSoft)
+                : _statusPill('Waiting', _C.muted, const Color(0xFFF1F5F9));
 
+    final canLoad = _className != null &&
+        _subject != null &&
+        !_loadingPool &&
+        !_loadingChapters;
     final chapters = _allChapters;
     final selectedNames = _selectedChapterNumbers;
+    final subjects =
+        _className == null ? const <String>[] : _subjectsFor(_className!);
     final chapterSubtitle = _loadingChapters
         ? 'Loading chapters…'
         : _className == null || _subject == null
             ? 'Pick a class and subject first'
             : chapters.isEmpty
-                ? 'No chapter list — all questions will be used'
+                ? 'No chapter list — every question will be used'
                 : _chapters.isEmpty
                     ? 'All ${chapters.length} '
                         'chapter${chapters.length == 1 ? '' : 's'} included'
                     : '${_chapters.length} of ${chapters.length} selected';
 
-    return _sectionCard(
-      icon: Icons.school_outlined,
-      title: 'Source',
-      subtitle: 'Class, subject and chapters',
-      trailing: status,
+    return _panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _panelHeader(
+            number: '01',
+            icon: Icons.school_outlined,
+            title: 'Source',
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                status,
+                if (_poolFetched && !_loadingPool) ...[
+                  const SizedBox(width: 6),
+                  IconButton(
+                    onPressed: canLoad ? _loadSubject : null,
+                    tooltip: 'Refresh questions',
+                    icon: const Icon(Icons.refresh_rounded, size: 17),
+                    style: IconButton.styleFrom(
+                      foregroundColor: _C.primary,
+                      backgroundColor: _C.primarySoft,
+                      disabledForegroundColor: _C.faint,
+                      side: const BorderSide(color: _C.primaryLine),
+                      minimumSize: const Size(32, 32),
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _fieldLabel('Class'),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      value: _className,
-                      isExpanded: true,
-                      style: const TextStyle(fontSize: 13, color: _C.ink),
-                      decoration: _fieldDecoration(),
-                      hint: const Text('Choose'),
-                      items: [
-                        for (final className in _classes)
-                          DropdownMenuItem(
-                            value: className,
-                            child: Text(
-                              className,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                      onChanged: _selectClass,
-                    ),
-                  ],
+                child: _selectField(
+                  label: 'Class',
+                  icon: Icons.school_outlined,
+                  value: _className,
+                  hint: 'Choose class',
+                  items: _classes,
+                  onChanged: _selectClass,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _fieldLabel('Subject'),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      value: _subject,
-                      isExpanded: true,
-                      style: const TextStyle(fontSize: 13, color: _C.ink),
-                      decoration: _fieldDecoration(),
-                      hint: const Text('Choose'),
-                      items: _className == null
-                          ? const <DropdownMenuItem<String>>[]
-                          : [
-                              for (final subject in _subjectsFor(_className!))
-                                DropdownMenuItem(
-                                  value: subject,
-                                  child: Text(
-                                    subject,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                            ],
-                      onChanged: _className == null ? null : _selectSubject,
-                    ),
-                  ],
+                child: _selectField(
+                  label: 'Subject',
+                  icon: Icons.menu_book_outlined,
+                  value: _subject,
+                  hint: _className == null
+                      ? 'Pick class first'
+                      : 'Choose subject',
+                  items: subjects,
+                  onChanged: _className == null ? null : _selectSubject,
+                  helper: _className == null
+                      ? null
+                      : '${subjects.length} available',
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          InkWell(
-            onTap: chapters.isEmpty ? null : _openChapterSheet,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _C.line),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _C.primarySoft,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.menu_book_rounded,
-                      color: _C.primary,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Chapters',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: _C.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          chapterSubtitle,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: _C.muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_loadingChapters)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else ...[
-                    if (_chapters.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _C.primarySoft,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${_chapters.length}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: _C.primary,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: _C.faint,
-                      size: 20,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          if (selectedNames.isNotEmpty && selectedNames.length <= 3) ...[
+          _chapterTile(chapterSubtitle, chapters.isNotEmpty),
+          if (selectedNames.isNotEmpty && selectedNames.length <= 6) ...[
             const SizedBox(height: 8),
             Wrap(
-              spacing: 6,
-              runSpacing: 6,
+              spacing: 5,
+              runSpacing: 5,
               children: [
                 for (final number in selectedNames)
                   _tinyPill(_chapterLabel(number)),
@@ -1405,7 +1176,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             const SizedBox(height: 8),
             _inlineNote(
               Icons.info_outline_rounded,
-              _chapterWarning!,
+              _shortError(_chapterWarning!),
               _C.warning,
               _C.warningSoft,
             ),
@@ -1418,30 +1189,214 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               _errorBox(_error!),
               const SizedBox(height: 10),
             ],
-            if (_poolFetched) _loadedSummary() else _idleHint(),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed:
-                    _className == null || _subject == null || _loadingPool
-                        ? null
-                        : _loadSubject,
-                icon: _poolFetched
-                    ? const Icon(Icons.refresh_rounded, size: 18)
-                    : const Icon(Icons.download_rounded, size: 18),
-                label: Text(
-                  _poolFetched ? 'Refresh questions' : 'Load questions',
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  foregroundColor: _C.primary,
-                  side: const BorderSide(color: _C.primaryLine),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            if (_poolFetched)
+              _bankSummary()
+            else ...[
+              _emptyHint(
+                icon: _error == null
+                    ? Icons.travel_explore_rounded
+                    : Icons.cloud_off_rounded,
+                title: _error == null
+                    ? 'The bank has not been read yet'
+                    : 'The question bank is unavailable',
+                body: _className == null || _subject == null
+                    ? 'Pick a class and subject, then load the questions. '
+                        'The bank reads automatically after both are chosen.'
+                    : _error == null
+                        ? 'Load this subject to see every answerable MCQ and '
+                            'its chapters.'
+                        : 'Try loading again. The bank may be temporarily '
+                            'unreachable.',
+                tone: _error == null ? _HintTone.neutral : _HintTone.warning,
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: canLoad ? _loadSubject : null,
+                  icon: const Icon(Icons.download_rounded, size: 17),
+                  label: const Text('Load questions'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: _C.primary,
+                    side: const BorderSide(color: _C.primaryLine),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(11),
+                    ),
                   ),
                 ),
               ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _chapterTile(String subtitle, bool enabled) => InkWell(
+        onTap: enabled ? _openChapterSheet : null,
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+          decoration: BoxDecoration(
+            color: _C.canvas,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: _C.line),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: _C.primarySoft,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: _C.primary,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Chapters',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: _C.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: _C.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_loadingChapters)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else ...[
+                if (_chapters.isNotEmpty)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _C.primarySoft,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _C.primaryLine),
+                    ),
+                    child: Text(
+                      '${_chapters.length}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: _C.primary,
+                      ),
+                    ),
+                  ),
+                if (enabled) ...[
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Change',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _C.primary,
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 3),
+                Icon(
+                  Icons.tune_rounded,
+                  size: 16,
+                  color: enabled ? _C.primary : _C.faint,
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+
+  Widget _bankSummary() {
+    final broken = _allMcqCount - _usableMcqs.length;
+    final notes = <String>[
+      if (broken > 0) '$broken skipped',
+      if (_writtenCount > 0) '$_writtenCount CQ/SQ ignored',
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
+      decoration: BoxDecoration(
+        color: _C.canvas,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _C.line),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              _bankStat(
+                Icons.verified_outlined,
+                _C.success,
+                '${_usableMcqs.length}',
+                'answerable',
+              ),
+              _bankDivider(),
+              _bankStat(
+                Icons.menu_book_outlined,
+                _C.primary,
+                '${_allChapters.length}',
+                'chapters',
+              ),
+              _bankDivider(),
+              _bankStat(
+                Icons.dataset_outlined,
+                _C.muted,
+                '${_allQuestions.length}',
+                'rows',
+              ),
+            ],
+          ),
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: 7),
+            Row(
+              children: [
+                Icon(
+                  broken > 0 ? Icons.info_outline_rounded : Icons.notes_rounded,
+                  size: 13,
+                  color: broken > 0 ? _C.warning : _C.faint,
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    notes.join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: broken > 0 ? _C.warning : _C.muted,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -1449,98 +1404,64 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     );
   }
 
-  Widget _idleHint() => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.info_outline_rounded, size: 15, color: _C.faint),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              _className == null || _subject == null
-                  ? 'Pick a class and subject — the bank reads automatically.'
-                  : 'Press Load questions to read this subject from the bank.',
-              style: const TextStyle(
-                fontSize: 11.5,
-                color: _C.muted,
-                height: 1.35,
+  Widget _bankStat(
+    IconData icon,
+    Color color,
+    String value,
+    String label,
+  ) =>
+      Expanded(
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: color,
               ),
             ),
-          ),
-        ],
-      );
-
-  Widget _loadedSummary() {
-    final usable = _usableMcqs.length;
-    final broken = _allMcqCount - usable;
-    final written = _writtenCount;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _miniStat('$usable', 'answerable MCQs'),
-            _miniStat('${_allChapters.length}', 'chapters'),
-            _miniStat('${_allQuestions.length}', 'rows'),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 10.5, color: _C.muted),
+              ),
+            ),
           ],
         ),
-        if (broken > 0 || written > 0) ...[
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              if (broken > 0)
-                _tinyPill('$broken skipped — cannot be marked', warning: true),
-              if (written > 0) _tinyPill('$written CQ/SQ ignored', muted: true),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
+      );
+
+  Widget _bankDivider() => Container(
+        width: 1,
+        height: 16,
+        margin: const EdgeInsets.symmetric(horizontal: 8),
+        color: _C.line,
+      );
 
   // ── build ────────────────────────────────────────────────────────────────
 
   Widget _buildCard() {
-    final count = _plannedCount;
-    return _sectionCard(
-      icon: Icons.tune_rounded,
-      title: 'Build the paper',
-      subtitle: 'How many, which, and how long',
-      trailing: count > 0
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: _C.successSoft,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '$count ${count == 1 ? 'question' : 'questions'}',
-                style: const TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: _C.success,
-                ),
-              ),
-            )
-          : null,
+    return _panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _panelHeader(
+            number: '02',
+            icon: Icons.tune_rounded,
+            title: 'Build the paper',
+          ),
+          const SizedBox(height: 10),
           _modeSwitch(),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           _buildBody(),
-          if (_poolFetched && _usableMcqs.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            const Divider(height: 1, color: _C.line),
-            const SizedBox(height: 14),
-            _options(),
-          ],
-          if (_plannedCount > 0) ...[
-            const SizedBox(height: 14),
-            _summaryStrip(),
+          if (_poolFetched && _scopedMcqs.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _settingsBlock(),
           ],
         ],
       ),
@@ -1548,10 +1469,10 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   }
 
   Widget _modeSwitch() => Container(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F3FA),
-          borderRadius: BorderRadius.circular(14),
+          color: const Color(0xFFF1F4FB),
+          borderRadius: BorderRadius.circular(13),
         ),
         child: Row(
           children: [
@@ -1564,48 +1485,53 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   Widget _modeTab(_PickMode mode, IconData icon, String label) {
     final selected = _pickMode == mode;
     return Expanded(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          if (_pickMode == mode) return;
-          setState(() {
-            _pickMode = mode;
-            _draw = null;
-            _drawKey = null;
-            _clampPlanToAvailable();
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF0F172A).withOpacity(0.07),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 17, color: selected ? _C.primary : _C.faint),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? _C.primary : _C.muted,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (_pickMode == mode) return;
+            setState(() {
+              _pickMode = mode;
+              _draw = null;
+              _drawKey = null;
+              _clampPlanToAvailable();
+            });
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: selected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              border: selected ? Border.all(color: _C.line) : null,
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: _C.ink.withOpacity(0.06),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 15, color: selected ? _C.primary : _C.faint),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? _C.primaryDeep : _C.muted,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1694,6 +1620,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   Widget _randomControls() {
     final available = _scopedMcqs.length;
     final count = _mcqCount.clamp(1, available);
+    final planned = _plannedCount;
     final presets = <MapEntry<String, int>>[];
     if (available > 1) {
       for (final n in const [5, 10, 20, 30]) {
@@ -1702,171 +1629,158 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       presets.add(MapEntry('All', available));
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-          decoration: BoxDecoration(
-            color: _C.primarySoft,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _C.primaryLine.withOpacity(0.7)),
-          ),
-          child: Column(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 9, 10, 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF5F3FF), Color(0xFFEEF4FF)],
+        ),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: _C.primaryLine),
+      ),
+      child: Column(
+        children: [
+          Row(
             children: [
-              Row(
+              const Expanded(
+                child: Text(
+                  'Questions in this paper',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: _C.muted,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$planned',
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: _C.primary,
+                        height: 1.1,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' / $available',
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: _C.muted,
+                      ),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+              ),
+              const SizedBox(width: 2),
+              TextButton.icon(
+                onPressed: _shuffle && _plannedCount > 0 ? _redraw : null,
+                icon: const Icon(Icons.casino_outlined, size: 15),
+                label: const Text(
+                  'Redraw',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: _C.primary,
+                  disabledForegroundColor: _C.faint,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  minimumSize: const Size(0, 30),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          ),
+          if (available > 1)
+            SizedBox(
+              height: 34,
+              child: Row(
                 children: [
+                  _stepButton(
+                    Icons.remove_rounded,
+                    count > 1
+                        ? () => setState(() => _mcqCount = count - 1)
+                        : null,
+                    'One fewer',
+                  ),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Questions in this paper',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: _C.muted,
-                            letterSpacing: 0.2,
-                          ),
+                    child: SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 3,
+                        activeTrackColor: _C.primary,
+                        inactiveTrackColor: _C.primaryLine,
+                        thumbColor: _C.primary,
+                        overlayColor: _C.primary.withOpacity(0.12),
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 7,
                         ),
-                        const SizedBox(height: 2),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '$count',
-                              style: const TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w800,
-                                color: _C.primary,
-                                height: 1.0,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 3),
-                              child: Text(
-                                '/ $available',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: _C.muted,
-                                ),
-                              ),
-                            ),
-                          ],
+                        overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 14,
                         ),
-                      ],
+                      ),
+                      child: Slider(
+                        value: count.toDouble(),
+                        min: 1,
+                        max: available.toDouble(),
+                        label: '$count',
+                        onChanged: (value) => setState(
+                          () => _mcqCount = value.round().clamp(1, available),
+                        ),
+                      ),
                     ),
                   ),
-                  TextButton.icon(
-                    onPressed: _shuffle && _plannedCount > 0 ? _redraw : null,
-                    icon: const Icon(Icons.casino_outlined, size: 18),
-                    label: const Text('Redraw'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _C.primary,
-                      disabledForegroundColor: _C.faint,
-                      visualDensity: VisualDensity.compact,
-                    ),
+                  _stepButton(
+                    Icons.add_rounded,
+                    count < available
+                        ? () => setState(() => _mcqCount = count + 1)
+                        : null,
+                    'One more',
                   ),
                 ],
               ),
-              if (available > 1)
-                Row(
-                  children: [
-                    _stepButton(
-                      Icons.remove_rounded,
-                      count > 1
-                          ? () => setState(() => _mcqCount = count - 1)
-                          : null,
-                      'One fewer',
-                    ),
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 4,
-                          activeTrackColor: _C.primary,
-                          inactiveTrackColor: _C.primaryLine,
-                          thumbColor: _C.primary,
-                          overlayColor: _C.primary.withOpacity(0.12),
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 8,
-                          ),
-                        ),
-                        child: Slider(
-                          value: count.toDouble(),
-                          min: 1,
-                          max: available.toDouble(),
-                          label: '$count',
-                          onChanged: (value) => setState(
-                            () => _mcqCount = value.round().clamp(1, available),
-                          ),
-                        ),
-                      ),
-                    ),
-                    _stepButton(
-                      Icons.add_rounded,
-                      count < available
-                          ? () => setState(() => _mcqCount = count + 1)
-                          : null,
-                      'One more',
-                    ),
-                  ],
-                )
-              else
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 6),
-                  child: Text(
-                    'This is the only answerable MCQ in the current scope.',
-                    style: TextStyle(fontSize: 11.5, color: _C.muted),
-                  ),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'This is the only answerable MCQ in the current scope.',
+                  style: TextStyle(fontSize: 11, color: _C.muted),
                 ),
-              if (presets.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: [
-                    for (final preset in presets)
-                      _presetChip(
-                        preset.key,
-                        selected: count == preset.value,
-                        onTap: () => setState(() => _mcqCount = preset.value),
-                      ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        _switchRow(
-          icon: Icons.shuffle_rounded,
-          title: 'Shuffle question order',
-          subtitle: _shuffle
-              ? 'A fresh order each time the paper is drawn.'
-              : 'Keep the order the bank returns.',
-          value: _shuffle,
-          onChanged: (value) => setState(() {
-            _shuffle = value;
-            _draw = null;
-            _drawKey = null;
-          }),
-        ),
-        if (_scopeChapterCount > 1)
-          _switchRow(
-            icon: Icons.balance_rounded,
-            title: 'Spread across chapters',
-            subtitle: _balanceChapters
-                ? 'Draw from every chapter before repeating one.'
-                : 'Draw freely from the whole pool.',
-            value: _balanceChapters,
-            onChanged: (value) => setState(() {
-              _balanceChapters = value;
-              _draw = null;
-              _drawKey = null;
-            }),
-          ),
-      ],
+              ),
+            ),
+          if (presets.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final preset in presets)
+                    _presetChip(
+                      preset.key,
+                      selected: count == preset.value,
+                      onTap: () => setState(() => _mcqCount = preset.value),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1880,20 +1794,22 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: _C.primarySoft,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(9),
               ),
               child: const Icon(
                 Icons.checklist_rounded,
                 color: _C.primary,
-                size: 19,
+                size: 17,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 9),
             Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -1902,8 +1818,8 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                         : '${picked.length} '
                             'question${picked.length == 1 ? '' : 's'} picked',
                     style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
                       color: _C.ink,
                     ),
                   ),
@@ -1914,7 +1830,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                         : '$chapterCount '
                             'chapter${chapterCount == 1 ? '' : 's'} · asked in '
                             'bank order',
-                    style: const TextStyle(fontSize: 11, color: _C.muted),
+                    style: const TextStyle(fontSize: 10.5, color: _C.muted),
                   ),
                 ],
               ),
@@ -1935,7 +1851,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         if (picked.isEmpty)
           _emptyHint(
             icon: Icons.touch_app_outlined,
@@ -1948,8 +1864,8 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
           Container(
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(14),
+              color: _C.canvas,
+              borderRadius: BorderRadius.circular(15),
               border: Border.all(color: _C.line),
             ),
             child: Column(
@@ -1975,23 +1891,24 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               ],
             ),
           ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: _scopedMcqs.isEmpty ? null : _openPicker,
-            icon: const Icon(Icons.edit_note_rounded, size: 19),
+            icon: const Icon(Icons.edit_note_rounded, size: 18),
             label: Text(
               picked.isEmpty
                   ? 'Choose questions'
                   : 'Manage questions (${picked.length})',
             ),
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              visualDensity: VisualDensity.compact,
               foregroundColor: _C.primary,
               side: const BorderSide(color: _C.primaryLine),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(11),
               ),
             ),
           ),
@@ -2005,7 +1922,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     return InkWell(
       onTap: _openPicker,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 5, 2, 5),
+        padding: const EdgeInsets.fromLTRB(10, 4, 2, 4),
         child: Row(
           children: [
             _QuestionIndexPill(position),
@@ -2048,7 +1965,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               color: _C.faint,
               visualDensity: VisualDensity.compact,
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
             ),
           ],
         ),
@@ -2056,91 +1973,145 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     );
   }
 
-  Widget _options() => Column(
+  Widget _settingsBlock() {
+    final showRandom = _pickMode == _PickMode.random;
+    final rows = <Widget>[
+      if (showRandom)
+        _switchRow(
+          icon: Icons.shuffle_rounded,
+          title: 'Shuffle question order',
+          subtitle: _shuffle
+              ? 'A fresh order each time the paper is drawn.'
+              : 'Keep the order the bank returns.',
+          value: _shuffle,
+          onChanged: (value) => setState(() {
+            _shuffle = value;
+            _draw = null;
+            _drawKey = null;
+          }),
+          tint: _C.primary,
+          tintSoft: _C.primarySoft,
+        ),
+      if (showRandom && _scopeChapterCount > 1)
+        _switchRow(
+          icon: Icons.balance_rounded,
+          title: 'Spread across chapters',
+          subtitle: _balanceChapters
+              ? 'Draw from every chapter before repeating one.'
+              : 'Draw freely from the whole pool.',
+          value: _balanceChapters,
+          onChanged: (value) => setState(() {
+            _balanceChapters = value;
+            _draw = null;
+            _drawKey = null;
+          }),
+          tint: _C.success,
+          tintSoft: _C.successSoft,
+        ),
+      _switchRow(
+        icon: Icons.shuffle_on_outlined,
+        title: 'Shuffle answer options',
+        subtitle: _shuffleOptions
+            ? 'ক–ঘ move around, so position gives nothing away.'
+            : 'Choices stay in the order the bank lists them.',
+        value: _shuffleOptions,
+        onChanged: (value) => setState(() => _shuffleOptions = value),
+        tint: _C.violet,
+        tintSoft: _C.violetSoft,
+      ),
+      if (_plannedCount > 0) _timeRow(),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: _C.line),
+      ),
+      child: Column(
         children: [
-          _switchRow(
-            icon: Icons.shuffle_on_outlined,
-            title: 'Shuffle answer options',
-            subtitle: _shuffleOptions
-                ? 'A–D move around, so position gives nothing away.'
-                : 'Choices stay in the order the bank lists them.',
-            value: _shuffleOptions,
-            onChanged: (value) => setState(() => _shuffleOptions = value),
-          ),
-          if (_plannedCount > 0) ...[
-            const SizedBox(height: 6),
-            _timeTile(),
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const Divider(height: 1, color: _C.line),
+            rows[i],
           ],
         ],
-      );
+      ),
+    );
+  }
 
-  Widget _timeTile() {
+  Widget _timeRow() {
     final auto = _customMinutes == null;
     return InkWell(
       onTap: _openTimeSheet,
-      borderRadius: BorderRadius.circular(13),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: _C.line),
-        ),
+      borderRadius: BorderRadius.circular(11),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(7),
+              width: 30,
+              height: 30,
               decoration: BoxDecoration(
-                color: _C.primarySoft,
+                color: _C.infoSoft,
                 borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: _C.info.withOpacity(0.14)),
               ),
               child: const Icon(
                 Icons.timer_outlined,
-                size: 17,
-                color: _C.primary,
+                size: 15,
+                color: _C.info,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 9),
             Expanded(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
                     'Time limit',
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
                       color: _C.ink,
                     ),
                   ),
                   const SizedBox(height: 1),
                   Text(
-                    auto ? 'Auto · one minute per question' : 'Set by hand',
-                    style: const TextStyle(fontSize: 11, color: _C.muted),
+                    auto ? 'Auto · 1 min per question' : 'Set by hand',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: _C.muted,
+                      height: 1.25,
+                    ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(width: 6),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: _C.primarySoft,
+                color: _C.infoSoft,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _C.primaryLine),
+                border: Border.all(color: _C.info.withOpacity(0.16)),
               ),
               child: Text(
                 '$_plannedMinutes min',
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w800,
-                  color: _C.primary,
+                  color: _C.info,
                 ),
               ),
             ),
             const SizedBox(width: 2),
             const Icon(
               Icons.chevron_right_rounded,
-              size: 20,
+              size: 18,
               color: _C.faint,
             ),
           ],
@@ -2149,348 +2120,131 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     );
   }
 
-  Widget _summaryStrip() {
-    final count = _plannedCount;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 11),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF5F3FF), Color(0xFFEEF2FF)],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0E7FF)),
-      ),
-      child: Row(
-        children: [
-          _summaryStat('$count', count == 1 ? 'question' : 'questions'),
-          _summaryDivider(),
-          _summaryStat('$_plannedMarks', _plannedMarks == 1 ? 'mark' : 'marks'),
-          _summaryDivider(),
-          _summaryStat('$_plannedMinutes', 'minutes'),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryStat(String value, String label) => Expanded(
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: _C.primary,
-                height: 1.1,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10.5, color: _C.muted),
-            ),
-          ],
-        ),
-      );
-
-  Widget _summaryDivider() => Container(
-        width: 1,
-        height: 30,
-        color: const Color(0xFFDDD6FE),
-      );
-
-  // ── wide-screen paper panel ──────────────────────────────────────────────
-
-  Widget _paperPanel(List<HighSchoolQuestion> picked) => Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _C.line),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF0F172A).withOpacity(0.04),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _C.primarySoft,
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: const Icon(
-                    Icons.description_outlined,
-                    color: _C.primary,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Your paper',
-                        style: TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                          color: _C.ink,
-                        ),
-                      ),
-                      SizedBox(height: 1),
-                      Text(
-                        'Live summary',
-                        style: TextStyle(fontSize: 11.5, color: _C.muted),
-                      ),
-                    ],
-                  ),
-                ),
-                if (picked.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _C.successSoft,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${picked.length}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: _C.success,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                _panelStat('${picked.length}', 'questions'),
-                _panelStat('${picked.length}', 'marks'),
-                _panelStat(
-                  '${picked.isEmpty ? 0 : _plannedMinutes}',
-                  'minutes',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1, color: _C.line),
-            const SizedBox(height: 12),
-            if (picked.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _C.line),
-                ),
-                child: Text(
-                  _pickMode == _PickMode.manual
-                      ? 'Pick questions and they will appear here, in paper '
-                          'order.'
-                      : 'Choose a source and a question count to see the '
-                          'paper take shape.',
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: _C.muted,
-                    height: 1.4,
-                  ),
-                ),
-              )
-            else ...[
-              for (var i = 0; i < min(picked.length, 5); i++) ...[
-                if (i > 0) const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _QuestionIndexPill(i + 1),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          mathText(
-                            (picked[i].mcqData?.text ?? '').trim(),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: _C.ink,
-                              height: 1.35,
-                            ),
-                          ),
-                          if (picked[i].chapterName.isNotEmpty)
-                            Text(
-                              picked[i].chapterName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: _C.faint,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              if (picked.length > 5)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'and ${picked.length - 5} more…',
-                    style: const TextStyle(fontSize: 11, color: _C.muted),
-                  ),
-                ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _previewPaper,
-                  icon: const Icon(Icons.visibility_outlined, size: 18),
-                  label: const Text('Review full paper'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    foregroundColor: _C.primary,
-                    side: const BorderSide(color: _C.primaryLine),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-
-  Widget _panelStat(String value, String label) => Expanded(
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: _C.primary,
-                height: 1.1,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10.5, color: _C.muted),
-            ),
-          ],
-        ),
-      );
-
   // ── bottom bar ───────────────────────────────────────────────────────────
 
   Widget _bottomBar(List<HighSchoolQuestion> picked) {
     final ready = picked.isNotEmpty && !_loadingPool;
     final hint = ready
-        ? '${picked.length} mark${picked.length == 1 ? '' : 's'} · '
+        ? '$_plannedMarks mark${_plannedMarks == 1 ? '' : 's'} · '
             '$_plannedMinutes min'
         : _bottomHint();
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      ready
-                          ? '${picked.length} '
-                              'question${picked.length == 1 ? '' : 's'} ready'
-                          : 'Nothing to start yet',
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: _C.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      hint,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: _C.muted,
-                      ),
-                    ),
-                  ],
+      color: _C.canvas,
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _C.line),
+              boxShadow: [
+                BoxShadow(
+                  color: _C.ink.withOpacity(0.09),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
                 ),
-              ),
-              const SizedBox(width: 10),
-              if (ready) ...[
-                IconButton(
-                  onPressed: _previewPaper,
-                  tooltip: 'Preview the paper',
-                  icon: const Icon(Icons.visibility_outlined, size: 20),
-                  style: IconButton.styleFrom(
-                    backgroundColor: _C.primarySoft,
-                    foregroundColor: _C.primary,
-                    minimumSize: const Size(46, 46),
-                  ),
-                ),
-                const SizedBox(width: 8),
               ],
-              SizedBox(
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: ready ? _startExam : null,
-                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                  label: const Text(
-                    'Start',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _C.primary,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFFE8EAF1),
-                    disabledForegroundColor: _C.faint,
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
+            ),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: ready
+                          ? const LinearGradient(
+                              colors: [_C.primary, _C.violet],
+                            )
+                          : null,
+                      color: ready ? null : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(13),
                     ),
+                    child: Icon(
+                      ready
+                          ? Icons.quiz_rounded
+                          : Icons.pending_actions_rounded,
+                      color: ready ? Colors.white : _C.faint,
+                      size: 21,
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          ready
+                              ? '${picked.length} '
+                                  'question${picked.length == 1 ? '' : 's'} '
+                                  'ready'
+                              : 'Nothing to start yet',
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            color: _C.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          hint,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: _C.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (ready) ...[
+                    IconButton(
+                      onPressed: _previewPaper,
+                      tooltip: 'Preview the paper',
+                      icon: const Icon(Icons.visibility_outlined, size: 20),
+                      style: IconButton.styleFrom(
+                        backgroundColor: _C.primarySoft,
+                        foregroundColor: _C.primary,
+                        minimumSize: const Size(44, 44),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: ready ? _startExam : null,
+                      icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                      label: const Text(
+                        'Start',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _C.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFFE8EAF1),
+                        disabledForegroundColor: _C.faint,
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -2512,73 +2266,215 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
 
   // ── shared pieces ────────────────────────────────────────────────────────
 
-  Widget _sectionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    Widget? trailing,
-    required Widget child,
-  }) =>
-      Container(
+  Widget _panel({required Widget child}) => Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           border: Border.all(color: _C.line),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0F172A).withOpacity(0.04),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
+              color: _C.ink.withOpacity(0.045),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 15),
+        child: child,
+      );
+
+  Widget _panelHeader({
+    required String number,
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    Widget? trailing,
+  }) =>
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _stepBadge(number, icon),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _C.primarySoft,
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Icon(icon, color: _C.primary, size: 20),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                          color: _C.ink,
-                          letterSpacing: 0.1,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: _C.muted,
-                        ),
-                      ),
-                    ],
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                    color: _C.ink,
+                    letterSpacing: -0.1,
                   ),
                 ),
-                if (trailing != null) trailing,
+                if (subtitle != null) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: _C.muted,
+                    ),
+                  ),
+                ],
               ],
             ),
-            const SizedBox(height: 14),
-            child,
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing,
+          ],
+        ],
+      );
+
+  Widget _stepBadge(String number, IconData icon) => Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFEEF2FF), Color(0xFFF5F3FF)],
+          ),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: _C.primaryLine),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Icon(icon, color: _C.primary, size: 18),
+            ),
+            Positioned(
+              top: 2,
+              right: 4,
+              child: Text(
+                number,
+                style: TextStyle(
+                  fontSize: 7.5,
+                  fontWeight: FontWeight.w800,
+                  color: _C.primary.withOpacity(0.52),
+                ),
+              ),
+            ),
           ],
         ),
       );
+
+  Widget _fieldLabel(String text) => Text(
+        text,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          color: _C.muted,
+          letterSpacing: 0.3,
+        ),
+      );
+
+  Widget _selectField({
+    required String label,
+    required IconData icon,
+    required String? value,
+    required String hint,
+    required List<String> items,
+    required ValueChanged<String?>? onChanged,
+    String? helper,
+  }) {
+    final enabled = onChanged != null;
+    final baseStyle = Theme.of(context).textTheme.bodyMedium;
+    final valueStyle = (baseStyle ?? const TextStyle()).copyWith(
+      fontSize: 12.5,
+      fontWeight: FontWeight.w700,
+      color: _C.ink,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _fieldLabel(label),
+            if (helper != null) ...[
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  helper,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 10, color: _C.faint),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 5),
+        Opacity(
+          opacity: enabled ? 1 : 0.55,
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(
+                color: value == null ? _C.line : _C.primaryLine,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 15, color: _C.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: value,
+                      isExpanded: true,
+                      isDense: true,
+                      hint: Text(
+                        hint,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: valueStyle.copyWith(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: _C.faint,
+                        ),
+                      ),
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: _C.faint,
+                      ),
+                      style: valueStyle,
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      menuMaxHeight: 320,
+                      menuWidth: 280,
+                      items: [
+                        for (final item in items)
+                          DropdownMenuItem<String>(
+                            value: item,
+                            child: Text(
+                              item,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: valueStyle.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
+                      onChanged: onChanged,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _statusPill(
     String label,
@@ -2627,40 +2523,13 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         ),
       );
 
-  Widget _miniStat(String value, String label) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _C.line),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: _C.ink,
-              ),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10.5, color: _C.muted),
-            ),
-          ],
-        ),
-      );
-
   Widget _tinyPill(
     String text, {
     bool warning = false,
     bool muted = false,
   }) =>
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
           color: warning
               ? _C.warningSoft
@@ -2709,6 +2578,14 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         ),
       );
 
+  /// Bank errors can arrive with a whole response body attached. Show enough
+  /// to diagnose the failure without letting one bad request take over the page.
+  String _shortError(String message) {
+    final oneLine = message.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (oneLine.length <= 280) return oneLine;
+    return '${oneLine.substring(0, 280)}…';
+  }
+
   Widget _errorBox(String message) => Container(
         padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
@@ -2727,7 +2604,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                message,
+                _shortError(message),
                 style: const TextStyle(
                   fontSize: 11.5,
                   color: _C.danger,
@@ -2745,23 +2622,32 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     required String body,
     _HintTone tone = _HintTone.neutral,
   }) {
-    final color = tone == _HintTone.warning ? _C.warning : _C.muted;
-    final background =
-        tone == _HintTone.warning ? _C.warningSoft : const Color(0xFFF8FAFC);
+    final warning = tone == _HintTone.warning;
+    final color = warning ? _C.warning : _C.muted;
+    final background = warning ? _C.warningSoft : _C.canvas;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: tone == _HintTone.warning ? const Color(0xFFFDE68A) : _C.line,
+          color: warning ? const Color(0xFFFDE68A) : _C.line,
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 19, color: color),
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color:
+                  warning ? const Color(0xFFFFF3D6) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 16, color: color),
+          ),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
@@ -2770,16 +2656,16 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
                     color: _C.ink,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1),
                 Text(
                   body,
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 11,
                     color: color,
                     height: 1.35,
                   ),
@@ -2792,41 +2678,6 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     );
   }
 
-  Widget _fieldLabel(String text) => Text(
-        text,
-        style: const TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-          color: _C.muted,
-          letterSpacing: 0.2,
-        ),
-      );
-
-  InputDecoration _fieldDecoration() => InputDecoration(
-        isDense: true,
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        hintStyle: const TextStyle(fontSize: 13, color: _C.faint),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _C.line),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _C.primary, width: 1.4),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFEDF0F7)),
-        ),
-      );
-
   Widget _stepButton(
     IconData icon,
     VoidCallback? onPressed,
@@ -2835,7 +2686,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       IconButton(
         onPressed: onPressed,
         tooltip: tooltip,
-        icon: Icon(icon, size: 18),
+        icon: Icon(icon, size: 16),
         visualDensity: VisualDensity.compact,
         style: IconButton.styleFrom(
           backgroundColor: Colors.white,
@@ -2843,7 +2694,8 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
           disabledBackgroundColor: Colors.white.withOpacity(0.5),
           disabledForegroundColor: _C.faint,
           side: const BorderSide(color: _C.primaryLine),
-          minimumSize: const Size(38, 38),
+          minimumSize: const Size(32, 32),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: EdgeInsets.zero,
         ),
       );
@@ -2853,33 +2705,37 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     required bool selected,
     required VoidCallback onTap,
   }) =>
-      GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: selected ? _C.primary : _C.primaryLine.withOpacity(0.6),
+      Semantics(
+        button: true,
+        selected: selected,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+            decoration: BoxDecoration(
+              color: selected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: selected ? _C.primary : _C.primaryLine.withOpacity(0.6),
+              ),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: _C.primary.withOpacity(0.12),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: _C.primary.withOpacity(0.12),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: selected ? _C.primary : _C.muted,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: selected ? _C.primary : _C.muted,
+              ),
             ),
           ),
         ),
@@ -2891,51 +2747,67 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     required String subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
+    Color tint = _C.primary,
+    Color tintSoft = _C.primarySoft,
   }) =>
       InkWell(
         onTap: () => onChanged(!value),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(11),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(7),
+                width: 30,
+                height: 30,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: tintSoft,
                   borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: tint.withOpacity(0.13)),
                 ),
-                child: Icon(icon, size: 17, color: _C.muted),
+                child: Icon(icon, size: 15, color: tint),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 9),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
                         color: _C.ink,
                       ),
                     ),
                     const SizedBox(height: 1),
                     Text(
                       subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 10.5,
                         color: _C.muted,
-                        height: 1.3,
+                        height: 1.25,
                       ),
                     ),
                   ],
                 ),
               ),
-              Switch.adaptive(
-                value: value,
-                onChanged: onChanged,
-                activeColor: _C.primary,
+              const SizedBox(width: 6),
+              SizedBox(
+                width: 42,
+                height: 26,
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: Switch.adaptive(
+                    value: value,
+                    onChanged: onChanged,
+                    activeColor: _C.primary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
               ),
             ],
           ),
@@ -4348,7 +4220,7 @@ class _PreviewSheet extends StatelessWidget {
                       color: options[i].trim() == correct
                           ? _C.success
                           : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(6),
+                      shape: BoxShape.circle,
                     ),
                     child: Text(
                       _letter(i),
@@ -4447,5 +4319,8 @@ class _PreviewSheet extends StatelessWidget {
     );
   }
 
-  String _letter(int index) => String.fromCharCode(65 + index);
+  String _letter(int index) {
+    const bengali = ['ক', 'খ', 'গ', 'ঘ', 'ঙ'];
+    return index < bengali.length ? bengali[index] : '${index + 1}';
+  }
 }

@@ -40,6 +40,16 @@ class MCQTestPage extends StatefulWidget {
   /// When true, the runner shows every question in one scrollable paper.
   /// Existing callers keep the paginated runner by default.
   final bool showAllQuestions;
+
+  /// Answer the paper the way a live exam does.
+  ///
+  /// The four choices are marked ক, খ, গ and ঘ in a round bubble; only the
+  /// bubble takes a tap, so a stray tap on the answer text cannot file an
+  /// answer; and the first pick is final, so a student cannot move to another
+  /// choice afterwards. Off by default: the existing runners keep their
+  /// reversible A–D tiles.
+  final bool liveExamOptions;
+
   final String? savedTestId;
   final String? aiTopic;
 
@@ -51,6 +61,7 @@ class MCQTestPage extends StatefulWidget {
     required this.aiResponse,
     required this.language,
     this.showAllQuestions = false,
+    this.liveExamOptions = false,
     this.savedTestId,
     this.aiTopic,
   });
@@ -859,16 +870,24 @@ class _MCQTestPageState extends State<MCQTestPage>
     }
   }
 
-  void _selectOption(int index, String key) => setState(() {
-        // Tapping the chosen option again clears it, so a mis-tap is one tap to
-        // undo rather than a wrong answer filed silently.
-        _userAnswers[index] = _userAnswers[index] == key ? null : key;
-      });
+  void _selectOption(int index, String key) {
+    // A live exam locks the answer once it is given: another bubble stops
+    // responding, and tapping the chosen one again does not clear it.
+    if (widget.liveExamOptions && _userAnswers[index] != null) return;
+    setState(() {
+      // Outside live mode, tapping the chosen option again clears it, so a
+      // mis-tap is one tap to undo rather than a wrong answer filed silently.
+      _userAnswers[index] =
+          widget.liveExamOptions || _userAnswers[index] != key ? key : null;
+    });
+  }
 
   void _chooseByIndex(int n) {
     final keys = _optionsOf(_currentIndex).keys.toList();
     if (n < 0 || n >= keys.length) return;
-    setState(() => _userAnswers[_currentIndex] = keys[n]);
+    // Goes through the same gate as a tap, so a locked live answer cannot be
+    // changed with the keyboard either.
+    _selectOption(_currentIndex, keys[n]);
   }
 
   void _toggleFlagCurrent() => _toggleFlag(_currentIndex);
@@ -1168,6 +1187,7 @@ class _MCQTestPageState extends State<MCQTestPage>
   ///
   /// The chrome is mirrored from `_optionTile(dense: true)`: 2px border,
   /// 8px side padding, 22px letter, 7px gap and 20px reserved for the tick.
+  /// Live-exam bubbles add a padded hit area around the letter.
   bool _optionsFitTwoColumns(
       BuildContext context, List<String> texts, double maxWidth) {
     if (texts.length < 2) return false;
@@ -1178,7 +1198,8 @@ class _MCQTestPageState extends State<MCQTestPage>
         .any((segment) => segment is MathFraction || segment is MathRadical);
     if (texts.any(hasTallMath)) return false;
     const gap = 8.0;
-    final textWidth = (maxWidth - gap) / 2 - 69;
+    final markerExtra = widget.liveExamOptions ? 14.0 : 0.0;
+    final textWidth = (maxWidth - gap) / 2 - 69 - markerExtra;
     if (textWidth < 30) return false;
 
     final textScaler = MediaQuery.textScalerOf(context);
@@ -1212,76 +1233,131 @@ class _MCQTestPageState extends State<MCQTestPage>
     required bool selected,
     bool dense = false,
   }) {
-    // Options arrive keyed "1".."4"; the familiar letter is shown instead so the
-    // paper reads the way a printed one does.
+    final live = widget.liveExamOptions;
+    // Options arrive keyed "1".."4". A live exam uses the Bengali markers the
+    // printed paper does; the existing runners keep the familiar letters.
     final number = int.tryParse(optionKey) ?? 1;
-    final letter = String.fromCharCode(65 + (number - 1).clamp(0, 25));
+    const bengali = ['ক', 'খ', 'গ', 'ঘ', 'ঙ'];
+    final letter = live
+        ? (number >= 1 && number <= bengali.length
+            ? bengali[number - 1]
+            : '$number')
+        : String.fromCharCode(65 + (number - 1).clamp(0, 25));
+    final locked = live && _userAnswers[index] != null;
+    final dimmed = locked && !selected;
     final radius = dense ? 9.0 : 11.0;
     final badgeSize = dense ? 22.0 : 26.0;
     final badgeGap = dense ? 7.0 : 10.0;
     final checkGap = dense ? 4.0 : 6.0;
     final checkSize = dense ? 16.0 : 18.0;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: InkWell(
-        onTap: () => _selectOption(index, optionKey),
-        borderRadius: BorderRadius.circular(radius),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: EdgeInsets.symmetric(
-            horizontal: dense ? 8 : 11,
-            vertical: dense ? 9 : 10,
-          ),
-          decoration: BoxDecoration(
-            color: selected ? _McqPalette.selected : _McqPalette.surface,
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(
-              color: selected ? _McqPalette.indigo : _McqPalette.line,
-              width: selected ? 2 : 1.4,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: badgeSize,
-                height: badgeSize,
-                decoration: BoxDecoration(
-                  color: selected ? _McqPalette.indigo : _McqPalette.canvas,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    letter,
-                    style: TextStyle(
-                      fontSize: dense ? 11 : 12,
-                      fontWeight: FontWeight.bold,
-                      color: selected ? Colors.white : Colors.black54,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: badgeGap),
-              Expanded(
-                child: mathText(
-                  text,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.3,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                    color: selected ? _McqPalette.indigoDark : _McqPalette.ink,
-                  ),
-                ),
-              ),
-              if (selected) ...[
-                SizedBox(width: checkGap),
-                Icon(Icons.check_circle,
-                    color: _McqPalette.indigo, size: checkSize),
-              ],
-            ],
+    final badge = Container(
+      width: badgeSize,
+      height: badgeSize,
+      decoration: BoxDecoration(
+        color: selected
+            ? _McqPalette.indigo
+            : (dimmed ? const Color(0xFFF1F5F9) : _McqPalette.canvas),
+        shape: BoxShape.circle,
+        border: live
+            ? Border.all(
+                color: selected
+                    ? _McqPalette.indigo
+                    : (dimmed ? _McqPalette.line : const Color(0xFFB9C2D8)),
+                width: 1.3,
+              )
+            : null,
+      ),
+      child: Center(
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: dense ? 11 : 12,
+            fontWeight: FontWeight.bold,
+            color: selected
+                ? Colors.white
+                : (dimmed
+                    ? _McqPalette.muted.withOpacity(0.55)
+                    : Colors.black54),
           ),
         ),
       ),
+    );
+
+    // In a live exam only the bubble is a target. The padded box around it
+    // keeps the bubble comfortably tappable without making the whole row a
+    // button, and its width is allowed for in `_optionsFitTwoColumns`.
+    final marker = live
+        ? Semantics(
+            button: !locked,
+            enabled: !locked,
+            selected: selected,
+            label: 'বিকল্প $letter',
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: locked ? null : () => _selectOption(index, optionKey),
+              child: Padding(
+                padding: const EdgeInsets.all(7),
+                child: badge,
+              ),
+            ),
+          )
+        : badge;
+
+    final tile = AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 8 : 11,
+        vertical: dense ? 9 : 10,
+      ),
+      decoration: BoxDecoration(
+        color: selected ? _McqPalette.selected : _McqPalette.surface,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: selected ? _McqPalette.indigo : _McqPalette.line,
+          width: selected ? 2 : 1.4,
+        ),
+      ),
+      child: Row(
+        children: [
+          marker,
+          SizedBox(width: badgeGap),
+          Expanded(
+            child: mathText(
+              text,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.3,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                color: selected
+                    ? _McqPalette.indigoDark
+                    : (dimmed
+                        ? _McqPalette.muted.withOpacity(0.55)
+                        : _McqPalette.ink),
+              ),
+            ),
+          ),
+          if (selected) ...[
+            SizedBox(width: checkGap),
+            Icon(
+              Icons.check_circle,
+              color: _McqPalette.indigo,
+              size: checkSize,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: live
+          ? tile
+          : InkWell(
+              onTap: () => _selectOption(index, optionKey),
+              borderRadius: BorderRadius.circular(radius),
+              child: tile,
+            ),
     );
   }
 

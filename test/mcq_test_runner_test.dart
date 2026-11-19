@@ -254,4 +254,99 @@ void main() {
       await closePaper(tester);
     });
   });
+
+  group('live exam options', () {
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+
+    /// One question answered by option 3, shown in paper mode as the cloud
+    /// exams do.
+    Future<void> openLivePaper(WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MCQTestPage(
+            numberOfQuestions: 1,
+            testTimeInMinutes: 10,
+            aiResponse: jsonEncode({
+              'questions': [
+                {
+                  'question': 'Question 1?',
+                  'options': {
+                    '1': 'A0',
+                    '2': 'B0',
+                    '3': 'C0',
+                    '4': 'D0',
+                  },
+                  'correct_answer': '3',
+                },
+              ],
+            }),
+            language: 'Bangla',
+            showAllQuestions: true,
+            liveExamOptions: true,
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('the bubbles are ক খ গ ঘ, not A B C D', (tester) async {
+      await openLivePaper(tester);
+
+      for (final label in ['ক', 'খ', 'গ', 'ঘ']) {
+        expect(find.text(label), findsOneWidget);
+      }
+      for (final label in ['A', 'B', 'C', 'D']) {
+        expect(find.text(label), findsNothing);
+      }
+
+      await closePaper(tester);
+    });
+
+    testWidgets('only the bubble answers; the option text does nothing',
+        (tester) async {
+      await openLivePaper(tester);
+
+      await tester.tap(find.text('A0'));
+      await tester.pump();
+
+      expect(find.text('0 of 1 answered'), findsOneWidget,
+          reason: 'tapping the answer text must not file an answer');
+
+      await tester.tap(find.text('খ'));
+      await tester.pump();
+
+      expect(find.text('1 of 1 answered'), findsOneWidget);
+
+      await closePaper(tester);
+    });
+
+    testWidgets('the first pick is final, and cannot be cleared',
+        (tester) async {
+      await openLivePaper(tester);
+
+      await tester.tap(find.text('খ'));
+      await tester.pump();
+
+      // Another bubble is inert, and the chosen one cannot be unticked.
+      await tester.tap(find.text('গ'));
+      await tester.pump();
+      await tester.tap(find.text('খ'));
+      await tester.pump();
+
+      expect(find.text('1 of 1 answered'), findsOneWidget);
+
+      // Submit and find out which choice was actually filed: খ is option 2,
+      // while the key is option 3.
+      await tester.tap(find.text('Submit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Submit Now'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('0.0%'), findsOneWidget,
+          reason: 'the later tap on গ must not replace the first answer খ');
+      expect(find.text('0 of 1 correct'), findsOneWidget);
+
+      await closePaper(tester);
+    });
+  });
 }
