@@ -18,6 +18,16 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+
+  // Single-instance behaviour: if a window already exists, bring it to the
+  // front instead of creating another one.
+  GtkWindow* existing_window =
+      gtk_application_get_active_window(GTK_APPLICATION(application));
+  if (existing_window != nullptr) {
+    gtk_window_present(existing_window);
+    return;
+  }
+
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
@@ -41,11 +51,11 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "blogger");
+    gtk_header_bar_set_title(header_bar, "Pi-QBank");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "blogger");
+    gtk_window_set_title(window, "Pi-QBank");
   }
 
   gtk_window_set_default_size(window, 1280, 720);
@@ -69,6 +79,7 @@ static void my_application_activate(GApplication* application) {
 static gboolean my_application_local_command_line(GApplication* application, gchar*** arguments, int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
   // Strip out the first argument as it is the binary name.
+  g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
 
   g_autoptr(GError) error = nullptr;
@@ -78,6 +89,8 @@ static gboolean my_application_local_command_line(GApplication* application, gch
      return TRUE;
   }
 
+  // If another instance already owns the application ID this call is
+  // forwarded to that primary instance instead of creating a new one.
   g_application_activate(application);
   *exit_status = 0;
 
@@ -122,6 +135,6 @@ static void my_application_init(MyApplication* self) {}
 MyApplication* my_application_new() {
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID,
-                                     "flags", G_APPLICATION_NON_UNIQUE,
+                                     "flags", G_APPLICATION_DEFAULT_FLAGS,
                                      nullptr));
 }

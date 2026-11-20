@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -30,6 +32,22 @@ class NewspaperPage extends StatefulWidget {
 class _NewspaperPageState extends State<NewspaperPage>
     with TickerProviderStateMixin {
   static const String _darkModePrefKey = 'newspaper_dark_mode';
+  static const String _zoomPrefKey = 'newspaper_zoom_level';
+  static const List<double> _zoomLevels = [
+    0.50,
+    0.67,
+    0.75,
+    0.80,
+    0.90,
+    1.00,
+    1.10,
+    1.25,
+    1.50,
+    1.75,
+    2.00,
+    2.50,
+    3.00,
+  ];
 
   // Controllers for the two supported embedded-webview backends.
   // webview_flutter is used on mobile/desktop (non-Linux); CEF is used on Linux.
@@ -44,6 +62,8 @@ class _NewspaperPageState extends State<NewspaperPage>
   bool _initialLoadDone = false;
   bool _isPickerActive = false;
   bool _isDarkMode = false;
+  double _zoomLevel = 1.0;
+  int _lastWheelZoomTimestamp = 0;
   List<String> _userRules = [];
   late String _siteKey;
   late AnimationController _bannerAnimController;
@@ -177,6 +197,8 @@ class _NewspaperPageState extends State<NewspaperPage>
       _initialLoadDone = true;
       _applyAllBlockRules();
       if (_isDarkMode) _applyDarkMode();
+      if ((_zoomLevel - 1.0).abs() >= 0.001) _applyZoom();
+      _injectZoomListeners();
     });
   }
 
@@ -208,6 +230,174 @@ class _NewspaperPageState extends State<NewspaperPage>
       } catch (_) {}
     }
     if (_hasController) _applyDarkMode();
+  }
+
+  // ─── Zoom methods ──────────────────────────────────────────────────────────
+
+  Future<void> _loadZoomLevel() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getDouble(_zoomPrefKey);
+    if (saved != null && saved >= 0.50 && saved <= 3.00) {
+      if (!mounted) return;
+      setState(() => _zoomLevel = saved);
+      if (_hasController) _applyZoom();
+    }
+  }
+
+  Future<void> _saveZoomLevel() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_zoomPrefKey, _zoomLevel);
+  }
+
+  Future<void> _zoomIn() async {
+    double next = _zoomLevels.last;
+    for (final level in _zoomLevels) {
+      if (level > _zoomLevel + 0.01) {
+        next = level;
+        break;
+      }
+    }
+    await _setZoom(next);
+  }
+
+  Future<void> _zoomOut() async {
+    double next = _zoomLevels.first;
+    for (final level in _zoomLevels.reversed) {
+      if (level < _zoomLevel - 0.01) {
+        next = level;
+        break;
+      }
+    }
+    await _setZoom(next);
+  }
+
+  Future<void> _resetZoom() async {
+    await _setZoom(1.0);
+  }
+
+  Future<void> _setZoom(double zoom) async {
+    final clamped = zoom.clamp(0.50, 3.00);
+    if ((_zoomLevel - clamped).abs() < 0.001) return;
+    setState(() => _zoomLevel = clamped);
+    await _saveZoomLevel();
+    _applyZoom();
+  }
+
+  void _applyZoom() {
+    if (!_hasController) return;
+
+    if ((_zoomLevel - 1.0).abs() < 0.001) {
+      _runJavaScript('''
+        (function() {
+          var el = document.getElementById('pi-zoom-style');
+          if (el && el.parentNode) {
+            el.parentNode.removeChild(el);
+          }
+          try {
+            document.documentElement.style.zoom = '';
+            if (document.body) document.body.style.zoom = '';
+          } catch(e) {}
+        })();
+      ''');
+      return;
+    }
+
+    final zoomFactor = _zoomLevel.toStringAsFixed(2);
+    _runJavaScript('''
+      (function() {
+        var styleId = 'pi-zoom-style';
+        var el = document.getElementById(styleId);
+        if (!el) {
+          el = document.createElement('style');
+          el.id = styleId;
+          (document.head || document.documentElement).appendChild(el);
+        }
+        el.innerHTML = 'html { zoom: $zoomFactor !important; }';
+        try {
+          document.documentElement.style.zoom = '$zoomFactor';
+        } catch(e) {}
+      })();
+    ''');
+  }
+
+  void _injectZoomListeners() {
+    if (!_hasController) return;
+    _runJavaScript(r'''
+      (function() {
+        if (window.__piZoomListenersAttached) return;
+        window.__piZoomListenersAttached = true;
+
+        function sendZoom(dir) {
+          try {
+            if (typeof NewspaperZoomChannel === 'function') {
+              NewspaperZoomChannel(dir);
+            } else if (window.NewspaperZoomChannel && typeof window.NewspaperZoomChannel.postMessage === 'function') {
+              window.NewspaperZoomChannel.postMessage(dir);
+            }
+          } catch(e) {}
+        }
+
+        var lastWheel = 0;
+        window.addEventListener('wheel', function(e) {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            var now = Date.now();
+            if (now - lastWheel < 80) return;
+            lastWheel = now;
+            if (e.deltaY < 0) {
+              sendZoom('in');
+            } else if (e.deltaY > 0) {
+              sendZoom('out');
+            }
+          }
+        }, { passive: false });
+
+        window.addEventListener('keydown', function(e) {
+          if (e.ctrlKey || e.metaKey) {
+            if (e.key === '=' || e.key === '+') {
+              e.preventDefault();
+              sendZoom('in');
+            } else if (e.key === '-' || e.key === '_') {
+              e.preventDefault();
+              sendZoom('out');
+            } else if (e.key === '0') {
+              e.preventDefault();
+              sendZoom('reset');
+            }
+          }
+        });
+      })();
+    ''');
+  }
+
+  void _handleZoomCommand(String cmd) {
+    switch (cmd) {
+      case 'in':
+        _zoomIn();
+        break;
+      case 'out':
+        _zoomOut();
+        break;
+      case 'reset':
+        _resetZoom();
+        break;
+    }
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent) {
+      if (HardwareKeyboard.instance.isControlPressed ||
+          HardwareKeyboard.instance.isMetaPressed) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (now - _lastWheelZoomTimestamp < 80) return;
+        _lastWheelZoomTimestamp = now;
+        if (event.scrollDelta.dy < 0) {
+          _zoomIn();
+        } else if (event.scrollDelta.dy > 0) {
+          _zoomOut();
+        }
+      }
+    }
   }
 
   Future<void> _loadUserRules() async {
@@ -650,6 +840,12 @@ class _NewspaperPageState extends State<NewspaperPage>
             _onSelectorReceived(msg.message);
           },
         )
+        ..addJavaScriptChannel(
+          'NewspaperZoomChannel',
+          onMessageReceived: (JavaScriptMessage msg) {
+            _handleZoomCommand(msg.message);
+          },
+        )
         ..setNavigationDelegate(
           NavigationDelegate(
             onProgress: (int progress) {
@@ -657,6 +853,9 @@ class _NewspaperPageState extends State<NewspaperPage>
               setState(() => _progress = progress / 100);
               if (_isDarkMode && progress >= 30) {
                 _applyDarkMode();
+              }
+              if ((_zoomLevel - 1.0).abs() >= 0.001 && progress >= 30) {
+                _applyZoom();
               }
             },
             onPageStarted: (String url) => _handleLoadStarted(),
@@ -674,6 +873,7 @@ class _NewspaperPageState extends State<NewspaperPage>
     }
 
     _loadDarkMode();
+    _loadZoomLevel();
   }
 
   Future<void> _startCef() async {
@@ -707,6 +907,9 @@ class _NewspaperPageState extends State<NewspaperPage>
         _cefController = controller;
       });
 
+      if (_isDarkMode) _applyDarkMode();
+      if ((_zoomLevel - 1.0).abs() >= 0.001) _applyZoom();
+
       // Load persisted rules in background.
       _loadUserRules();
     } catch (e, stack) {
@@ -736,6 +939,19 @@ class _NewspaperPageState extends State<NewspaperPage>
             _onSelectorReceived(value);
           },
         ),
+        cef.JavascriptChannel(
+          name: 'NewspaperZoomChannel',
+          onMessageReceived: (cef.JavascriptMessage msg) {
+            var value = msg.message;
+            try {
+              final decoded = jsonDecode(value);
+              if (decoded is String) value = decoded;
+            } on FormatException {
+              // Already a bare string.
+            }
+            _handleZoomCommand(value);
+          },
+        ),
       });
     } catch (e) {
       debugPrint('Failed to set CEF JavaScript channels: $e');
@@ -759,6 +975,121 @@ class _NewspaperPageState extends State<NewspaperPage>
   }
 
   // ─── App bar actions ──────────────────────────────────────────────────────
+
+  Widget _zoomControlAction() {
+    final percent = (_zoomLevel * 100).round();
+    final isDefault = (percent == 100);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      decoration: BoxDecoration(
+        color: _isDarkMode
+            ? Colors.white.withOpacity(0.08)
+            : Colors.black.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _isDarkMode
+              ? Colors.white.withOpacity(0.12)
+              : Colors.black.withOpacity(0.08),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tooltip(
+            message: 'Zoom out (Ctrl -)',
+            child: InkWell(
+              borderRadius:
+                  const BorderRadius.horizontal(left: Radius.circular(20)),
+              onTap: _zoomLevel <= _zoomLevels.first ? null : _zoomOut,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Icon(
+                  Icons.remove_rounded,
+                  size: 16,
+                  color: _zoomLevel <= _zoomLevels.first
+                      ? (_isDarkMode ? Colors.white24 : Colors.black26)
+                      : (_isDarkMode ? Colors.white70 : Colors.black87),
+                ),
+              ),
+            ),
+          ),
+          PopupMenuButton<double>(
+            tooltip: 'Zoom level ($percent%) - Click to choose or reset (Ctrl 0)',
+            initialValue: _zoomLevel,
+            onSelected: _setZoom,
+            padding: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Text(
+                '$percent%',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isDefault ? FontWeight.w500 : FontWeight.bold,
+                  color: !isDefault
+                      ? Colors.deepOrange
+                      : (_isDarkMode ? Colors.white70 : Colors.black87),
+                ),
+              ),
+            ),
+            itemBuilder: (context) => [
+              PopupMenuItem<double>(
+                value: 1.0,
+                child: Row(
+                  children: [
+                    const Icon(Icons.restart_alt_rounded, size: 18),
+                    const SizedBox(width: 8),
+                    const Text('Reset (100%)'),
+                    const Spacer(),
+                    if (isDefault)
+                      const Icon(Icons.check,
+                          size: 16, color: Colors.deepOrange),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              ..._zoomLevels.map((level) {
+                final lvlPercent = (level * 100).round();
+                final isSelected = (_zoomLevel - level).abs() < 0.01;
+                return PopupMenuItem<double>(
+                  value: level,
+                  child: Row(
+                    children: [
+                      Text('$lvlPercent%'),
+                      const Spacer(),
+                      if (isSelected)
+                        const Icon(Icons.check,
+                            size: 16, color: Colors.deepOrange),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+          Tooltip(
+            message: 'Zoom in (Ctrl +)',
+            child: InkWell(
+              borderRadius:
+                  const BorderRadius.horizontal(right: Radius.circular(20)),
+              onTap: _zoomLevel >= _zoomLevels.last ? null : _zoomIn,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Icon(
+                  Icons.add_rounded,
+                  size: 16,
+                  color: _zoomLevel >= _zoomLevels.last
+                      ? (_isDarkMode ? Colors.white24 : Colors.black26)
+                      : (_isDarkMode ? Colors.white70 : Colors.black87),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _darkModeAction() {
     return IconButton(
@@ -816,13 +1147,22 @@ class _NewspaperPageState extends State<NewspaperPage>
           case 'reload':
             _reload();
             break;
+          case 'zoom_in':
+            _zoomIn();
+            break;
+          case 'zoom_out':
+            _zoomOut();
+            break;
+          case 'zoom_reset':
+            _resetZoom();
+            break;
           case 'browser':
             _openInBrowser();
             break;
         }
       },
-      itemBuilder: (context) => const [
-        PopupMenuItem<String>(
+      itemBuilder: (context) => [
+        const PopupMenuItem<String>(
           value: 'reload',
           child: Row(
             children: [
@@ -833,6 +1173,37 @@ class _NewspaperPageState extends State<NewspaperPage>
           ),
         ),
         PopupMenuItem<String>(
+          value: 'zoom_in',
+          child: Row(
+            children: [
+              const Icon(Icons.zoom_in_rounded, size: 20),
+              const SizedBox(width: 12),
+              Text('Zoom in (${(_zoomLevel * 100).round()}%)'),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'zoom_out',
+          child: const Row(
+            children: [
+              Icon(Icons.zoom_out_rounded, size: 20),
+              SizedBox(width: 12),
+              Text('Zoom out'),
+            ],
+          ),
+        ),
+        if ((_zoomLevel - 1.0).abs() > 0.01)
+          const PopupMenuItem<String>(
+            value: 'zoom_reset',
+            child: Row(
+              children: [
+                Icon(Icons.restart_alt_rounded, size: 20),
+                SizedBox(width: 12),
+                Text('Reset zoom (100%)'),
+              ],
+            ),
+          ),
+        const PopupMenuItem<String>(
           value: 'browser',
           child: Row(
             children: [
@@ -997,75 +1368,100 @@ class _NewspaperPageState extends State<NewspaperPage>
       );
     }
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (bool didPop, dynamic result) async {
-        if (didPop) return;
-        if (await _canGoBack()) {
-          await _goBack();
-        } else {
-          if (!context.mounted) return;
-          Navigator.of(context).pop();
-        }
-      },
-      child: Scaffold(
-        backgroundColor:
-            _isDarkMode ? const Color(0xFF121212) : Colors.white,
-        appBar: AppBar(
-          backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : null,
-          foregroundColor: _isDarkMode ? Colors.white : null,
-          titleSpacing: 0,
-          title: Text(
-            widget.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-          ),
-          centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            tooltip: 'Back',
-            onPressed: _handleBack,
-          ),
-          actions: _isDesktop
-              ? [
-                  IconButton(
-                    tooltip: 'Previous page',
-                    icon: const Icon(Icons.chevron_left_rounded, size: 28),
-                    onPressed: _goBack,
-                  ),
-                  IconButton(
-                    tooltip: 'Next page',
-                    icon: const Icon(Icons.chevron_right_rounded, size: 28),
-                    onPressed: _goForward,
-                  ),
-                  IconButton(
-                    tooltip: 'Reload',
-                    icon: const Icon(Icons.refresh_rounded),
-                    onPressed: _reload,
-                  ),
-                  _darkModeAction(),
-                  IconButton(
-                    tooltip: 'Open in Browser',
-                    icon: const Icon(Icons.open_in_browser),
-                    onPressed: _openInBrowser,
-                  ),
-                  _adBlockerAction(),
-                  IconButton(
-                    tooltip: 'Close newspaper',
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ]
-              : [
-                  // Android/mobile: only the actions a reader needs. Back
-                  // handles history, and reload/open-in-browser live in the
-                  // overflow menu so the bar stays uncluttered.
-                  _darkModeAction(),
-                  _adBlockerAction(),
-                  _moreMenuAction(),
-                ],
-        ),
+    final shortcuts = <ShortcutActivator, VoidCallback>{
+      const SingleActivator(LogicalKeyboardKey.equal, control: true): _zoomIn,
+      const SingleActivator(LogicalKeyboardKey.add, control: true): _zoomIn,
+      const SingleActivator(LogicalKeyboardKey.numpadAdd, control: true): _zoomIn,
+      const SingleActivator(LogicalKeyboardKey.minus, control: true): _zoomOut,
+      const SingleActivator(LogicalKeyboardKey.numpadSubtract, control: true): _zoomOut,
+      const SingleActivator(LogicalKeyboardKey.digit0, control: true): _resetZoom,
+      const SingleActivator(LogicalKeyboardKey.numpad0, control: true): _resetZoom,
+
+      const SingleActivator(LogicalKeyboardKey.equal, meta: true): _zoomIn,
+      const SingleActivator(LogicalKeyboardKey.add, meta: true): _zoomIn,
+      const SingleActivator(LogicalKeyboardKey.numpadAdd, meta: true): _zoomIn,
+      const SingleActivator(LogicalKeyboardKey.minus, meta: true): _zoomOut,
+      const SingleActivator(LogicalKeyboardKey.numpadSubtract, meta: true): _zoomOut,
+      const SingleActivator(LogicalKeyboardKey.digit0, meta: true): _resetZoom,
+      const SingleActivator(LogicalKeyboardKey.numpad0, meta: true): _resetZoom,
+    };
+
+    return CallbackShortcuts(
+      bindings: shortcuts,
+      child: Focus(
+        autofocus: true,
+        child: Listener(
+          onPointerSignal: _onPointerSignal,
+          child: PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (bool didPop, dynamic result) async {
+              if (didPop) return;
+              if (await _canGoBack()) {
+                await _goBack();
+              } else {
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+              }
+            },
+            child: Scaffold(
+              backgroundColor:
+                  _isDarkMode ? const Color(0xFF121212) : Colors.white,
+              appBar: AppBar(
+                backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : null,
+                foregroundColor: _isDarkMode ? Colors.white : null,
+                titleSpacing: 0,
+                title: Text(
+                  widget.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                ),
+                centerTitle: true,
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Back',
+                  onPressed: _handleBack,
+                ),
+                actions: _isDesktop
+                    ? [
+                        IconButton(
+                          tooltip: 'Previous page',
+                          icon: const Icon(Icons.chevron_left_rounded, size: 28),
+                          onPressed: _goBack,
+                        ),
+                        IconButton(
+                          tooltip: 'Next page',
+                          icon: const Icon(Icons.chevron_right_rounded, size: 28),
+                          onPressed: _goForward,
+                        ),
+                        IconButton(
+                          tooltip: 'Reload',
+                          icon: const Icon(Icons.refresh_rounded),
+                          onPressed: _reload,
+                        ),
+                        _zoomControlAction(),
+                        _darkModeAction(),
+                        IconButton(
+                          tooltip: 'Open in Browser',
+                          icon: const Icon(Icons.open_in_browser),
+                          onPressed: _openInBrowser,
+                        ),
+                        _adBlockerAction(),
+                        IconButton(
+                          tooltip: 'Close newspaper',
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ]
+                    : [
+                        // Android/mobile: only the actions a reader needs. Back
+                        // handles history, and reload/open-in-browser live in the
+                        // overflow menu so the bar stays uncluttered.
+                        _darkModeAction(),
+                        _adBlockerAction(),
+                        _moreMenuAction(),
+                      ],
+              ),
         body: Stack(
           children: [
             if (_webController != null)
@@ -1131,10 +1527,14 @@ class _NewspaperPageState extends State<NewspaperPage>
                   ),
                 ),
               ),
-        )],
+              ),
+            ],
+          ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
 

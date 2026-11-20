@@ -109,6 +109,30 @@ void main() {
         await tester.tap(find.byIcon(Icons.refresh_rounded));
         await tester.pump();
         expect(methodCalls.map((c) => c.method), contains('reload'));
+
+        // Test zoom UI controls
+        expect(find.byIcon(Icons.remove_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+        expect(find.text('100%'), findsOneWidget);
+
+        // Zoom in from 100% to 110%
+        await tester.tap(find.byIcon(Icons.add_rounded));
+        await tester.pump();
+        expect(find.text('110%'), findsOneWidget);
+
+        final jsCalls = methodCalls
+            .where((c) => c.method == 'executeJavaScript')
+            .map((c) => c.arguments[1] as String)
+            .toList();
+        expect(jsCalls.any((code) => code.contains('zoom: 1.10 !important')), isTrue);
+
+        // Zoom out from 110% back to 100%
+        await tester.tap(find.byIcon(Icons.remove_rounded));
+        await tester.pump();
+        expect(find.text('100%'), findsOneWidget);
+
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getDouble('newspaper_zoom_level'), 1.0);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
@@ -147,6 +171,48 @@ void main() {
                 'Embedded web view could not be loaded. You can read Daily Star directly in your default browser.'),
             findsOneWidget);
         expect(find.text('Open in Browser'), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('restores persisted zoom level upon initialization',
+        (WidgetTester tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        SharedPreferences.setMockInitialValues({'newspaper_zoom_level': 1.25});
+
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(const MethodChannel('webview_cef'),
+                (MethodCall call) async {
+          methodCalls.add(call);
+          if (call.method == 'init') return null;
+          if (call.method == 'create') return [1, 100];
+          if (call.method == 'setJavaScriptChannels') return 1;
+          return null;
+        });
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: NewspaperPage(
+              name: 'Prothom Alo',
+              url: 'https://prothomalo.com',
+            ),
+          ),
+        );
+
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+
+        expect(find.text('125%'), findsOneWidget);
+
+        final jsCalls = methodCalls
+            .where((c) => c.method == 'executeJavaScript')
+            .map((c) => c.arguments[1] as String)
+            .toList();
+        expect(
+            jsCalls.any((code) => code.contains('zoom: 1.25 !important')), isTrue);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
