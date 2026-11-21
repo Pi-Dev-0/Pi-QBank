@@ -1009,6 +1009,12 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                 PopupMenuButton<String>(
                   tooltip: 'View options',
                   icon: const Icon(Icons.more_vert_rounded),
+                  menuPadding: const EdgeInsets.symmetric(vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 8,
+                  color: Theme.of(context).colorScheme.surface,
                   onSelected: (value) {
                     switch (value) {
                       case 'open-external':
@@ -1063,144 +1069,206 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                         _ready &&
                         _currentPage < total;
 
+                    // ── helpers ────────────────────────────────────────
+                    final cs = Theme.of(context).colorScheme;
+
+                    PopupMenuItem<String> item({
+                      required String value,
+                      required IconData icon,
+                      required String label,
+                      String? shortcut,
+                      bool enabled = true,
+                      Color? iconColor,
+                      bool active = false,
+                    }) {
+                      return PopupMenuItem<String>(
+                        value: value,
+                        enabled: enabled,
+                        padding: EdgeInsets.zero,
+                        height: 36,
+                        child: _MenuRow(
+                          icon: icon,
+                          label: label,
+                          shortcut: shortcut,
+                          enabled: enabled,
+                          iconColor: iconColor,
+                          active: active,
+                          activeColor: cs.primary,
+                        ),
+                      );
+                    }
+
+                    PopupMenuItem<String> sectionHeader(String title) {
+                      return PopupMenuItem<String>(
+                        enabled: false,
+                        height: 22,
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                        child: Text(
+                          title.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.1,
+                            color: cs.onSurface.withOpacity(0.42),
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Two side-by-side tappable cells in one row
+                    PopupMenuItem<String> pairedItem({
+                      required IconData icon1,
+                      required String label1,
+                      required String value1,
+                      bool enabled1 = true,
+                      required IconData icon2,
+                      required String label2,
+                      required String value2,
+                      bool enabled2 = true,
+                      Color? iconColor,
+                    }) {
+                      return PopupMenuItem<String>(
+                        enabled: false,
+                        padding: EdgeInsets.zero,
+                        height: 44,
+                        child: _PairedMenuRow(
+                          icon1: icon1,
+                          label1: label1,
+                          value1: value1,
+                          enabled1: enabled1,
+                          icon2: icon2,
+                          label2: label2,
+                          value2: value2,
+                          enabled2: enabled2,
+                          iconColor: iconColor ?? cs.primary,
+                        ),
+                      );
+                    }
+
+                    PopupMenuDivider divider() =>
+                        const PopupMenuDivider(height: 1);
+
+                    // ── items ───────────────────────────────────────────
                     return [
-                      const PopupMenuItem(
+                      // ── File ───────────────────────────────────────
+                      sectionHeader('File'),
+                      item(
                         value: 'open-external',
-                        child: _MenuRow(
-                          icon: Icons.open_in_new_rounded,
-                          label: 'Open in another app',
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'goto-page',
-                        enabled: hasPages,
-                        child: _MenuRow(
-                          icon: Icons.numbers_rounded,
-                          label: 'Go to page…',
-                          shortcut:
-                              total == null ? null : '$_currentPage / $total',
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'previous-page',
-                        enabled: canGoBack,
-                        child: _MenuRow(
-                          icon: Icons.chevron_left_rounded,
-                          label: 'Previous page',
-                          shortcut: showShortcuts ? '←' : null,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'next-page',
-                        enabled: canGoForward,
-                        child: _MenuRow(
-                          icon: Icons.chevron_right_rounded,
-                          label: 'Next page',
-                          shortcut: showShortcuts ? '→' : null,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'first-page',
-                        enabled: canGoBack,
-                        child: const _MenuRow(
-                          icon: Icons.first_page_rounded,
-                          label: 'First page',
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'last-page',
-                        enabled: canGoForward,
-                        child: const _MenuRow(
-                          icon: Icons.last_page_rounded,
-                          label: 'Last page',
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'zoom-in',
-                        enabled: _ready,
-                        child: _MenuRow(
-                          icon: Icons.zoom_in_rounded,
-                          label: 'Zoom in',
-                          shortcut: showShortcuts ? 'Ctrl +' : null,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'zoom-out',
-                        enabled: _ready,
-                        child: _MenuRow(
-                          icon: Icons.zoom_out_rounded,
-                          label: 'Zoom out',
-                          shortcut: showShortcuts ? 'Ctrl −' : null,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'fit-width',
-                        child: _MenuRow(
-                          icon: Icons.width_full_rounded,
-                          label: 'Fit width',
-                          shortcut: showShortcuts ? 'Ctrl+1' : null,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'fit-page',
-                        child: _MenuRow(
-                          icon: Icons.fit_screen_rounded,
-                          label: 'Fit page',
-                          shortcut: showShortcuts ? 'Ctrl+0' : null,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'actual-size',
-                        child: _MenuRow(
-                          icon: Icons.crop_free_rounded,
-                          label: 'Actual size',
-                          shortcut: showShortcuts ? 'Ctrl+2' : null,
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'night-mode',
-                        child: _MenuRow(
-                          icon: _nightMode
-                              ? Icons.light_mode_rounded
-                              : Icons.dark_mode_rounded,
-                          label: _nightMode ? 'Light mode' : 'Night mode',
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'select-text',
-                        child: _MenuRow(
-                          icon: _textSelectionEnabled
-                              ? Icons.check_box_rounded
-                              : Icons.check_box_outline_blank_rounded,
-                          label: 'Select text',
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'bookmarks',
-                        child: _MenuRow(
-                          icon: Icons.bookmarks_rounded,
-                          label: 'Bookmarks (${_bookmarkedPages.length})',
-                        ),
+                        icon: Icons.open_in_new_rounded,
+                        label: 'Open in another app',
+                        iconColor: const Color(0xFF6366F1),
                       ),
                       if (canShare)
-                        const PopupMenuItem(
+                        item(
                           value: 'share',
-                          child: _MenuRow(
-                            icon: Icons.share_rounded,
-                            label: 'Share',
-                          ),
+                          icon: Icons.share_rounded,
+                          label: 'Share',
+                          iconColor: const Color(0xFF0EA5E9),
                         ),
+                      divider(),
+
+                      // ── Navigation ─────────────────────────────────
+                      sectionHeader('Navigation'),
+                      item(
+                        value: 'goto-page',
+                        icon: Icons.tag_rounded,
+                        label: 'Go to page…',
+                        shortcut:
+                            total == null ? null : '$_currentPage / $total',
+                        enabled: hasPages,
+                        iconColor: const Color(0xFF8B5CF6),
+                      ),
+                      pairedItem(
+                        icon1: Icons.arrow_back_ios_new_rounded,
+                        label1: 'Previous',
+                        value1: 'previous-page',
+                        enabled1: canGoBack,
+                        icon2: Icons.arrow_forward_ios_rounded,
+                        label2: 'Next',
+                        value2: 'next-page',
+                        enabled2: canGoForward,
+                        iconColor: const Color(0xFF8B5CF6),
+                      ),
+                      pairedItem(
+                        icon1: Icons.first_page_rounded,
+                        label1: 'First',
+                        value1: 'first-page',
+                        enabled1: canGoBack,
+                        icon2: Icons.last_page_rounded,
+                        label2: 'Last',
+                        value2: 'last-page',
+                        enabled2: canGoForward,
+                        iconColor: const Color(0xFF8B5CF6),
+                      ),
+                      divider(),
+
+                      // ── Zoom ───────────────────────────────────────
+                      sectionHeader('Zoom'),
+                      pairedItem(
+                        icon1: Icons.zoom_in_rounded,
+                        label1: 'Zoom in',
+                        value1: 'zoom-in',
+                        enabled1: _ready,
+                        icon2: Icons.zoom_out_rounded,
+                        label2: 'Zoom out',
+                        value2: 'zoom-out',
+                        enabled2: _ready,
+                        iconColor: const Color(0xFF10B981),
+                      ),
+                      item(
+                        value: 'fit-width',
+                        icon: Icons.width_full_rounded,
+                        label: 'Fit width',
+                        iconColor: const Color(0xFF10B981),
+                      ),
+                      item(
+                        value: 'fit-page',
+                        icon: Icons.fit_screen_rounded,
+                        label: 'Fit page',
+                        iconColor: const Color(0xFF10B981),
+                      ),
+                      item(
+                        value: 'actual-size',
+                        icon: Icons.crop_free_rounded,
+                        label: 'Actual size',
+                        iconColor: const Color(0xFF10B981),
+                      ),
+                      divider(),
+
+                      // ── Tools ──────────────────────────────────────
+                      sectionHeader('Tools'),
+                      item(
+                        value: 'night-mode',
+                        icon: _nightMode
+                            ? Icons.light_mode_rounded
+                            : Icons.dark_mode_rounded,
+                        label: _nightMode ? 'Light mode' : 'Night mode',
+                        iconColor: _nightMode
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFF6366F1),
+                        active: _nightMode,
+                      ),
+                      item(
+                        value: 'select-text',
+                        icon: Icons.text_fields_rounded,
+                        label: 'Select text',
+                        iconColor: const Color(0xFF0EA5E9),
+                        active: _textSelectionEnabled,
+                      ),
+                      item(
+                        value: 'bookmarks',
+                        icon: Icons.bookmarks_rounded,
+                        label: 'Bookmarks (${_bookmarkedPages.length})',
+                        iconColor: const Color(0xFFEF4444),
+                        active: _bookmarkedPages.isNotEmpty,
+                      ),
                       if (showShortcuts) ...[
-                        const PopupMenuDivider(),
-                        const PopupMenuItem(
+                        divider(),
+                        item(
                           value: 'keyboard-shortcuts',
-                          child: _MenuRow(
-                            icon: Icons.keyboard_rounded,
-                            label: 'Keyboard shortcuts',
-                          ),
+                          icon: Icons.keyboard_rounded,
+                          label: 'Keyboard shortcuts',
+                          iconColor: const Color(0xFF64748B),
                         ),
                       ],
                     ];
@@ -1959,32 +2027,194 @@ class _ViewerLoadingBanner extends StatelessWidget {
   }
 }
 
+// Two equal-width tappable cells side by side inside one PopupMenuItem.
+// Because PopupMenuItem only carries one value, each cell calls
+// Navigator.pop(context, value) directly via InkWell.
+class _PairedMenuRow extends StatelessWidget {
+  const _PairedMenuRow({
+    required this.icon1,
+    required this.label1,
+    required this.value1,
+    this.enabled1 = true,
+    required this.icon2,
+    required this.label2,
+    required this.value2,
+    this.enabled2 = true,
+    required this.iconColor,
+  });
+
+  final IconData icon1;
+  final String label1;
+  final String value1;
+  final bool enabled1;
+  final IconData icon2;
+  final String label2;
+  final String value2;
+  final bool enabled2;
+  final Color iconColor;
+
+  Widget _cell(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+    required bool enabled,
+  }) {
+    final effectiveColor = enabled ? iconColor : Colors.grey.shade400;
+    final labelColor = enabled
+        ? Theme.of(context).colorScheme.onSurface
+        : Colors.grey.shade400;
+    return Expanded(
+      child: InkWell(
+        onTap: enabled ? () => Navigator.pop(context, value) : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: effectiveColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 15, color: effectiveColor),
+              ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 12.5, color: labelColor),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          _cell(
+            context,
+            icon: icon1,
+            label: label1,
+            value: value1,
+            enabled: enabled1,
+          ),
+          Container(
+            width: 1,
+            height: 28,
+            color: Theme.of(context).dividerColor.withOpacity(0.5),
+          ),
+          _cell(
+            context,
+            icon: icon2,
+            label: label2,
+            value: value2,
+            enabled: enabled2,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MenuRow extends StatelessWidget {
   const _MenuRow({
     required this.icon,
     required this.label,
     this.shortcut,
+    this.enabled = true,
+    this.iconColor,
+    this.active = false,
+    this.activeColor,
   });
 
   final IconData icon;
   final String label;
   final String? shortcut;
+  final bool enabled;
+  final Color? iconColor;
+  final bool active;
+  final Color? activeColor;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: 12),
-        Text(label),
-        if (shortcut != null) ...[
-          const SizedBox(width: 24),
-          Text(
-            shortcut!,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+    final effectiveIconColor = enabled
+        ? (iconColor ?? Theme.of(context).colorScheme.primary)
+        : Colors.grey.shade400;
+    final labelColor = enabled
+        ? Theme.of(context).colorScheme.onSurface
+        : Colors.grey.shade400;
+    final bgColor = effectiveIconColor.withOpacity(0.12);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          // Rounded icon badge
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: active
+                  ? effectiveIconColor.withOpacity(0.18)
+                  : bgColor,
+              borderRadius: BorderRadius.circular(10),
+              border: active
+                  ? Border.all(
+                      color: effectiveIconColor.withOpacity(0.5), width: 1.5)
+                  : null,
+            ),
+            child: Icon(icon, size: 18, color: effectiveIconColor),
           ),
+          const SizedBox(width: 12),
+          // Label
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                color: labelColor,
+              ),
+            ),
+          ),
+          // Shortcut badge
+          if (shortcut != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                shortcut!,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ),
+          ],
+          // Active checkmark
+          if (active && shortcut == null) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.check_rounded,
+                size: 16, color: activeColor ?? effectiveIconColor),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
