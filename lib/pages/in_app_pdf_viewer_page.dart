@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -87,8 +88,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
 
   int? _totalPages;
   int _currentPage = 1;
-  int _sliderPage = 1;
-  bool _isScrubbing = false;
   bool _ready = false;
   bool _textSelectionEnabled = false;
   bool _askingPassword = false;
@@ -149,8 +148,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
         _ready = false;
         _totalPages = null;
         _currentPage = 1;
-        _sliderPage = 1;
-        _isScrubbing = false;
       });
     }
 
@@ -538,8 +535,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
         _ready = true;
         _totalPages = 0;
         _currentPage = 1;
-        _sliderPage = 1;
-        _isScrubbing = false;
       });
       return;
     }
@@ -548,8 +543,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       _ready = true;
       _totalPages = total;
       _currentPage = page;
-      _sliderPage = page;
-      _isScrubbing = false;
     });
 
     // The previous Android reader opened documents at "fit width", which is
@@ -589,10 +582,8 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       _totalPages = pages;
       if (pages > 0) {
         _currentPage = _currentPage.clamp(1, pages);
-        _sliderPage = _sliderPage.clamp(1, pages);
       } else {
         _currentPage = 1;
-        _sliderPage = 1;
       }
     });
   }
@@ -602,12 +593,8 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
     final total = _totalPages;
     if (total != null && total < 1) return;
     final page = total == null ? pageNumber : pageNumber.clamp(1, total);
-    if (page == _currentPage && (!_isScrubbing || page == _sliderPage)) return;
-
-    setState(() {
-      _currentPage = page;
-      if (!_isScrubbing) _sliderPage = page;
-    });
+    if (page == _currentPage) return;
+    setState(() => _currentPage = page);
   }
 
   Future<String?> _askForPassword() async {
@@ -691,15 +678,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
     final total = _totalPages;
     if (total == null) return;
     await _goToPage(total);
-  }
-
-  Future<void> _finishScrubbing(double value) async {
-    final target = value.round();
-    try {
-      await _goToPage(target);
-    } finally {
-      if (mounted) setState(() => _isScrubbing = false);
-    }
   }
 
   Future<void> _zoomIn() async {
@@ -920,8 +898,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       _ready = false;
       _totalPages = null;
       _currentPage = 1;
-      _sliderPage = 1;
-      _isScrubbing = false;
     });
   }
 
@@ -1037,6 +1013,20 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                     switch (value) {
                       case 'open-external':
                         _openExternally();
+                      case 'goto-page':
+                        _showGoToPageDialog();
+                      case 'previous-page':
+                        _previousPage();
+                      case 'next-page':
+                        _nextPage();
+                      case 'first-page':
+                        _firstPage();
+                      case 'last-page':
+                        _lastPage();
+                      case 'zoom-in':
+                        _zoomIn();
+                      case 'zoom-out':
+                        _zoomOut();
                       case 'fit-width':
                         _fitWidth();
                       case 'fit-page':
@@ -1062,6 +1052,16 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                     final canShare = Platform.isAndroid ||
                         Platform.isMacOS ||
                         Platform.isWindows;
+                    final total = _totalPages;
+                    final hasPages = _ready && total != null && total > 0;
+                    final canGoBack = total != null &&
+                        total > 0 &&
+                        _ready &&
+                        _currentPage > 1;
+                    final canGoForward = total != null &&
+                        total > 0 &&
+                        _ready &&
+                        _currentPage < total;
 
                     return [
                       const PopupMenuItem(
@@ -1072,6 +1072,69 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                         ),
                       ),
                       const PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'goto-page',
+                        enabled: hasPages,
+                        child: _MenuRow(
+                          icon: Icons.numbers_rounded,
+                          label: 'Go to page…',
+                          shortcut:
+                              total == null ? null : '$_currentPage / $total',
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'previous-page',
+                        enabled: canGoBack,
+                        child: _MenuRow(
+                          icon: Icons.chevron_left_rounded,
+                          label: 'Previous page',
+                          shortcut: showShortcuts ? '←' : null,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'next-page',
+                        enabled: canGoForward,
+                        child: _MenuRow(
+                          icon: Icons.chevron_right_rounded,
+                          label: 'Next page',
+                          shortcut: showShortcuts ? '→' : null,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'first-page',
+                        enabled: canGoBack,
+                        child: const _MenuRow(
+                          icon: Icons.first_page_rounded,
+                          label: 'First page',
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'last-page',
+                        enabled: canGoForward,
+                        child: const _MenuRow(
+                          icon: Icons.last_page_rounded,
+                          label: 'Last page',
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'zoom-in',
+                        enabled: _ready,
+                        child: _MenuRow(
+                          icon: Icons.zoom_in_rounded,
+                          label: 'Zoom in',
+                          shortcut: showShortcuts ? 'Ctrl +' : null,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'zoom-out',
+                        enabled: _ready,
+                        child: _MenuRow(
+                          icon: Icons.zoom_out_rounded,
+                          label: 'Zoom out',
+                          shortcut: showShortcuts ? 'Ctrl −' : null,
+                        ),
+                      ),
                       PopupMenuItem(
                         value: 'fit-width',
                         child: _MenuRow(
@@ -1214,14 +1277,26 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       children: [
         _searchVisible ? _buildSearchBar() : const SizedBox.shrink(),
         Expanded(
-          child: _nightMode
-              ? ColorFiltered(
-                  colorFilter: _nightModeFilter,
-                  child: viewer,
-                )
-              : viewer,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _nightMode
+                    ? ColorFiltered(
+                        colorFilter: _nightModeFilter,
+                        child: viewer,
+                      )
+                    : viewer,
+              ),
+              // The old bottom slider/page bar is replaced by this right-edge
+              // page scrubber. It is deliberately outside the night-mode
+              // ColorFiltered layer so its colours stay accurate.
+              _PageScrollBar(
+                controller: _controller,
+                nightMode: _nightMode,
+              ),
+            ],
+          ),
         ),
-        _buildBottomBar(),
       ],
     );
   }
@@ -1462,228 +1537,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
     );
   }
 
-  Widget _buildBottomBar() {
-    final total = _totalPages;
-    final displayedPage = _isScrubbing ? _sliderPage : _currentPage;
-    final foreground = _nightMode ? Colors.white : Colors.black87;
-
-    return Theme(
-      data: Theme.of(context).copyWith(
-        disabledColor: foreground.withOpacity(0.35),
-      ),
-      child: Material(
-        color: _nightMode ? const Color(0xFF1E1E1E) : Colors.white,
-        elevation: 12,
-        shadowColor: Colors.black26,
-        child: SafeArea(
-          top: false,
-          child: IconTheme(
-            data: IconThemeData(color: foreground),
-            child: DefaultTextStyle.merge(
-              style: TextStyle(color: foreground),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (total != null && total > 1)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 3,
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 6,
-                          ),
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 14,
-                          ),
-                          activeTrackColor:
-                              Theme.of(context).colorScheme.primary,
-                          inactiveTrackColor: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withOpacity(0.18),
-                          thumbColor: Theme.of(context).colorScheme.primary,
-                          overlayColor: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withOpacity(0.12),
-                        ),
-                        child: Slider(
-                          value: displayedPage.clamp(1, total).toDouble(),
-                          min: 1,
-                          max: total.toDouble(),
-                          semanticFormatterCallback: (value) =>
-                              'Page ${value.round()} of $total',
-                          onChangeStart: (value) {
-                            setState(() {
-                              _isScrubbing = true;
-                              _sliderPage = value.round();
-                            });
-                          },
-                          onChanged: (value) {
-                            setState(() => _sliderPage = value.round());
-                          },
-                          onChangeEnd: _finishScrubbing,
-                        ),
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final wide = constraints.maxWidth >= 720;
-                        final pageNavigation =
-                            _buildPageNavigation(displayedPage);
-                        final zoomControls = _buildZoomControls();
-
-                        if (wide) {
-                          return Row(
-                            children: [
-                              Expanded(
-                                child: Center(child: pageNavigation),
-                              ),
-                              zoomControls,
-                            ],
-                          );
-                        }
-
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            pageNavigation,
-                            const SizedBox(height: 2),
-                            zoomControls,
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPageNavigation(int displayedPage) {
-    final total = _totalPages;
-    final enabled = _ready && total != null && total > 0;
-    final canGoBack = _ready && total != null && displayedPage > 1;
-    final canGoForward = _ready && total != null && displayedPage < total;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'First page',
-          visualDensity: VisualDensity.compact,
-          onPressed: canGoBack ? _firstPage : null,
-          icon: const Icon(Icons.first_page_rounded),
-        ),
-        IconButton(
-          tooltip: 'Previous page',
-          visualDensity: VisualDensity.compact,
-          onPressed: canGoBack ? _previousPage : null,
-          icon: const Icon(Icons.chevron_left_rounded),
-        ),
-        TextButton(
-          onPressed: enabled ? _showGoToPageDialog : null,
-          style: TextButton.styleFrom(
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          child: Text(
-            total == null
-                ? 'Opening...'
-                : total == 0
-                    ? 'No pages'
-                    : 'Page ${displayedPage.clamp(1, total)} of $total',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Next page',
-          visualDensity: VisualDensity.compact,
-          onPressed: canGoForward ? _nextPage : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-        ),
-        IconButton(
-          tooltip: 'Last page',
-          visualDensity: VisualDensity.compact,
-          onPressed: canGoForward ? _lastPage : null,
-          icon: const Icon(Icons.last_page_rounded),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildZoomControls() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: 'Zoom out',
-          visualDensity: VisualDensity.compact,
-          onPressed: _ready ? _zoomOut : null,
-          icon: const Icon(Icons.remove_rounded),
-        ),
-        if (_ready)
-          ValueListenableBuilder<Matrix4>(
-            valueListenable: _controller,
-            builder: (context, matrix, child) => _ZoomBadge(
-              label: '${(matrix.zoom * 100).round()}%',
-              onTap: _actualSize,
-            ),
-          )
-        else
-          const _ZoomBadge(label: '100%'),
-        IconButton(
-          tooltip: 'Zoom in',
-          visualDensity: VisualDensity.compact,
-          onPressed: _ready ? _zoomIn : null,
-          icon: const Icon(Icons.add_rounded),
-        ),
-        Container(
-          width: 1,
-          height: 24,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          color: _nightMode ? Colors.white24 : Colors.grey.shade300,
-        ),
-        IconButton(
-          tooltip: 'Fit width',
-          visualDensity: VisualDensity.compact,
-          onPressed: _ready ? _fitWidth : null,
-          icon: const Icon(Icons.width_full_rounded),
-        ),
-        IconButton(
-          tooltip: 'Fit page',
-          visualDensity: VisualDensity.compact,
-          onPressed: _ready ? _fitPage : null,
-          icon: const Icon(Icons.fit_screen_rounded),
-        ),
-        Container(
-          width: 1,
-          height: 24,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          color: _nightMode ? Colors.white24 : Colors.grey.shade300,
-        ),
-        IconButton(
-          tooltip: _nightMode ? 'Light mode' : 'Night mode',
-          visualDensity: VisualDensity.compact,
-          onPressed: () => setState(() => _nightMode = !_nightMode),
-          icon: Icon(
-            _nightMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildErrorState({
     required String message,
     String? detail,
@@ -1819,33 +1672,265 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   }
 }
 
-class _ZoomBadge extends StatelessWidget {
-  const _ZoomBadge({required this.label, this.onTap});
+/// A slim, draggable page scrubber pinned to the right edge of the viewer.
+///
+/// The thumb shows the current page number and total page count. Dragging it
+/// scrolls the document continuously; tapping or dragging the rail jumps
+/// straight to that position.
+class _PageScrollBar extends StatefulWidget {
+  const _PageScrollBar({
+    required this.controller,
+    required this.nightMode,
+  });
 
-  final String label;
-  final VoidCallback? onTap;
+  final PdfViewerController controller;
+  final bool nightMode;
+
+  @override
+  State<_PageScrollBar> createState() => _PageScrollBarState();
+}
+
+class _PageScrollBarState extends State<_PageScrollBar> {
+  static const double _barWidth = 36;
+  static const double _thumbHeight = 58;
+  static const double _edgeInset = 4;
+  static const double _verticalInset = 10;
+
+  bool _dragging = false;
+  double? _dragThumbTop;
+  int _lastHapticPage = 0;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Actual size',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 56,
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+    return ValueListenableBuilder<Matrix4>(
+      valueListenable: widget.controller,
+      builder: (context, _, __) {
+        final controller = widget.controller;
+        if (!controller.isReady) return const SizedBox.shrink();
+
+        final documentSize = controller.documentSize;
+        final viewRect = controller.visibleRect;
+        final maxTop = documentSize.height - viewRect.height;
+        final total = controller.pageCount;
+        if (maxTop <= 1 || total < 2) return const SizedBox.shrink();
+
+        final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+
+        return Positioned(
+          top: _verticalInset,
+          bottom: _verticalInset + bottomInset,
+          right: _edgeInset,
+          width: _barWidth,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final trackHeight = constraints.maxHeight;
+              final travel = math.max(0.0, trackHeight - _thumbHeight);
+              final naturalTop =
+                  (viewRect.top / maxTop).clamp(0.0, 1.0) * travel;
+              final thumbTop = (_dragThumbTop ?? naturalTop).clamp(0.0, travel);
+              final page = (controller.pageNumber ?? 1).clamp(1, total);
+
+              return Semantics(
+                label: 'Page scroll bar',
+                value: 'Page $page of $total',
+                hint: 'Swipe up or down to move through the document',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (details) {
+                    final y = details.localPosition.dy;
+                    final onThumb =
+                        y >= thumbTop && y <= thumbTop + _thumbHeight;
+                    if (onThumb) return;
+                    _applyFraction(
+                      _fractionForPosition(y, travel),
+                      duration: const Duration(milliseconds: 220),
+                    );
+                  },
+                  onVerticalDragStart: (details) {
+                    final y = details.localPosition.dy;
+                    final onThumb =
+                        y >= thumbTop && y <= thumbTop + _thumbHeight;
+                    final startTop = onThumb
+                        ? thumbTop
+                        : (y - _thumbHeight / 2).clamp(0.0, travel);
+                    setState(() {
+                      _dragging = true;
+                      _dragThumbTop = startTop;
+                    });
+                    if (!onThumb) {
+                      _applyFraction(
+                        travel <= 0 ? 0 : startTop / travel,
+                      );
+                    }
+                  },
+                  onVerticalDragUpdate: (details) {
+                    final next =
+                        ((_dragThumbTop ?? thumbTop) + details.delta.dy)
+                            .clamp(0.0, travel);
+                    setState(() => _dragThumbTop = next);
+                    _applyFraction(travel <= 0 ? 0 : next / travel);
+                  },
+                  onVerticalDragEnd: (_) => _endDrag(),
+                  onVerticalDragCancel: _endDrag,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 160),
+                        curve: Curves.easeOut,
+                        top: 0,
+                        bottom: 0,
+                        left: (_barWidth - (_dragging ? 6 : 4)) / 2,
+                        width: _dragging ? 6 : 4,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: widget.nightMode
+                                ? Colors.white.withOpacity(0.22)
+                                : Colors.black.withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: thumbTop,
+                        left: 0,
+                        right: 0,
+                        height: _thumbHeight,
+                        child: AnimatedScale(
+                          scale: _dragging ? 1.06 : 1.0,
+                          duration: const Duration(milliseconds: 150),
+                          curve: Curves.easeOut,
+                          child: _buildThumb(page, total),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildThumb(int page, int total) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final gradientStart = widget.nightMode ? const Color(0xFF5B8DEF) : primary;
+    final gradientEnd = widget.nightMode
+        ? const Color(0xFF2D5BD1)
+        : Color.lerp(primary, Colors.black, 0.35)!;
+    final pageFontSize = page >= 1000
+        ? 10.5
+        : page >= 100
+            ? 12.0
+            : 13.5;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [gradientStart, gradientEnd],
+        ),
+        borderRadius: BorderRadius.circular(_barWidth / 2),
+        border: Border.all(
+          color: Colors.white.withOpacity(widget.nightMode ? 0.28 : 0.85),
+          width: 1.4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: gradientStart.withOpacity(_dragging ? 0.5 : 0.3),
+            blurRadius: _dragging ? 18 : 10,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(widget.nightMode ? 0.55 : 0.28),
+            blurRadius: _dragging ? 13 : 7,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '$page',
+            maxLines: 1,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: pageFontSize,
+              fontWeight: FontWeight.w800,
+              height: 1.0,
+              letterSpacing: -0.3,
             ),
           ),
-        ),
+          const SizedBox(height: 2),
+          Text(
+            '/$total',
+            maxLines: 1,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.78),
+              fontSize: 8,
+              fontWeight: FontWeight.w600,
+              height: 1.0,
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  double _fractionForPosition(double y, double travel) {
+    if (travel <= 0) return 0;
+    return ((y - _thumbHeight / 2) / travel).clamp(0.0, 1.0);
+  }
+
+  void _applyFraction(
+    double fraction, {
+    Duration duration = Duration.zero,
+  }) {
+    final controller = widget.controller;
+    if (!controller.isReady) return;
+
+    final viewRect = controller.visibleRect;
+    final documentSize = controller.documentSize;
+    final maxTop = documentSize.height - viewRect.height;
+    if (maxTop <= 0) return;
+
+    final targetTop = fraction.clamp(0.0, 1.0) * maxTop;
+    final targetCenter =
+        Offset(viewRect.center.dx, targetTop + viewRect.height / 2);
+    final matrix =
+        controller.calcMatrixFor(targetCenter, zoom: controller.currentZoom);
+
+    if (duration == Duration.zero) {
+      controller.value = matrix;
+    } else {
+      controller.goTo(matrix, duration: duration);
+    }
+    _maybeHaptic(targetCenter.dy);
+  }
+
+  void _maybeHaptic(double documentY) {
+    final layouts = widget.controller.layout.pageLayouts;
+    var page = layouts.length;
+    for (var i = 0; i < layouts.length; i++) {
+      if (documentY < layouts[i].bottom) {
+        page = i + 1;
+        break;
+      }
+    }
+    if (page == _lastHapticPage) return;
+    _lastHapticPage = page;
+    HapticFeedback.selectionClick();
+  }
+
+  void _endDrag() {
+    if (!mounted) return;
+    setState(() {
+      _dragging = false;
+      _dragThumbTop = null;
+    });
   }
 }
 
