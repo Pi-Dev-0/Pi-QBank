@@ -1093,15 +1093,26 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
                                 ),
                                 borderRadius: BorderRadius.circular(12),
                                 color: selected
-                                    ? const Color(0xFFF7F5FF)
+                                    ? const Color(0xFFF6F4FF)
                                     : Colors.white,
+                                boxShadow: selected
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(0xFF4F46E5)
+                                              .withOpacity(0.12),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 3.5),
+                                        ),
+                                      ]
+                                    : null,
                               ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
                                       child: _questionSelectionCard(
-                                          index, question)),
+                                          index, question,
+                                          selected: selected)),
                                   const SizedBox(width: 8),
                                   Checkbox(
                                     value: selected,
@@ -1155,7 +1166,8 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
     return text.isEmpty ? question.paperStemText.trim() : text;
   }
 
-  Widget _questionSelectionCard(int index, HighSchoolQuestion question) {
+  Widget _questionSelectionCard(int index, HighSchoolQuestion question,
+      {bool selected = false}) {
     final imageUrl =
         HighSchoolExportService.resolveImageUrl(question.stemImageUrl);
     final optionData = question.mcqData;
@@ -1168,11 +1180,48 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
             Expanded(
               child: mathText(
                 '${index + 1}. ${_questionLabel(question)}',
-                style: const TextStyle(
-                    fontSize: 15, height: 1.35, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                    fontSize: 15,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                    color: selected
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFF1E1B3A)),
               ),
             ),
             const SizedBox(width: 8),
+            if (selected) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4F46E5).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: const Color(0xFF4F46E5).withOpacity(0.25)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF4F46E5),
+                      size: 13,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'নির্বাচিত',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF4F46E5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
             _questionTypeBadge(question),
           ],
         ),
@@ -1191,8 +1240,25 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 9, vertical: 7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF1F3F6),
+                        color: selected
+                            ? Colors.white
+                            : const Color(0xFFF1F3F6),
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: selected
+                              ? const Color(0xFF4F46E5).withOpacity(0.16)
+                              : Colors.transparent,
+                        ),
+                        boxShadow: selected
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF4F46E5)
+                                      .withOpacity(0.04),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ]
+                            : null,
                       ),
                       child: mathText(
                         '(${['ক', 'খ', 'গ', 'ঘ'][i]}) ${optionData.options[i]}',
@@ -1209,9 +1275,22 @@ class _WebQuestionPaperPageState extends State<WebQuestionPaperPage> {
           for (final sub in question.cqSubQuestions)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: mathText(
-                '(${sub.label}) ${sub.text}',
-                style: const TextStyle(fontSize: 13, height: 1.25),
+              child: Container(
+                padding: selected
+                    ? const EdgeInsets.symmetric(horizontal: 7, vertical: 3)
+                    : EdgeInsets.zero,
+                decoration: selected
+                    ? BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: const Color(0xFF4F46E5).withOpacity(0.12)),
+                      )
+                    : null,
+                child: mathText(
+                  '(${sub.label}) ${sub.text}',
+                  style: const TextStyle(fontSize: 13, height: 1.25),
+                ),
               ),
             ),
         ],

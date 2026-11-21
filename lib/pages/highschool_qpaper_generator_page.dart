@@ -614,6 +614,28 @@ class _HighSchoolQPaperGeneratorPageState
   /// give the preview the whole width; the same toggle lives in the app bar.
   bool _desktopSettingsOpen = true;
 
+  /// Widths of the studio's two side panes, in logical pixels.
+  ///
+  /// The middle preview takes whatever is left, so only the picker and the
+  /// settings rail need remembering. They stay null until the first layout
+  /// measures the window, then the drag handles own them.
+  double? _studioControlsWidth;
+  double? _studioSettingsWidth;
+
+  /// True while a handle is being dragged, so the rail's collapse animation
+  /// gets out of the way and the pane tracks the pointer exactly.
+  bool _studioResizing = false;
+
+  // The studio never lets a pane get so narrow that its content has to
+  // overflow. The preview keeps enough width to show a page, and the rail
+  // stays readable even at its smallest.
+  static const double _kStudioMinControlsWidth = 360;
+  static const double _kStudioMinPreviewWidth = 320;
+  static const double _kStudioMinSettingsWidth = 260;
+  static const double _kStudioDefaultSettingsWidth = 300;
+  static const double _kStudioCollapsedRailWidth = 48;
+  static const double _kStudioResizeHandleWidth = 9;
+
   /// Order the sections are printed in. Defaults to the paper's original
   /// arrangement: CQ, then the short questions, then MCQ.
   final List<_SectionKind> _sectionOrder = [
@@ -2043,10 +2065,30 @@ class _HighSchoolQPaperGeneratorPageState
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Center(
-              child: Chip(
-                avatar: const Icon(Icons.check_circle_outline, size: 17),
-                label: Text('$selectedCount নির্বাচিত'),
-                visualDensity: VisualDensity.compact,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _kPrimary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _kPrimary.withOpacity(0.28)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.check_circle_rounded,
+                        size: 15, color: _kPrimary),
+                    const SizedBox(width: 5),
+                    Text(
+                      '$selectedCount নির্বাচিত',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _kPrimary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -2066,31 +2108,138 @@ class _HighSchoolQPaperGeneratorPageState
   }
 
   Widget _buildStudioBody() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(child: _buildStudioControls()),
-        Expanded(child: _buildStudioPreview()),
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: _desktopSettingsOpen ? 300 : 48,
-          // While the rail is opening, its width passes through values far too
-          // narrow for the header and buttons. Lay the open rail out at its
-          // final width and let the animated container reveal it, instead of
-          // squeezing every row through a 40px frame.
-          child: ClipRect(
-            child: _desktopSettingsOpen
-                ? OverflowBox(
-                    alignment: Alignment.centerLeft,
-                    minWidth: 300,
-                    maxWidth: 300,
-                    child: _buildStudioSettingsRail(),
-                  )
-                : _buildCollapsedSettingsRail(),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Two handles sit between the three panes, so their width comes out
+        // before the rest is split.
+        final contentWidth = max(
+          0.0,
+          constraints.maxWidth - _kStudioResizeHandleWidth * 2,
+        );
+        final settingsOpen = _desktopSettingsOpen;
+
+        // The rail keeps its last open width while collapsed, so reopening it
+        // lands where the reader left it.
+        final maxSettingsWidth = max(
+          _kStudioMinSettingsWidth,
+          contentWidth - _kStudioMinControlsWidth - _kStudioMinPreviewWidth,
+        );
+        final settingsWidth = settingsOpen
+            ? (_studioSettingsWidth ?? _kStudioDefaultSettingsWidth)
+                .clamp(_kStudioMinSettingsWidth, maxSettingsWidth)
+                .toDouble()
+            : _kStudioCollapsedRailWidth;
+
+        final maxControlsWidth = max(
+          _kStudioMinControlsWidth,
+          contentWidth - settingsWidth - _kStudioMinPreviewWidth,
+        );
+        final controlsWidth =
+            (_studioControlsWidth ?? (contentWidth - settingsWidth) / 2)
+                .clamp(_kStudioMinControlsWidth, maxControlsWidth)
+                .toDouble();
+
+        // Remember the clamped values: a drag starts from what is on screen,
+        // and shrinking the window can never leave a pane below its minimum.
+        _studioControlsWidth = controlsWidth;
+        if (settingsOpen) _studioSettingsWidth = settingsWidth;
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(width: controlsWidth, child: _buildStudioControls()),
+            _StudioResizeHandle(
+              key: const ValueKey('studio-controls-resize-handle'),
+              onDragStart: _startStudioResize,
+              onDragUpdate: (delta) => _resizeStudioControls(
+                delta,
+                contentWidth: contentWidth,
+                settingsWidth: settingsWidth,
+              ),
+              onDragEnd: _endStudioResize,
+            ),
+            Expanded(child: _buildStudioPreview()),
+            _StudioResizeHandle(
+              key: const ValueKey('studio-settings-resize-handle'),
+              enabled: settingsOpen,
+              onDragStart: _startStudioResize,
+              onDragUpdate: (delta) => _resizeStudioSettings(
+                delta,
+                contentWidth: contentWidth,
+                controlsWidth: controlsWidth,
+              ),
+              onDragEnd: _endStudioResize,
+            ),
+            AnimatedContainer(
+              duration: _studioResizing
+                  ? Duration.zero
+                  : const Duration(milliseconds: 180),
+              width: settingsWidth,
+              // While the rail is opening, its width passes through values far
+              // too narrow for the header and buttons. Lay the open rail out
+              // at its final width and let the animated container reveal it,
+              // instead of squeezing every row through a 40px frame.
+              child: ClipRect(
+                child: settingsOpen
+                    ? OverflowBox(
+                        alignment: Alignment.centerLeft,
+                        minWidth: settingsWidth,
+                        maxWidth: settingsWidth,
+                        child: _buildStudioSettingsRail(),
+                      )
+                    : _buildCollapsedSettingsRail(),
+              ),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  void _startStudioResize() {
+    if (!_studioResizing) setState(() => _studioResizing = true);
+  }
+
+  void _endStudioResize() {
+    if (_studioResizing) setState(() => _studioResizing = false);
+  }
+
+  /// Widen or narrow the left pane. The divider follows the pointer, so the
+  /// preview gives up exactly the pixels the picker gains.
+  void _resizeStudioControls(
+    double delta, {
+    required double contentWidth,
+    required double settingsWidth,
+  }) {
+    final maxWidth = max(
+      _kStudioMinControlsWidth,
+      contentWidth - settingsWidth - _kStudioMinPreviewWidth,
+    );
+    setState(() {
+      _studioControlsWidth =
+          ((_studioControlsWidth ?? _kStudioMinControlsWidth) + delta)
+              .clamp(_kStudioMinControlsWidth, maxWidth)
+              .toDouble();
+    });
+  }
+
+  /// Widen or narrow the settings rail. Dragging its divider left makes the
+  /// rail wider, which is the direction the edge itself moves.
+  void _resizeStudioSettings(
+    double delta, {
+    required double contentWidth,
+    required double controlsWidth,
+  }) {
+    final maxWidth = max(
+      _kStudioMinSettingsWidth,
+      contentWidth - controlsWidth - _kStudioMinPreviewWidth,
+    );
+    setState(() {
+      _studioSettingsWidth =
+          ((_studioSettingsWidth ?? _kStudioDefaultSettingsWidth) - delta)
+              .clamp(_kStudioMinSettingsWidth, maxWidth)
+              .toDouble();
+    });
   }
 
   // ── Centre card: the paper's setup, then the picker ────────────────────────
@@ -5155,7 +5304,7 @@ class _HighSchoolQPaperGeneratorPageState
       duration: const Duration(milliseconds: 200),
       margin: EdgeInsets.only(bottom: isAndroid ? 8 : 10),
       decoration: BoxDecoration(
-        color: q.isSelected ? const Color(0xFFF7F5FF) : Colors.white,
+        color: q.isSelected ? const Color(0xFFF6F4FE) : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: q.isSelected ? _kPrimary : const Color(0xFFD9E1EA),
@@ -5164,10 +5313,10 @@ class _HighSchoolQPaperGeneratorPageState
         boxShadow: [
           BoxShadow(
             color: q.isSelected
-                ? _kPrimary.withOpacity(0.10)
+                ? _kPrimary.withOpacity(0.14)
                 : Colors.black.withOpacity(0.035),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
+            blurRadius: q.isSelected ? 14 : 8,
+            offset: q.isSelected ? const Offset(0, 3.5) : const Offset(0, 2),
           ),
         ],
       ),
@@ -5201,21 +5350,66 @@ class _HighSchoolQPaperGeneratorPageState
                           onChanged: (_) => _toggleQuestion(q),
                         ),
                         const SizedBox(width: 4),
+                      ] else ...[
+                        Container(
+                          width: 20,
+                          height: 20,
+                          margin: const EdgeInsets.only(right: 6),
+                          decoration: BoxDecoration(
+                            color:
+                                q.isSelected ? _kPrimary : Colors.transparent,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: q.isSelected
+                                  ? _kPrimary
+                                  : const Color(0xFF94A3B8),
+                              width: q.isSelected ? 2 : 1.5,
+                            ),
+                          ),
+                          child: q.isSelected
+                              ? const Icon(Icons.check_rounded,
+                                  size: 14, color: Colors.white)
+                              : null,
+                        ),
                       ],
                       _QuestionMetaBadge(
                         type: q.questionType,
                         color: typeColor,
                         marks: q.totalMarks,
                       ),
-                      const Spacer(),
-                      if (isAndroid && q.isSelected) ...[
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          color: _kPrimary,
-                          size: 18,
+                      if (q.isSelected) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _kPrimary.withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(12),
+                            border:
+                                Border.all(color: _kPrimary.withOpacity(0.24)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                color: _kPrimary,
+                                size: 13,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'নির্বাচিত',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: _kPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(width: 6),
                       ],
+                      const Spacer(),
                       if (_showImportant) ...[
                         Material(
                           color: Colors.transparent,
@@ -5302,7 +5496,8 @@ class _HighSchoolQPaperGeneratorPageState
                         fontSize: isAndroid ? 14.5 : 15,
                         height: 1.35,
                         fontWeight: FontWeight.w700,
-                        color: _kDarkText,
+                        color:
+                            q.isSelected ? const Color(0xFF0F172A) : _kDarkText,
                       ),
                     ),
                   ),
@@ -5361,13 +5556,26 @@ class _HighSchoolQPaperGeneratorPageState
                     decoration: BoxDecoration(
                       color: isCorrect
                           ? _kRqColor.withOpacity(0.10)
-                          : const Color(0xFFF1F3F6),
+                          : (q.isSelected
+                              ? Colors.white
+                              : const Color(0xFFF1F3F6)),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isCorrect
                             ? _kRqColor.withOpacity(0.55)
-                            : Colors.transparent,
+                            : (q.isSelected
+                                ? _kPrimary.withOpacity(0.16)
+                                : Colors.transparent),
                       ),
+                      boxShadow: q.isSelected && !isCorrect
+                          ? [
+                              BoxShadow(
+                                color: _kPrimary.withOpacity(0.04),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ]
+                          : null,
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5377,12 +5585,18 @@ class _HighSchoolQPaperGeneratorPageState
                           height: 18,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: isCorrect ? _kRqColor : Colors.white,
+                            color: isCorrect
+                                ? _kRqColor
+                                : (q.isSelected
+                                    ? const Color(0xFFEDE9FE)
+                                    : Colors.white),
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(
                               color: isCorrect
                                   ? _kRqColor
-                                  : const Color(0xFFD9E1EA),
+                                  : (q.isSelected
+                                      ? _kPrimary.withOpacity(0.24)
+                                      : const Color(0xFFD9E1EA)),
                             ),
                           ),
                           child: Text(
@@ -5390,7 +5604,9 @@ class _HighSchoolQPaperGeneratorPageState
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: isCorrect ? Colors.white : _kSubText,
+                              color: isCorrect
+                                  ? Colors.white
+                                  : (q.isSelected ? _kPrimary : _kSubText),
                             ),
                           ),
                         ),
@@ -5436,37 +5652,49 @@ class _HighSchoolQPaperGeneratorPageState
           for (final sub in subs)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 18,
-                    height: 18,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _kCqColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      sub.label,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: _kCqColor,
+              child: Container(
+                padding: q.isSelected
+                    ? const EdgeInsets.symmetric(horizontal: 7, vertical: 4)
+                    : EdgeInsets.zero,
+                decoration: q.isSelected
+                    ? BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _kPrimary.withOpacity(0.12)),
+                      )
+                    : null,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _kCqColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        sub.label,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _kCqColor,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: mathText(
-                      sub.text,
-                      style: const TextStyle(fontSize: 13, height: 1.3),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: mathText(
+                        sub.text,
+                        style: const TextStyle(fontSize: 13, height: 1.3),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text('[${sub.mark}]',
-                      style: const TextStyle(fontSize: 11, color: _kSubText)),
-                ],
+                    const SizedBox(width: 6),
+                    Text('[${sub.mark}]',
+                        style: const TextStyle(fontSize: 11, color: _kSubText)),
+                  ],
+                ),
               ),
             ),
         ],
@@ -5548,8 +5776,9 @@ class _HighSchoolQPaperGeneratorPageState
               textColor: Colors.indigo.shade700),
         _TagChip(
             label: 'অধ্যায় ${q.chapterNumber}: ${q.chapterName}',
-            color: Colors.teal.shade50,
-            textColor: Colors.teal.shade700),
+            color: q.isSelected ? const Color(0xFFEEF2FF) : Colors.teal.shade50,
+            textColor:
+                q.isSelected ? const Color(0xFF4F46E5) : Colors.teal.shade700),
         // Only meaningful once the paper is being printed as two sets.
         if (_twoSets)
           for (var i = 0; i < 2; i++)
@@ -6002,6 +6231,87 @@ class _HighSchoolQPaperGeneratorPageState
 // ─────────────────────────────────────────────────────────────────────────────
 // Small reusable sub-widgets
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// The draggable rule between two panes of the desktop studio.
+///
+/// It is deliberately wider than the line it draws: the pointer only has to
+/// find the gap, not a 2px target. The line itself stays faint until the
+/// pointer arrives, then turns indigo so the pane edge reads as draggable.
+class _StudioResizeHandle extends StatefulWidget {
+  const _StudioResizeHandle({
+    super.key,
+    required this.onDragUpdate,
+    this.onDragStart,
+    this.onDragEnd,
+    this.enabled = true,
+  });
+
+  final ValueChanged<double> onDragUpdate;
+  final VoidCallback? onDragStart;
+  final VoidCallback? onDragEnd;
+  final bool enabled;
+
+  @override
+  State<_StudioResizeHandle> createState() => _StudioResizeHandleState();
+}
+
+class _StudioResizeHandleState extends State<_StudioResizeHandle> {
+  bool _hovering = false;
+  bool _dragging = false;
+
+  void _setDragging(bool value) {
+    if (_dragging == value) return;
+    setState(() => _dragging = value);
+    if (value) {
+      widget.onDragStart?.call();
+    } else {
+      widget.onDragEnd?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // A collapsed rail is not a pane yet; the tune button opens it. Keeping
+    // the gap empty here stops the preview's edge from looking draggable when
+    // there is nothing to resize.
+    if (!widget.enabled) {
+      return const SizedBox(
+          width: _HighSchoolQPaperGeneratorPageState._kStudioResizeHandleWidth);
+    }
+
+    final active = _hovering || _dragging;
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeLeftRight,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragStart: (_) => _setDragging(true),
+        onHorizontalDragUpdate: (details) =>
+            widget.onDragUpdate(details.delta.dx),
+        onHorizontalDragEnd: (_) => _setDragging(false),
+        onHorizontalDragCancel: () => _setDragging(false),
+        child: SizedBox(
+          width: _HighSchoolQPaperGeneratorPageState._kStudioResizeHandleWidth,
+          child: Align(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              width: active ? 3 : 2,
+              height: double.infinity,
+              margin: const EdgeInsets.symmetric(vertical: 30),
+              decoration: BoxDecoration(
+                color: active
+                    ? _kPrimary.withOpacity(0.55)
+                    : const Color(0xFFD3DAE4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _StepIndicator extends StatelessWidget {
   final int currentStep;

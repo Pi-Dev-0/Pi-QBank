@@ -3754,12 +3754,21 @@ class _QuestionPickerState extends State<QuestionPicker> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: on ? _C.primary.withOpacity(0.05) : Colors.white,
+        color: on ? _C.primary.withOpacity(0.06) : Colors.white,
         borderRadius: BorderRadius.circular(13),
         border: Border.all(
           color: on ? _C.primary : _C.line,
-          width: on ? 1.5 : 1,
+          width: on ? 1.8 : 1,
         ),
+        boxShadow: on
+            ? [
+                BoxShadow(
+                  color: _C.primary.withOpacity(0.10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         children: [
@@ -3787,10 +3796,11 @@ class _QuestionPickerState extends State<QuestionPicker> {
                           (data?.text ?? '').trim(),
                           maxLines: open ? null : 2,
                           overflow: open ? null : TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             height: 1.35,
-                            color: _C.ink,
+                            fontWeight: on ? FontWeight.w600 : FontWeight.normal,
+                            color: on ? const Color(0xFF0F172A) : _C.ink,
                           ),
                         ),
                         const SizedBox(height: 5),
@@ -3800,6 +3810,23 @@ class _QuestionPickerState extends State<QuestionPicker> {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             if (position != null) _QuestionIndexPill(position),
+                            if (on)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _C.primary.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'নির্বাচিত',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: _C.primary,
+                                  ),
+                                ),
+                              ),
                             if (question.chapterName.isNotEmpty)
                               Text(
                                 question.chapterName,
