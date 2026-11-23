@@ -23,10 +23,6 @@ import '../widgets/custom_app_bar.dart';
 /// supported platform. It provides continuous scrolling, pinch/scroll zoom,
 /// page navigation, full-text search, bookmarks and lazy page rendering for
 /// long textbooks.
-// Temporary isolation flag: set to true to render a bare PdfViewer with no
-// overlays/filters to debug single-page blank pages.
-const bool _kDebugBareViewer = false;
-
 class InAppPdfViewerPage extends StatefulWidget {
   const InAppPdfViewerPage({
     super.key,
@@ -152,7 +148,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
 
   @override
   void dispose() {
-    _log('dispose viewer state');
     _readyWatchdog?.cancel();
     _autoScrollTicker.dispose();
     _removeSearchListener();
@@ -165,10 +160,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   String get _autoScrollSpeedLabel =>
       _autoScrollSpeedLabels[_autoScrollSpeedIndex];
 
-  void _log(String message) {
-    if (kDebugMode) debugPrint('[PDFDBG] $message');
-  }
-
   String get _sourceName {
     final base = widget.filePath ?? widget.pdfUrl ?? widget.title;
     return '$base#viewer=$_loadGeneration';
@@ -178,8 +169,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
       'bookmarks_${(widget.filePath ?? widget.pdfUrl ?? widget.title).hashCode}';
 
   Future<void> _load({bool initial = false}) async {
-    _log(
-        'load() start initial=$initial path=${widget.filePath} url=${widget.pdfUrl}');
     _resetSearch();
     _cancelReadyWatchdog();
     if (_autoScrollEnabled) _stopAutoScroll();
@@ -221,7 +210,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
               : 'The link did not return a PDF file. Try opening it in a browser.',
         );
       }
-      _log('load() bytes=${bytes.length} looksLikePdf=${_looksLikePdf(bytes)}');
       if (!mounted || generation != _loadGeneration) return;
 
       setState(() {
@@ -230,9 +218,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
         _error = null;
       });
       _startReadyWatchdog(generation);
-      _log('load() bytes assigned, viewer should build');
     } catch (e) {
-      _log('load() ERROR: $e');
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
@@ -260,8 +246,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
         return;
       }
       // Some damaged or unsupported PDFs make PDFium fail silently, leaving
-      // the viewer blank. surface a retry instead of a white screen.
-      _log('watchdog fired: document never became ready');
+      // the viewer blank. Surface a retry instead of a white screen.
       setState(() {
         _error =
             'This PDF could not be displayed. Try opening it in another app.';
@@ -615,12 +600,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
     if (!mounted) return;
     _cancelReadyWatchdog();
     final total = document.pages.length;
-    _log(
-        'viewerReady total=$total controllerReady=${controller.isReady} nightMode=$_nightMode ready=$_ready bytes=${_bytes?.length} error=$_error');
-    if (controller.isReady) {
-      _log(
-          'viewerReady viewSize=${controller.viewSize} docSize=${controller.documentSize} visible=${controller.visibleRect} pageNumber=${controller.pageNumber}');
-    }
     if (total == 0) {
       setState(() {
         _ready = true;
@@ -640,7 +619,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   void _handleDocumentChanged(PdfDocument? document) {
     if (!mounted) return;
     final pages = document?.pages.length;
-    _log('documentChanged pages=$pages');
     if (pages == null) {
       if (_autoScrollEnabled) _stopAutoScroll();
       if (_searchVisible || _searcher.matches.isNotEmpty) {
@@ -1576,15 +1554,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   Widget _buildBody() {
     if (_loading) return _buildLoading();
 
-    if (_kDebugBareViewer) {
-      if (widget.filePath != null) {
-        return PdfViewer.file(widget.filePath!);
-      }
-      if (widget.pdfUrl != null) {
-        return PdfViewer.uri(Uri.parse(widget.pdfUrl!));
-      }
-    }
-
     if (_error != null) {
       return _buildErrorState(
         message: _error!,
@@ -1641,7 +1610,6 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
           loadingBannerBuilder: (context, bytesDownloaded, totalBytes) =>
               const _ViewerLoadingBanner(),
           errorBannerBuilder: (context, error, stackTrace, documentRef) {
-            _log('pdfrx errorBanner: $error');
             return _buildErrorState(
               message:
                   'The file may be damaged, password protected, or not a valid PDF.',
