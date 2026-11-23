@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../widgets/custom_app_bar.dart';
+import '../widgets/loading_widget.dart';
 
 /// An in-app PDF viewer for local and online PDFs.
 ///
@@ -1707,36 +1708,9 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
 
   Widget _buildLoading() {
     final progress = _downloadProgress;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 46,
-            height: 46,
-            child: CircularProgressIndicator(
-              value: progress,
-              strokeWidth: 3.5,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            progress == null ? 'Opening PDF...' : 'Downloading PDF...',
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          if (progress != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              '${(progress * 100).round()}%',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-          ],
-        ],
-      ),
+    return LoadingWidget(
+      progress: progress ?? 0,
+      loadingText: progress == null ? 'Opening PDF...' : 'Downloading PDF...',
     );
   }
 
@@ -2510,22 +2484,8 @@ class _ViewerLoadingBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 34,
-            height: 34,
-            child: CircularProgressIndicator(strokeWidth: 3),
-          ),
-          SizedBox(height: 14),
-          Text(
-            'Preparing document...',
-            style: TextStyle(fontSize: 14, color: Colors.black54),
-          ),
-        ],
-      ),
+    return const LoadingWidget(
+      loadingText: 'Preparing document...',
     );
   }
 }
