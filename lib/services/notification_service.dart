@@ -68,8 +68,20 @@ class NotificationService {
       return _cachedNotifications;
     }
 
+    if (_scriptUrl.trim().isEmpty) {
+      final stored = await _loadStoredNotifications();
+      _initialFetchDone = true;
+      return stored;
+    }
+
     try {
-      final response = await http.get(Uri.parse(_scriptUrl));
+      final uri = Uri.tryParse(_scriptUrl);
+      if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+        final stored = await _loadStoredNotifications();
+        _initialFetchDone = true;
+        return stored;
+      }
+      final response = await http.get(uri);
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List<AppNotification> apiNotifications = [];

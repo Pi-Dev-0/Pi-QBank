@@ -124,6 +124,16 @@ class _LoadingWidgetState extends State<LoadingWidget> with SingleTickerProvider
                         child: Image.asset(
                           'assets/images/launcher.png',
                           fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.blue.shade50,
+                              child: Icon(
+                                Icons.school_rounded,
+                                color: Colors.blue.shade600,
+                                size: 48,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
