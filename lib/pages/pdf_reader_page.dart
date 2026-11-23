@@ -22,6 +22,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
   bool loading = true;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   // Colorful gradient colors
   final List<List<Color>> gradientColors = [
@@ -54,6 +56,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
 
   @override
   void dispose() {
+    _searchController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -88,7 +91,9 @@ class _PdfReaderPageState extends State<PdfReaderPage>
     setState(() {
       pdfFiles = foundPdfs;
       loading = false;
+      _searchQuery = '';
     });
+    _searchController.clear();
 
     _animationController.forward();
   }
@@ -132,6 +137,54 @@ class _PdfReaderPageState extends State<PdfReaderPage>
     return Colors.red;
   }
 
+  List<FileSystemEntity> get _filteredPdfFiles {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return pdfFiles;
+    return pdfFiles
+        .where((f) => f.path.split('/').last.toLowerCase().contains(query))
+        .toList();
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) => setState(() => _searchQuery = value),
+        style: const TextStyle(fontSize: 14),
+        decoration: InputDecoration(
+          hintText: 'Search PDFs by name...',
+          hintStyle: const TextStyle(color: Colors.grey),
+          prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.grey),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                ),
+          filled: true,
+          fillColor: Colors.grey.shade100,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFF667eea), width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildEmptyState() {
     return Container(
@@ -188,7 +241,6 @@ class _PdfReaderPageState extends State<PdfReaderPage>
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -204,203 +256,257 @@ class _PdfReaderPageState extends State<PdfReaderPage>
       ),
       body: pdfFiles.isEmpty
           ? _buildEmptyState()
-          : Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-              ),
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: pdfFiles.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) {
-                    final file = pdfFiles[index];
-                    final colorIndex = index % gradientColors.length;
-                    final gradients = gradientColors[colorIndex];
-
-                    return AnimatedContainer(
-                      duration: Duration(milliseconds: 300 + (index * 100)),
-                      curve: Curves.easeOutBack,
-                      child: Card(
-                        elevation: 8,
-                        shadowColor: gradients[0].withOpacity(0.4),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                gradients[0].withOpacity(0.1),
-                                gradients[1].withOpacity(0.05),
-                              ],
-                            ),
-                          ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 16),
-                            leading: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: gradients,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: gradients[0].withOpacity(0.4),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 4),
+          : Column(
+              children: [
+                _buildSearchBar(),
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                    ),
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: _filteredPdfFiles.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.search_off_rounded,
+                                    size: 64,
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'No PDFs matching "$_searchQuery"',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey.shade600,
+                                    ),
                                   ),
                                 ],
                               ),
-                              padding: const EdgeInsets.all(12),
-                              child: const Icon(
-                                Icons.picture_as_pdf_rounded,
-                                color: Colors.white,
-                                size: 32,
-                              ),
-                            ),
-                            title: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  file.path.split('/').last,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: Color(0xFF2D3748),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 2,
-                                ),
-                                const SizedBox(height: 8),
-                                FutureBuilder<int>(
-                                  future: File(file.path).length(),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.hasData) {
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: _getFileSizeColor(
-                                                  snapshot.data!)
-                                              .withOpacity(0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: _getFileSizeColor(
-                                                snapshot.data!),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _formatFileSize(snapshot.data!),
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                            color: _getFileSizeColor(
-                                                snapshot.data!),
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _filteredPdfFiles.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 16),
+                              itemBuilder: (context, index) {
+                                final file = _filteredPdfFiles[index];
+                                final colorIndex =
+                                    index % gradientColors.length;
+                                final gradients = gradientColors[colorIndex];
+
+                                return AnimatedContainer(
+                                  duration: Duration(
+                                      milliseconds: 300 + (index * 100)),
+                                  curve: Curves.easeOutBack,
+                                  child: Card(
+                                    elevation: 8,
+                                    shadowColor: gradients[0].withOpacity(0.4),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Container(
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.withOpacity(0.1),
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                      ),
-                                      child: const Text(
-                                        'Calculating...',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
+                                        borderRadius: BorderRadius.circular(20),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            gradients[0].withOpacity(0.1),
+                                            gradients[1].withOpacity(0.05),
+                                          ],
                                         ),
                                       ),
-                                    );
-                                  },
-                                ),
-                              ],
+                                      child: ListTile(
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 20, vertical: 16),
+                                        leading: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: gradients,
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: gradients[0]
+                                                    .withOpacity(0.4),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
+                                          ),
+                                          padding: const EdgeInsets.all(12),
+                                          child: const Icon(
+                                            Icons.picture_as_pdf_rounded,
+                                            color: Colors.white,
+                                            size: 32,
+                                          ),
+                                        ),
+                                        title: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              file.path.split('/').last,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                                color: Color(0xFF2D3748),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 2,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            FutureBuilder<int>(
+                                              future: File(file.path).length(),
+                                              builder: (context, snapshot) {
+                                                if (snapshot.hasData) {
+                                                  return Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: _getFileSizeColor(
+                                                              snapshot.data!)
+                                                          .withOpacity(0.1),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                      border: Border.all(
+                                                        color:
+                                                            _getFileSizeColor(
+                                                                snapshot.data!),
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      _formatFileSize(
+                                                          snapshot.data!),
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color:
+                                                            _getFileSizeColor(
+                                                                snapshot.data!),
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                                return Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey
+                                                        .withOpacity(0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                  ),
+                                                  child: const Text(
+                                                    'Calculating...',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    Colors.red.withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                  Icons.delete_forever_rounded,
+                                                  color: Colors.red,
+                                                  size: 24,
+                                                ),
+                                                onPressed: () async {
+                                                  final shouldDelete =
+                                                      await showDeleteConfirmationDialog(
+                                                    context: context,
+                                                    title: 'Delete PDF',
+                                                    message:
+                                                        'Are you sure you want to delete this PDF file?',
+                                                    paperTitle: file.path
+                                                        .split('/')
+                                                        .last,
+                                                  );
+                                                  if (shouldDelete == true) {
+                                                    await file.delete();
+                                                    _fetchPdfFiles();
+                                                  }
+                                                },
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  colors: gradients,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                  Icons.share,
+                                                  size: 24,
+                                                  color: Colors.white,
+                                                ),
+                                                onPressed: () async {
+                                                  await Share.shareXFiles(
+                                                      [XFile(file.path)],
+                                                      text:
+                                                          'Sharing PDF: ${file.path.split('/').last}');
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        onTap: () {
+                                          // Try to open without password first
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => PDFViewerPage(
+                                                filePath: file.path,
+                                                title:
+                                                    file.path.split('/').last,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_forever_rounded,
-                                      color: Colors.red,
-                                      size: 24,
-                                    ),
-                                    onPressed: () async {
-                                      final shouldDelete =
-                                          await showDeleteConfirmationDialog(
-                                        context: context,
-                                        title: 'Delete PDF',
-                                        message:
-                                            'Are you sure you want to delete this PDF file?',
-                                        paperTitle:
-                                            file.path.split('/').last,
-                                      );
-                                      if (shouldDelete == true) {
-                                        await file.delete();
-                                        _fetchPdfFiles();
-                                      }
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: gradients,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.share,
-                                      size: 24,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () async {
-                                      await Share.shareXFiles([XFile(file.path)], text: 'Sharing PDF: ${file.path.split('/').last}');
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            onTap: () {
-                              // Try to open without password first
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PDFViewerPage(
-                                    filePath: file.path,
-                                    title: file.path.split('/').last,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
     );
   }

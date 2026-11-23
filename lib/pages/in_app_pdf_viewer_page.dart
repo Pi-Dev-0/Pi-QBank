@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
@@ -20,6 +23,10 @@ import '../widgets/custom_app_bar.dart';
 /// supported platform. It provides continuous scrolling, pinch/scroll zoom,
 /// page navigation, full-text search, bookmarks and lazy page rendering for
 /// long textbooks.
+// Temporary isolation flag: set to true to render a bare PdfViewer with no
+// overlays/filters to debug single-page blank pages.
+const bool _kDebugBareViewer = false;
+
 class InAppPdfViewerPage extends StatefulWidget {
   const InAppPdfViewerPage({
     super.key,
@@ -48,7 +55,8 @@ class InAppPdfViewerPage extends StatefulWidget {
   State<InAppPdfViewerPage> createState() => _InAppPdfViewerPageState();
 }
 
-class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
+class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
+    with SingleTickerProviderStateMixin {
   static const ColorFilter _nightModeFilter = ColorFilter.matrix([
     -1,
     0,
@@ -73,13 +81,15 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   ]);
 
   final PdfViewerController _controller = PdfViewerController();
-  final GlobalKey _viewerKey = GlobalKey();
   late final PdfTextSearcher _searcher;
   late final List<PdfViewerPagePaintCallback> _pagePaintCallbacks;
   late final VoidCallback _removeSearchListener;
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+
+  /// Turns a silently blank document into an actionable error + retry.
+  Timer? _readyWatchdog;
 
   Uint8List? _bytes;
   bool _loading = true;
@@ -97,6 +107,28 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   String _lastQuery = '';
   String? _initialPassword;
 
+  late final Ticker _autoScrollTicker;
+  bool _autoScrollEnabled = false;
+  bool _autoScrollPaused = false;
+  int _autoScrollSpeedIndex = 1;
+  Duration _autoScrollLastElapsed = Duration.zero;
+
+  static const List<String> _autoScrollSpeedLabels = [
+    '0.5×',
+    '1×',
+    '1.5×',
+    '2×',
+    '3×',
+  ];
+  static const List<double> _autoScrollSpeedValues = [
+    0.5,
+    1,
+    1.5,
+    2,
+    3,
+  ];
+  static const double _autoScrollBasePixelsPerSecond = 30;
+
   final Set<int> _bookmarkedPages = <int>{};
   SharedPreferences? _prefs;
 
@@ -109,19 +141,32 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
     super.initState();
     _initialPassword = widget.password;
     _searcher = PdfTextSearcher(_controller);
-    _pagePaintCallbacks = [_searcher.pageTextMatchPaintCallback];
+    _pagePaintCallbacks = [
+      _searcher.pageTextMatchPaintCallback,
+    ];
     _removeSearchListener = _searcher.addListener(_handleSearchChanged);
+    _autoScrollTicker = createTicker(_handleAutoScrollTick);
     _loadBookmarks();
     _load(initial: true);
   }
 
   @override
   void dispose() {
+    _log('dispose viewer state');
+    _readyWatchdog?.cancel();
+    _autoScrollTicker.dispose();
     _removeSearchListener();
     _searcher.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  String get _autoScrollSpeedLabel =>
+      _autoScrollSpeedLabels[_autoScrollSpeedIndex];
+
+  void _log(String message) {
+    if (kDebugMode) debugPrint('[PDFDBG] $message');
   }
 
   String get _sourceName {
@@ -133,7 +178,11 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       'bookmarks_${(widget.filePath ?? widget.pdfUrl ?? widget.title).hashCode}';
 
   Future<void> _load({bool initial = false}) async {
+    _log(
+        'load() start initial=$initial path=${widget.filePath} url=${widget.pdfUrl}');
     _resetSearch();
+    _cancelReadyWatchdog();
+    if (_autoScrollEnabled) _stopAutoScroll();
 
     final generation = _loadGeneration + 1;
     if (initial) {
@@ -172,13 +221,18 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
               : 'The link did not return a PDF file. Try opening it in a browser.',
         );
       }
+      _log('load() bytes=${bytes.length} looksLikePdf=${_looksLikePdf(bytes)}');
       if (!mounted || generation != _loadGeneration) return;
 
       setState(() {
         _bytes = bytes;
         _loading = false;
+        _error = null;
       });
+      _startReadyWatchdog(generation);
+      _log('load() bytes assigned, viewer should build');
     } catch (e) {
+      _log('load() ERROR: $e');
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
@@ -189,6 +243,35 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                 : 'Could not download the PDF. Check your connection and try again.';
       });
     }
+  }
+
+  void _startReadyWatchdog(int generation) {
+    _readyWatchdog?.cancel();
+    _readyWatchdog = Timer(const Duration(seconds: 20), () {
+      if (!mounted ||
+          generation != _loadGeneration ||
+          _ready ||
+          _bytes == null) {
+        return;
+      }
+      if (_askingPassword) {
+        // The reader is waiting for the user; give them more time.
+        _startReadyWatchdog(generation);
+        return;
+      }
+      // Some damaged or unsupported PDFs make PDFium fail silently, leaving
+      // the viewer blank. surface a retry instead of a white screen.
+      _log('watchdog fired: document never became ready');
+      setState(() {
+        _error =
+            'This PDF could not be displayed. Try opening it in another app.';
+      });
+    });
+  }
+
+  void _cancelReadyWatchdog() {
+    _readyWatchdog?.cancel();
+    _readyWatchdog = null;
   }
 
   Future<Uint8List> _downloadPdf(String url) async {
@@ -350,6 +433,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       _showMessage('The document is still loading.');
       return;
     }
+    if (_autoScrollEnabled) _stopAutoScroll();
 
     final page = _currentPage;
     final adding = !_bookmarkedPages.contains(page);
@@ -529,7 +613,14 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
     PdfViewerController controller,
   ) {
     if (!mounted) return;
+    _cancelReadyWatchdog();
     final total = document.pages.length;
+    _log(
+        'viewerReady total=$total controllerReady=${controller.isReady} nightMode=$_nightMode ready=$_ready bytes=${_bytes?.length} error=$_error');
+    if (controller.isReady) {
+      _log(
+          'viewerReady viewSize=${controller.viewSize} docSize=${controller.documentSize} visible=${controller.visibleRect} pageNumber=${controller.pageNumber}');
+    }
     if (total == 0) {
       setState(() {
         _ready = true;
@@ -544,27 +635,14 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       _totalPages = total;
       _currentPage = page;
     });
-
-    // The previous Android reader opened documents at "fit width", which is
-    // far more readable on phones than fit-page for typical textbook pages.
-    if (Platform.isAndroid) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_ready) return;
-        final pages = _totalPages;
-        if (pages == null || pages < 1) return;
-        final target = page.clamp(1, pages);
-        _controller.goTo(
-          _controller.calcMatrixFitWidthForPage(pageNumber: target),
-          duration: Duration.zero,
-        );
-      });
-    }
   }
 
   void _handleDocumentChanged(PdfDocument? document) {
     if (!mounted) return;
     final pages = document?.pages.length;
+    _log('documentChanged pages=$pages');
     if (pages == null) {
+      if (_autoScrollEnabled) _stopAutoScroll();
       if (_searchVisible || _searcher.matches.isNotEmpty) {
         _resetSearch();
       }
@@ -576,6 +654,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       }
       return;
     }
+    _cancelReadyWatchdog();
     if (pages == _totalPages) return;
 
     setState(() {
@@ -659,6 +738,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   }
 
   Future<void> _goToPage(int page) async {
+    if (_autoScrollEnabled) _stopAutoScroll();
     final total = _totalPages;
     if (!_ready || total == null || total == 0) return;
     final target = page.clamp(1, total);
@@ -681,16 +761,19 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   }
 
   Future<void> _zoomIn() async {
+    if (_autoScrollEnabled) _stopAutoScroll();
     if (!_ready) return;
     await _controller.zoomUp();
   }
 
   Future<void> _zoomOut() async {
+    if (_autoScrollEnabled) _stopAutoScroll();
     if (!_ready) return;
     await _controller.zoomDown();
   }
 
   Future<void> _fitWidth() async {
+    if (_autoScrollEnabled) _stopAutoScroll();
     if (!_ready) return;
     final total = _totalPages ?? _controller.pageCount;
     if (total < 1) return;
@@ -702,6 +785,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   }
 
   Future<void> _fitPage() async {
+    if (_autoScrollEnabled) _stopAutoScroll();
     if (!_ready) return;
     final total = _totalPages ?? _controller.pageCount;
     if (total < 1) return;
@@ -713,6 +797,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   }
 
   Future<void> _actualSize() async {
+    if (_autoScrollEnabled) _stopAutoScroll();
     if (!_ready) return;
     final total = _totalPages ?? _controller.pageCount;
     if (total < 1) return;
@@ -725,12 +810,132 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   }
 
   Future<void> _scrollBy(double dx, double dy) async {
+    if (_autoScrollEnabled) _stopAutoScroll();
     if (!_ready) return;
     final matrix = _controller.value.clone()..translate(dx, dy);
     await _controller.goTo(
       _controller.makeMatrixInSafeRange(matrix),
       duration: const Duration(milliseconds: 110),
     );
+  }
+
+  void _toggleAutoScroll() {
+    if (_autoScrollEnabled) {
+      _stopAutoScroll();
+      return;
+    }
+    _startAutoScroll();
+  }
+
+  void _startAutoScroll() {
+    if (_autoScrollEnabled) return;
+    if (!_ready) {
+      _showMessage('The document is still loading.');
+      return;
+    }
+
+    final viewRect = _controller.visibleRect;
+    final documentSize = _controller.documentSize;
+    if (documentSize.height - viewRect.height <= 1) {
+      _showMessage('This document fits on screen; nothing to auto-scroll.');
+      return;
+    }
+    if (viewRect.bottom >= documentSize.height - 1) {
+      _showMessage(
+        'You are at the end of the document.',
+        icon: Icons.info_outline_rounded,
+        color: Colors.orange.shade700,
+      );
+      return;
+    }
+
+    _autoScrollLastElapsed = Duration.zero;
+    setState(() {
+      _autoScrollEnabled = true;
+      _autoScrollPaused = false;
+    });
+    _autoScrollTicker.start();
+    HapticFeedback.mediumImpact();
+  }
+
+  void _pauseAutoScroll() {
+    if (!_autoScrollEnabled || _autoScrollPaused) return;
+    _autoScrollTicker.stop();
+    if (mounted) {
+      setState(() => _autoScrollPaused = true);
+    }
+    HapticFeedback.selectionClick();
+  }
+
+  void _resumeAutoScroll() {
+    if (!_autoScrollEnabled || !_autoScrollPaused) return;
+    _autoScrollLastElapsed = Duration.zero;
+    setState(() => _autoScrollPaused = false);
+    _autoScrollTicker.start();
+    HapticFeedback.selectionClick();
+  }
+
+  void _toggleAutoScrollPause() {
+    if (_autoScrollPaused) {
+      _resumeAutoScroll();
+    } else {
+      _pauseAutoScroll();
+    }
+  }
+
+  void _stopAutoScroll() {
+    if (!_autoScrollEnabled) return;
+    _autoScrollTicker.stop();
+    if (mounted) {
+      setState(() {
+        _autoScrollEnabled = false;
+        _autoScrollPaused = false;
+      });
+    }
+  }
+
+  void _handleAutoScrollTick(Duration elapsed) {
+    if (!_autoScrollEnabled || _autoScrollPaused) return;
+    if (!_ready) {
+      _stopAutoScroll();
+      return;
+    }
+
+    final rawDeltaSeconds = (elapsed - _autoScrollLastElapsed).inMicroseconds /
+        Duration.microsecondsPerSecond;
+    _autoScrollLastElapsed = elapsed;
+    if (rawDeltaSeconds <= 0) return;
+    // Keep a long frame (or a trip to the background) from making the page
+    // jump a long way in one step.
+    final deltaSeconds = math.min(rawDeltaSeconds, 0.1);
+
+    final pixels = _autoScrollBasePixelsPerSecond *
+        _autoScrollSpeedValues[_autoScrollSpeedIndex] *
+        deltaSeconds;
+    final before = _controller.visibleRect;
+    final documentHeight = _controller.documentSize.height;
+    final matrix = _controller.value.clone()..translate(0.0, -pixels);
+    _controller.value = matrix;
+    final after = _controller.visibleRect;
+
+    final reachedEnd = after.bottom >= documentHeight - 1;
+    final didNotMove = (after.top - before.top).abs() < 0.01;
+    if (reachedEnd || didNotMove) {
+      _stopAutoScroll();
+      _showMessage(
+        'Auto-scroll finished',
+        icon: Icons.check_circle_rounded,
+        color: Colors.green.shade700,
+      );
+    }
+  }
+
+  void _cycleAutoScrollSpeed() {
+    setState(() {
+      _autoScrollSpeedIndex =
+          (_autoScrollSpeedIndex + 1) % _autoScrollSpeedLabels.length;
+    });
+    HapticFeedback.selectionClick();
   }
 
   Future<void> _showGoToPageDialog() async {
@@ -789,6 +994,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
 
   void _openSearch() {
     if (!_ready) return;
+    if (_autoScrollEnabled) _stopAutoScroll();
     setState(() => _searchVisible = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _searchVisible) _searchFocusNode.requestFocus();
@@ -839,12 +1045,14 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
 
   Future<void> _goToNextMatch() async {
     if (!_ready || _searcher.matches.isEmpty) return;
+    if (_autoScrollEnabled) _stopAutoScroll();
     await _searcher.goToNextMatch();
     if (mounted) setState(() {});
   }
 
   Future<void> _goToPrevMatch() async {
     if (!_ready || _searcher.matches.isEmpty) return;
+    if (_autoScrollEnabled) _stopAutoScroll();
     await _searcher.goToPrevMatch();
     if (mounted) setState(() {});
   }
@@ -893,6 +1101,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
 
   void _retryViewer() {
     _resetSearch();
+    if (_autoScrollEnabled) _stopAutoScroll();
     setState(() {
       _loadGeneration++;
       _ready = false;
@@ -1011,11 +1220,30 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                   icon: const Icon(Icons.more_vert_rounded),
                   menuPadding: const EdgeInsets.symmetric(vertical: 6),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .outlineVariant
+                          .withOpacity(0.5),
+                    ),
                   ),
-                  elevation: 8,
+                  elevation: 14,
+                  shadowColor: Colors.black.withOpacity(0.25),
+                  surfaceTintColor: Colors.transparent,
                   color: Theme.of(context).colorScheme.surface,
+                  constraints: const BoxConstraints(
+                    minWidth: 280,
+                    maxWidth: 320,
+                  ),
                   onSelected: (value) {
+                    // Any menu action other than the auto-scroll controls is
+                    // an explicit interruption of the reading flow.
+                    if (_autoScrollEnabled &&
+                        value != 'autoscroll-toggle' &&
+                        value != 'autoscroll-speed') {
+                      _stopAutoScroll();
+                    }
                     switch (value) {
                       case 'open-external':
                         _openExternally();
@@ -1029,6 +1257,10 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                         _firstPage();
                       case 'last-page':
                         _lastPage();
+                      case 'autoscroll-toggle':
+                        _toggleAutoScroll();
+                      case 'autoscroll-speed':
+                        _cycleAutoScrollSpeed();
                       case 'zoom-in':
                         _zoomIn();
                       case 'zoom-out':
@@ -1093,7 +1325,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                           enabled: enabled,
                           iconColor: iconColor,
                           active: active,
-                          activeColor: cs.primary,
+                          activeColor: iconColor ?? cs.primary,
                         ),
                       );
                     }
@@ -1145,6 +1377,23 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                       );
                     }
 
+                    // Multiple side-by-side tappable cells in a single row
+                    PopupMenuItem<String> multiItem({
+                      required List<_MenuActionItem> items,
+                      Color? iconColor,
+                      double height = 54,
+                    }) {
+                      return PopupMenuItem<String>(
+                        enabled: false,
+                        padding: EdgeInsets.zero,
+                        height: height,
+                        child: _MultiMenuRow(
+                          items: items,
+                          iconColor: iconColor ?? cs.primary,
+                        ),
+                      );
+                    }
+
                     PopupMenuDivider divider() =>
                         const PopupMenuDivider(height: 1);
 
@@ -1178,27 +1427,63 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                         enabled: hasPages,
                         iconColor: const Color(0xFF8B5CF6),
                       ),
-                      pairedItem(
-                        icon1: Icons.arrow_back_ios_new_rounded,
-                        label1: 'Previous',
-                        value1: 'previous-page',
-                        enabled1: canGoBack,
-                        icon2: Icons.arrow_forward_ios_rounded,
-                        label2: 'Next',
-                        value2: 'next-page',
-                        enabled2: canGoForward,
+                      multiItem(
                         iconColor: const Color(0xFF8B5CF6),
+                        items: [
+                          _MenuActionItem(
+                            icon: Icons.first_page_rounded,
+                            label: 'First',
+                            value: 'first-page',
+                            enabled: canGoBack,
+                            tooltip: 'First page',
+                          ),
+                          _MenuActionItem(
+                            icon: Icons.arrow_back_ios_new_rounded,
+                            label: 'Previous',
+                            value: 'previous-page',
+                            enabled: canGoBack,
+                            tooltip: 'Previous page',
+                          ),
+                          _MenuActionItem(
+                            icon: Icons.arrow_forward_ios_rounded,
+                            label: 'Next',
+                            value: 'next-page',
+                            enabled: canGoForward,
+                            tooltip: 'Next page',
+                          ),
+                          _MenuActionItem(
+                            icon: Icons.last_page_rounded,
+                            label: 'Last',
+                            value: 'last-page',
+                            enabled: canGoForward,
+                            tooltip: 'Last page',
+                          ),
+                        ],
                       ),
-                      pairedItem(
-                        icon1: Icons.first_page_rounded,
-                        label1: 'First',
-                        value1: 'first-page',
-                        enabled1: canGoBack,
-                        icon2: Icons.last_page_rounded,
-                        label2: 'Last',
-                        value2: 'last-page',
-                        enabled2: canGoForward,
-                        iconColor: const Color(0xFF8B5CF6),
+                      divider(),
+
+                      // ── Auto-scroll ────────────────────────────────
+                      sectionHeader('Auto-scroll'),
+                      item(
+                        value: 'autoscroll-toggle',
+                        icon: _autoScrollEnabled
+                            ? Icons.stop_rounded
+                            : Icons.play_arrow_rounded,
+                        label: _autoScrollEnabled
+                            ? 'Stop auto-scroll'
+                            : 'Start auto-scroll',
+                        shortcut: _autoScrollPaused ? 'PAUSED' : null,
+                        enabled: hasPages,
+                        iconColor: const Color(0xFF10B981),
+                        active: _autoScrollEnabled,
+                      ),
+                      item(
+                        value: 'autoscroll-speed',
+                        icon: Icons.speed_rounded,
+                        label: 'Auto-scroll speed',
+                        shortcut: _autoScrollSpeedLabel,
+                        enabled: hasPages,
+                        iconColor: const Color(0xFF10B981),
                       ),
                       divider(),
 
@@ -1215,23 +1500,28 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
                         enabled2: _ready,
                         iconColor: const Color(0xFF10B981),
                       ),
-                      item(
-                        value: 'fit-width',
-                        icon: Icons.width_full_rounded,
-                        label: 'Fit width',
+                      multiItem(
                         iconColor: const Color(0xFF10B981),
-                      ),
-                      item(
-                        value: 'fit-page',
-                        icon: Icons.fit_screen_rounded,
-                        label: 'Fit page',
-                        iconColor: const Color(0xFF10B981),
-                      ),
-                      item(
-                        value: 'actual-size',
-                        icon: Icons.crop_free_rounded,
-                        label: 'Actual size',
-                        iconColor: const Color(0xFF10B981),
+                        items: [
+                          _MenuActionItem(
+                            icon: Icons.width_full_rounded,
+                            label: 'Fit width',
+                            value: 'fit-width',
+                            tooltip: 'Fit width',
+                          ),
+                          _MenuActionItem(
+                            icon: Icons.fit_screen_rounded,
+                            label: 'Fit page',
+                            value: 'fit-page',
+                            tooltip: 'Fit page',
+                          ),
+                          _MenuActionItem(
+                            icon: Icons.crop_free_rounded,
+                            label: 'Actual size',
+                            value: 'actual-size',
+                            tooltip: 'Actual size (100%)',
+                          ),
+                        ],
                       ),
                       divider(),
 
@@ -1286,6 +1576,15 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
   Widget _buildBody() {
     if (_loading) return _buildLoading();
 
+    if (_kDebugBareViewer) {
+      if (widget.filePath != null) {
+        return PdfViewer.file(widget.filePath!);
+      }
+      if (widget.pdfUrl != null) {
+        return PdfViewer.uri(Uri.parse(widget.pdfUrl!));
+      }
+    }
+
     if (_error != null) {
       return _buildErrorState(
         message: _error!,
@@ -1301,44 +1600,79 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
       );
     }
 
-    final viewer = PdfViewer.data(
-      bytes,
-      key: _viewerKey,
-      sourceName: _sourceName,
-      controller: _controller,
-      passwordProvider: _askForPassword,
-      params: PdfViewerParams(
-        margin: 14,
-        // Night mode inverts the rendered viewer, so the underlying page and
-        // background colours stay light here.
-        backgroundColor: const Color(0xFFE8EBEF),
-        pageDropShadow: BoxShadow(
-          color: Colors.black.withOpacity(0.18),
-          blurRadius: 10,
-          spreadRadius: 1,
-          offset: const Offset(0, 3),
-        ),
-        maxImageBytesCachedOnMemory: 100 * 1024 * 1024,
-        verticalCacheExtent: 1,
-        scrollByMouseWheel: 0.25,
-        enableKeyboardNavigation: false,
-        enableTextSelection: _textSelectionEnabled,
-        pagePaintCallbacks: _pagePaintCallbacks,
-        matchTextColor: Colors.yellow.withOpacity(0.55),
-        activeMatchTextColor: Colors.orange.withOpacity(0.65),
-        onViewerReady: _handleViewerReady,
-        onDocumentChanged: _handleDocumentChanged,
-        onPageChanged: _handlePageChanged,
-        loadingBannerBuilder: (context, bytesDownloaded, totalBytes) =>
-            const _ViewerLoadingBanner(),
-        errorBannerBuilder: (context, error, stackTrace, documentRef) =>
-            _buildErrorState(
-          message:
-              'The file may be damaged, password protected, or not a valid PDF.',
-          detail: error.toString(),
-          onRetry: _retryViewer,
-        ),
-      ),
+    final viewer = LayoutBuilder(
+      builder: (context, constraints) {
+        // On desktop platforms (like Linux), the window may have a 0x0 or
+        // very small size during initial frame creation before the window
+        // manager allocates geometry. In pdfrx, if viewSize <= margin * 2,
+        // _calcAlternativeFitScale() computes a negative scale, triggering
+        // assertion `minScale > 0` in InteractiveViewer.
+        if (constraints.maxWidth <= 28 || constraints.maxHeight <= 28) {
+          return const SizedBox.shrink();
+        }
+
+        final params = PdfViewerParams(
+          margin: 14,
+          // Night mode inverts the rendered viewer, so the underlying page and
+          // background colours stay light here.
+          backgroundColor: const Color(0xFFE8EBEF),
+          pageDropShadow: BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 10,
+            spreadRadius: 1,
+            offset: const Offset(0, 3),
+          ),
+          maxImageBytesCachedOnMemory: 100 * 1024 * 1024,
+          verticalCacheExtent: 1,
+          scrollByMouseWheel: 0.25,
+          enableKeyboardNavigation: false,
+          enableTextSelection: _textSelectionEnabled,
+          pagePaintCallbacks: _pagePaintCallbacks,
+          matchTextColor: Colors.yellow.withOpacity(0.55),
+          activeMatchTextColor: Colors.orange.withOpacity(0.65),
+          onViewerReady: _handleViewerReady,
+          onDocumentChanged: _handleDocumentChanged,
+          onPageChanged: _handlePageChanged,
+          onInteractionStart: (_) {
+            // Touching the page while auto-scrolling gives control back to
+            // the reader immediately.
+            if (_autoScrollEnabled) _stopAutoScroll();
+          },
+          loadingBannerBuilder: (context, bytesDownloaded, totalBytes) =>
+              const _ViewerLoadingBanner(),
+          errorBannerBuilder: (context, error, stackTrace, documentRef) {
+            _log('pdfrx errorBanner: $error');
+            return _buildErrorState(
+              message:
+                  'The file may be damaged, password protected, or not a valid PDF.',
+              detail: error.toString(),
+              onRetry: _retryViewer,
+            );
+          },
+        );
+
+        // Local files use PdfViewer.file so PDFium reads the file directly.
+        // The byte path (PdfViewer.data) intermittently fails to paint the
+        // page for single-page documents that fit entirely in the viewport.
+        final localPath = widget.filePath;
+        if (localPath != null) {
+          return PdfViewer.file(
+            localPath,
+            key: ValueKey<String>(_sourceName),
+            controller: _controller,
+            passwordProvider: _askForPassword,
+            params: params,
+          );
+        }
+        return PdfViewer.data(
+          bytes,
+          key: ValueKey<String>(_sourceName),
+          sourceName: _sourceName,
+          controller: _controller,
+          passwordProvider: _askForPassword,
+          params: params,
+        );
+      },
     );
 
     return Column(
@@ -1346,6 +1680,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
         _searchVisible ? _buildSearchBar() : const SizedBox.shrink(),
         Expanded(
           child: Stack(
+            fit: StackFit.expand,
             children: [
               Positioned.fill(
                 child: _nightMode
@@ -1358,14 +1693,47 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage> {
               // The old bottom slider/page bar is replaced by this right-edge
               // page scrubber. It is deliberately outside the night-mode
               // ColorFiltered layer so its colours stay accurate.
-              _PageScrollBar(
-                controller: _controller,
-                nightMode: _nightMode,
-              ),
+              if (_ready)
+                _PageScrollBar(
+                  controller: _controller,
+                  nightMode: _nightMode,
+                  onUserInteraction: () => _stopAutoScroll(),
+                ),
+              _buildAutoScrollControls(),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAutoScrollControls() {
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 18 + bottomInset,
+      child: IgnorePointer(
+        ignoring: !_autoScrollEnabled,
+        child: AnimatedSlide(
+          offset: _autoScrollEnabled ? Offset.zero : const Offset(0, 0.65),
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+          child: AnimatedOpacity(
+            opacity: _autoScrollEnabled ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: Center(
+              child: _AutoScrollPill(
+                speedLabel: _autoScrollSpeedLabel,
+                nightMode: _nightMode,
+                paused: _autoScrollPaused,
+                onTogglePause: _toggleAutoScrollPause,
+                onSpeed: _cycleAutoScrollSpeed,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1749,10 +2117,14 @@ class _PageScrollBar extends StatefulWidget {
   const _PageScrollBar({
     required this.controller,
     required this.nightMode,
+    this.onUserInteraction,
   });
 
   final PdfViewerController controller;
   final bool nightMode;
+
+  /// Called when the reader touches the scrubber, so auto-scroll can stop.
+  final VoidCallback? onUserInteraction;
 
   @override
   State<_PageScrollBar> createState() => _PageScrollBarState();
@@ -1770,9 +2142,11 @@ class _PageScrollBarState extends State<_PageScrollBar> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<Matrix4>(
-      valueListenable: widget.controller,
-      builder: (context, _, __) {
+    if (!widget.controller.isReady) return const SizedBox.shrink();
+
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
         final controller = widget.controller;
         if (!controller.isReady) return const SizedBox.shrink();
 
@@ -1805,6 +2179,7 @@ class _PageScrollBarState extends State<_PageScrollBar> {
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTapDown: (details) {
+                    widget.onUserInteraction?.call();
                     final y = details.localPosition.dy;
                     final onThumb =
                         y >= thumbTop && y <= thumbTop + _thumbHeight;
@@ -1815,6 +2190,7 @@ class _PageScrollBarState extends State<_PageScrollBar> {
                     );
                   },
                   onVerticalDragStart: (details) {
+                    widget.onUserInteraction?.call();
                     final y = details.localPosition.dy;
                     final onThumb =
                         y >= thumbTop && y <= thumbTop + _thumbHeight;
@@ -2002,6 +2378,165 @@ class _PageScrollBarState extends State<_PageScrollBar> {
   }
 }
 
+/// Floating control shown while an auto-scroll session is active.
+class _AutoScrollPill extends StatelessWidget {
+  const _AutoScrollPill({
+    required this.speedLabel,
+    required this.nightMode,
+    required this.paused,
+    required this.onTogglePause,
+    required this.onSpeed,
+  });
+
+  final String speedLabel;
+  final bool nightMode;
+  final bool paused;
+  final VoidCallback onTogglePause;
+  final VoidCallback onSpeed;
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF10B981);
+    const greenDark = Color(0xFF059669);
+    final foreground = nightMode ? Colors.white : const Color(0xFF1F2937);
+    final subtitle = nightMode ? Colors.white60 : Colors.black45;
+    final surface = nightMode ? const Color(0xFF1F1F1F) : Colors.white;
+    final border = nightMode
+        ? Colors.white.withOpacity(0.10)
+        : Colors.black.withOpacity(0.06);
+    final buttonColors = paused
+        ? const [Color(0xFFF59E0B), Color(0xFFD97706)]
+        : const [green, greenDark];
+
+    return Semantics(
+      label: 'Auto-scroll controls',
+      child: Material(
+        elevation: 12,
+        shadowColor: Colors.black.withOpacity(0.28),
+        color: surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(30),
+          side: BorderSide(color: border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(5, 5, 9, 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                button: true,
+                label: paused ? 'Resume auto-scroll' : 'Pause auto-scroll',
+                child: Material(
+                  color: Colors.transparent,
+                  shape: const CircleBorder(),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: buttonColors,
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onTogglePause,
+                      child: SizedBox(
+                        width: 38,
+                        height: 38,
+                        child: Icon(
+                          paused
+                              ? Icons.play_arrow_rounded
+                              : Icons.pause_rounded,
+                          size: 21,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: paused ? const Color(0xFFF59E0B) : green,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Auto-scroll',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: foreground,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    paused ? 'Paused' : 'Running',
+                    style: TextStyle(fontSize: 9.5, color: subtitle),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Tooltip(
+                message: 'Change auto-scroll speed',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onSpeed,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: green.withOpacity(nightMode ? 0.18 : 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.speed_rounded,
+                            size: 14,
+                            color: green,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            speedLabel,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ViewerLoadingBanner extends StatelessWidget {
   const _ViewerLoadingBanner();
 
@@ -2022,6 +2557,117 @@ class _ViewerLoadingBanner extends StatelessWidget {
             style: TextStyle(fontSize: 14, color: Colors.black54),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MenuActionItem {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool enabled;
+  final String? tooltip;
+
+  const _MenuActionItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.enabled = true,
+    this.tooltip,
+  });
+}
+
+// Displays 3 or 4 equal-width action cells in a single PopupMenuItem row.
+class _MultiMenuRow extends StatelessWidget {
+  const _MultiMenuRow({
+    required this.items,
+    required this.iconColor,
+  });
+
+  final List<_MenuActionItem> items;
+  final Color iconColor;
+
+  Widget _buildCell(BuildContext context, _MenuActionItem item) {
+    final effectiveColor = item.enabled ? iconColor : Colors.grey.shade400;
+    final labelColor = item.enabled
+        ? Theme.of(context).colorScheme.onSurface
+        : Colors.grey.shade400;
+
+    Widget content = InkWell(
+      onTap: item.enabled ? () => Navigator.pop(context, item.value) : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: effectiveColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(item.icon, size: 15, color: effectiveColor),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              item.label,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+                color: labelColor,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (item.tooltip != null) {
+      content = Tooltip(
+        message: item.tooltip!,
+        child: content,
+      );
+    }
+
+    return Expanded(child: content);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dividerColor = Theme.of(context).dividerColor.withOpacity(0.35);
+
+    final children = <Widget>[];
+    for (int i = 0; i < items.length; i++) {
+      if (i > 0) {
+        children.add(
+          Container(
+            width: 1,
+            height: 28,
+            color: dividerColor,
+          ),
+        );
+      }
+      children.add(_buildCell(context, items[i]));
+    }
+
+    // The containing PopupMenuItem is disabled so that its own InkWell does
+    // not swallow taps meant for the individual cells. Undo the faded icon
+    // theme that the disabled state adds; each cell already chooses its own
+    // enabled/disabled colour.
+    return IconTheme.merge(
+      data: const IconThemeData(opacity: 1),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: children,
+        ),
       ),
     );
   }
@@ -2098,30 +2744,33 @@ class _PairedMenuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Row(
-        children: [
-          _cell(
-            context,
-            icon: icon1,
-            label: label1,
-            value: value1,
-            enabled: enabled1,
-          ),
-          Container(
-            width: 1,
-            height: 28,
-            color: Theme.of(context).dividerColor.withOpacity(0.5),
-          ),
-          _cell(
-            context,
-            icon: icon2,
-            label: label2,
-            value: value2,
-            enabled: enabled2,
-          ),
-        ],
+    return IconTheme.merge(
+      data: const IconThemeData(opacity: 1),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(
+          children: [
+            _cell(
+              context,
+              icon: icon1,
+              label: label1,
+              value: value1,
+              enabled: enabled1,
+            ),
+            Container(
+              width: 1,
+              height: 28,
+              color: Theme.of(context).dividerColor.withOpacity(0.5),
+            ),
+            _cell(
+              context,
+              icon: icon2,
+              label: label2,
+              value: value2,
+              enabled: enabled2,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2165,9 +2814,7 @@ class _MenuRow extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: active
-                  ? effectiveIconColor.withOpacity(0.18)
-                  : bgColor,
+              color: active ? effectiveIconColor.withOpacity(0.18) : bgColor,
               borderRadius: BorderRadius.circular(10),
               border: active
                   ? Border.all(
@@ -2202,7 +2849,8 @@ class _MenuRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                 ),
               ),
             ),
