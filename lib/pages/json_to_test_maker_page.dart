@@ -364,6 +364,7 @@ Format:
             language: _selectedLanguage,
             aiTopic: topic,
             isFromCloud: false,
+            showAllQuestions: true,
           ),
         ),
       );
