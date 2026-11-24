@@ -260,8 +260,9 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       await pumpTall(tester);
 
-      expect(find.text('Random'), findsOneWidget);
+      expect(find.text('1. Source'), findsOneWidget);
       expect(find.text('Load questions'), findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
     });
 
     testWidgets('class and subject are picked from a single row of dropdowns',
@@ -283,9 +284,11 @@ void main() {
       expect(find.text('Choose subject'), findsOneWidget);
     });
 
-    testWidgets('offers Random and Pick, and defaults to Random',
+    testWidgets('offers Random and Pick, and defaults to Random in step 2',
         (tester) async {
       await pumpTall(tester);
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
 
       expect(find.text('Random'), findsOneWidget);
       expect(find.text('Pick myself'), findsOneWidget);
@@ -297,6 +300,8 @@ void main() {
       // pins that switching is safe and keeps both labels reachable in the
       // empty state. Behaviour with data loaded is exercised by hand.
       await pumpTall(tester);
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Pick myself'));
       await tester.pumpAndSettle();
@@ -309,19 +314,48 @@ void main() {
     });
 
     testWidgets(
-        'the start action is present but disabled before a paper exists',
+        'the start action is present but disabled before a paper exists in step 2',
         (tester) async {
       // A bar that is always there and explains itself beats a button that
       // appears and disappears.
       await pumpTall(tester);
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
 
       expect(find.text('Start'), findsOneWidget);
       expect(find.text('Nothing to start yet'), findsOneWidget);
 
       final button = tester.widget<ElevatedButton>(
-        find.byWidgetPredicate((w) => w is ElevatedButton),
+        find.ancestor(
+          of: find.text('Start'),
+          matching: find.byWidgetPredicate((w) => w is ElevatedButton),
+        ),
       );
       expect(button.onPressed, isNull, reason: 'nothing selected yet');
+    });
+
+    testWidgets('step navigation only shows one step at a time',
+        (tester) async {
+      await pumpTall(tester);
+
+      // In Step 1, Source is shown, Build Paper card is not
+      expect(find.text('Choose class'), findsOneWidget);
+      expect(find.text('Build the paper'), findsNothing);
+
+      // Move to Step 2
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      // In Step 2, Build the paper is shown, Source card is not
+      expect(find.text('Build the paper'), findsOneWidget);
+      expect(find.text('Choose class'), findsNothing);
+
+      // Tap back button to return to Step 1
+      await tester.tap(find.byTooltip('Back to Source').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Choose class'), findsOneWidget);
+      expect(find.text('Build the paper'), findsNothing);
     });
   });
 }

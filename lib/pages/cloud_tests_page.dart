@@ -231,6 +231,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
       const HighSchoolQBankService(scriptUrl: CloudTestsPage.scriptUrl);
 
   // ── selection ────────────────────────────────────────────────────────────
+  int _currentStep = 0;
   String? _className;
   String? _subject;
 
@@ -428,6 +429,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   Future<void> _reset() async {
     _loadToken++;
     setState(() {
+      _currentStep = 0;
       _className = null;
       _subject = null;
       _chapters.clear();
@@ -974,51 +976,73 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
   @override
   Widget build(BuildContext context) {
     final picked = _selected;
-    return Scaffold(
-      backgroundColor: _C.canvas,
-      appBar: CustomAppBar(
-        title: 'Online Exam',
-        actions: [
-          if (_hasSomethingToReset)
-            IconButton(
-              onPressed: _confirmReset,
-              tooltip: 'Start over',
-              icon: const Icon(Icons.restart_alt_rounded),
-            ),
-        ],
-      ),
-      body: SafeArea(
-        top: false,
-        bottom: false,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(child: _backdrop()),
-            SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 900),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _sourceCard(),
-                      const SizedBox(height: 14),
-                      _buildCard(),
-                      const SizedBox(height: 8),
-                    ],
+    return PopScope(
+      canPop: _currentStep == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          setState(() => _currentStep = 0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _C.canvas,
+        appBar: CustomAppBar(
+          title: 'Online Exam',
+          leading: _currentStep == 1
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Back to Source',
+                  onPressed: () => setState(() => _currentStep = 0),
+                )
+              : null,
+          actions: [
+            if (_hasSomethingToReset)
+              IconButton(
+                onPressed: _confirmReset,
+                tooltip: 'Start over',
+                icon: const Icon(Icons.restart_alt_rounded),
+              ),
+          ],
+        ),
+        body: SafeArea(
+          top: false,
+          bottom: false,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(child: _backdrop()),
+              SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _stepSelector(),
+                        if (_currentStep == 0) ...[
+                          _sourceCard(),
+                          const SizedBox(height: 12),
+                        ] else ...[
+                          _sourceSummaryPill(),
+                          _buildCard(),
+                          const SizedBox(height: 8),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
+        bottomNavigationBar:
+            _currentStep == 0 ? _bottomBarStep1() : _bottomBarStep2(picked),
       ),
-      bottomNavigationBar: _bottomBar(picked),
     );
   }
 
   bool get _hasSomethingToReset =>
+      _currentStep != 0 ||
       _className != null ||
       _subject != null ||
       _chapters.isNotEmpty ||
@@ -2121,9 +2145,320 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
     );
   }
 
+  // ── step selector & navigation ──────────────────────────────────────────
+
+  Widget _stepSelector() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.line),
+        boxShadow: [
+          BoxShadow(
+            color: _C.ink.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _stepTab(
+            step: 0,
+            number: '1',
+            icon: Icons.school_outlined,
+            title: '1. Source',
+            subtitle: _className != null && _subject != null
+                ? '$_className · $_subject'
+                : 'Class & Subject',
+          ),
+          const SizedBox(width: 6),
+          _stepTab(
+            step: 1,
+            number: '2',
+            icon: Icons.tune_rounded,
+            title: '2. Build Paper',
+            subtitle: _usableMcqs.isNotEmpty
+                ? '${_selected.length} questions'
+                : 'Questions & Settings',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepTab({
+    required int step,
+    required String number,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final active = _currentStep == step;
+    final isDone = step == 0 && _poolFetched && _usableMcqs.isNotEmpty;
+
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            if (_currentStep == step) return;
+            setState(() => _currentStep = step);
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: active ? _C.primarySoft : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: active
+                  ? Border.all(color: _C.primaryLine, width: 1.2)
+                  : Border.all(color: Colors.transparent, width: 1.2),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: active
+                        ? _C.primary
+                        : (isDone ? _C.success : const Color(0xFFF1F5F9)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: isDone && !active
+                        ? const Icon(Icons.check_rounded,
+                            size: 16, color: Colors.white)
+                        : Text(
+                            number,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: active
+                                  ? Colors.white
+                                  : (isDone ? Colors.white : _C.muted),
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: active ? _C.primaryDeep : _C.ink,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: active ? _C.primary : _C.muted,
+                          fontWeight:
+                              active ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sourceSummaryPill() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: _C.primarySoft,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _C.primaryLine),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.school_outlined, size: 16, color: _C.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _className != null && _subject != null
+                  ? '$_className · $_subject (${_usableMcqs.length} MCQs)'
+                  : 'Source not loaded',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: _C.primaryDeep,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          InkWell(
+            onTap: () => setState(() => _currentStep = 0),
+            borderRadius: BorderRadius.circular(8),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Change Source',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: _C.primary,
+                    ),
+                  ),
+                  SizedBox(width: 3),
+                  Icon(Icons.edit_outlined, size: 13, color: _C.primary),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── bottom bar ───────────────────────────────────────────────────────────
 
-  Widget _bottomBar(List<HighSchoolQuestion> picked) {
+  Widget _bottomBarStep1() {
+    final canContinue = _poolFetched && _usableMcqs.isNotEmpty;
+    final hint = _loadingPool
+        ? 'Reading the question bank…'
+        : _error != null
+            ? 'Error loading questions'
+            : canContinue
+                ? '${_usableMcqs.length} answerable MCQs available'
+                : (_className == null || _subject == null
+                    ? 'Pick class and subject above'
+                    : 'Load questions to continue');
+
+    return Container(
+      color: _C.canvas,
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _C.line),
+              boxShadow: [
+                BoxShadow(
+                  color: _C.ink.withOpacity(0.09),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: canContinue
+                          ? _C.primarySoft
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(
+                      canContinue
+                          ? Icons.school_outlined
+                          : Icons.pending_actions_rounded,
+                      color: canContinue ? _C.primary : _C.faint,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          canContinue
+                              ? 'Step 1 Complete'
+                              : 'Step 1: Choose Source',
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            color: _C.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          hint,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: _C.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() => _currentStep = 1);
+                      },
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+                      label: const Text(
+                        'Next',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _C.primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFFE8EAF1),
+                        disabledForegroundColor: _C.faint,
+                        padding: const EdgeInsets.symmetric(horizontal: 22),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomBarStep2(List<HighSchoolQuestion> picked) {
     final ready = picked.isNotEmpty && !_loadingPool;
     final hint = ready
         ? '$_plannedMarks mark${_plannedMarks == 1 ? '' : 's'} · '
@@ -2154,6 +2489,17 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
               top: false,
               child: Row(
                 children: [
+                  IconButton(
+                    onPressed: () => setState(() => _currentStep = 0),
+                    tooltip: 'Back to Source',
+                    icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      foregroundColor: _C.ink,
+                      minimumSize: const Size(40, 40),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Container(
                     width: 44,
                     height: 44,
