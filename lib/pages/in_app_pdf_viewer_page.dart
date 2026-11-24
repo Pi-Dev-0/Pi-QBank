@@ -18,6 +18,84 @@ import 'package:url_launcher/url_launcher.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/loading_widget.dart';
 
+/// Page colour treatments offered by the reader.
+///
+/// The chrome colours travel with the treatment so the app bar, search field,
+/// scrubber and floating controls stay legible against the tinted page.
+enum _PdfColorMode {
+  normal,
+  night,
+  sepia;
+
+  String get label => switch (this) {
+        _PdfColorMode.normal => 'Normal',
+        _PdfColorMode.night => 'Night',
+        _PdfColorMode.sepia => 'Sepia',
+      };
+
+  IconData get icon => switch (this) {
+        _PdfColorMode.normal => Icons.light_mode_rounded,
+        _PdfColorMode.night => Icons.dark_mode_rounded,
+        _PdfColorMode.sepia => Icons.local_cafe_rounded,
+      };
+
+  String get tooltip => switch (this) {
+        _PdfColorMode.normal => 'Normal colours',
+        _PdfColorMode.night => 'Inverted night colours',
+        _PdfColorMode.sepia => 'Warm, higher-contrast sepia',
+      };
+
+  bool get isDark => this == _PdfColorMode.night;
+
+  Color get scaffoldBackground => switch (this) {
+        _PdfColorMode.normal => const Color(0xFFE8EBEF),
+        _PdfColorMode.night => const Color(0xFF121212),
+        _PdfColorMode.sepia => const Color(0xFFE7D9BE),
+      };
+
+  Color get surface => switch (this) {
+        _PdfColorMode.normal => Colors.white,
+        _PdfColorMode.night => const Color(0xFF1E1E1E),
+        _PdfColorMode.sepia => const Color(0xFFF7EFDD),
+      };
+
+  Color get fieldFill => switch (this) {
+        _PdfColorMode.normal => const Color(0xFFF2F4F7),
+        _PdfColorMode.night => const Color(0xFF2A2A2A),
+        _PdfColorMode.sepia => const Color(0xFFEDE0C6),
+      };
+
+  Color get foreground => switch (this) {
+        _PdfColorMode.normal => Colors.black87,
+        _PdfColorMode.night => Colors.white,
+        _PdfColorMode.sepia => const Color(0xFF4A3B2A),
+      };
+
+  Color get subtitle => switch (this) {
+        _PdfColorMode.normal => Colors.black54,
+        _PdfColorMode.night => Colors.white60,
+        _PdfColorMode.sepia => const Color(0xB34A3B2A),
+      };
+
+  Color get border => switch (this) {
+        _PdfColorMode.normal => const Color(0x0F000000),
+        _PdfColorMode.night => const Color(0x1AFFFFFF),
+        _PdfColorMode.sepia => const Color(0x2E4A3B2A),
+      };
+
+  Color get track => switch (this) {
+        _PdfColorMode.normal => const Color(0x1A000000),
+        _PdfColorMode.night => const Color(0x38FFFFFF),
+        _PdfColorMode.sepia => const Color(0x2E4A3B2A),
+      };
+
+  Color get thumbBorder => switch (this) {
+        _PdfColorMode.normal => const Color(0xD9FFFFFF),
+        _PdfColorMode.night => const Color(0x47FFFFFF),
+        _PdfColorMode.sepia => const Color(0xD9FFF3DF),
+      };
+}
+
 /// An in-app PDF viewer for local and online PDFs.
 ///
 /// This PDFium-based viewer is built on `pdfrx` and is shared by every
@@ -53,7 +131,7 @@ class InAppPdfViewerPage extends StatefulWidget {
 }
 
 class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const ColorFilter _nightModeFilter = ColorFilter.matrix([
     -1,
     0,
@@ -70,6 +148,31 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
     -1,
     0,
     255,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
+
+  /// Maps luminance onto a warm paper/ink ramp (#F4ECD8 paper, #3B2F2A ink)
+  /// so sepia keeps strong text contrast instead of merely tinting the page.
+  static const ColorFilter _sepiaModeFilter = ColorFilter.matrix([
+    0.217,
+    0.426,
+    0.083,
+    0,
+    59,
+    0.222,
+    0.435,
+    0.085,
+    0,
+    47,
+    0.204,
+    0.401,
+    0.078,
+    0,
+    42,
     0,
     0,
     0,
@@ -98,7 +201,8 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   bool _ready = false;
   bool _textSelectionEnabled = false;
   bool _askingPassword = false;
-  bool _nightMode = false;
+  _PdfColorMode _colorMode = _PdfColorMode.normal;
+  bool _isFullscreen = false;
   bool _searchVisible = false;
   bool _searchPending = false;
   String _lastQuery = '';
@@ -136,6 +240,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialPassword = widget.password;
     _searcher = PdfTextSearcher(_controller);
     _pagePaintCallbacks = [
@@ -149,6 +254,11 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_isFullscreen) {
+      // Never leave the system UI hidden after the reader is closed.
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     _readyWatchdog?.cancel();
     _autoScrollTicker.dispose();
     _removeSearchListener();
@@ -157,6 +267,31 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
     _searchFocusNode.dispose();
     super.dispose();
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Android can restore the system bars after the app returns from the
+    // background; re-apply immersive mode so fullscreen survives the trip.
+    if (state == AppLifecycleState.resumed && _isFullscreen) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
+  }
+
+  ColorFilter? get _activeColorFilter => switch (_colorMode) {
+        _PdfColorMode.normal => null,
+        _PdfColorMode.night => _nightModeFilter,
+        _PdfColorMode.sepia => _sepiaModeFilter,
+      };
+
+  /// Sepia maps every colour onto a warm luminance ramp, so the usual yellow
+  /// highlight would blend into the paper. Use a darker amber instead.
+  Color get _matchHighlightColor => _colorMode == _PdfColorMode.sepia
+      ? const Color(0x99B45309)
+      : Colors.yellow.withOpacity(0.55);
+
+  Color get _activeMatchHighlightColor => _colorMode == _PdfColorMode.sepia
+      ? const Color(0xCC92400E)
+      : Colors.orange.withOpacity(0.65);
 
   String get _autoScrollSpeedLabel =>
       _autoScrollSpeedLabels[_autoScrollSpeedIndex];
@@ -454,12 +589,12 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
 
     final selected = await showModalBottomSheet<int>(
       context: context,
-      backgroundColor: _nightMode ? const Color(0xFF1E1E1E) : Colors.white,
+      backgroundColor: _colorMode.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        final foreground = _nightMode ? Colors.white : Colors.black87;
+        final foreground = _colorMode.foreground;
 
         return StatefulBuilder(
           builder: (context, setSheetState) {
@@ -1056,7 +1191,39 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   }
 
   void _handleEscape() {
-    if (_searchVisible) _closeSearch();
+    if (_searchVisible) {
+      _closeSearch();
+      return;
+    }
+    if (_isFullscreen) _exitFullscreen();
+  }
+
+  /// Enters or leaves distraction-free reading.
+  ///
+  /// On mobile this also hides the status and navigation bars; on desktop it
+  /// hides the in-app chrome, which is as close to fullscreen as the platform
+  /// allows without a window-management plugin.
+  void _toggleFullscreen() {
+    final next = !_isFullscreen;
+    setState(() => _isFullscreen = next);
+
+    if (next) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+    HapticFeedback.selectionClick();
+  }
+
+  void _exitFullscreen() {
+    if (!_isFullscreen) return;
+    _toggleFullscreen();
+  }
+
+  void _setColorMode(_PdfColorMode mode) {
+    if (mode == _colorMode) return;
+    setState(() => _colorMode = mode);
+    HapticFeedback.selectionClick();
   }
 
   Future<void> _openExternally() async {
@@ -1136,6 +1303,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
             _scrollBy(0, 48),
         const SingleActivator(LogicalKeyboardKey.keyF, control: true):
             _openSearch,
+        const SingleActivator(LogicalKeyboardKey.f11): _toggleFullscreen,
         const SingleActivator(LogicalKeyboardKey.escape): _handleEscape,
         const SingleActivator(LogicalKeyboardKey.equal, control: true): _zoomIn,
         const SingleActivator(
@@ -1160,391 +1328,431 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
       child: Focus(
         autofocus: true,
         child: PopScope(
-          canPop: !_searchVisible,
+          canPop: !_searchVisible && !_isFullscreen,
           onPopInvokedWithResult: (didPop, result) {
-            if (!didPop && _searchVisible) _closeSearch();
+            if (didPop) return;
+            if (_searchVisible) {
+              _closeSearch();
+            } else if (_isFullscreen) {
+              _exitFullscreen();
+            }
           },
           child: Scaffold(
-            backgroundColor:
-                _nightMode ? const Color(0xFF121212) : const Color(0xFFE8EBEF),
-            appBar: CustomAppBar(
-              title: widget.title,
-              showNotification: false,
-              actions: [
-                IconButton(
-                  tooltip: _searchVisible ? 'Close search' : 'Search',
-                  icon: Icon(
-                    _searchVisible
-                        ? Icons.search_off_rounded
-                        : Icons.search_rounded,
+            backgroundColor: _colorMode.scaffoldBackground,
+            appBar: _isFullscreen
+                ? null
+                : CustomAppBar(
+                    title: widget.title,
+                    showNotification: false,
+                    actions: [
+                      IconButton(
+                        tooltip: _searchVisible ? 'Close search' : 'Search',
+                        icon: Icon(
+                          _searchVisible
+                              ? Icons.search_off_rounded
+                              : Icons.search_rounded,
+                        ),
+                        onPressed: _ready
+                            ? (_searchVisible ? _closeSearch : _openSearch)
+                            : null,
+                      ),
+                      IconButton(
+                        tooltip: _bookmarkedPages.contains(_currentPage)
+                            ? 'Remove bookmark'
+                            : 'Bookmark this page',
+                        icon: Icon(
+                          _bookmarkedPages.contains(_currentPage)
+                              ? Icons.bookmark_rounded
+                              : Icons.bookmark_border_rounded,
+                        ),
+                        onPressed: _ready && (_totalPages ?? 0) > 0
+                            ? _toggleBookmark
+                            : null,
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: 'View options',
+                        icon: const Icon(Icons.more_vert_rounded),
+                        menuPadding: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .outlineVariant
+                                .withOpacity(0.5),
+                          ),
+                        ),
+                        elevation: 14,
+                        shadowColor: Colors.black.withOpacity(0.25),
+                        surfaceTintColor: Colors.transparent,
+                        color: Theme.of(context).colorScheme.surface,
+                        constraints: const BoxConstraints(
+                          minWidth: 280,
+                          maxWidth: 320,
+                        ),
+                        onSelected: (value) {
+                          // Any menu action other than the reading-flow controls
+                          // is an explicit interruption of the reading flow.
+                          const readingFlowActions = <String>{
+                            'autoscroll-toggle',
+                            'autoscroll-speed',
+                            'fullscreen',
+                            'color-normal',
+                            'color-night',
+                            'color-sepia',
+                          };
+                          if (_autoScrollEnabled &&
+                              !readingFlowActions.contains(value)) {
+                            _stopAutoScroll();
+                          }
+                          switch (value) {
+                            case 'open-external':
+                              _openExternally();
+                            case 'goto-page':
+                              _showGoToPageDialog();
+                            case 'previous-page':
+                              _previousPage();
+                            case 'next-page':
+                              _nextPage();
+                            case 'first-page':
+                              _firstPage();
+                            case 'last-page':
+                              _lastPage();
+                            case 'autoscroll-toggle':
+                              _toggleAutoScroll();
+                            case 'autoscroll-speed':
+                              _cycleAutoScrollSpeed();
+                            case 'zoom-in':
+                              _zoomIn();
+                            case 'zoom-out':
+                              _zoomOut();
+                            case 'fit-width':
+                              _fitWidth();
+                            case 'fit-page':
+                              _fitPage();
+                            case 'actual-size':
+                              _actualSize();
+                            case 'fullscreen':
+                              _toggleFullscreen();
+                            case 'color-normal':
+                              _setColorMode(_PdfColorMode.normal);
+                            case 'color-night':
+                              _setColorMode(_PdfColorMode.night);
+                            case 'color-sepia':
+                              _setColorMode(_PdfColorMode.sepia);
+                            case 'select-text':
+                              setState(
+                                () => _textSelectionEnabled =
+                                    !_textSelectionEnabled,
+                              );
+                            case 'bookmarks':
+                              _showBookmarksList();
+                            case 'share':
+                              _sharePdf();
+                            case 'keyboard-shortcuts':
+                              _showKeyboardShortcuts();
+                          }
+                        },
+                        itemBuilder: (context) {
+                          final showShortcuts = !Platform.isAndroid;
+                          final canShare = Platform.isAndroid ||
+                              Platform.isMacOS ||
+                              Platform.isWindows;
+                          final total = _totalPages;
+                          final hasPages = _ready && total != null && total > 0;
+                          final canGoBack = total != null &&
+                              total > 0 &&
+                              _ready &&
+                              _currentPage > 1;
+                          final canGoForward = total != null &&
+                              total > 0 &&
+                              _ready &&
+                              _currentPage < total;
+
+                          // ── helpers ────────────────────────────────────────
+                          final cs = Theme.of(context).colorScheme;
+
+                          PopupMenuItem<String> item({
+                            required String value,
+                            required IconData icon,
+                            required String label,
+                            String? shortcut,
+                            bool enabled = true,
+                            Color? iconColor,
+                            bool active = false,
+                          }) {
+                            return PopupMenuItem<String>(
+                              value: value,
+                              enabled: enabled,
+                              padding: EdgeInsets.zero,
+                              height: 36,
+                              child: _MenuRow(
+                                icon: icon,
+                                label: label,
+                                shortcut: shortcut,
+                                enabled: enabled,
+                                iconColor: iconColor,
+                                active: active,
+                                activeColor: iconColor ?? cs.primary,
+                              ),
+                            );
+                          }
+
+                          PopupMenuItem<String> sectionHeader(String title) {
+                            return PopupMenuItem<String>(
+                              enabled: false,
+                              height: 22,
+                              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                              child: Text(
+                                title.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.1,
+                                  color: cs.onSurface.withOpacity(0.42),
+                                ),
+                              ),
+                            );
+                          }
+
+                          // Two side-by-side tappable cells in one row
+                          PopupMenuItem<String> pairedItem({
+                            required IconData icon1,
+                            required String label1,
+                            required String value1,
+                            bool enabled1 = true,
+                            required IconData icon2,
+                            required String label2,
+                            required String value2,
+                            bool enabled2 = true,
+                            Color? iconColor,
+                          }) {
+                            return PopupMenuItem<String>(
+                              enabled: false,
+                              padding: EdgeInsets.zero,
+                              height: 44,
+                              child: _PairedMenuRow(
+                                icon1: icon1,
+                                label1: label1,
+                                value1: value1,
+                                enabled1: enabled1,
+                                icon2: icon2,
+                                label2: label2,
+                                value2: value2,
+                                enabled2: enabled2,
+                                iconColor: iconColor ?? cs.primary,
+                              ),
+                            );
+                          }
+
+                          // Multiple side-by-side tappable cells in a single row
+                          PopupMenuItem<String> multiItem({
+                            required List<_MenuActionItem> items,
+                            Color? iconColor,
+                            double height = 54,
+                          }) {
+                            return PopupMenuItem<String>(
+                              enabled: false,
+                              padding: EdgeInsets.zero,
+                              height: height,
+                              child: _MultiMenuRow(
+                                items: items,
+                                iconColor: iconColor ?? cs.primary,
+                              ),
+                            );
+                          }
+
+                          PopupMenuDivider divider() =>
+                              const PopupMenuDivider(height: 1);
+
+                          // ── items ───────────────────────────────────────────
+                          return [
+                            // ── File ───────────────────────────────────────
+                            sectionHeader('File'),
+                            item(
+                              value: 'open-external',
+                              icon: Icons.open_in_new_rounded,
+                              label: 'Open in another app',
+                              iconColor: const Color(0xFF6366F1),
+                            ),
+                            if (canShare)
+                              item(
+                                value: 'share',
+                                icon: Icons.share_rounded,
+                                label: 'Share',
+                                iconColor: const Color(0xFF0EA5E9),
+                              ),
+                            divider(),
+
+                            // ── Navigation ─────────────────────────────────
+                            sectionHeader('Navigation'),
+                            item(
+                              value: 'goto-page',
+                              icon: Icons.tag_rounded,
+                              label: 'Go to page…',
+                              shortcut: total == null
+                                  ? null
+                                  : '$_currentPage / $total',
+                              enabled: hasPages,
+                              iconColor: const Color(0xFF8B5CF6),
+                            ),
+                            multiItem(
+                              iconColor: const Color(0xFF8B5CF6),
+                              items: [
+                                _MenuActionItem(
+                                  icon: Icons.first_page_rounded,
+                                  label: 'First',
+                                  value: 'first-page',
+                                  enabled: canGoBack,
+                                  tooltip: 'First page',
+                                ),
+                                _MenuActionItem(
+                                  icon: Icons.arrow_back_ios_new_rounded,
+                                  label: 'Previous',
+                                  value: 'previous-page',
+                                  enabled: canGoBack,
+                                  tooltip: 'Previous page',
+                                ),
+                                _MenuActionItem(
+                                  icon: Icons.arrow_forward_ios_rounded,
+                                  label: 'Next',
+                                  value: 'next-page',
+                                  enabled: canGoForward,
+                                  tooltip: 'Next page',
+                                ),
+                                _MenuActionItem(
+                                  icon: Icons.last_page_rounded,
+                                  label: 'Last',
+                                  value: 'last-page',
+                                  enabled: canGoForward,
+                                  tooltip: 'Last page',
+                                ),
+                              ],
+                            ),
+                            divider(),
+
+                            // ── Auto-scroll ────────────────────────────────
+                            sectionHeader('Auto-scroll'),
+                            item(
+                              value: 'autoscroll-toggle',
+                              icon: _autoScrollEnabled
+                                  ? Icons.stop_rounded
+                                  : Icons.play_arrow_rounded,
+                              label: _autoScrollEnabled
+                                  ? 'Stop auto-scroll'
+                                  : 'Start auto-scroll',
+                              shortcut: _autoScrollPaused ? 'PAUSED' : null,
+                              enabled: hasPages,
+                              iconColor: const Color(0xFF10B981),
+                              active: _autoScrollEnabled,
+                            ),
+                            item(
+                              value: 'autoscroll-speed',
+                              icon: Icons.speed_rounded,
+                              label: 'Auto-scroll speed',
+                              shortcut: _autoScrollSpeedLabel,
+                              enabled: hasPages,
+                              iconColor: const Color(0xFF10B981),
+                            ),
+                            divider(),
+
+                            // ── Zoom ───────────────────────────────────────
+                            sectionHeader('Zoom'),
+                            pairedItem(
+                              icon1: Icons.zoom_in_rounded,
+                              label1: 'Zoom in',
+                              value1: 'zoom-in',
+                              enabled1: _ready,
+                              icon2: Icons.zoom_out_rounded,
+                              label2: 'Zoom out',
+                              value2: 'zoom-out',
+                              enabled2: _ready,
+                              iconColor: const Color(0xFF10B981),
+                            ),
+                            multiItem(
+                              iconColor: const Color(0xFF10B981),
+                              items: [
+                                _MenuActionItem(
+                                  icon: Icons.width_full_rounded,
+                                  label: 'Fit width',
+                                  value: 'fit-width',
+                                  tooltip: 'Fit width',
+                                ),
+                                _MenuActionItem(
+                                  icon: Icons.fit_screen_rounded,
+                                  label: 'Fit page',
+                                  value: 'fit-page',
+                                  tooltip: 'Fit page',
+                                ),
+                                _MenuActionItem(
+                                  icon: Icons.crop_free_rounded,
+                                  label: 'Actual size',
+                                  value: 'actual-size',
+                                  tooltip: 'Actual size (100%)',
+                                ),
+                              ],
+                            ),
+                            divider(),
+
+                            // ── Color mode ─────────────────────────────────
+                            sectionHeader('Color mode'),
+                            multiItem(
+                              iconColor: const Color(0xFFF59E0B),
+                              items: [
+                                for (final mode in _PdfColorMode.values)
+                                  _MenuActionItem(
+                                    icon: mode.icon,
+                                    label: mode.label,
+                                    value: 'color-${mode.name}',
+                                    active: _colorMode == mode,
+                                    tooltip: mode.tooltip,
+                                  ),
+                              ],
+                            ),
+                            divider(),
+
+                            // ── Tools ──────────────────────────────────────
+                            sectionHeader('Tools'),
+                            item(
+                              value: 'fullscreen',
+                              icon: _isFullscreen
+                                  ? Icons.fullscreen_exit_rounded
+                                  : Icons.fullscreen_rounded,
+                              label: _isFullscreen
+                                  ? 'Exit fullscreen'
+                                  : 'Fullscreen',
+                              shortcut: showShortcuts ? 'F11' : null,
+                              iconColor: const Color(0xFF6366F1),
+                              active: _isFullscreen,
+                            ),
+                            item(
+                              value: 'select-text',
+                              icon: Icons.text_fields_rounded,
+                              label: 'Select text',
+                              iconColor: const Color(0xFF0EA5E9),
+                              active: _textSelectionEnabled,
+                            ),
+                            item(
+                              value: 'bookmarks',
+                              icon: Icons.bookmarks_rounded,
+                              label: 'Bookmarks (${_bookmarkedPages.length})',
+                              iconColor: const Color(0xFFEF4444),
+                              active: _bookmarkedPages.isNotEmpty,
+                            ),
+                            if (showShortcuts) ...[
+                              divider(),
+                              item(
+                                value: 'keyboard-shortcuts',
+                                icon: Icons.keyboard_rounded,
+                                label: 'Keyboard shortcuts',
+                                iconColor: const Color(0xFF64748B),
+                              ),
+                            ],
+                          ];
+                        },
+                      ),
+                    ],
                   ),
-                  onPressed: _ready
-                      ? (_searchVisible ? _closeSearch : _openSearch)
-                      : null,
-                ),
-                IconButton(
-                  tooltip: _bookmarkedPages.contains(_currentPage)
-                      ? 'Remove bookmark'
-                      : 'Bookmark this page',
-                  icon: Icon(
-                    _bookmarkedPages.contains(_currentPage)
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded,
-                  ),
-                  onPressed:
-                      _ready && (_totalPages ?? 0) > 0 ? _toggleBookmark : null,
-                ),
-                PopupMenuButton<String>(
-                  tooltip: 'View options',
-                  icon: const Icon(Icons.more_vert_rounded),
-                  menuPadding: const EdgeInsets.symmetric(vertical: 6),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .outlineVariant
-                          .withOpacity(0.5),
-                    ),
-                  ),
-                  elevation: 14,
-                  shadowColor: Colors.black.withOpacity(0.25),
-                  surfaceTintColor: Colors.transparent,
-                  color: Theme.of(context).colorScheme.surface,
-                  constraints: const BoxConstraints(
-                    minWidth: 280,
-                    maxWidth: 320,
-                  ),
-                  onSelected: (value) {
-                    // Any menu action other than the auto-scroll controls is
-                    // an explicit interruption of the reading flow.
-                    if (_autoScrollEnabled &&
-                        value != 'autoscroll-toggle' &&
-                        value != 'autoscroll-speed') {
-                      _stopAutoScroll();
-                    }
-                    switch (value) {
-                      case 'open-external':
-                        _openExternally();
-                      case 'goto-page':
-                        _showGoToPageDialog();
-                      case 'previous-page':
-                        _previousPage();
-                      case 'next-page':
-                        _nextPage();
-                      case 'first-page':
-                        _firstPage();
-                      case 'last-page':
-                        _lastPage();
-                      case 'autoscroll-toggle':
-                        _toggleAutoScroll();
-                      case 'autoscroll-speed':
-                        _cycleAutoScrollSpeed();
-                      case 'zoom-in':
-                        _zoomIn();
-                      case 'zoom-out':
-                        _zoomOut();
-                      case 'fit-width':
-                        _fitWidth();
-                      case 'fit-page':
-                        _fitPage();
-                      case 'actual-size':
-                        _actualSize();
-                      case 'night-mode':
-                        setState(() => _nightMode = !_nightMode);
-                      case 'select-text':
-                        setState(
-                          () => _textSelectionEnabled = !_textSelectionEnabled,
-                        );
-                      case 'bookmarks':
-                        _showBookmarksList();
-                      case 'share':
-                        _sharePdf();
-                      case 'keyboard-shortcuts':
-                        _showKeyboardShortcuts();
-                    }
-                  },
-                  itemBuilder: (context) {
-                    final showShortcuts = !Platform.isAndroid;
-                    final canShare = Platform.isAndroid ||
-                        Platform.isMacOS ||
-                        Platform.isWindows;
-                    final total = _totalPages;
-                    final hasPages = _ready && total != null && total > 0;
-                    final canGoBack = total != null &&
-                        total > 0 &&
-                        _ready &&
-                        _currentPage > 1;
-                    final canGoForward = total != null &&
-                        total > 0 &&
-                        _ready &&
-                        _currentPage < total;
-
-                    // ── helpers ────────────────────────────────────────
-                    final cs = Theme.of(context).colorScheme;
-
-                    PopupMenuItem<String> item({
-                      required String value,
-                      required IconData icon,
-                      required String label,
-                      String? shortcut,
-                      bool enabled = true,
-                      Color? iconColor,
-                      bool active = false,
-                    }) {
-                      return PopupMenuItem<String>(
-                        value: value,
-                        enabled: enabled,
-                        padding: EdgeInsets.zero,
-                        height: 36,
-                        child: _MenuRow(
-                          icon: icon,
-                          label: label,
-                          shortcut: shortcut,
-                          enabled: enabled,
-                          iconColor: iconColor,
-                          active: active,
-                          activeColor: iconColor ?? cs.primary,
-                        ),
-                      );
-                    }
-
-                    PopupMenuItem<String> sectionHeader(String title) {
-                      return PopupMenuItem<String>(
-                        enabled: false,
-                        height: 22,
-                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                        child: Text(
-                          title.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.1,
-                            color: cs.onSurface.withOpacity(0.42),
-                          ),
-                        ),
-                      );
-                    }
-
-                    // Two side-by-side tappable cells in one row
-                    PopupMenuItem<String> pairedItem({
-                      required IconData icon1,
-                      required String label1,
-                      required String value1,
-                      bool enabled1 = true,
-                      required IconData icon2,
-                      required String label2,
-                      required String value2,
-                      bool enabled2 = true,
-                      Color? iconColor,
-                    }) {
-                      return PopupMenuItem<String>(
-                        enabled: false,
-                        padding: EdgeInsets.zero,
-                        height: 44,
-                        child: _PairedMenuRow(
-                          icon1: icon1,
-                          label1: label1,
-                          value1: value1,
-                          enabled1: enabled1,
-                          icon2: icon2,
-                          label2: label2,
-                          value2: value2,
-                          enabled2: enabled2,
-                          iconColor: iconColor ?? cs.primary,
-                        ),
-                      );
-                    }
-
-                    // Multiple side-by-side tappable cells in a single row
-                    PopupMenuItem<String> multiItem({
-                      required List<_MenuActionItem> items,
-                      Color? iconColor,
-                      double height = 54,
-                    }) {
-                      return PopupMenuItem<String>(
-                        enabled: false,
-                        padding: EdgeInsets.zero,
-                        height: height,
-                        child: _MultiMenuRow(
-                          items: items,
-                          iconColor: iconColor ?? cs.primary,
-                        ),
-                      );
-                    }
-
-                    PopupMenuDivider divider() =>
-                        const PopupMenuDivider(height: 1);
-
-                    // ── items ───────────────────────────────────────────
-                    return [
-                      // ── File ───────────────────────────────────────
-                      sectionHeader('File'),
-                      item(
-                        value: 'open-external',
-                        icon: Icons.open_in_new_rounded,
-                        label: 'Open in another app',
-                        iconColor: const Color(0xFF6366F1),
-                      ),
-                      if (canShare)
-                        item(
-                          value: 'share',
-                          icon: Icons.share_rounded,
-                          label: 'Share',
-                          iconColor: const Color(0xFF0EA5E9),
-                        ),
-                      divider(),
-
-                      // ── Navigation ─────────────────────────────────
-                      sectionHeader('Navigation'),
-                      item(
-                        value: 'goto-page',
-                        icon: Icons.tag_rounded,
-                        label: 'Go to page…',
-                        shortcut:
-                            total == null ? null : '$_currentPage / $total',
-                        enabled: hasPages,
-                        iconColor: const Color(0xFF8B5CF6),
-                      ),
-                      multiItem(
-                        iconColor: const Color(0xFF8B5CF6),
-                        items: [
-                          _MenuActionItem(
-                            icon: Icons.first_page_rounded,
-                            label: 'First',
-                            value: 'first-page',
-                            enabled: canGoBack,
-                            tooltip: 'First page',
-                          ),
-                          _MenuActionItem(
-                            icon: Icons.arrow_back_ios_new_rounded,
-                            label: 'Previous',
-                            value: 'previous-page',
-                            enabled: canGoBack,
-                            tooltip: 'Previous page',
-                          ),
-                          _MenuActionItem(
-                            icon: Icons.arrow_forward_ios_rounded,
-                            label: 'Next',
-                            value: 'next-page',
-                            enabled: canGoForward,
-                            tooltip: 'Next page',
-                          ),
-                          _MenuActionItem(
-                            icon: Icons.last_page_rounded,
-                            label: 'Last',
-                            value: 'last-page',
-                            enabled: canGoForward,
-                            tooltip: 'Last page',
-                          ),
-                        ],
-                      ),
-                      divider(),
-
-                      // ── Auto-scroll ────────────────────────────────
-                      sectionHeader('Auto-scroll'),
-                      item(
-                        value: 'autoscroll-toggle',
-                        icon: _autoScrollEnabled
-                            ? Icons.stop_rounded
-                            : Icons.play_arrow_rounded,
-                        label: _autoScrollEnabled
-                            ? 'Stop auto-scroll'
-                            : 'Start auto-scroll',
-                        shortcut: _autoScrollPaused ? 'PAUSED' : null,
-                        enabled: hasPages,
-                        iconColor: const Color(0xFF10B981),
-                        active: _autoScrollEnabled,
-                      ),
-                      item(
-                        value: 'autoscroll-speed',
-                        icon: Icons.speed_rounded,
-                        label: 'Auto-scroll speed',
-                        shortcut: _autoScrollSpeedLabel,
-                        enabled: hasPages,
-                        iconColor: const Color(0xFF10B981),
-                      ),
-                      divider(),
-
-                      // ── Zoom ───────────────────────────────────────
-                      sectionHeader('Zoom'),
-                      pairedItem(
-                        icon1: Icons.zoom_in_rounded,
-                        label1: 'Zoom in',
-                        value1: 'zoom-in',
-                        enabled1: _ready,
-                        icon2: Icons.zoom_out_rounded,
-                        label2: 'Zoom out',
-                        value2: 'zoom-out',
-                        enabled2: _ready,
-                        iconColor: const Color(0xFF10B981),
-                      ),
-                      multiItem(
-                        iconColor: const Color(0xFF10B981),
-                        items: [
-                          _MenuActionItem(
-                            icon: Icons.width_full_rounded,
-                            label: 'Fit width',
-                            value: 'fit-width',
-                            tooltip: 'Fit width',
-                          ),
-                          _MenuActionItem(
-                            icon: Icons.fit_screen_rounded,
-                            label: 'Fit page',
-                            value: 'fit-page',
-                            tooltip: 'Fit page',
-                          ),
-                          _MenuActionItem(
-                            icon: Icons.crop_free_rounded,
-                            label: 'Actual size',
-                            value: 'actual-size',
-                            tooltip: 'Actual size (100%)',
-                          ),
-                        ],
-                      ),
-                      divider(),
-
-                      // ── Tools ──────────────────────────────────────
-                      sectionHeader('Tools'),
-                      item(
-                        value: 'night-mode',
-                        icon: _nightMode
-                            ? Icons.light_mode_rounded
-                            : Icons.dark_mode_rounded,
-                        label: _nightMode ? 'Light mode' : 'Night mode',
-                        iconColor: _nightMode
-                            ? const Color(0xFFF59E0B)
-                            : const Color(0xFF6366F1),
-                        active: _nightMode,
-                      ),
-                      item(
-                        value: 'select-text',
-                        icon: Icons.text_fields_rounded,
-                        label: 'Select text',
-                        iconColor: const Color(0xFF0EA5E9),
-                        active: _textSelectionEnabled,
-                      ),
-                      item(
-                        value: 'bookmarks',
-                        icon: Icons.bookmarks_rounded,
-                        label: 'Bookmarks (${_bookmarkedPages.length})',
-                        iconColor: const Color(0xFFEF4444),
-                        active: _bookmarkedPages.isNotEmpty,
-                      ),
-                      if (showShortcuts) ...[
-                        divider(),
-                        item(
-                          value: 'keyboard-shortcuts',
-                          icon: Icons.keyboard_rounded,
-                          label: 'Keyboard shortcuts',
-                          iconColor: const Color(0xFF64748B),
-                        ),
-                      ],
-                    ];
-                  },
-                ),
-              ],
-            ),
             body: _buildBody(),
           ),
         ),
@@ -1598,8 +1806,8 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
           enableKeyboardNavigation: false,
           enableTextSelection: _textSelectionEnabled,
           pagePaintCallbacks: _pagePaintCallbacks,
-          matchTextColor: Colors.yellow.withOpacity(0.55),
-          activeMatchTextColor: Colors.orange.withOpacity(0.65),
+          matchTextColor: _matchHighlightColor,
+          activeMatchTextColor: _activeMatchHighlightColor,
           onViewerReady: _handleViewerReady,
           onDocumentChanged: _handleDocumentChanged,
           onPageChanged: _handlePageChanged,
@@ -1644,6 +1852,8 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
       },
     );
 
+    final colorFilter = _activeColorFilter;
+
     return Column(
       children: [
         _searchVisible ? _buildSearchBar() : const SizedBox.shrink(),
@@ -1652,23 +1862,32 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
             fit: StackFit.expand,
             children: [
               Positioned.fill(
-                child: _nightMode
-                    ? ColorFiltered(
-                        colorFilter: _nightModeFilter,
+                child: colorFilter == null
+                    ? viewer
+                    : ColorFiltered(
+                        colorFilter: colorFilter,
                         child: viewer,
-                      )
-                    : viewer,
+                      ),
               ),
               // The old bottom slider/page bar is replaced by this right-edge
-              // page scrubber. It is deliberately outside the night-mode
-              // ColorFiltered layer so its colours stay accurate.
+              // page scrubber. It is deliberately outside the colour-filtered
+              // layer so its colours stay accurate.
               if (_ready)
                 _PageScrollBar(
                   controller: _controller,
-                  nightMode: _nightMode,
+                  colorMode: _colorMode,
                   onUserInteraction: () => _stopAutoScroll(),
                 ),
               _buildAutoScrollControls(),
+              if (_isFullscreen)
+                Positioned(
+                  top: 10 + MediaQuery.viewPaddingOf(context).top,
+                  left: 10,
+                  child: _FullscreenExitButton(
+                    colorMode: _colorMode,
+                    onPressed: _exitFullscreen,
+                  ),
+                ),
             ],
           ),
         ),
@@ -1694,7 +1913,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
             child: Center(
               child: _AutoScrollPill(
                 speedLabel: _autoScrollSpeedLabel,
-                nightMode: _nightMode,
+                colorMode: _colorMode,
                 paused: _autoScrollPaused,
                 onTogglePause: _toggleAutoScrollPause,
                 onSpeed: _cycleAutoScrollSpeed,
@@ -1715,7 +1934,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   }
 
   Widget _buildSearchBar() {
-    final foreground = _nightMode ? Colors.white : Colors.black87;
+    final foreground = _colorMode.foreground;
     final hasQuery = _searchController.text.trim().isNotEmpty;
     final matches = _searcher.matches.length;
     final current = _searcher.currentIndex;
@@ -1762,8 +1981,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
                 },
               ),
         filled: true,
-        fillColor:
-            _nightMode ? const Color(0xFF2A2A2A) : const Color(0xFFF2F4F7),
+        fillColor: _colorMode.fieldFill,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -1821,7 +2039,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
         disabledColor: foreground.withOpacity(0.35),
       ),
       child: Material(
-        color: _nightMode ? const Color(0xFF1E1E1E) : Colors.white,
+        color: _colorMode.surface,
         elevation: 2,
         child: SafeArea(
           top: false,
@@ -2037,6 +2255,11 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
             ),
             _ShortcutRow(keys: 'Ctrl+2', action: 'Actual size'),
             _ShortcutRow(keys: 'Ctrl+F', action: 'Search in document'),
+            _ShortcutRow(keys: 'F11', action: 'Toggle fullscreen'),
+            _ShortcutRow(
+              keys: 'Esc',
+              action: 'Close search / exit fullscreen',
+            ),
           ],
         ),
         actions: [
@@ -2058,12 +2281,12 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
 class _PageScrollBar extends StatefulWidget {
   const _PageScrollBar({
     required this.controller,
-    required this.nightMode,
+    required this.colorMode,
     this.onUserInteraction,
   });
 
   final PdfViewerController controller;
-  final bool nightMode;
+  final _PdfColorMode colorMode;
 
   /// Called when the reader touches the scrubber, so auto-scroll can stop.
   final VoidCallback? onUserInteraction;
@@ -2170,9 +2393,7 @@ class _PageScrollBarState extends State<_PageScrollBar> {
                         width: _dragging ? 6 : 4,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: widget.nightMode
-                                ? Colors.white.withOpacity(0.22)
-                                : Colors.black.withOpacity(0.10),
+                            color: widget.colorMode.track,
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -2202,10 +2423,16 @@ class _PageScrollBarState extends State<_PageScrollBar> {
 
   Widget _buildThumb(int page, int total) {
     final primary = Theme.of(context).colorScheme.primary;
-    final gradientStart = widget.nightMode ? const Color(0xFF5B8DEF) : primary;
-    final gradientEnd = widget.nightMode
-        ? const Color(0xFF2D5BD1)
-        : Color.lerp(primary, Colors.black, 0.35)!;
+    final gradientStart = switch (widget.colorMode) {
+      _PdfColorMode.normal => primary,
+      _PdfColorMode.night => const Color(0xFF5B8DEF),
+      _PdfColorMode.sepia => const Color(0xFFB07A3F),
+    };
+    final gradientEnd = switch (widget.colorMode) {
+      _PdfColorMode.normal => Color.lerp(primary, Colors.black, 0.35)!,
+      _PdfColorMode.night => const Color(0xFF2D5BD1),
+      _PdfColorMode.sepia => const Color(0xFF7A4F24),
+    };
     final pageFontSize = page >= 1000
         ? 10.5
         : page >= 100
@@ -2221,7 +2448,7 @@ class _PageScrollBarState extends State<_PageScrollBar> {
         ),
         borderRadius: BorderRadius.circular(_barWidth / 2),
         border: Border.all(
-          color: Colors.white.withOpacity(widget.nightMode ? 0.28 : 0.85),
+          color: widget.colorMode.thumbBorder,
           width: 1.4,
         ),
         boxShadow: [
@@ -2230,7 +2457,9 @@ class _PageScrollBarState extends State<_PageScrollBar> {
             blurRadius: _dragging ? 18 : 10,
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(widget.nightMode ? 0.55 : 0.28),
+            color: Colors.black.withOpacity(
+              widget.colorMode.isDark ? 0.55 : 0.28,
+            ),
             blurRadius: _dragging ? 13 : 7,
             offset: const Offset(0, 3),
           ),
@@ -2324,14 +2553,14 @@ class _PageScrollBarState extends State<_PageScrollBar> {
 class _AutoScrollPill extends StatelessWidget {
   const _AutoScrollPill({
     required this.speedLabel,
-    required this.nightMode,
+    required this.colorMode,
     required this.paused,
     required this.onTogglePause,
     required this.onSpeed,
   });
 
   final String speedLabel;
-  final bool nightMode;
+  final _PdfColorMode colorMode;
   final bool paused;
   final VoidCallback onTogglePause;
   final VoidCallback onSpeed;
@@ -2340,12 +2569,10 @@ class _AutoScrollPill extends StatelessWidget {
   Widget build(BuildContext context) {
     const green = Color(0xFF10B981);
     const greenDark = Color(0xFF059669);
-    final foreground = nightMode ? Colors.white : const Color(0xFF1F2937);
-    final subtitle = nightMode ? Colors.white60 : Colors.black45;
-    final surface = nightMode ? const Color(0xFF1F1F1F) : Colors.white;
-    final border = nightMode
-        ? Colors.white.withOpacity(0.10)
-        : Colors.black.withOpacity(0.06);
+    final foreground = colorMode.foreground;
+    final subtitle = colorMode.subtitle;
+    final surface = colorMode.surface;
+    final border = colorMode.border;
     final buttonColors = paused
         ? const [Color(0xFFF59E0B), Color(0xFFD97706)]
         : const [green, greenDark];
@@ -2445,7 +2672,9 @@ class _AutoScrollPill extends StatelessWidget {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: green.withOpacity(nightMode ? 0.18 : 0.12),
+                        color: green.withOpacity(
+                          colorMode.isDark ? 0.18 : 0.12,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -2479,6 +2708,52 @@ class _AutoScrollPill extends StatelessWidget {
   }
 }
 
+/// Floating control that brings the reader back out of fullscreen.
+class _FullscreenExitButton extends StatelessWidget {
+  const _FullscreenExitButton({
+    required this.colorMode,
+    required this.onPressed,
+  });
+
+  final _PdfColorMode colorMode;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = colorMode.surface;
+    final foreground = colorMode.foreground;
+
+    return Semantics(
+      button: true,
+      label: 'Exit fullscreen',
+      child: Tooltip(
+        message: 'Exit fullscreen (Esc)',
+        child: Material(
+          elevation: 6,
+          shadowColor: Colors.black.withOpacity(0.28),
+          color: surface,
+          shape: CircleBorder(
+            side: BorderSide(color: colorMode.border),
+          ),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onPressed,
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(
+                Icons.fullscreen_exit_rounded,
+                size: 22,
+                color: foreground,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ViewerLoadingBanner extends StatelessWidget {
   const _ViewerLoadingBanner();
 
@@ -2495,6 +2770,7 @@ class _MenuActionItem {
   final String label;
   final String value;
   final bool enabled;
+  final bool active;
   final String? tooltip;
 
   const _MenuActionItem({
@@ -2502,6 +2778,7 @@ class _MenuActionItem {
     required this.label,
     required this.value,
     this.enabled = true,
+    this.active = false,
     this.tooltip,
   });
 }
@@ -2521,6 +2798,7 @@ class _MultiMenuRow extends StatelessWidget {
     final labelColor = item.enabled
         ? Theme.of(context).colorScheme.onSurface
         : Colors.grey.shade400;
+    final active = item.enabled && item.active;
 
     Widget content = InkWell(
       onTap: item.enabled ? () => Navigator.pop(context, item.value) : null,
@@ -2531,21 +2809,54 @@ class _MultiMenuRow extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: effectiveColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(item.icon, size: 15, color: effectiveColor),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: effectiveColor.withOpacity(active ? 0.20 : 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: active
+                        ? Border.all(
+                            color: effectiveColor.withOpacity(0.55),
+                            width: 1.2,
+                          )
+                        : null,
+                  ),
+                  child: Icon(item.icon, size: 15, color: effectiveColor),
+                ),
+                if (active)
+                  Positioned(
+                    top: -3,
+                    right: -3,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: effectiveColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.surface,
+                          width: 1,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 8,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 3),
             Text(
               item.label,
               style: TextStyle(
                 fontSize: 10.5,
-                fontWeight: FontWeight.w500,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 color: labelColor,
               ),
               maxLines: 1,

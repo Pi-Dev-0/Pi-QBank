@@ -1,7 +1,9 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../config/app_config.dart';
 
 class AppNotification {
@@ -21,6 +23,11 @@ class AppNotification {
     this.seen = false,
   });
 
+  /// Stable identity used to deduplicate notifications that come back from
+  /// the API with a different (or missing) id but the same content.
+  String get contentKey =>
+      '${title.trim()}|${subtitle.trim()}|${description.trim()}';
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
@@ -32,108 +39,190 @@ class AppNotification {
 
   factory AppNotification.fromJson(Map<String, dynamic> json) =>
       AppNotification(
-        id: json['id'],
-        title: json['title'],
-        subtitle: json['subtitle'],
-        description: json['description'],
-        timestamp: DateTime.parse(json['timestamp']),
-        seen: json['seen'] ?? false,
+        id: (json['id'] ?? '').toString(),
+        title: (json['title'] ?? 'Notification').toString(),
+        subtitle: (json['subtitle'] ?? '').toString(),
+        description: (json['description'] ?? '').toString(),
+        timestamp: DateTime.tryParse((json['timestamp'] ?? '').toString()) ??
+            DateTime.now(),
+        seen: json['seen'] == true,
       );
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is AppNotification &&
-        title.trim() == other.title.trim() &&
-        subtitle.trim() == other.subtitle.trim() &&
-        description.trim() == other.description.trim();
+    return other is AppNotification && contentKey == other.contentKey;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(title.trim(), subtitle.trim(), description.trim());
+  int get hashCode => contentKey.hashCode;
 }
 
 class NotificationService {
   static final String _scriptUrl = AppConfig.notificationApi;
   static const String _notificationsKey = 'notifications_data';
   static const int _maxNotifications = 15;
+  static const Duration _requestTimeout = Duration(seconds: 12);
 
   static List<AppNotification> _cachedNotifications = [];
   static bool _initialFetchDone = false;
+  static Future<List<AppNotification>>? _inFlightFetch;
 
-  static Future<List<AppNotification>> fetchNotifications() async {
-    // Return cached notifications if initial fetch is done
-    if (_initialFetchDone) {
-      return _cachedNotifications;
+  /// Rebuilds listeners whenever the notification list changes. Both the bell
+  /// badge and the open notification sheet listen to this.
+  static final ValueNotifier<List<AppNotification>> notificationsListenable =
+      ValueNotifier<List<AppNotification>>(const <AppNotification>[]);
+
+  /// Number of notifications that have not been opened yet.
+  static final ValueNotifier<int> unreadCountListenable = ValueNotifier<int>(0);
+
+  static List<AppNotification> get notifications =>
+      List<AppNotification>.unmodifiable(_cachedNotifications);
+
+  static int get unreadCount =>
+      _cachedNotifications.where((notification) => !notification.seen).length;
+
+  /// Loads notifications from the API (or local storage as a fallback).
+  ///
+  /// Pass [forceRefresh] to bypass the in-memory cache. Concurrent calls share
+  /// the same request so several app bars can never fire duplicate fetches.
+  static Future<List<AppNotification>> fetchNotifications({
+    bool forceRefresh = false,
+  }) {
+    if (_initialFetchDone && !forceRefresh) {
+      _syncNotifiers();
+      return Future<List<AppNotification>>.value(_cachedNotifications);
     }
 
+    final inFlight = _inFlightFetch;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _fetchNotifications();
+    _inFlightFetch = future;
+    future.then<void>(
+      (_) {
+        if (identical(_inFlightFetch, future)) {
+          _inFlightFetch = null;
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (identical(_inFlightFetch, future)) {
+          _inFlightFetch = null;
+        }
+      },
+    );
+    return future;
+  }
+
+  static Future<List<AppNotification>> _fetchNotifications() async {
     if (_scriptUrl.trim().isEmpty) {
-      final stored = await _loadStoredNotifications();
-      _initialFetchDone = true;
-      return stored;
+      return _finishWithStoredNotifications();
     }
 
     try {
       final uri = Uri.tryParse(_scriptUrl);
       if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-        final stored = await _loadStoredNotifications();
-        _initialFetchDone = true;
-        return stored;
+        return _finishWithStoredNotifications();
       }
-      final response = await http.get(uri);
+
+      final response = await http.get(uri).timeout(_requestTimeout);
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List<AppNotification> apiNotifications = [];
+        final decoded = json.decode(response.body);
+        final rawNotifications =
+            decoded is Map<String, dynamic> ? decoded['notifications'] : null;
 
-        // Load existing notifications to preserve seen status
-        final existingNotifications = await _loadStoredNotifications();
-        final existingMap = {for (var n in existingNotifications) n.id: n.seen};
+        if (rawNotifications is List) {
+          final existing = await _loadStoredNotifications();
+          final seenById = <String, bool>{
+            for (final notification in existing)
+              notification.id: notification.seen,
+          };
+          final seenByContent = <String, bool>{
+            for (final notification in existing)
+              if (notification.seen) notification.contentKey: true,
+          };
 
-        for (var n in data['notifications'] as List) {
-          final notification = AppNotification(
-            id: n['id'] ?? DateTime.now().toString(),
-            title: n['title'],
-            subtitle: n['subtitle'],
-            description: n['description'] ?? '',
-            timestamp: n['timestamp'] != null
-                ? DateTime.parse(n['timestamp'])
-                : DateTime.now(),
-            seen: existingMap[n['id']] ?? false,
-          );
-          apiNotifications.add(notification);
+          final apiNotifications = <AppNotification>[];
+          for (final item in rawNotifications) {
+            if (item is! Map) continue;
+            final map = Map<String, dynamic>.from(item);
+
+            final title = (map['title'] ?? '').toString().trim();
+            final subtitle = (map['subtitle'] ?? '').toString().trim();
+            final description = (map['description'] ?? '').toString().trim();
+            if (title.isEmpty && subtitle.isEmpty && description.isEmpty) {
+              continue;
+            }
+
+            final rawId = (map['id'] ?? '').toString().trim();
+            final id = rawId.isNotEmpty
+                ? rawId
+                : DateTime.now().microsecondsSinceEpoch.toString();
+            final contentKey = '$title|$subtitle|$description';
+
+            apiNotifications.add(
+              AppNotification(
+                id: id,
+                title: title.isEmpty ? 'Notification' : title,
+                subtitle: subtitle,
+                description: description,
+                timestamp:
+                    DateTime.tryParse((map['timestamp'] ?? '').toString()) ??
+                        DateTime.now(),
+                // Preserve read state across refreshes, even when the API
+                // changes the id of an existing notification.
+                seen: seenById[id] ?? seenByContent[contentKey] ?? false,
+              ),
+            );
+          }
+
+          await _storeNotifications(apiNotifications);
+          _initialFetchDone = true;
+          _syncNotifiers();
+          return _cachedNotifications;
         }
-
-        await _storeNotifications(apiNotifications);
-        _initialFetchDone = true; // Mark initial fetch as complete
-        return _cachedNotifications;
       }
+
+      debugPrint(
+        'Notification API returned ${response.statusCode}; using stored notifications.',
+      );
     } catch (e) {
       debugPrint('API fetch error: $e');
     }
 
-    // Load from storage and mark initial fetch as done
-    final stored = await _loadStoredNotifications();
+    return _finishWithStoredNotifications();
+  }
+
+  static Future<List<AppNotification>> _finishWithStoredNotifications() async {
+    _cachedNotifications = await _loadStoredNotifications();
     _initialFetchDone = true;
-    return stored;
+    _syncNotifiers();
+    return _cachedNotifications;
   }
 
   static Future<void> _storeNotifications(
-      List<AppNotification> notifications) async {
+    List<AppNotification> notifications,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // Convert to set to remove duplicates while preserving seen status
-      final uniqueNotifications = notifications.toSet().toList();
+      // Keep one entry per content and never lose a read state when a
+      // duplicate arrives unread.
+      final byContent = <String, AppNotification>{};
+      for (final notification in notifications) {
+        final existing = byContent[notification.contentKey];
+        if (existing == null || (!existing.seen && notification.seen)) {
+          byContent[notification.contentKey] = notification;
+        }
+      }
 
-      // Sort by timestamp
-      uniqueNotifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-
-      // Take only the maximum allowed
+      final uniqueNotifications = byContent.values.toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
       final limitedNotifications =
           uniqueNotifications.take(_maxNotifications).toList();
 
-      // Store as single JSON string
       final notificationsMap = {
         'notifications': limitedNotifications.map((n) => n.toJson()).toList(),
         'lastUpdated': DateTime.now().toIso8601String(),
@@ -141,6 +230,7 @@ class NotificationService {
 
       await prefs.setString(_notificationsKey, jsonEncode(notificationsMap));
       _cachedNotifications = limitedNotifications;
+      _syncNotifiers();
     } catch (e) {
       debugPrint('Storage error: $e');
     }
@@ -152,29 +242,83 @@ class NotificationService {
       final storedData = prefs.getString(_notificationsKey);
 
       if (storedData != null) {
-        final data = jsonDecode(storedData) as Map<String, dynamic>;
-        final notifications = (data['notifications'] as List)
-            .map((n) => AppNotification.fromJson(n as Map<String, dynamic>))
-            .toList();
-        _cachedNotifications = notifications;
-        return notifications;
+        final decoded = jsonDecode(storedData);
+        final rawNotifications =
+            decoded is Map<String, dynamic> ? decoded['notifications'] : null;
+
+        if (rawNotifications is List) {
+          final notifications = <AppNotification>[];
+          for (final item in rawNotifications) {
+            if (item is! Map) continue;
+            try {
+              notifications.add(
+                AppNotification.fromJson(Map<String, dynamic>.from(item)),
+              );
+            } catch (e) {
+              debugPrint('Skipping invalid stored notification: $e');
+            }
+          }
+          _cachedNotifications = notifications;
+          return notifications;
+        }
       }
     } catch (e) {
       debugPrint('Load error: $e');
     }
-    return [];
+
+    _cachedNotifications = [];
+    return const <AppNotification>[];
   }
 
   static Future<void> markNotificationAsSeen(
-      AppNotification notification) async {
+    AppNotification notification,
+  ) async {
+    var changed = !notification.seen;
     notification.seen = true;
+
+    final matches = _cachedNotifications
+        .where(
+          (cached) =>
+              cached.id == notification.id ||
+              cached.contentKey == notification.contentKey,
+        )
+        .toList();
+
+    for (final cached in matches) {
+      if (!cached.seen) {
+        cached.seen = true;
+        changed = true;
+      }
+    }
+
+    if (matches.isEmpty) {
+      _cachedNotifications = [..._cachedNotifications, notification];
+      changed = true;
+    }
+
+    if (!changed) {
+      _syncNotifiers();
+      return;
+    }
+
+    // Reflect the new read state immediately; persisting can happen after.
+    _syncNotifiers();
     await _storeNotifications(_cachedNotifications);
   }
 
   static Future<void> markAllAsSeen() async {
-    for (var notification in _cachedNotifications) {
-      notification.seen = true;
+    var changed = false;
+    for (final notification in _cachedNotifications) {
+      if (!notification.seen) {
+        notification.seen = true;
+        changed = true;
+      }
     }
+
+    if (!changed) return;
+
+    // Reflect the new read state immediately; persisting can happen after.
+    _syncNotifiers();
     await _storeNotifications(_cachedNotifications);
   }
 
@@ -183,12 +327,21 @@ class NotificationService {
   }
 
   static Future<bool> hasUnseenNotifications() async {
-    final notifications = await _loadStoredNotifications();
-    return notifications.any((notification) => !notification.seen);
+    if (!_initialFetchDone) {
+      await fetchNotifications();
+    }
+    return _cachedNotifications.any((notification) => !notification.seen);
   }
 
-  // Add method to reset fetch state if needed
+  /// Allows the next [fetchNotifications] call to hit the API again.
   static void resetFetchState() {
     _initialFetchDone = false;
+    _inFlightFetch = null;
+  }
+
+  static void _syncNotifiers() {
+    notificationsListenable.value =
+        List<AppNotification>.unmodifiable(_cachedNotifications);
+    unreadCountListenable.value = unreadCount;
   }
 }
