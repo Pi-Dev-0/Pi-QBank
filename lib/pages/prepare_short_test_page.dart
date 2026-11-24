@@ -1213,6 +1213,7 @@ Respond in the following JSON format:
                         selectedImages: _selectedImages,
                         aiResponse: _aiResponse,
                         language: _selectedLanguage,
+                        isFromCloud: false,
                       );
                       break;
                     case 'Short Question':
@@ -1223,6 +1224,7 @@ Respond in the following JSON format:
                         aiResponse: _aiResponse,
                         language: _selectedLanguage,
                         testType: 'Short Question',
+                        isFromCloud: false,
                       );
                       break;
                     case 'Quiz Test':
@@ -1233,6 +1235,7 @@ Respond in the following JSON format:
                         aiResponse: _aiResponse,
                         language: _selectedLanguage,
                         testType: 'Quiz Test',
+                        isFromCloud: false,
                       );
                       break;
                     case 'Fill In the Blanks':

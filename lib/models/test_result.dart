@@ -9,6 +9,7 @@ class TestResult {
   final String language;
   final List<Map<String, dynamic>> questionsAndAnswers; // {question, correctAnswer, userAnswer, isCorrect}
   final List<String> imagePaths; // Paths of the images used
+  final bool isFromCloud;
 
   TestResult({
     required this.testId,
@@ -20,6 +21,7 @@ class TestResult {
     required this.language,
     required this.questionsAndAnswers,
     required this.imagePaths,
+    this.isFromCloud = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -33,6 +35,7 @@ class TestResult {
       'language': language,
       'questionsAndAnswers': questionsAndAnswers,
       'imagePaths': imagePaths,
+      'isFromCloud': isFromCloud,
     };
   }
 
@@ -49,6 +52,7 @@ class TestResult {
           .map((qaJson) => Map<String, dynamic>.from(qaJson))
           .toList(),
       imagePaths: List<String>.from(json['imagePaths']),
+      isFromCloud: json['isFromCloud'] as bool? ?? false,
     );
   }
 }

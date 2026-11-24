@@ -927,6 +927,7 @@ class _CloudTestsPageState extends State<CloudTestsPage> {
         // The online exam answers like a live one: ক/খ/গ/ঘ bubbles, only the
         // bubble is tappable, and the first pick is final.
         liveExamOptions: true,
+        isFromCloud: true,
         aiTopic: _examTopic,
       ),
     );

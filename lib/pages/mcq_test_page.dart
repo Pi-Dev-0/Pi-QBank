@@ -50,6 +50,10 @@ class MCQTestPage extends StatefulWidget {
   /// reversible A–D tiles.
   final bool liveExamOptions;
 
+  /// When true, this test originates from the cloud test bank (`CloudTestsPage`),
+  /// so the "Upload Test to Google Sheet" button is hidden on the results screen.
+  final bool isFromCloud;
+
   final String? savedTestId;
   final String? aiTopic;
 
@@ -62,6 +66,7 @@ class MCQTestPage extends StatefulWidget {
     required this.language,
     this.showAllQuestions = false,
     this.liveExamOptions = false,
+    this.isFromCloud = false,
     this.savedTestId,
     this.aiTopic,
   });
@@ -245,6 +250,7 @@ class _MCQTestPageState extends State<MCQTestPage>
       language: widget.language,
       questionsAndAnswers: questionsAndAnswers,
       imagePaths: widget.selectedImages?.map((e) => e.path).toList() ?? [],
+      isFromCloud: widget.isFromCloud,
     );
 
     TestResultService.saveTestResult(testResult);
@@ -1758,14 +1764,15 @@ class _MCQTestPageState extends State<MCQTestPage>
                 for (final entry in visibleResults)
                   _resultCard(entry.key, entry.value),
               const SizedBox(height: 20),
-              if (_testSubmitted)
+              if (_testSubmitted && !widget.isFromCloud) ...[
                 UploadTestButton(
                   questions: _mcqQuestions,
                   testType: 'MCQ',
                   language: widget.language,
                   initialTopic: widget.aiTopic,
                 ),
-              const SizedBox(height: 10),
+                const SizedBox(height: 10),
+              ],
               OutlinedButton.icon(
                 onPressed: _retake,
                 icon: const Icon(Icons.refresh_rounded, size: 18),

@@ -363,6 +363,7 @@ Format:
             aiResponse: jsonText,
             language: _selectedLanguage,
             aiTopic: topic,
+            isFromCloud: false,
           ),
         ),
       );
@@ -382,6 +383,7 @@ Format:
             aiResponse: formattedResponse,
             language: _selectedLanguage,
             aiTopic: topic,
+            isFromCloud: false,
           ),
         ),
       );

@@ -17,6 +17,7 @@ class ShortQuestionPage extends StatefulWidget {
   final String? savedTestId;
   final String testType; // Added: Field for test type
   final String? aiTopic;
+  final bool isFromCloud;
 
   const ShortQuestionPage({
     super.key,
@@ -28,6 +29,7 @@ class ShortQuestionPage extends StatefulWidget {
     this.savedTestId,
     this.testType = 'Short Question', // Default value
     this.aiTopic,
+    this.isFromCloud = false,
   });
 
   @override
@@ -199,6 +201,7 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
       language: widget.language,
       questionsAndAnswers: questionsAndAnswers,
       imagePaths: widget.selectedImages?.map((e) => e.path).toList() ?? [],
+      isFromCloud: widget.isFromCloud,
     );
 
     TestResultService.saveTestResult(testResult);
@@ -906,13 +909,15 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
                 );
               }),
               const SizedBox(height: 30),
-              if (_isSubmitted)
+              if (_isSubmitted && !widget.isFromCloud) ...[
                 UploadTestButton(
                   questions: questions,
                   testType: widget.testType,
                   language: widget.language,
                   initialTopic: widget.aiTopic,
                 ),
+                const SizedBox(height: 16),
+              ],
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(15),
@@ -961,6 +966,7 @@ class _ShortQuestionPageState extends State<ShortQuestionPage>
                       imagePaths:
                           widget.selectedImages?.map((e) => e.path).toList() ??
                               [],
+                      isFromCloud: widget.isFromCloud,
                     );
                     _navigateToAnalyticsPage(testResult);
                   },

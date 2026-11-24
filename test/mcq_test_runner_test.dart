@@ -18,7 +18,7 @@ String paper(int count) => jsonEncode({
       ],
     });
 
-Future<void> openPaper(WidgetTester tester, int count) async {
+Future<void> openPaper(WidgetTester tester, int count, {bool isFromCloud = false}) async {
   await tester.pumpWidget(
     MaterialApp(
       home: MCQTestPage(
@@ -26,6 +26,7 @@ Future<void> openPaper(WidgetTester tester, int count) async {
         testTimeInMinutes: 10,
         aiResponse: paper(count),
         language: 'Bangla',
+        isFromCloud: isFromCloud,
       ),
     ),
   );
@@ -194,8 +195,9 @@ void main() {
     setUp(() => SharedPreferences.setMockInitialValues({}));
 
     /// Answer question 1 right and question 2 wrong, then submit.
-    Future<void> answerAndSubmit(WidgetTester tester) async {
-      await openPaper(tester, 2);
+    Future<void> answerAndSubmit(WidgetTester tester,
+        {bool isFromCloud = false}) async {
+      await openPaper(tester, 2, isFromCloud: isFromCloud);
       await tester.tap(find.text('A0')); // option "1" — the correct key
       await tester.pump();
       await tester.tap(find.text('Next'));
@@ -251,6 +253,19 @@ void main() {
       expect(find.text('0 answered'), findsOneWidget,
           reason: 'every answer should have been cleared');
 
+      await closePaper(tester);
+    });
+
+    testWidgets('Upload button is shown for local tests but hidden for cloud tests',
+        (tester) async {
+      // Local test (isFromCloud = false)
+      await answerAndSubmit(tester, isFromCloud: false);
+      expect(find.text('Upload Test to Google Sheet'), findsOneWidget);
+      await closePaper(tester);
+
+      // Cloud test (isFromCloud = true)
+      await answerAndSubmit(tester, isFromCloud: true);
+      expect(find.text('Upload Test to Google Sheet'), findsNothing);
       await closePaper(tester);
     });
   });
