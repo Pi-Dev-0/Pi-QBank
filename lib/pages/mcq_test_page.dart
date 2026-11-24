@@ -1186,7 +1186,7 @@ class _MCQTestPageState extends State<MCQTestPage>
   /// Whether every option fits on one line in a half-width, dense tile.
   ///
   /// The chrome is mirrored from `_optionTile(dense: true)`: 2px border,
-  /// 8px side padding, 22px letter, 7px gap and 20px reserved for the tick.
+  /// 7px side padding, 22px letter, 7px gap and 20px reserved for the tick.
   /// Live-exam bubbles add a padded hit area around the letter.
   bool _optionsFitTwoColumns(
       BuildContext context, List<String> texts, double maxWidth) {
@@ -1198,8 +1198,8 @@ class _MCQTestPageState extends State<MCQTestPage>
         .any((segment) => segment is MathFraction || segment is MathRadical);
     if (texts.any(hasTallMath)) return false;
     const gap = 8.0;
-    final markerExtra = widget.liveExamOptions ? 14.0 : 0.0;
-    final textWidth = (maxWidth - gap) / 2 - 69 - markerExtra;
+    final markerExtra = widget.liveExamOptions ? 8.0 : 0.0;
+    final textWidth = (maxWidth - gap) / 2 - 67 - markerExtra;
     if (textWidth < 30) return false;
 
     final textScaler = MediaQuery.textScalerOf(context);
@@ -1297,7 +1297,7 @@ class _MCQTestPageState extends State<MCQTestPage>
               behavior: HitTestBehavior.opaque,
               onTap: locked ? null : () => _selectOption(index, optionKey),
               child: Padding(
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.all(4),
                 child: badge,
               ),
             ),
@@ -1307,8 +1307,8 @@ class _MCQTestPageState extends State<MCQTestPage>
     final tile = AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       padding: EdgeInsets.symmetric(
-        horizontal: dense ? 8 : 11,
-        vertical: dense ? 9 : 10,
+        horizontal: dense ? 3 : 5,
+        vertical: dense ? 2 : 4,
       ),
       decoration: BoxDecoration(
         color: selected ? _McqPalette.selected : _McqPalette.surface,
@@ -1350,7 +1350,7 @@ class _MCQTestPageState extends State<MCQTestPage>
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.only(bottom: 6),
       child: live
           ? tile
           : InkWell(
