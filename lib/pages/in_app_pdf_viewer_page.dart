@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -1944,12 +1945,10 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
             onPointerMove: _handleDocumentPointerMove,
             onPointerUp: _handleDocumentPointerUp,
             onPointerCancel: _handleDocumentPointerCancel,
-            child: colorFilter == null
-                ? viewer
-                : ColorFiltered(
-                    colorFilter: colorFilter,
-                    child: viewer,
-                  ),
+            child: _OptionalColorFiltered(
+              colorFilter: colorFilter,
+              child: viewer,
+            ),
           ),
         ),
         // The old bottom slider/page bar is replaced by this right-edge page
@@ -2289,6 +2288,67 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Applies [colorFilter] to [child] only when the filter is non-null.
+///
+/// This wrapper intentionally stays in the widget tree for every colour mode.
+/// Switching between normal, night and sepia then only updates a render
+/// property; the [PdfViewer] state (and its controller attachment) is kept
+/// alive. Recreating the viewer would detach the shared controller and make
+/// the page scrubber disappear.
+class _OptionalColorFiltered extends SingleChildRenderObjectWidget {
+  const _OptionalColorFiltered({
+    required this.colorFilter,
+    required Widget super.child,
+  });
+
+  final ColorFilter? colorFilter;
+
+  @override
+  _RenderOptionalColorFiltered createRenderObject(BuildContext context) {
+    return _RenderOptionalColorFiltered(colorFilter);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderOptionalColorFiltered renderObject,
+  ) {
+    renderObject.colorFilter = colorFilter;
+  }
+}
+
+class _RenderOptionalColorFiltered extends RenderProxyBox {
+  _RenderOptionalColorFiltered(this._colorFilter);
+
+  ColorFilter? _colorFilter;
+
+  set colorFilter(ColorFilter? value) {
+    if (value == _colorFilter) return;
+    _colorFilter = value;
+    markNeedsPaint();
+    markNeedsCompositingBitsUpdate();
+  }
+
+  @override
+  bool get alwaysNeedsCompositing => child != null && _colorFilter != null;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final filter = _colorFilter;
+    if (filter == null) {
+      layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    layer = context.pushColorFilter(
+      offset,
+      filter,
+      super.paint,
+      oldLayer: layer is ColorFilterLayer ? layer as ColorFilterLayer : null,
     );
   }
 }
