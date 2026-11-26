@@ -203,7 +203,15 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   bool _askingPassword = false;
   _PdfColorMode _colorMode = _PdfColorMode.normal;
   bool _isFullscreen = false;
+  bool _appBarVisible = true;
   bool _searchVisible = false;
+
+  // Raw pointer tracking for tap-to-toggle chrome. A Listener is used instead
+  // of a GestureDetector so pdfrx keeps receiving its own gestures.
+  int _documentPointers = 0;
+  Offset? _documentTapStart;
+  DateTime? _documentTapStartTime;
+  bool _documentTapMoved = false;
   bool _searchPending = false;
   String _lastQuery = '';
   String? _initialPassword;
@@ -282,6 +290,9 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
         _PdfColorMode.night => _nightModeFilter,
         _PdfColorMode.sepia => _sepiaModeFilter,
       };
+
+  /// The search app bar must stay visible while typing, even in fullscreen.
+  bool get _showAppBar => _searchVisible || (!_isFullscreen && _appBarVisible);
 
   /// Sepia maps every colour onto a warm luminance ramp, so the usual yellow
   /// highlight would blend into the paper. Use a darker amber instead.
@@ -1109,7 +1120,10 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   void _openSearch() {
     if (!_ready) return;
     if (_autoScrollEnabled) _stopAutoScroll();
-    setState(() => _searchVisible = true);
+    setState(() {
+      _searchVisible = true;
+      _appBarVisible = true;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _searchVisible) _searchFocusNode.requestFocus();
     });
@@ -1205,7 +1219,11 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
   /// allows without a window-management plugin.
   void _toggleFullscreen() {
     final next = !_isFullscreen;
-    setState(() => _isFullscreen = next);
+    setState(() {
+      _isFullscreen = next;
+      // Returning from fullscreen should always bring the chrome back.
+      if (!next) _appBarVisible = true;
+    });
 
     if (next) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -1224,6 +1242,61 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
     if (mode == _colorMode) return;
     setState(() => _colorMode = mode);
     HapticFeedback.selectionClick();
+  }
+
+  void _handleDocumentPointerDown(PointerDownEvent event) {
+    _documentPointers++;
+    if (_documentPointers > 1) {
+      // Pinch/zoom and multi-touch selection are not taps.
+      _documentTapMoved = true;
+      return;
+    }
+    _documentTapStart = event.position;
+    _documentTapStartTime = DateTime.now();
+    _documentTapMoved = false;
+  }
+
+  void _handleDocumentPointerMove(PointerMoveEvent event) {
+    final start = _documentTapStart;
+    if (start == null || _documentTapMoved) return;
+    if ((event.position - start).distance > 10) {
+      _documentTapMoved = true;
+    }
+  }
+
+  void _handleDocumentPointerUp(PointerUpEvent event) {
+    _documentPointers = math.max(0, _documentPointers - 1);
+    if (_documentPointers > 0) return;
+
+    final start = _documentTapStart;
+    final startedAt = _documentTapStartTime;
+    final moved = _documentTapMoved;
+    _documentTapStart = null;
+    _documentTapStartTime = null;
+    _documentTapMoved = false;
+
+    if (start == null || startedAt == null || moved) return;
+    if ((event.position - start).distance > 10) return;
+    if (DateTime.now().difference(startedAt) >
+        const Duration(milliseconds: 350)) {
+      return;
+    }
+    _toggleAppBar();
+  }
+
+  void _handleDocumentPointerCancel(PointerCancelEvent event) {
+    _documentPointers = math.max(0, _documentPointers - 1);
+    if (_documentPointers == 0) {
+      _documentTapStart = null;
+      _documentTapStartTime = null;
+      _documentTapMoved = false;
+    }
+  }
+
+  void _toggleAppBar() {
+    // Search needs the app bar, and fullscreen already hides it on purpose.
+    if (_searchVisible || _isFullscreen) return;
+    setState(() => _appBarVisible = !_appBarVisible);
   }
 
   Future<void> _openExternally() async {
@@ -1339,420 +1412,427 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
           },
           child: Scaffold(
             backgroundColor: _colorMode.scaffoldBackground,
-            appBar: _isFullscreen
+            appBar: !_showAppBar
                 ? null
-                : CustomAppBar(
-                    title: widget.title,
-                    showNotification: false,
-                    actions: [
-                      IconButton(
-                        tooltip: _searchVisible ? 'Close search' : 'Search',
-                        icon: Icon(
-                          _searchVisible
-                              ? Icons.search_off_rounded
-                              : Icons.search_rounded,
-                        ),
-                        onPressed: _ready
-                            ? (_searchVisible ? _closeSearch : _openSearch)
-                            : null,
-                      ),
-                      IconButton(
-                        tooltip: _bookmarkedPages.contains(_currentPage)
-                            ? 'Remove bookmark'
-                            : 'Bookmark this page',
-                        icon: Icon(
-                          _bookmarkedPages.contains(_currentPage)
-                              ? Icons.bookmark_rounded
-                              : Icons.bookmark_border_rounded,
-                        ),
-                        onPressed: _ready && (_totalPages ?? 0) > 0
-                            ? _toggleBookmark
-                            : null,
-                      ),
-                      PopupMenuButton<String>(
-                        tooltip: 'View options',
-                        icon: const Icon(Icons.more_vert_rounded),
-                        menuPadding: const EdgeInsets.symmetric(vertical: 6),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .outlineVariant
-                                .withOpacity(0.5),
+                : _searchVisible
+                    ? _buildSearchAppBar()
+                    : CustomAppBar(
+                        title: widget.title,
+                        showNotification: false,
+                        actions: [
+                          IconButton(
+                            tooltip: _searchVisible ? 'Close search' : 'Search',
+                            icon: Icon(
+                              _searchVisible
+                                  ? Icons.search_off_rounded
+                                  : Icons.search_rounded,
+                            ),
+                            onPressed: _ready
+                                ? (_searchVisible ? _closeSearch : _openSearch)
+                                : null,
                           ),
-                        ),
-                        elevation: 14,
-                        shadowColor: Colors.black.withOpacity(0.25),
-                        surfaceTintColor: Colors.transparent,
-                        color: Theme.of(context).colorScheme.surface,
-                        constraints: const BoxConstraints(
-                          minWidth: 280,
-                          maxWidth: 320,
-                        ),
-                        onSelected: (value) {
-                          // Any menu action other than the reading-flow controls
-                          // is an explicit interruption of the reading flow.
-                          const readingFlowActions = <String>{
-                            'autoscroll-toggle',
-                            'autoscroll-speed',
-                            'fullscreen',
-                            'color-normal',
-                            'color-night',
-                            'color-sepia',
-                          };
-                          if (_autoScrollEnabled &&
-                              !readingFlowActions.contains(value)) {
-                            _stopAutoScroll();
-                          }
-                          switch (value) {
-                            case 'open-external':
-                              _openExternally();
-                            case 'goto-page':
-                              _showGoToPageDialog();
-                            case 'previous-page':
-                              _previousPage();
-                            case 'next-page':
-                              _nextPage();
-                            case 'first-page':
-                              _firstPage();
-                            case 'last-page':
-                              _lastPage();
-                            case 'autoscroll-toggle':
-                              _toggleAutoScroll();
-                            case 'autoscroll-speed':
-                              _cycleAutoScrollSpeed();
-                            case 'zoom-in':
-                              _zoomIn();
-                            case 'zoom-out':
-                              _zoomOut();
-                            case 'fit-width':
-                              _fitWidth();
-                            case 'fit-page':
-                              _fitPage();
-                            case 'actual-size':
-                              _actualSize();
-                            case 'fullscreen':
-                              _toggleFullscreen();
-                            case 'color-normal':
-                              _setColorMode(_PdfColorMode.normal);
-                            case 'color-night':
-                              _setColorMode(_PdfColorMode.night);
-                            case 'color-sepia':
-                              _setColorMode(_PdfColorMode.sepia);
-                            case 'select-text':
-                              setState(
-                                () => _textSelectionEnabled =
-                                    !_textSelectionEnabled,
-                              );
-                            case 'bookmarks':
-                              _showBookmarksList();
-                            case 'share':
-                              _sharePdf();
-                            case 'keyboard-shortcuts':
-                              _showKeyboardShortcuts();
-                          }
-                        },
-                        itemBuilder: (context) {
-                          final showShortcuts = !Platform.isAndroid;
-                          final canShare = Platform.isAndroid ||
-                              Platform.isMacOS ||
-                              Platform.isWindows;
-                          final total = _totalPages;
-                          final hasPages = _ready && total != null && total > 0;
-                          final canGoBack = total != null &&
-                              total > 0 &&
-                              _ready &&
-                              _currentPage > 1;
-                          final canGoForward = total != null &&
-                              total > 0 &&
-                              _ready &&
-                              _currentPage < total;
-
-                          // ── helpers ────────────────────────────────────────
-                          final cs = Theme.of(context).colorScheme;
-
-                          PopupMenuItem<String> item({
-                            required String value,
-                            required IconData icon,
-                            required String label,
-                            String? shortcut,
-                            bool enabled = true,
-                            Color? iconColor,
-                            bool active = false,
-                          }) {
-                            return PopupMenuItem<String>(
-                              value: value,
-                              enabled: enabled,
-                              padding: EdgeInsets.zero,
-                              height: 36,
-                              child: _MenuRow(
-                                icon: icon,
-                                label: label,
-                                shortcut: shortcut,
-                                enabled: enabled,
-                                iconColor: iconColor,
-                                active: active,
-                                activeColor: iconColor ?? cs.primary,
+                          IconButton(
+                            tooltip: _bookmarkedPages.contains(_currentPage)
+                                ? 'Remove bookmark'
+                                : 'Bookmark this page',
+                            icon: Icon(
+                              _bookmarkedPages.contains(_currentPage)
+                                  ? Icons.bookmark_rounded
+                                  : Icons.bookmark_border_rounded,
+                            ),
+                            onPressed: _ready && (_totalPages ?? 0) > 0
+                                ? _toggleBookmark
+                                : null,
+                          ),
+                          PopupMenuButton<String>(
+                            tooltip: 'View options',
+                            icon: const Icon(Icons.more_vert_rounded),
+                            menuPadding:
+                                const EdgeInsets.symmetric(vertical: 6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant
+                                    .withOpacity(0.5),
                               ),
-                            );
-                          }
-
-                          PopupMenuItem<String> sectionHeader(String title) {
-                            return PopupMenuItem<String>(
-                              enabled: false,
-                              height: 22,
-                              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                              child: Text(
-                                title.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.1,
-                                  color: cs.onSurface.withOpacity(0.42),
-                                ),
-                              ),
-                            );
-                          }
-
-                          // Two side-by-side tappable cells in one row
-                          PopupMenuItem<String> pairedItem({
-                            required IconData icon1,
-                            required String label1,
-                            required String value1,
-                            bool enabled1 = true,
-                            required IconData icon2,
-                            required String label2,
-                            required String value2,
-                            bool enabled2 = true,
-                            Color? iconColor,
-                          }) {
-                            return PopupMenuItem<String>(
-                              enabled: false,
-                              padding: EdgeInsets.zero,
-                              height: 44,
-                              child: _PairedMenuRow(
-                                icon1: icon1,
-                                label1: label1,
-                                value1: value1,
-                                enabled1: enabled1,
-                                icon2: icon2,
-                                label2: label2,
-                                value2: value2,
-                                enabled2: enabled2,
-                                iconColor: iconColor ?? cs.primary,
-                              ),
-                            );
-                          }
-
-                          // Multiple side-by-side tappable cells in a single row
-                          PopupMenuItem<String> multiItem({
-                            required List<_MenuActionItem> items,
-                            Color? iconColor,
-                            double height = 54,
-                          }) {
-                            return PopupMenuItem<String>(
-                              enabled: false,
-                              padding: EdgeInsets.zero,
-                              height: height,
-                              child: _MultiMenuRow(
-                                items: items,
-                                iconColor: iconColor ?? cs.primary,
-                              ),
-                            );
-                          }
-
-                          PopupMenuDivider divider() =>
-                              const PopupMenuDivider(height: 1);
-
-                          // ── items ───────────────────────────────────────────
-                          return [
-                            // ── File ───────────────────────────────────────
-                            sectionHeader('File'),
-                            item(
-                              value: 'open-external',
-                              icon: Icons.open_in_new_rounded,
-                              label: 'Open in another app',
-                              iconColor: const Color(0xFF6366F1),
                             ),
-                            if (canShare)
-                              item(
-                                value: 'share',
-                                icon: Icons.share_rounded,
-                                label: 'Share',
-                                iconColor: const Color(0xFF0EA5E9),
-                              ),
-                            divider(),
+                            elevation: 14,
+                            shadowColor: Colors.black.withOpacity(0.25),
+                            surfaceTintColor: Colors.transparent,
+                            color: Theme.of(context).colorScheme.surface,
+                            constraints: const BoxConstraints(
+                              minWidth: 280,
+                              maxWidth: 320,
+                            ),
+                            onSelected: (value) {
+                              // Any menu action other than the reading-flow controls
+                              // is an explicit interruption of the reading flow.
+                              const readingFlowActions = <String>{
+                                'autoscroll-toggle',
+                                'autoscroll-speed',
+                                'fullscreen',
+                                'color-normal',
+                                'color-night',
+                                'color-sepia',
+                              };
+                              if (_autoScrollEnabled &&
+                                  !readingFlowActions.contains(value)) {
+                                _stopAutoScroll();
+                              }
+                              switch (value) {
+                                case 'open-external':
+                                  _openExternally();
+                                case 'goto-page':
+                                  _showGoToPageDialog();
+                                case 'previous-page':
+                                  _previousPage();
+                                case 'next-page':
+                                  _nextPage();
+                                case 'first-page':
+                                  _firstPage();
+                                case 'last-page':
+                                  _lastPage();
+                                case 'autoscroll-toggle':
+                                  _toggleAutoScroll();
+                                case 'autoscroll-speed':
+                                  _cycleAutoScrollSpeed();
+                                case 'zoom-in':
+                                  _zoomIn();
+                                case 'zoom-out':
+                                  _zoomOut();
+                                case 'fit-width':
+                                  _fitWidth();
+                                case 'fit-page':
+                                  _fitPage();
+                                case 'actual-size':
+                                  _actualSize();
+                                case 'fullscreen':
+                                  _toggleFullscreen();
+                                case 'color-normal':
+                                  _setColorMode(_PdfColorMode.normal);
+                                case 'color-night':
+                                  _setColorMode(_PdfColorMode.night);
+                                case 'color-sepia':
+                                  _setColorMode(_PdfColorMode.sepia);
+                                case 'select-text':
+                                  setState(
+                                    () => _textSelectionEnabled =
+                                        !_textSelectionEnabled,
+                                  );
+                                case 'bookmarks':
+                                  _showBookmarksList();
+                                case 'share':
+                                  _sharePdf();
+                                case 'keyboard-shortcuts':
+                                  _showKeyboardShortcuts();
+                              }
+                            },
+                            itemBuilder: (context) {
+                              final showShortcuts = !Platform.isAndroid;
+                              final canShare = Platform.isAndroid ||
+                                  Platform.isMacOS ||
+                                  Platform.isWindows;
+                              final total = _totalPages;
+                              final hasPages =
+                                  _ready && total != null && total > 0;
+                              final canGoBack = total != null &&
+                                  total > 0 &&
+                                  _ready &&
+                                  _currentPage > 1;
+                              final canGoForward = total != null &&
+                                  total > 0 &&
+                                  _ready &&
+                                  _currentPage < total;
 
-                            // ── Navigation ─────────────────────────────────
-                            sectionHeader('Navigation'),
-                            item(
-                              value: 'goto-page',
-                              icon: Icons.tag_rounded,
-                              label: 'Go to page…',
-                              shortcut: total == null
-                                  ? null
-                                  : '$_currentPage / $total',
-                              enabled: hasPages,
-                              iconColor: const Color(0xFF8B5CF6),
-                            ),
-                            multiItem(
-                              iconColor: const Color(0xFF8B5CF6),
-                              items: [
-                                _MenuActionItem(
-                                  icon: Icons.first_page_rounded,
-                                  label: 'First',
-                                  value: 'first-page',
-                                  enabled: canGoBack,
-                                  tooltip: 'First page',
-                                ),
-                                _MenuActionItem(
-                                  icon: Icons.arrow_back_ios_new_rounded,
-                                  label: 'Previous',
-                                  value: 'previous-page',
-                                  enabled: canGoBack,
-                                  tooltip: 'Previous page',
-                                ),
-                                _MenuActionItem(
-                                  icon: Icons.arrow_forward_ios_rounded,
-                                  label: 'Next',
-                                  value: 'next-page',
-                                  enabled: canGoForward,
-                                  tooltip: 'Next page',
-                                ),
-                                _MenuActionItem(
-                                  icon: Icons.last_page_rounded,
-                                  label: 'Last',
-                                  value: 'last-page',
-                                  enabled: canGoForward,
-                                  tooltip: 'Last page',
-                                ),
-                              ],
-                            ),
-                            divider(),
+                              // ── helpers ────────────────────────────────────────
+                              final cs = Theme.of(context).colorScheme;
 
-                            // ── Auto-scroll ────────────────────────────────
-                            sectionHeader('Auto-scroll'),
-                            item(
-                              value: 'autoscroll-toggle',
-                              icon: _autoScrollEnabled
-                                  ? Icons.stop_rounded
-                                  : Icons.play_arrow_rounded,
-                              label: _autoScrollEnabled
-                                  ? 'Stop auto-scroll'
-                                  : 'Start auto-scroll',
-                              shortcut: _autoScrollPaused ? 'PAUSED' : null,
-                              enabled: hasPages,
-                              iconColor: const Color(0xFF10B981),
-                              active: _autoScrollEnabled,
-                            ),
-                            item(
-                              value: 'autoscroll-speed',
-                              icon: Icons.speed_rounded,
-                              label: 'Auto-scroll speed',
-                              shortcut: _autoScrollSpeedLabel,
-                              enabled: hasPages,
-                              iconColor: const Color(0xFF10B981),
-                            ),
-                            divider(),
-
-                            // ── Zoom ───────────────────────────────────────
-                            sectionHeader('Zoom'),
-                            pairedItem(
-                              icon1: Icons.zoom_in_rounded,
-                              label1: 'Zoom in',
-                              value1: 'zoom-in',
-                              enabled1: _ready,
-                              icon2: Icons.zoom_out_rounded,
-                              label2: 'Zoom out',
-                              value2: 'zoom-out',
-                              enabled2: _ready,
-                              iconColor: const Color(0xFF10B981),
-                            ),
-                            multiItem(
-                              iconColor: const Color(0xFF10B981),
-                              items: [
-                                _MenuActionItem(
-                                  icon: Icons.width_full_rounded,
-                                  label: 'Fit width',
-                                  value: 'fit-width',
-                                  tooltip: 'Fit width',
-                                ),
-                                _MenuActionItem(
-                                  icon: Icons.fit_screen_rounded,
-                                  label: 'Fit page',
-                                  value: 'fit-page',
-                                  tooltip: 'Fit page',
-                                ),
-                                _MenuActionItem(
-                                  icon: Icons.crop_free_rounded,
-                                  label: 'Actual size',
-                                  value: 'actual-size',
-                                  tooltip: 'Actual size (100%)',
-                                ),
-                              ],
-                            ),
-                            divider(),
-
-                            // ── Color mode ─────────────────────────────────
-                            sectionHeader('Color mode'),
-                            multiItem(
-                              iconColor: const Color(0xFFF59E0B),
-                              items: [
-                                for (final mode in _PdfColorMode.values)
-                                  _MenuActionItem(
-                                    icon: mode.icon,
-                                    label: mode.label,
-                                    value: 'color-${mode.name}',
-                                    active: _colorMode == mode,
-                                    tooltip: mode.tooltip,
+                              PopupMenuItem<String> item({
+                                required String value,
+                                required IconData icon,
+                                required String label,
+                                String? shortcut,
+                                bool enabled = true,
+                                Color? iconColor,
+                                bool active = false,
+                              }) {
+                                return PopupMenuItem<String>(
+                                  value: value,
+                                  enabled: enabled,
+                                  padding: EdgeInsets.zero,
+                                  height: 36,
+                                  child: _MenuRow(
+                                    icon: icon,
+                                    label: label,
+                                    shortcut: shortcut,
+                                    enabled: enabled,
+                                    iconColor: iconColor,
+                                    active: active,
+                                    activeColor: iconColor ?? cs.primary,
                                   ),
-                              ],
-                            ),
-                            divider(),
+                                );
+                              }
 
-                            // ── Tools ──────────────────────────────────────
-                            sectionHeader('Tools'),
-                            item(
-                              value: 'fullscreen',
-                              icon: _isFullscreen
-                                  ? Icons.fullscreen_exit_rounded
-                                  : Icons.fullscreen_rounded,
-                              label: _isFullscreen
-                                  ? 'Exit fullscreen'
-                                  : 'Fullscreen',
-                              shortcut: showShortcuts ? 'F11' : null,
-                              iconColor: const Color(0xFF6366F1),
-                              active: _isFullscreen,
-                            ),
-                            item(
-                              value: 'select-text',
-                              icon: Icons.text_fields_rounded,
-                              label: 'Select text',
-                              iconColor: const Color(0xFF0EA5E9),
-                              active: _textSelectionEnabled,
-                            ),
-                            item(
-                              value: 'bookmarks',
-                              icon: Icons.bookmarks_rounded,
-                              label: 'Bookmarks (${_bookmarkedPages.length})',
-                              iconColor: const Color(0xFFEF4444),
-                              active: _bookmarkedPages.isNotEmpty,
-                            ),
-                            if (showShortcuts) ...[
-                              divider(),
-                              item(
-                                value: 'keyboard-shortcuts',
-                                icon: Icons.keyboard_rounded,
-                                label: 'Keyboard shortcuts',
-                                iconColor: const Color(0xFF64748B),
-                              ),
-                            ],
-                          ];
-                        },
+                              PopupMenuItem<String> sectionHeader(
+                                  String title) {
+                                return PopupMenuItem<String>(
+                                  enabled: false,
+                                  height: 22,
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                                  child: Text(
+                                    title.toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 1.1,
+                                      color: cs.onSurface.withOpacity(0.42),
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              // Two side-by-side tappable cells in one row
+                              PopupMenuItem<String> pairedItem({
+                                required IconData icon1,
+                                required String label1,
+                                required String value1,
+                                bool enabled1 = true,
+                                required IconData icon2,
+                                required String label2,
+                                required String value2,
+                                bool enabled2 = true,
+                                Color? iconColor,
+                              }) {
+                                return PopupMenuItem<String>(
+                                  enabled: false,
+                                  padding: EdgeInsets.zero,
+                                  height: 44,
+                                  child: _PairedMenuRow(
+                                    icon1: icon1,
+                                    label1: label1,
+                                    value1: value1,
+                                    enabled1: enabled1,
+                                    icon2: icon2,
+                                    label2: label2,
+                                    value2: value2,
+                                    enabled2: enabled2,
+                                    iconColor: iconColor ?? cs.primary,
+                                  ),
+                                );
+                              }
+
+                              // Multiple side-by-side tappable cells in a single row
+                              PopupMenuItem<String> multiItem({
+                                required List<_MenuActionItem> items,
+                                Color? iconColor,
+                                double height = 54,
+                              }) {
+                                return PopupMenuItem<String>(
+                                  enabled: false,
+                                  padding: EdgeInsets.zero,
+                                  height: height,
+                                  child: _MultiMenuRow(
+                                    items: items,
+                                    iconColor: iconColor ?? cs.primary,
+                                  ),
+                                );
+                              }
+
+                              PopupMenuDivider divider() =>
+                                  const PopupMenuDivider(height: 1);
+
+                              // ── items ───────────────────────────────────────────
+                              return [
+                                // ── File ───────────────────────────────────────
+                                sectionHeader('File'),
+                                item(
+                                  value: 'open-external',
+                                  icon: Icons.open_in_new_rounded,
+                                  label: 'Open in another app',
+                                  iconColor: const Color(0xFF6366F1),
+                                ),
+                                if (canShare)
+                                  item(
+                                    value: 'share',
+                                    icon: Icons.share_rounded,
+                                    label: 'Share',
+                                    iconColor: const Color(0xFF0EA5E9),
+                                  ),
+                                divider(),
+
+                                // ── Navigation ─────────────────────────────────
+                                sectionHeader('Navigation'),
+                                item(
+                                  value: 'goto-page',
+                                  icon: Icons.tag_rounded,
+                                  label: 'Go to page…',
+                                  shortcut: total == null
+                                      ? null
+                                      : '$_currentPage / $total',
+                                  enabled: hasPages,
+                                  iconColor: const Color(0xFF8B5CF6),
+                                ),
+                                multiItem(
+                                  iconColor: const Color(0xFF8B5CF6),
+                                  items: [
+                                    _MenuActionItem(
+                                      icon: Icons.first_page_rounded,
+                                      label: 'First',
+                                      value: 'first-page',
+                                      enabled: canGoBack,
+                                      tooltip: 'First page',
+                                    ),
+                                    _MenuActionItem(
+                                      icon: Icons.arrow_back_ios_new_rounded,
+                                      label: 'Previous',
+                                      value: 'previous-page',
+                                      enabled: canGoBack,
+                                      tooltip: 'Previous page',
+                                    ),
+                                    _MenuActionItem(
+                                      icon: Icons.arrow_forward_ios_rounded,
+                                      label: 'Next',
+                                      value: 'next-page',
+                                      enabled: canGoForward,
+                                      tooltip: 'Next page',
+                                    ),
+                                    _MenuActionItem(
+                                      icon: Icons.last_page_rounded,
+                                      label: 'Last',
+                                      value: 'last-page',
+                                      enabled: canGoForward,
+                                      tooltip: 'Last page',
+                                    ),
+                                  ],
+                                ),
+                                divider(),
+
+                                // ── Auto-scroll ────────────────────────────────
+                                sectionHeader('Auto-scroll'),
+                                item(
+                                  value: 'autoscroll-toggle',
+                                  icon: _autoScrollEnabled
+                                      ? Icons.stop_rounded
+                                      : Icons.play_arrow_rounded,
+                                  label: _autoScrollEnabled
+                                      ? 'Stop auto-scroll'
+                                      : 'Start auto-scroll',
+                                  shortcut: _autoScrollPaused ? 'PAUSED' : null,
+                                  enabled: hasPages,
+                                  iconColor: const Color(0xFF10B981),
+                                  active: _autoScrollEnabled,
+                                ),
+                                item(
+                                  value: 'autoscroll-speed',
+                                  icon: Icons.speed_rounded,
+                                  label: 'Auto-scroll speed',
+                                  shortcut: _autoScrollSpeedLabel,
+                                  enabled: hasPages,
+                                  iconColor: const Color(0xFF10B981),
+                                ),
+                                divider(),
+
+                                // ── Zoom ───────────────────────────────────────
+                                sectionHeader('Zoom'),
+                                pairedItem(
+                                  icon1: Icons.zoom_in_rounded,
+                                  label1: 'Zoom in',
+                                  value1: 'zoom-in',
+                                  enabled1: _ready,
+                                  icon2: Icons.zoom_out_rounded,
+                                  label2: 'Zoom out',
+                                  value2: 'zoom-out',
+                                  enabled2: _ready,
+                                  iconColor: const Color(0xFF10B981),
+                                ),
+                                multiItem(
+                                  iconColor: const Color(0xFF10B981),
+                                  items: [
+                                    _MenuActionItem(
+                                      icon: Icons.width_full_rounded,
+                                      label: 'Fit width',
+                                      value: 'fit-width',
+                                      tooltip: 'Fit width',
+                                    ),
+                                    _MenuActionItem(
+                                      icon: Icons.fit_screen_rounded,
+                                      label: 'Fit page',
+                                      value: 'fit-page',
+                                      tooltip: 'Fit page',
+                                    ),
+                                    _MenuActionItem(
+                                      icon: Icons.crop_free_rounded,
+                                      label: 'Actual size',
+                                      value: 'actual-size',
+                                      tooltip: 'Actual size (100%)',
+                                    ),
+                                  ],
+                                ),
+                                divider(),
+
+                                // ── Color mode ─────────────────────────────────
+                                sectionHeader('Color mode'),
+                                multiItem(
+                                  iconColor: const Color(0xFFF59E0B),
+                                  items: [
+                                    for (final mode in _PdfColorMode.values)
+                                      _MenuActionItem(
+                                        icon: mode.icon,
+                                        label: mode.label,
+                                        value: 'color-${mode.name}',
+                                        active: _colorMode == mode,
+                                        tooltip: mode.tooltip,
+                                      ),
+                                  ],
+                                ),
+                                divider(),
+
+                                // ── Tools ──────────────────────────────────────
+                                sectionHeader('Tools'),
+                                item(
+                                  value: 'fullscreen',
+                                  icon: _isFullscreen
+                                      ? Icons.fullscreen_exit_rounded
+                                      : Icons.fullscreen_rounded,
+                                  label: _isFullscreen
+                                      ? 'Exit fullscreen'
+                                      : 'Fullscreen',
+                                  shortcut: showShortcuts ? 'F11' : null,
+                                  iconColor: const Color(0xFF6366F1),
+                                  active: _isFullscreen,
+                                ),
+                                item(
+                                  value: 'select-text',
+                                  icon: Icons.text_fields_rounded,
+                                  label: 'Select text',
+                                  iconColor: const Color(0xFF0EA5E9),
+                                  active: _textSelectionEnabled,
+                                ),
+                                item(
+                                  value: 'bookmarks',
+                                  icon: Icons.bookmarks_rounded,
+                                  label:
+                                      'Bookmarks (${_bookmarkedPages.length})',
+                                  iconColor: const Color(0xFFEF4444),
+                                  active: _bookmarkedPages.isNotEmpty,
+                                ),
+                                if (showShortcuts) ...[
+                                  divider(),
+                                  item(
+                                    value: 'keyboard-shortcuts',
+                                    icon: Icons.keyboard_rounded,
+                                    label: 'Keyboard shortcuts',
+                                    iconColor: const Color(0xFF64748B),
+                                  ),
+                                ],
+                              ];
+                            },
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
             body: _buildBody(),
           ),
         ),
@@ -1854,43 +1934,43 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
 
     final colorFilter = _activeColorFilter;
 
-    return Column(
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        _searchVisible ? _buildSearchBar() : const SizedBox.shrink(),
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(
-                child: colorFilter == null
-                    ? viewer
-                    : ColorFiltered(
-                        colorFilter: colorFilter,
-                        child: viewer,
-                      ),
-              ),
-              // The old bottom slider/page bar is replaced by this right-edge
-              // page scrubber. It is deliberately outside the colour-filtered
-              // layer so its colours stay accurate.
-              if (_ready)
-                _PageScrollBar(
-                  controller: _controller,
-                  colorMode: _colorMode,
-                  onUserInteraction: () => _stopAutoScroll(),
-                ),
-              _buildAutoScrollControls(),
-              if (_isFullscreen)
-                Positioned(
-                  top: 10 + MediaQuery.viewPaddingOf(context).top,
-                  left: 10,
-                  child: _FullscreenExitButton(
-                    colorMode: _colorMode,
-                    onPressed: _exitFullscreen,
+        Positioned.fill(
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: _handleDocumentPointerDown,
+            onPointerMove: _handleDocumentPointerMove,
+            onPointerUp: _handleDocumentPointerUp,
+            onPointerCancel: _handleDocumentPointerCancel,
+            child: colorFilter == null
+                ? viewer
+                : ColorFiltered(
+                    colorFilter: colorFilter,
+                    child: viewer,
                   ),
-                ),
-            ],
           ),
         ),
+        // The old bottom slider/page bar is replaced by this right-edge page
+        // scrubber. It is deliberately outside the colour-filtered layer so
+        // its colours stay accurate.
+        if (_ready)
+          _PageScrollBar(
+            controller: _controller,
+            colorMode: _colorMode,
+            onUserInteraction: () => _stopAutoScroll(),
+          ),
+        _buildAutoScrollControls(),
+        if (_isFullscreen)
+          Positioned(
+            top: 10 + MediaQuery.viewPaddingOf(context).top,
+            left: 10,
+            child: _FullscreenExitButton(
+              colorMode: _colorMode,
+              onPressed: _exitFullscreen,
+            ),
+          ),
       ],
     );
   }
@@ -1933,8 +2013,7 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
     );
   }
 
-  Widget _buildSearchBar() {
-    final foreground = _colorMode.foreground;
+  PreferredSizeWidget _buildSearchAppBar() {
     final hasQuery = _searchController.text.trim().isNotEmpty;
     final matches = _searcher.matches.length;
     final current = _searcher.currentIndex;
@@ -1946,70 +2025,46 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
             ? (searching ? 'Searching…' : 'No matches')
             : '${(current ?? 0) + 1} / $matches';
     final canNavigate = hasQuery && matches > 0;
+    final showStatus = hasQuery && MediaQuery.sizeOf(context).width >= 360;
 
-    final field = TextField(
-      controller: _searchController,
-      focusNode: _searchFocusNode,
-      onChanged: _onSearchChanged,
-      onSubmitted: (_) {
-        if (canNavigate) _goToNextMatch();
-      },
-      textInputAction: TextInputAction.search,
-      style: TextStyle(color: foreground, fontSize: 15),
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: 'Search in document',
-        hintStyle: TextStyle(color: foreground.withOpacity(0.45)),
-        prefixIcon: Icon(
-          Icons.search_rounded,
-          size: 20,
-          color: foreground.withOpacity(0.65),
-        ),
-        suffixIcon: _searchController.text.isEmpty
-            ? null
-            : IconButton(
-                tooltip: 'Clear',
-                icon: Icon(
-                  Icons.cancel_rounded,
-                  size: 18,
-                  color: foreground.withOpacity(0.55),
-                ),
-                onPressed: () {
-                  _searchController.clear();
-                  _onSearchChanged('');
-                  _searchFocusNode.requestFocus();
-                },
-              ),
-        filled: true,
-        fillColor: _colorMode.fieldFill,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+    return CustomAppBar(
+      title: 'Search',
+      centerTitle: false,
+      showNotification: false,
+      leading: IconButton(
+        tooltip: 'Close search',
+        icon: const Icon(Icons.arrow_back_rounded),
+        onPressed: _closeSearch,
       ),
-    );
-
-    final navigation = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (searching)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 6),
-            child: SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
+      titleWidget: _buildSearchField(),
+      actions: [
+        if (showStatus)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Center(
+              child: searching
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _colorMode.subtitle,
+                      ),
+                    ),
             ),
           )
-        else
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              status,
-              style: TextStyle(
-                fontSize: 12,
-                color: foreground.withOpacity(0.7),
+        else if (searching)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Center(
+              child: SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
           ),
@@ -2025,108 +2080,73 @@ class _InAppPdfViewerPageState extends State<InAppPdfViewerPage>
           onPressed: canNavigate ? _goToNextMatch : null,
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
         ),
-        IconButton(
-          tooltip: 'Close search',
-          visualDensity: VisualDensity.compact,
-          onPressed: _closeSearch,
-          icon: const Icon(Icons.close_rounded),
-        ),
       ],
     );
+  }
 
-    return Theme(
-      data: Theme.of(context).copyWith(
-        disabledColor: foreground.withOpacity(0.35),
-      ),
-      child: Material(
-        color: _colorMode.surface,
-        elevation: 2,
-        child: SafeArea(
-          top: false,
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-            child: IconTheme(
-              data: IconThemeData(color: foreground),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth >= 520) {
-                    return Row(
-                      children: [
-                        Expanded(child: field),
-                        const SizedBox(width: 8),
-                        navigation,
-                      ],
-                    );
-                  }
+  Widget _buildSearchField() {
+    final foreground = _colorMode.foreground;
 
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: field),
-                          IconButton(
-                            tooltip: 'Close search',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: _closeSearch,
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: searching
-                                  ? Row(
-                                      children: [
-                                        const SizedBox(
-                                          width: 14,
-                                          height: 14,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Searching…',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: foreground.withOpacity(0.7),
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Text(
-                                      status,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: foreground.withOpacity(0.7),
-                                      ),
-                                    ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Previous match',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: canNavigate ? _goToPrevMatch : null,
-                            icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                          ),
-                          IconButton(
-                            tooltip: 'Next match',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: canNavigate ? _goToNextMatch : null,
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+    return SizedBox(
+      height: 38,
+      child: TextField(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
+        onChanged: _onSearchChanged,
+        onSubmitted: (_) {
+          if (_searcher.matches.isNotEmpty) _goToNextMatch();
+        },
+        textInputAction: TextInputAction.search,
+        style: TextStyle(color: foreground, fontSize: 14),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search in document',
+          hintStyle: TextStyle(
+            color: foreground.withOpacity(0.45),
+            fontSize: 14,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            size: 18,
+            color: foreground.withOpacity(0.65),
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 34,
+            minHeight: 34,
+          ),
+          suffixIcon: _searchController.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  icon: Icon(
+                    Icons.cancel_rounded,
+                    size: 17,
+                    color: foreground.withOpacity(0.55),
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                    _onSearchChanged('');
+                    _searchFocusNode.requestFocus();
+                  },
+                ),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 34,
+            minHeight: 34,
+          ),
+          filled: true,
+          fillColor: _colorMode.fieldFill,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 9,
           ),
         ),
       ),

@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../widgets/custom_app_bar.dart';
 import '../pages/pdf_viewer_page.dart';
+import '../services/local_pdf_favorites_service.dart';
 import '../widgets/delete_confirmation_dialog.dart';
 import '../widgets/loading_widget.dart';
 
@@ -63,17 +64,6 @@ enum PdfSortOption {
   const PdfSortOption(this.label, this.icon);
 }
 
-/// Filter categories for quick filtering.
-enum PdfFilterOption {
-  all('All Files'),
-  recent('Recent (7d)'),
-  large('Large (>5MB)'),
-  compact('Small (<1MB)');
-
-  final String label;
-  const PdfFilterOption(this.label);
-}
-
 class PdfReaderPage extends StatefulWidget {
   const PdfReaderPage({super.key});
 
@@ -87,9 +77,12 @@ class _PdfReaderPageState extends State<PdfReaderPage>
   bool _loading = true;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   PdfSortOption _selectedSort = PdfSortOption.dateDesc;
-  PdfFilterOption _selectedFilter = PdfFilterOption.all;
+  bool _isSearching = false;
+  bool _showFavoritesOnly = false;
+  Set<String> _favoritePaths = <String>{};
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -105,12 +98,49 @@ class _PdfReaderPageState extends State<PdfReaderPage>
       parent: _fadeController,
       curve: Curves.easeOutCubic,
     );
+    _loadFavorites();
     _fetchPdfFiles();
+  }
+
+  Future<void> _loadFavorites() async {
+    final favorites = await LocalPdfFavoritesService.getFavorites();
+    if (!mounted) return;
+    setState(() => _favoritePaths = favorites);
+  }
+
+  bool _isFavorite(LocalPdfItem item) => _favoritePaths.contains(item.path);
+
+  Future<void> _toggleFavorite(LocalPdfItem item) async {
+    final updated = Set<String>.from(_favoritePaths);
+    if (!updated.remove(item.path)) {
+      updated.add(item.path);
+    }
+    setState(() => _favoritePaths = updated);
+    await LocalPdfFavoritesService.saveFavorites(updated);
+  }
+
+  void _openSearch() {
+    setState(() => _isSearching = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isSearching) {
+        _searchFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _closeSearch() {
+    _searchController.clear();
+    _searchFocusNode.unfocus();
+    setState(() {
+      _searchQuery = '';
+      _isSearching = false;
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -151,8 +181,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
     }
   }
 
-  Future<void> _scanForPdfs(
-      Directory dir, List<LocalPdfItem> foundPdfs) async {
+  Future<void> _scanForPdfs(Directory dir, List<LocalPdfItem> foundPdfs) async {
     try {
       if (dir.path == '/storage/emulated/0/Android') return;
 
@@ -282,26 +311,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
       }).toList();
     }
 
-    // Category filter
-    final now = DateTime.now();
-    switch (_selectedFilter) {
-      case PdfFilterOption.all:
-        break;
-      case PdfFilterOption.recent:
-        list = list
-            .where((item) => now.difference(item.lastModified).inDays <= 7)
-            .toList();
-        break;
-      case PdfFilterOption.large:
-        list = list
-            .where((item) => item.sizeInBytes >= 5 * 1024 * 1024)
-            .toList();
-        break;
-      case PdfFilterOption.compact:
-        list = list
-            .where((item) => item.sizeInBytes <= 1024 * 1024)
-            .toList();
-        break;
+    if (_showFavoritesOnly) {
+      list = list.where((item) => _favoritePaths.contains(item.path)).toList();
     }
 
     // Sort order
@@ -314,12 +325,12 @@ class _PdfReaderPageState extends State<PdfReaderPage>
         sorted.sort((a, b) => a.lastModified.compareTo(b.lastModified));
         break;
       case PdfSortOption.nameAsc:
-        sorted.sort(
-            (a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+        sorted.sort((a, b) =>
+            a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
         break;
       case PdfSortOption.nameDesc:
-        sorted.sort(
-            (a, b) => b.displayName.toLowerCase().compareTo(a.displayName.toLowerCase()));
+        sorted.sort((a, b) =>
+            b.displayName.toLowerCase().compareTo(a.displayName.toLowerCase()));
         break;
       case PdfSortOption.sizeDesc:
         sorted.sort((a, b) => b.sizeInBytes.compareTo(a.sizeInBytes));
@@ -333,7 +344,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
   }
 
   int get _totalFilteredBytes {
-    return _filteredAndSortedList.fold(0, (sum, item) => sum + item.sizeInBytes);
+    return _filteredAndSortedList.fold(
+        0, (sum, item) => sum + item.sizeInBytes);
   }
 
   void _showFileDetails(LocalPdfItem item) {
@@ -414,19 +426,23 @@ class _PdfReaderPageState extends State<PdfReaderPage>
               _buildDetailRow(
                 icon: Icons.folder_open_rounded,
                 label: 'Folder',
-                value: item.parentFolder.isNotEmpty ? item.parentFolder : 'Device Storage',
+                value: item.parentFolder.isNotEmpty
+                    ? item.parentFolder
+                    : 'Device Storage',
               ),
               const SizedBox(height: 12),
               _buildDetailRow(
                 icon: Icons.calendar_today_rounded,
                 label: 'Modified',
-                value: DateFormat('MMMM d, yyyy • h:mm:ss a').format(item.lastModified),
+                value: DateFormat('MMMM d, yyyy • h:mm:ss a')
+                    .format(item.lastModified),
               ),
               const SizedBox(height: 12),
               _buildDetailRow(
                 icon: Icons.data_usage_rounded,
                 label: 'Size',
-                value: '${_formatFileSize(item.sizeInBytes)} (${item.sizeInBytes} bytes)',
+                value:
+                    '${_formatFileSize(item.sizeInBytes)} (${item.sizeInBytes} bytes)',
               ),
               const SizedBox(height: 12),
               _buildDetailRow(
@@ -480,7 +496,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      icon: const Icon(Icons.chrome_reader_mode_outlined, size: 18),
+                      icon: const Icon(Icons.chrome_reader_mode_outlined,
+                          size: 18),
                       label: const Text('Open'),
                       onPressed: () {
                         Navigator.pop(ctx);
@@ -564,9 +581,14 @@ class _PdfReaderPageState extends State<PdfReaderPage>
         if (await item.file.exists()) {
           await item.file.delete();
         }
+        final wasFavorite = _favoritePaths.contains(item.path);
         setState(() {
           _allPdfs.removeWhere((p) => p.path == item.path);
+          _favoritePaths.remove(item.path);
         });
+        if (wasFavorite) {
+          await LocalPdfFavoritesService.saveFavorites(_favoritePaths);
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -589,102 +611,81 @@ class _PdfReaderPageState extends State<PdfReaderPage>
     }
   }
 
-  Widget _buildSearchBar(ThemeData theme, bool isDark) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 6),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E222B) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-        border: Border.all(
-          color: isDark ? Colors.white10 : Colors.grey.shade200,
-          width: 1,
-        ),
+  PreferredSizeWidget _buildSearchAppBar(bool isDark) {
+    return CustomAppBar(
+      title: 'Search',
+      centerTitle: false,
+      showNotification: false,
+      leading: IconButton(
+        tooltip: 'Close search',
+        icon: const Icon(Icons.arrow_back_rounded),
+        onPressed: _closeSearch,
       ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (val) => setState(() => _searchQuery = val),
-        style: const TextStyle(fontSize: 14),
-        decoration: InputDecoration(
-          hintText: 'Search PDFs by title or folder...',
-          hintStyle: TextStyle(
-            color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
-            fontSize: 14,
-          ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-            size: 22,
-          ),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear_rounded, size: 20),
-                  color: Colors.grey.shade500,
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                )
-              : null,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          border: InputBorder.none,
-        ),
-      ),
+      titleWidget: _buildSearchField(isDark),
     );
   }
 
-  Widget _buildFilterChips(ThemeData theme, bool isDark) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Row(
-        children: PdfFilterOption.values.map((filter) {
-          final isSelected = _selectedFilter == filter;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(filter.label),
-              selected: isSelected,
-              showCheckmark: false,
-              labelStyle: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
-              ),
-              selectedColor: const Color(0xFF6366F1),
-              backgroundColor: isDark ? const Color(0xFF1E222B) : Colors.grey.shade100,
-              side: BorderSide(
-                color: isSelected
-                    ? const Color(0xFF6366F1)
-                    : (isDark ? Colors.white10 : Colors.grey.shade300),
-                width: 1,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              onSelected: (selected) {
-                if (selected) {
-                  setState(() => _selectedFilter = filter);
-                }
-              },
+  Widget _buildSearchField(bool isDark) {
+    return SizedBox(
+      height: 38,
+      child: TextField(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
+        onChanged: (val) => setState(() => _searchQuery = val),
+        textInputAction: TextInputAction.search,
+        textAlignVertical: TextAlignVertical.center,
+        style: TextStyle(
+          fontSize: 14,
+          color: isDark ? Colors.white : Colors.black87,
+        ),
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search PDFs by title or folder...',
+          hintStyle: TextStyle(
+            color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+            fontSize: 14,
+          ),
+          filled: true,
+          fillColor: isDark ? const Color(0xFF1E222B) : Colors.white,
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            size: 20,
+          ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 40),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear',
+                  icon: const Icon(Icons.clear_rounded, size: 18),
+                  color: Colors.grey.shade500,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                    _searchFocusNode.requestFocus();
+                  },
+                ),
+          suffixIconConstraints: const BoxConstraints(minWidth: 36),
+          contentPadding: EdgeInsets.zero,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: isDark ? Colors.white12 : Colors.grey.shade300,
+              width: 1,
             ),
-          );
-        }).toList(),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildStatsAndSortHeader(ThemeData theme, bool isDark, int count) {
+    final compact = MediaQuery.sizeOf(context).width < 380;
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 4, 16, 6),
       child: Row(
@@ -723,78 +724,136 @@ class _PdfReaderPageState extends State<PdfReaderPage>
             ],
           ),
 
-          // Sort dropdown menu button
-          PopupMenuButton<PdfSortOption>(
-            initialValue: _selectedSort,
-            tooltip: 'Sort by',
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            onSelected: (option) {
-              setState(() => _selectedSort = option);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E222B) : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isDark ? Colors.white10 : Colors.grey.shade300,
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    _selectedSort.icon,
-                    size: 14,
-                    color: const Color(0xFF6366F1),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _selectedSort.label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
+          // Favorites filter + sort dropdown
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildFavoritesToggle(isDark),
+              const SizedBox(width: 8),
+              // Sort dropdown menu button
+              PopupMenuButton<PdfSortOption>(
+                initialValue: _selectedSort,
+                tooltip: 'Sort by',
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                onSelected: (option) {
+                  setState(() => _selectedSort = option);
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color:
+                        isDark ? const Color(0xFF1E222B) : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isDark ? Colors.white10 : Colors.grey.shade300,
+                      width: 1,
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 16,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                  ),
-                ],
-              ),
-            ),
-            itemBuilder: (context) {
-              return PdfSortOption.values.map((sort) {
-                final isCurrent = _selectedSort == sort;
-                return PopupMenuItem<PdfSortOption>(
-                  value: sort,
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        sort.icon,
-                        size: 18,
-                        color: isCurrent ? const Color(0xFF6366F1) : Colors.grey,
+                        _selectedSort.icon,
+                        size: 14,
+                        color: const Color(0xFF6366F1),
                       ),
-                      const SizedBox(width: 10),
-                      Text(
-                        sort.label,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                          color: isCurrent ? const Color(0xFF6366F1) : null,
+                      if (!compact) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          _selectedSort.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.grey.shade300
+                                : Colors.grey.shade800,
+                          ),
                         ),
+                      ],
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 16,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                       ),
                     ],
                   ),
-                );
-              }).toList();
-            },
+                ),
+                itemBuilder: (context) {
+                  return PdfSortOption.values.map((sort) {
+                    final isCurrent = _selectedSort == sort;
+                    return PopupMenuItem<PdfSortOption>(
+                      value: sort,
+                      child: Row(
+                        children: [
+                          Icon(
+                            sort.icon,
+                            size: 18,
+                            color: isCurrent
+                                ? const Color(0xFF6366F1)
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            sort.label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isCurrent
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isCurrent ? const Color(0xFF6366F1) : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList();
+                },
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFavoritesToggle(bool isDark) {
+    final active = _showFavoritesOnly;
+    return Tooltip(
+      message: active ? 'Show all files' : 'Show favorites only',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => setState(() => _showFavoritesOnly = !_showFavoritesOnly),
+          child: Container(
+            width: 34,
+            height: 30,
+            decoration: BoxDecoration(
+              color: active
+                  ? (isDark ? const Color(0xFF3A2F1B) : const Color(0xFFFEF3C7))
+                  : (isDark ? const Color(0xFF1E222B) : Colors.grey.shade100),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active
+                    ? const Color(0xFFF59E0B)
+                    : (isDark ? Colors.white10 : Colors.grey.shade300),
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              active ? Icons.star_rounded : Icons.star_border_rounded,
+              size: 18,
+              color: active
+                  ? const Color(0xFFF59E0B)
+                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -854,7 +913,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6366F1),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -870,7 +930,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
             OutlinedButton.icon(
               onPressed: _fetchPdfFiles,
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -885,6 +946,14 @@ class _PdfReaderPageState extends State<PdfReaderPage>
   }
 
   Widget _buildEmptySearchState(bool isDark) {
+    final hasQuery = _searchQuery.trim().isNotEmpty;
+    final favoritesOnly = _showFavoritesOnly && !hasQuery;
+    final title = favoritesOnly ? 'No favorites yet' : 'No matching PDFs';
+    final message = favoritesOnly
+        ? 'Tap the star on any PDF to add it to your favorites.'
+        : 'No documents match "$_searchQuery"';
+    final actionLabel = favoritesOnly ? 'Show all files' : 'Clear search';
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -898,14 +967,16 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.search_off_rounded,
+                favoritesOnly
+                    ? Icons.star_border_rounded
+                    : Icons.search_off_rounded,
                 size: 48,
                 color: Colors.grey.shade400,
               ),
             ),
             const SizedBox(height: 16),
             Text(
-              'No matching PDFs',
+              title,
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
@@ -914,7 +985,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
             ),
             const SizedBox(height: 6),
             Text(
-              'No documents match "$_searchQuery"',
+              message,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
@@ -924,14 +995,21 @@ class _PdfReaderPageState extends State<PdfReaderPage>
             const SizedBox(height: 16),
             TextButton.icon(
               onPressed: () {
+                if (favoritesOnly) {
+                  setState(() => _showFavoritesOnly = false);
+                  return;
+                }
                 _searchController.clear();
-                setState(() {
-                  _searchQuery = '';
-                  _selectedFilter = PdfFilterOption.all;
-                });
+                setState(() => _searchQuery = '');
+                _searchFocusNode.requestFocus();
               },
-              icon: const Icon(Icons.restart_alt_rounded, size: 18),
-              label: const Text('Reset filters'),
+              icon: Icon(
+                favoritesOnly
+                    ? Icons.visibility_outlined
+                    : Icons.restart_alt_rounded,
+                size: 18,
+              ),
+              label: Text(actionLabel),
             ),
           ],
         ),
@@ -940,6 +1018,7 @@ class _PdfReaderPageState extends State<PdfReaderPage>
   }
 
   Widget _buildPdfCard(LocalPdfItem item, ThemeData theme, bool isDark) {
+    final isFavorite = _isFavorite(item);
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E222B) : Colors.white,
@@ -1024,7 +1103,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                           fontWeight: FontWeight.w600,
                           fontSize: 14.5,
                           height: 1.25,
-                          color: isDark ? Colors.white : const Color(0xFF1E293B),
+                          color:
+                              isDark ? Colors.white : const Color(0xFF1E293B),
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -1060,7 +1140,9 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                             '•',
                             style: TextStyle(
                               fontSize: 11,
-                              color: isDark ? Colors.white30 : Colors.grey.shade400,
+                              color: isDark
+                                  ? Colors.white30
+                                  : Colors.grey.shade400,
                             ),
                           ),
                           // Date
@@ -1078,7 +1160,9 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                               '•',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: isDark ? Colors.white30 : Colors.grey.shade400,
+                                color: isDark
+                                    ? Colors.white30
+                                    : Colors.grey.shade400,
                               ),
                             ),
                             Row(
@@ -1093,7 +1177,8 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                                 ),
                                 const SizedBox(width: 3),
                                 ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 80),
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 80),
                                   child: Text(
                                     item.parentFolder,
                                     style: TextStyle(
@@ -1119,13 +1204,24 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Share button
+                    // Favorite button
                     IconButton(
-                      icon: const Icon(Icons.share_outlined, size: 20),
-                      color: isDark ? Colors.grey.shade300 : const Color(0xFF64748B),
-                      tooltip: 'Share',
+                      icon: Icon(
+                        isFavorite
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        size: 22,
+                      ),
+                      color: isFavorite
+                          ? const Color(0xFFF59E0B)
+                          : (isDark
+                              ? Colors.grey.shade400
+                              : const Color(0xFF94A3B8)),
+                      tooltip: isFavorite
+                          ? 'Remove from favorites'
+                          : 'Add to favorites',
                       visualDensity: VisualDensity.compact,
-                      onPressed: () => _sharePdf(item),
+                      onPressed: () => _toggleFavorite(item),
                     ),
 
                     // Context Menu
@@ -1134,13 +1230,18 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                       icon: Icon(
                         Icons.more_vert_rounded,
                         size: 20,
-                        color: isDark ? Colors.grey.shade400 : const Color(0xFF94A3B8),
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : const Color(0xFF94A3B8),
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                       onSelected: (action) {
                         switch (action) {
+                          case 'favorite':
+                            _toggleFavorite(item);
+                            break;
                           case 'open':
                             _openPdf(item.path, item.fileName);
                             break;
@@ -1156,6 +1257,26 @@ class _PdfReaderPageState extends State<PdfReaderPage>
                         }
                       },
                       itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'favorite',
+                          child: Row(
+                            children: [
+                              Icon(
+                                isFavorite
+                                    ? Icons.star_rounded
+                                    : Icons.star_border_rounded,
+                                size: 18,
+                                color: const Color(0xFFF59E0B),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                isFavorite
+                                    ? 'Remove from favorites'
+                                    : 'Add to favorites',
+                              ),
+                            ],
+                          ),
+                        ),
                         const PopupMenuItem(
                           value: 'open',
                           child: Row(
@@ -1225,69 +1346,79 @@ class _PdfReaderPageState extends State<PdfReaderPage>
     final isDark = theme.brightness == Brightness.dark;
     final items = _filteredAndSortedList;
 
-    return Scaffold(
-      appBar: CustomAppBar(
-        title: 'Local PDF',
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.file_open_outlined),
-            tooltip: 'Pick PDF from files',
-            onPressed: _pickAndOpenPdf,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Rescan storage',
-            onPressed: _fetchPdfFiles,
-          ),
-        ],
-      ),
-      floatingActionButton: _allPdfs.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: _pickAndOpenPdf,
-              backgroundColor: const Color(0xFF6366F1),
-              foregroundColor: Colors.white,
-              elevation: 4,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text(
-                'Open File',
-                style: TextStyle(fontWeight: FontWeight.bold),
+    return PopScope(
+      canPop: !_isSearching,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isSearching) {
+          _closeSearch();
+        }
+      },
+      child: Scaffold(
+        appBar: _isSearching
+            ? _buildSearchAppBar(isDark)
+            : CustomAppBar(
+                title: 'Local PDF',
+                centerTitle: true,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.search_rounded),
+                    tooltip: 'Search PDFs',
+                    onPressed: _openSearch,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded),
+                    tooltip: 'Rescan storage',
+                    onPressed: _fetchPdfFiles,
+                  ),
+                ],
               ),
-            )
-          : null,
-      body: SafeArea(
-        child: _allPdfs.isEmpty
-            ? _buildEmptyState(isDark)
-            : RefreshIndicator(
-                onRefresh: _fetchPdfFiles,
-                color: const Color(0xFF6366F1),
-                child: Column(
-                  children: [
-                    _buildSearchBar(theme, isDark),
-                    _buildFilterChips(theme, isDark),
-                    _buildStatsAndSortHeader(theme, isDark, items.length),
-                    Expanded(
-                      child: items.isEmpty
-                          ? _buildEmptySearchState(isDark)
-                          : FadeTransition(
-                              opacity: _fadeAnimation,
-                              child: ListView.separated(
-                                padding: const EdgeInsets.fromLTRB(16, 6, 16, 80),
-                                physics: const AlwaysScrollableScrollPhysics(
-                                  parent: BouncingScrollPhysics(),
-                                ),
-                                itemCount: items.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 10),
-                                itemBuilder: (context, index) {
-                                  return _buildPdfCard(items[index], theme, isDark);
-                                },
-                              ),
-                            ),
-                    ),
-                  ],
+        floatingActionButton: _allPdfs.isNotEmpty
+            ? FloatingActionButton.extended(
+                onPressed: _pickAndOpenPdf,
+                backgroundColor: const Color(0xFF6366F1),
+                foregroundColor: Colors.white,
+                elevation: 4,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text(
+                  'Open File',
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-              ),
+              )
+            : null,
+        body: SafeArea(
+          child: _allPdfs.isEmpty
+              ? _buildEmptyState(isDark)
+              : RefreshIndicator(
+                  onRefresh: _fetchPdfFiles,
+                  color: const Color(0xFF6366F1),
+                  child: Column(
+                    children: [
+                      _buildStatsAndSortHeader(theme, isDark, items.length),
+                      Expanded(
+                        child: items.isEmpty
+                            ? _buildEmptySearchState(isDark)
+                            : FadeTransition(
+                                opacity: _fadeAnimation,
+                                child: ListView.separated(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 6, 16, 80),
+                                  physics: const AlwaysScrollableScrollPhysics(
+                                    parent: BouncingScrollPhysics(),
+                                  ),
+                                  itemCount: items.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 10),
+                                  itemBuilder: (context, index) {
+                                    return _buildPdfCard(
+                                        items[index], theme, isDark);
+                                  },
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
       ),
     );
   }

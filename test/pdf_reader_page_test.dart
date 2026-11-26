@@ -44,17 +44,12 @@ void main() {
     });
   });
 
-  group('PdfSortOption & PdfFilterOption', () {
+  group('PdfSortOption', () {
     test('all enum values have valid non-empty labels', () {
       for (final sort in PdfSortOption.values) {
         expect(sort.label.isNotEmpty, true);
         expect(sort.icon, isNotNull);
       }
-
-      for (final filter in PdfFilterOption.values) {
-        expect(filter.label.isNotEmpty, true);
-      }
     });
   });
 }
-
