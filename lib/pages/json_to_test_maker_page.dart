@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:pi_qbank/config/app_config.dart';
 import 'package:pi_qbank/pages/mcq_test_page.dart';
 import 'package:pi_qbank/pages/short_question_page.dart';
@@ -26,15 +30,20 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
       TextEditingController(text: '10');
   final TextEditingController _durationController =
       TextEditingController(text: '10');
+  final ImagePicker _imagePicker = ImagePicker();
+  final List<XFile> _selectedImages = [];
   final TestShareService _shareService = TestShareService(
     contentType: AppConfig.testShareContentType.isNotEmpty
         ? AppConfig.testShareContentType
         : (kIsWeb ? 'text/plain;charset=utf-8' : 'application/json'),
   );
 
+  static const int _maxImages = 5;
+
   String _selectedTestType = TestType.mcq.label;
   String _selectedLanguage = 'বাংলা';
   bool _isSharing = false;
+  bool _isPickingImages = false;
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -153,6 +162,133 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
     }
   }
 
+  Future<void> _pickImages() async {
+    if (_isPickingImages) return;
+
+    if (_selectedImages.length >= _maxImages) {
+      _showError('You can attach up to $_maxImages images.');
+      return;
+    }
+
+    setState(() => _isPickingImages = true);
+
+    try {
+      final images = await _imagePicker.pickMultiImage(
+        imageQuality: 80,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+
+      if (!mounted || images.isEmpty) return;
+
+      final valid = <XFile>[];
+      for (final image in images) {
+        if (await File(image.path).exists()) valid.add(image);
+      }
+
+      if (valid.isEmpty) {
+        _showError('Could not read the selected image(s).');
+        return;
+      }
+
+      final remaining = _maxImages - _selectedImages.length;
+      final accepted = valid.take(remaining).toList();
+
+      setState(() => _selectedImages.addAll(accepted));
+
+      if (accepted.length < valid.length) {
+        _showInfo(
+          'Added ${accepted.length} image(s). The limit is $_maxImages.',
+        );
+      } else {
+        _showInfo('Added ${accepted.length} image(s).');
+      }
+    } on PlatformException catch (e) {
+      if (mounted) {
+        _showError('Could not pick images: ${e.message ?? e.code}');
+      }
+    } catch (e) {
+      if (mounted) _showError('Could not pick images: $e');
+    } finally {
+      if (mounted) setState(() => _isPickingImages = false);
+    }
+  }
+
+  Future<void> _takePhoto() async {
+    if (_isPickingImages) return;
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) {
+      _showError(
+        'Camera capture is not supported on Linux. Choose images instead.',
+      );
+      return;
+    }
+
+    if (_selectedImages.length >= _maxImages) {
+      _showError('You can attach up to $_maxImages images.');
+      return;
+    }
+
+    setState(() => _isPickingImages = true);
+
+    try {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final status = await Permission.camera.request();
+        if (!status.isGranted) {
+          _showError(
+            status.isPermanentlyDenied
+                ? 'Camera permission is permanently denied. Enable it in '
+                    'Settings to take a photo.'
+                : 'Camera permission denied. Allow camera access in Settings.',
+          );
+          return;
+        }
+      }
+
+      final photo = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+
+      if (!mounted || photo == null) return;
+
+      if (!await File(photo.path).exists()) {
+        _showError('Could not read the captured photo.');
+        return;
+      }
+
+      setState(() => _selectedImages.add(photo));
+      _showInfo('Photo added.');
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+
+      String message = 'Camera unavailable.';
+      if (e.code == 'camera_access_denied') {
+        message = 'Camera permission denied. Allow camera access in Settings.';
+      } else if (e.message != null && e.message!.contains('startPreview')) {
+        message = 'Camera failed to start. Close other camera apps and retry.';
+      } else {
+        message = 'Camera error: ${e.message ?? e.code}';
+      }
+      _showError(message);
+    } catch (e) {
+      if (mounted) _showError('Camera error: $e');
+    } finally {
+      if (mounted) setState(() => _isPickingImages = false);
+    }
+  }
+
+  void _removeImage(int index) {
+    setState(() => _selectedImages.removeAt(index));
+  }
+
+  void _clearImages() {
+    if (_selectedImages.isEmpty) return;
+    setState(() => _selectedImages.clear());
+  }
+
   Future<void> _copyInstruction() async {
     try {
       await Clipboard.setData(
@@ -178,17 +314,47 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
 
     if (!mounted) return;
 
-    try {
-      final result = await Share.shareWithResult(
-        text,
-        subject: 'AI Test Generation Instruction',
+    if (_selectedImages.isNotEmpty &&
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.linux) {
+      _showError(
+        'Attaching images is not supported on Linux. Use the Android app '
+        'to share images with the AI.',
       );
+      return;
+    }
+
+    try {
+      final ShareResult result;
+      if (_selectedImages.isNotEmpty) {
+        result = await Share.shareXFiles(
+          _selectedImages,
+          text: text,
+          subject: 'AI Test Generation Instruction',
+        );
+      } else {
+        result = await Share.shareWithResult(
+          text,
+          subject: 'AI Test Generation Instruction',
+        );
+      }
+
       if (!mounted) return;
       if (result.status == ShareResultStatus.unavailable) {
-        _showInfo('Instruction copied to clipboard.');
+        _showInfo(
+          _selectedImages.isEmpty
+              ? 'Instruction copied to clipboard.'
+              : 'Images are ready. Attach them manually in the AI app.',
+        );
       }
-    } catch (_) {
-      if (mounted) _showInfo('Instruction copied to clipboard.');
+    } catch (e) {
+      if (mounted) {
+        _showError(
+          _selectedImages.isEmpty
+              ? 'Could not share the instruction: $e'
+              : 'Could not share the images: $e',
+        );
+      }
     }
   }
 
@@ -712,8 +878,8 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
           ),
           const SizedBox(height: 8),
           Text(
-            'Copy the instruction to your AI app, then paste the JSON it '
-            'returns to start a test.',
+            'Add an image, send the instruction to your AI app, then paste '
+            'the JSON it returns to start a test.',
             style: TextStyle(
               fontSize: 14,
               color: Colors.white.withOpacity(0.9),
@@ -903,12 +1069,14 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildStepTitle(2, 'Send Instruction to AI', Icons.send_outlined),
+          _buildStepTitle(2, 'Add Images & Send to AI', Icons.send_outlined),
           const SizedBox(height: 12),
+          _buildImagePickerCard(),
+          const SizedBox(height: 16),
           const Text(
-            'Copy the instruction with the button below, then paste it into '
-            'your preferred AI app together with the image. The instruction '
-            'tells the AI exactly which JSON shape to return.',
+            'Add an image above if you want to attach one. Copy the '
+            'instruction, or use Share to send the selected images and the '
+            'instruction together to an AI app.',
             style: TextStyle(fontSize: 14, color: Colors.black87),
           ),
           const SizedBox(height: 16),
@@ -934,7 +1102,14 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
                 child: ElevatedButton.icon(
                   onPressed: _shareInstruction,
                   icon: const Icon(Icons.share_outlined, size: 18),
-                  label: const Text('Share'),
+                  label: Text(
+                    _selectedImages.isEmpty
+                        ? 'Share'
+                        : 'Share ${_selectedImages.length} image'
+                            '${_selectedImages.length == 1 ? '' : 's'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.indigo.shade600,
                     foregroundColor: Colors.white,
@@ -947,11 +1122,22 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
               ),
             ],
           ),
+          if (_selectedImages.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'The selected images will be attached when you tap Share. '
+              'Choose Gemini, ChatGPT, or another AI app from the share sheet.',
+              style: TextStyle(fontSize: 12, color: Colors.green.shade700),
+            ),
+          ],
           const SizedBox(height: 16),
-          const Text(
-            'Or open directly in browser (the instruction is copied '
-            'automatically):',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+          Text(
+            _selectedImages.isEmpty
+                ? 'Or open directly in browser (the instruction is copied '
+                    'automatically):'
+                : 'Or open directly in browser (text only; use Share to '
+                    'attach images):',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 12),
           SingleChildScrollView(
@@ -984,6 +1170,182 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagePickerCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.image_outlined, size: 18, color: Colors.teal.shade700),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Add images (optional)',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              if (_selectedImages.isNotEmpty)
+                TextButton(
+                  onPressed: _clearImages,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red.shade600,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Text('Clear all'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Attach photos of a question paper, textbook page, or notes. '
+            'They will be shared with the instruction.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 12),
+          if (_selectedImages.isEmpty)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isPickingImages ? null : _pickImages,
+                    icon: _isPickingImages
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.photo_library_outlined, size: 18),
+                    label: const Text('Choose images'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.teal.shade700,
+                      side: BorderSide(color: Colors.teal.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _isPickingImages ? null : _takePhoto,
+                    icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                    label: const Text('Take photo'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green.shade700,
+                      side: BorderSide(color: Colors.green.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else ...[
+            SizedBox(
+              height: 110,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _selectedImages.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final image = _selectedImages[index];
+                  return Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(
+                          File(image.path),
+                          width: 100,
+                          height: 100,
+                          fit: BoxFit.cover,
+                          cacheWidth: 220,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                            width: 100,
+                            height: 100,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.broken_image_outlined),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Material(
+                          color: Colors.black.withOpacity(0.55),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            onPressed: () => _removeImage(index),
+                            icon: const Icon(
+                              Icons.close,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                            constraints: const BoxConstraints.tightFor(
+                              width: 32,
+                              height: 32,
+                            ),
+                            padding: EdgeInsets.zero,
+                            tooltip: 'Remove image',
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Text(
+                  '${_selectedImages.length}/$_maxImages images',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                TextButton.icon(
+                  onPressed: _isPickingImages ? null : _pickImages,
+                  icon: const Icon(
+                    Icons.add_photo_alternate_outlined,
+                    size: 18,
+                  ),
+                  label: const Text('Add more'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.teal.shade700,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _isPickingImages ? null : _takePhoto,
+                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  label: const Text('Camera'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.green.shade700,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
