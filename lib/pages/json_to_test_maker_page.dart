@@ -14,7 +14,6 @@ import 'package:pi_qbank/utils/test_json.dart';
 import 'package:pi_qbank/utils/test_samples.dart';
 import 'package:pi_qbank/widgets/custom_app_bar.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class JsonToTestMakerPage extends StatefulWidget {
   const JsonToTestMakerPage({super.key});
@@ -355,36 +354,6 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
               : 'Could not share the images: $e',
         );
       }
-    }
-  }
-
-  Future<void> _openAIApp(String name, String urlString) async {
-    try {
-      await Clipboard.setData(
-        ClipboardData(text: _getCustomInstruction()),
-      );
-    } catch (_) {
-      if (mounted) _showError('Could not copy the instruction.');
-      return;
-    }
-
-    if (!mounted) return;
-    _showInfo('Instruction copied! Paste it in $name along with your image.');
-
-    final uri = Uri.tryParse(urlString);
-    if (uri == null) {
-      _showError('Invalid link for $name.');
-      return;
-    }
-
-    try {
-      final mode =
-          kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication;
-      if (!await launchUrl(uri, mode: mode)) {
-        if (mounted) _showError('Could not open $name.');
-      }
-    } catch (e) {
-      if (mounted) _showError('Could not open $name: $e');
     }
   }
 
@@ -1130,46 +1099,6 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
               style: TextStyle(fontSize: 12, color: Colors.green.shade700),
             ),
           ],
-          const SizedBox(height: 16),
-          Text(
-            _selectedImages.isEmpty
-                ? 'Or open directly in browser (the instruction is copied '
-                    'automatically):'
-                : 'Or open directly in browser (text only; use Share to '
-                    'attach images):',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildAILinkButton(
-                  'Gemini',
-                  'https://gemini.google.com/app',
-                  Icons.auto_awesome,
-                ),
-                const SizedBox(width: 8),
-                _buildAILinkButton(
-                  'ChatGPT',
-                  'https://chatgpt.com/',
-                  Icons.chat_bubble_outline,
-                ),
-                const SizedBox(width: 8),
-                _buildAILinkButton(
-                  'Claude',
-                  'https://claude.ai/',
-                  Icons.psychology_outlined,
-                ),
-                const SizedBox(width: 8),
-                _buildAILinkButton(
-                  'Grok',
-                  'https://x.com/i/grok',
-                  Icons.public,
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -1348,16 +1277,6 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
           ],
         ],
       ),
-    );
-  }
-
-  Widget _buildAILinkButton(String name, String urlString, IconData icon) {
-    return ActionChip(
-      avatar: Icon(icon, size: 18, color: Colors.teal.shade700),
-      label: Text(name),
-      backgroundColor: Colors.teal.shade50,
-      side: BorderSide(color: Colors.teal.shade200),
-      onPressed: () => _openAIApp(name, urlString),
     );
   }
 
