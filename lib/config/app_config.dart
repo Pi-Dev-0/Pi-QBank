@@ -80,6 +80,24 @@ class AppConfig {
   static const String adApi = String.fromEnvironment('AD_API');
   static const String adSecret = String.fromEnvironment('AD_SECRET');
 
+  /// Google Apps Script used by the JSON test maker and Join Shared Test.
+  ///
+  /// Kept in one place because both pages publish/read the same sheet. The
+  /// define can override the default without editing source.
+  static const String testShareApi = String.fromEnvironment(
+    'TEST_SHARE_API',
+    defaultValue: 'https://script.google.com/macros/s/'
+        'AKfycbxgeWMYp5dku6jtpgG2CVF-5RJn15VBq3_zmdfoxtmWvMIuT6TK8nTLk48fXgBfvpIzdA/exec',
+  );
+
+  /// Optional override for the JSON test share request body type.
+  ///
+  /// The app sends `application/json` on mobile and `text/plain;charset=utf-8`
+  /// on web (which avoids a CORS preflight). If the Apps Script checks
+  /// `e.postData.type`, set this to `application/json` in every build.
+  static const String testShareContentType =
+      String.fromEnvironment('TEST_SHARE_CONTENT_TYPE');
+
   /// Deployed Apps Script for the high-school question bank.
   ///
   /// This one carries a real default on purpose. It used to default to `''`,

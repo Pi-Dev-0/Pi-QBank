@@ -1,13 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:pi_qbank/widgets/custom_app_bar.dart';
+import 'package:pi_qbank/config/app_config.dart';
 import 'package:pi_qbank/pages/mcq_test_page.dart';
 import 'package:pi_qbank/pages/short_question_page.dart';
-
-// IMPORTANT: Replace this with your actual Google Apps Script Web App URL
-const String kAppsScriptUrl = "https://script.google.com/macros/s/AKfycbxgeWMYp5dku6jtpgG2CVF-5RJn15VBq3_zmdfoxtmWvMIuT6TK8nTLk48fXgBfvpIzdA/exec";
+import 'package:pi_qbank/utils/test_json.dart';
+import 'package:pi_qbank/widgets/custom_app_bar.dart';
 
 class JoinSharedTestPage extends StatefulWidget {
   const JoinSharedTestPage({super.key});
@@ -27,14 +27,21 @@ class _JoinSharedTestPageState extends State<JoinSharedTestPage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.shade600,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
   }
 
   Future<void> _joinTest() async {
@@ -44,7 +51,7 @@ class _JoinSharedTestPageState extends State<JoinSharedTestPage> {
       return;
     }
 
-    if (kAppsScriptUrl == "YOUR_APPS_SCRIPT_URL_HERE") {
+    if (AppConfig.testShareApi.trim().isEmpty) {
       _showError('The Apps Script URL has not been configured yet.');
       return;
     }
@@ -54,14 +61,27 @@ class _JoinSharedTestPageState extends State<JoinSharedTestPage> {
     });
 
     try {
-      final response = await http.get(Uri.parse('$kAppsScriptUrl?testId=$code'));
-      
+      final uri = Uri.parse(AppConfig.testShareApi).replace(
+        queryParameters: {'testId': code},
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 20));
+
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          _navigateToTest(data);
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        if (data is! Map) {
+          _showError('The server returned an unexpected response.');
+          return;
+        }
+        final successValue = data['success'];
+        final success = successValue == true ||
+            (successValue is String && successValue.toLowerCase() == 'true') ||
+            '${data['status'] ?? ''}'.toUpperCase() == 'SUCCESS';
+        if (success) {
+          if (!mounted) return;
+          _navigateToTest(Map<String, dynamic>.from(data));
         } else {
-          _showError(data['error'] ?? 'Failed to fetch test. Check your code.');
+          _showError(
+              '${data['error'] ?? 'Failed to fetch test. Check your code.'}');
         }
       } else {
         _showError('Server error: ${response.statusCode}');
@@ -78,65 +98,74 @@ class _JoinSharedTestPageState extends State<JoinSharedTestPage> {
   }
 
   void _navigateToTest(Map<String, dynamic> data) {
-    final String testType = data['testType'];
-    final String language = data['language'];
-    final int duration = int.tryParse(data['duration'].toString()) ?? 10;
-    final String jsonData = data['jsonData'];
+    final testTypeLabel = '${data['testType'] ?? ''}';
+    final language = '${data['language'] ?? 'বাংলা'}';
+    final duration =
+        (int.tryParse('${data['duration'] ?? ''}') ?? 10).clamp(1, 180);
+    final jsonData = '${data['jsonData'] ?? ''}';
+
+    final type = TestType.tryFromLabel(testTypeLabel);
+    if (type == null) {
+      _showError('Unsupported test type shared.');
+      return;
+    }
+    if (type == TestType.creative) {
+      _showError('Creative Question tests cannot be joined yet.');
+      return;
+    }
 
     try {
-      final decodedJson = json.decode(jsonData);
-      final questions = decodedJson['questions'] as List?;
-      
-      if (questions == null || questions.isEmpty) {
-        _showError('Invalid test data format.');
-        return;
-      }
+      final test = parseTest(jsonData, type);
 
-      if (testType == 'MCQ') {
+      if (type == TestType.mcq) {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => MCQTestPage(
-              numberOfQuestions: questions.length,
+              numberOfQuestions: test.questions.length,
               testTimeInMinutes: duration,
-              aiResponse: jsonData,
+              aiResponse: test.normalizedJson,
               language: language,
-            ),
-          ),
-        );
-      } else if (testType == 'Short Question') {
-        String formattedResponse = '';
-        for (int i = 0; i < questions.length; i++) {
-          final q = questions[i];
-          formattedResponse += '${i + 1}. ${q['question']}\nউত্তর: ${q['answer']}\n\n';
-        }
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ShortQuestionPage(
-              numberOfQuestions: questions.length,
-              testTimeInMinutes: duration,
-              aiResponse: formattedResponse,
-              language: language,
+              aiTopic: test.topic,
             ),
           ),
         );
       } else {
-        _showError('Unsupported test type shared.');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ShortQuestionPage(
+              numberOfQuestions: test.questions.length,
+              testTimeInMinutes: duration,
+              aiResponse: formatShortQuestions(test.questions, language),
+              language: language,
+              aiTopic: test.topic,
+            ),
+          ),
+        );
       }
-    } catch (e) {
+    } on TestFormatException catch (e) {
+      _showError(e.message);
+    } catch (_) {
       _showError('Error parsing test data.');
     }
   }
 
   Future<void> _pasteFromClipboard() async {
-    ClipboardData? data = await Clipboard.getData('text/plain');
-    if (data != null && data.text != null) {
+    try {
+      final data = await Clipboard.getData('text/plain');
       if (!mounted) return;
-      setState(() {
-        _codeController.text = data.text!;
-      });
+
+      final text = data?.text?.trim() ?? '';
+      if (text.isEmpty) {
+        _showError('The clipboard is empty.');
+        return;
+      }
+
+      _codeController.text = text;
+      setState(() {});
+    } catch (_) {
+      _showError('Could not read the clipboard.');
     }
   }
 
@@ -174,16 +203,23 @@ class _JoinSharedTestPageState extends State<JoinSharedTestPage> {
                 ),
                 child: Column(
                   children: [
-                    const Icon(Icons.group_add_outlined, size: 64, color: Colors.white),
+                    const Icon(Icons.group_add_outlined,
+                        size: 64, color: Colors.white),
                     const SizedBox(height: 16),
                     const Text(
                       'Join a Test',
-                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Enter the 6-character Share Code provided by your teacher or friend to start the test.',
-                      style: TextStyle(fontSize: 14, color: Colors.indigo.shade100, height: 1.4),
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.indigo.shade100,
+                          height: 1.4),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -208,7 +244,10 @@ class _JoinSharedTestPageState extends State<JoinSharedTestPage> {
                   children: [
                     Text(
                       'Share Code',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade700),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -216,15 +255,27 @@ class _JoinSharedTestPageState extends State<JoinSharedTestPage> {
                       textCapitalization: TextCapitalization.characters,
                       textAlign: TextAlign.center,
                       maxLength: 6,
-                      style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 24,
+                          letterSpacing: 8,
+                          fontWeight: FontWeight.bold),
                       decoration: InputDecoration(
                         hintText: 'XXXXXX',
                         counterText: '',
                         fillColor: Colors.grey.shade50,
                         filled: true,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade300)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade300)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.indigo.shade400, width: 2)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide:
+                                BorderSide(color: Colors.grey.shade300)),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide:
+                                BorderSide(color: Colors.grey.shade300)),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Colors.indigo.shade400, width: 2)),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.paste_outlined),
                           onPressed: _pasteFromClipboard,
@@ -241,18 +292,21 @@ class _JoinSharedTestPageState extends State<JoinSharedTestPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.indigo.shade600,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
                           elevation: 4,
                         ),
                         child: _isLoading
                             ? const SizedBox(
                                 height: 24,
                                 width: 24,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 3),
                               )
                             : const Text(
                                 'Join Test',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold),
                               ),
                       ),
                     ),
