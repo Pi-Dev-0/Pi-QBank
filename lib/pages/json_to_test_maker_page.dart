@@ -618,6 +618,7 @@ class _JsonToTestMakerPageState extends State<JsonToTestMakerPage>
             aiTopic: test.topic,
             isFromCloud: false,
             showAllQuestions: true,
+            liveExamOptions: true,
           ),
         ),
       );

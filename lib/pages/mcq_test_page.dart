@@ -1240,11 +1240,13 @@ class _MCQTestPageState extends State<MCQTestPage>
     bool dense = false,
   }) {
     final live = widget.liveExamOptions;
-    // Options arrive keyed "1".."4". A live exam uses the Bengali markers the
-    // printed paper does; the existing runners keep the familiar letters.
+    // Options arrive keyed "1".."4". A live Bangla exam uses the Bengali
+    // markers the printed paper does; an English live exam keeps A–D, and the
+    // existing runners keep the familiar letters.
     final number = int.tryParse(optionKey) ?? 1;
     const bengali = ['ক', 'খ', 'গ', 'ঘ', 'ঙ'];
-    final letter = live
+    final liveBengali = live && widget.language != 'English';
+    final letter = liveBengali
         ? (number >= 1 && number <= bengali.length
             ? bengali[number - 1]
             : '$number')
@@ -1298,7 +1300,9 @@ class _MCQTestPageState extends State<MCQTestPage>
             button: !locked,
             enabled: !locked,
             selected: selected,
-            label: 'বিকল্প $letter',
+            label: widget.language == 'English'
+                ? 'Option $letter'
+                : 'বিকল্প $letter',
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: locked ? null : () => _selectOption(index, optionKey),

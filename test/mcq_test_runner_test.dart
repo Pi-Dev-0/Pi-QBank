@@ -18,7 +18,8 @@ String paper(int count) => jsonEncode({
       ],
     });
 
-Future<void> openPaper(WidgetTester tester, int count, {bool isFromCloud = false}) async {
+Future<void> openPaper(WidgetTester tester, int count,
+    {bool isFromCloud = false}) async {
   await tester.pumpWidget(
     MaterialApp(
       home: MCQTestPage(
@@ -256,7 +257,8 @@ void main() {
       await closePaper(tester);
     });
 
-    testWidgets('Upload button is shown for local tests but hidden for cloud tests',
+    testWidgets(
+        'Upload button is shown for local tests but hidden for cloud tests',
         (tester) async {
       // Local test (isFromCloud = false)
       await answerAndSubmit(tester, isFromCloud: false);
@@ -275,7 +277,10 @@ void main() {
 
     /// One question answered by option 3, shown in paper mode as the cloud
     /// exams do.
-    Future<void> openLivePaper(WidgetTester tester) async {
+    Future<void> openLivePaper(
+      WidgetTester tester, {
+      String language = 'Bangla',
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: MCQTestPage(
@@ -295,7 +300,7 @@ void main() {
                 },
               ],
             }),
-            language: 'Bangla',
+            language: language,
             showAllQuestions: true,
             liveExamOptions: true,
           ),
@@ -311,6 +316,19 @@ void main() {
         expect(find.text(label), findsOneWidget);
       }
       for (final label in ['A', 'B', 'C', 'D']) {
+        expect(find.text(label), findsNothing);
+      }
+
+      await closePaper(tester);
+    });
+
+    testWidgets('an English live paper keeps A B C D bubbles', (tester) async {
+      await openLivePaper(tester, language: 'English');
+
+      for (final label in ['A', 'B', 'C', 'D']) {
+        expect(find.text(label), findsOneWidget);
+      }
+      for (final label in ['ক', 'খ', 'গ', 'ঘ']) {
         expect(find.text(label), findsNothing);
       }
 
