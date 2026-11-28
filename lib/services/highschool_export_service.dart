@@ -826,21 +826,28 @@ class HighSchoolExportService {
 
   /// [intro] with its "which questions" reference naming [numbers].
   ///
-  /// The digits stay in the intro's own hand: an intro that wrote `(১২ ও ১৩)` is
-  /// rewritten as `(১ ও ২)` in Bengali, one that wrote `(12, 13)` in ASCII. The
-  /// intro is prose, so it should read like the book it was copied from; only
-  /// the numbers are the paper's.
+  /// When [bengali] is given, every rewritten number takes that hand: a Bengali
+  /// question prints `(১ ও ২)`, an English question — or the English version of
+  /// a Bengali subject — prints `(1 and 2)`. When it is omitted, the numbers
+  /// stay in the intro's own hand: an intro that wrote `(১২ ও ১৩)` is rewritten
+  /// as `(১ ও ২)` in Bengali, one that wrote `(12, 13)` in ASCII. The intro is
+  /// prose, so it should read like the book it was copied from; only the
+  /// numbers are the paper's.
   ///
   /// An intro with nothing to rewrite — no `নং` reference, no
   /// [stemNumbersPlaceholder] — comes back untouched, which is what an author
   /// who never numbered anything wants.
-  static String stemWithNumbers(String intro, List<int> numbers) {
+  static String stemWithNumbers(
+    String intro,
+    List<int> numbers, {
+    bool? bengali,
+  }) {
     if (intro.isEmpty || numbers.isEmpty) return intro;
-    // The placeholder takes Bengali: there is no reference to copy the hand
-    // from, and the paper writes Bengali.
+    // A placeholder has no reference to copy the hand from, so it follows the
+    // caller's language, and Bengali when the caller does not say.
     if (intro.contains(stemNumbersPlaceholder)) {
-      return intro.replaceAll(
-          stemNumbersPlaceholder, _joinStemNumbers(numbers, bengali: true));
+      return intro.replaceAll(stemNumbersPlaceholder,
+          _joinStemNumbers(numbers, bengali: bengali ?? true));
     }
     // Otherwise the new numbers take the hand of the reference they replace —
     // and only of *that*: an intro's own text is full of ASCII digits (`U = {1,
@@ -851,12 +858,12 @@ class HighSchoolExportService {
     // reference just rewritten inside its brackets is left alone.
     var out = intro.replaceAllMapped(_stemNumbersRef, (m) {
       final joined = _joinStemNumbers(numbers,
-          bengali: _writtenInBengaliDigits(m.group(1)!));
+          bengali: bengali ?? _writtenInBengaliDigits(m.group(1)!));
       return '($joined)${m.group(2)}';
     });
     out = out.replaceAllMapped(_bareStemNumbersRef, (m) {
       final joined = _joinStemNumbers(numbers,
-          bengali: _writtenInBengaliDigits(m.group(1)!));
+          bengali: bengali ?? _writtenInBengaliDigits(m.group(1)!));
       return '$joined${m.group(2)}';
     });
     return out;
@@ -868,10 +875,7 @@ class HighSchoolExportService {
 
   /// `(১)`, `(১ ও ২)`, `(১, ২ ও ৩)` — the way a book writes a list of numbers.
   static String _joinStemNumbers(List<int> numbers, {required bool bengali}) {
-    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    String show(int number) => bengali
-        ? '$number'.split('').map((d) => bengaliDigits[int.parse(d)]).join()
-        : '$number';
+    String show(int number) => bengali ? toBengaliDigits(number) : '$number';
 
     if (numbers.length == 1) return show(numbers.first);
     final head = numbers.take(numbers.length - 1).map(show).join(', ');
@@ -993,7 +997,7 @@ class HighSchoolExportService {
           for (int j = 0; j < inSection.length; j++) {
             final q = inSection[j];
             buffer.writeln(
-                '${j + 1}. ${latexToPlainText(q.paperStemText.trim())}');
+                '${q.questionNumber(j + 1)}. ${latexToPlainText(q.paperStemText.trim())}');
             if (_hasStemImage(q, imageSize)) {
               // Plain text cannot embed an image, so surface the link.
               buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
@@ -1021,13 +1025,15 @@ class HighSchoolExportService {
             // group, in every export format alike.
             if (opensStem) {
               buffer.writeln(stemWithNumbers(
-                  q.mcqStemText, mcqStemRunNumbers(inSection, j)));
+                  q.mcqStemText, mcqStemRunNumbers(inSection, j),
+                  bengali: !q.isEnglishQuestion));
               if (_hasStemImage(q, imageSize)) {
                 buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
               }
               buffer.writeln();
             }
-            buffer.writeln('${j + 1}. ${q.paperQuestionText}');
+            buffer
+                .writeln('${q.questionNumber(j + 1)}. ${q.paperQuestionText}');
             final alreadyPrintedStem = opensStem ||
                 (sharesStem &&
                     prev != null &&
@@ -1054,7 +1060,8 @@ class HighSchoolExportService {
             final data = q.shortData;
             if (data == null || data.text.trim().isEmpty) continue;
             final markStr = data.mark > 0 ? ' [${data.mark}]' : '';
-            buffer.writeln('${j + 1}. ${data.text.trim()}$markStr');
+            buffer.writeln(
+                '${q.questionNumber(j + 1)}. ${data.text.trim()}$markStr');
             if (_hasStemImage(q, imageSize)) {
               buffer.writeln('   [চিত্র: ${_stemImageUrlOf(q)}]');
             }
@@ -1408,7 +1415,7 @@ class HighSchoolExportService {
     <td class="cq-col-cell">
       <div class="cq-box">
         <div class="cq-stem">
-          <b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
+          <b>${q.questionNumber(index)}.</b> ${_htmlText(q.paperStemText, latex: true)}
         </div>
         ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}
         <table class="cq-sub-table">''');
@@ -1510,8 +1517,8 @@ class HighSchoolExportService {
 
       return '''
     <td class="mcq-col-cell">
-      ${opensStem ? '<div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, index - 1)), latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
-      <div class="mcq-question"><b>$index.</b> ${_htmlText(q.paperQuestionText, latex: true)}</div>
+      ${opensStem ? '<div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, index - 1), bengali: !q.isEnglishQuestion), latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: true)}</div>' : ''}
+      <div class="mcq-question"><b>${q.questionNumber(index)}.</b> ${_htmlText(q.paperQuestionText, latex: true)}</div>
       $questionImageHtml
       <table class="mcq-options-table">${optionsHtml(mcq.options)}</table>
     </td>''';
@@ -1568,7 +1575,7 @@ class HighSchoolExportService {
       return '''
     <div class="rq-item">
       <div style="flex:1;">
-        <span>${index + 1}. ${_htmlText(data.text, latex: true)}</span>
+        <span>${q.questionNumber(index + 1)}. ${_htmlText(data.text, latex: true)}</span>
         $imageHtml
       </div>
       <span class="rq-mark">[${data.mark}]</span>
@@ -1769,6 +1776,9 @@ class HighSchoolExportService {
         '<option value="${option.name}" ${option == mcqAnswerSheetStyle ? 'selected' : ''}>${_escapeXml(option.label)}</option>',
     ].join();
     final hasMcq = questions.any((q) => q.isMcq);
+    // The preview's "add a demo question" button numbers what it adds. Follow
+    // the paper's own hand: a Bengali paper adds `৫.`, an English one `5.`.
+    final paperBengaliNumbers = questions.any((q) => !q.isEnglishQuestion);
     final previewAnswerSheetControl = '''
       <div class="toolbar-group answer-group">
         <span class="toolbar-group-label">MCQ উত্তরপত্র</span>
@@ -3480,6 +3490,15 @@ $paperFontBlock    :root {
         relayoutSoon();
       }
       var selectedDemoType = 'cq';
+      var paperBengaliNumbers = ${paperBengaliNumbers ? 'true' : 'false'};
+
+      function formatQuestionNumber(number) {
+        if (!paperBengaliNumbers) return String(number);
+        var digits = '০১২৩৪৫৬৭৮৯';
+        return String(number).replace(/[0-9]/g, function (digit) {
+          return digits[Number(digit)];
+        });
+      }
 
       function nextQuestionNumber() {
         var set = document.querySelector('.paper-set');
@@ -3507,7 +3526,7 @@ $paperFontBlock    :root {
         if (!set) return;
         var demo = document.createElement('div');
         demo.className = 'demo-question';
-        var number = nextQuestionNumber();
+        var number = formatQuestionNumber(nextQuestionNumber());
         if (type === 'mcq') {
           demo.innerHTML = '<b>' + number + '. </b>নিচের কোনটি সঠিক?<br>' +
               '<span>(ক) প্রথম বিকল্প</span> &nbsp; ' +
@@ -4686,7 +4705,7 @@ $paperFontBlock    :root {
       buffer.write('''
     <div class="cq-card" title="${_idTooltip(q)}">
       <div class="cq-stem">
-        ${_importantStar(q)}<b>$index.</b> ${_htmlText(q.paperStemText, latex: true)}
+        ${_importantStar(q)}<b>${q.questionNumber(index)}.</b> ${_htmlText(q.paperStemText, latex: true)}
       </div>
       ${_questionInfoMarkup(q)}
       ${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: false)}
@@ -4758,11 +4777,11 @@ $paperFontBlock    :root {
 ''');
       if (opensStem) {
         buffer.write('''
-          <div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, i)), latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: false)}</div>
+          <div class="mcq-stem">${_htmlText(stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(mcqs, i), bengali: !q.isEnglishQuestion), latex: true)}${_stemImageMarkup(q, bytes: imageBytes, size: imageSize, usePoints: false)}</div>
 ''');
       }
       buffer.write('''
-          <div class="mcq-question">${_importantStar(q)}<b>$index.</b> ${_htmlText(q.paperQuestionText, latex: true)}</div>
+          <div class="mcq-question">${_importantStar(q)}<b>${q.questionNumber(index)}.</b> ${_htmlText(q.paperQuestionText, latex: true)}</div>
           ${_questionInfoMarkup(q)}
           $questionImageHtml
         </div>
@@ -4855,7 +4874,7 @@ $paperFontBlock    :root {
       buffer.write('''
         <div class="rq-item" title="${_idTooltip(q)}">
           <div class="rq-content">
-            <div>${_importantStar(q)}<b>${i + 1}.</b> ${_htmlText(data.text, latex: true)}</div>
+            <div>${_importantStar(q)}<b>${q.questionNumber(i + 1)}.</b> ${_htmlText(data.text, latex: true)}</div>
             ${_questionInfoMarkup(q)}
             $imageHtml
           </div>
@@ -4958,7 +4977,7 @@ $paperFontBlock    :root {
           for (int j = 0; j < inSection.length; j++) {
             final q = inSection[j];
             buffer.writeln(
-                '**${j + 1}.** ${latexToPlainText(q.paperStemText.trim())}');
+                '**${q.questionNumber(j + 1)}.** ${latexToPlainText(q.paperStemText.trim())}');
             if (_hasStemImage(q, imageSize)) {
               buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})');
             }
@@ -4984,13 +5003,14 @@ $paperFontBlock    :root {
             // The shared intro, once, over the first question of its group.
             if (opensStem) {
               buffer.writeln(
-                  '> ${stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(inSection, j))}\n');
+                  '> ${stemWithNumbers(q.mcqStemText, mcqStemRunNumbers(inSection, j), bengali: !q.isEnglishQuestion)}\n');
               if (_hasStemImage(q, imageSize)) {
                 buffer.writeln('![উদ্দীপক চিত্র](${_stemImageUrlOf(q)})\n');
               }
             }
 
-            buffer.writeln('**${j + 1}.** ${q.paperQuestionText}');
+            buffer.writeln(
+                '**${q.questionNumber(j + 1)}.** ${q.paperQuestionText}');
             final alreadyPrintedStem = opensStem ||
                 (sharesStem &&
                     prev != null &&
@@ -5015,8 +5035,8 @@ $paperFontBlock    :root {
             final q = inSection[j];
             final data = q.shortData;
             if (data == null || data.text.trim().isEmpty) continue;
-            buffer
-                .writeln('**${j + 1}.** ${data.text.trim()} `[${data.mark}]`');
+            buffer.writeln(
+                '**${q.questionNumber(j + 1)}.** ${data.text.trim()} `[${data.mark}]`');
             if (_hasStemImage(q, imageSize)) {
               buffer.writeln(
                   '![সংক্ষিপ্ত প্রশ্ন চিত্র](${_stemImageUrlOf(q)})\n');

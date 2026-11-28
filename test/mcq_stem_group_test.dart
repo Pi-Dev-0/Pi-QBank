@@ -336,8 +336,8 @@ void main() {
       final stemAt = html.indexOf('class="mcq-stem"');
       final firstCard = html.indexOf('class="mcq-card"');
       expect(stemAt, greaterThan(firstCard));
-      expect(stemAt, lessThan(html.indexOf('<b>1.</b>')));
-      expect(stemAt, lessThan(html.indexOf('<b>2.</b>')));
+      expect(stemAt, lessThan(html.indexOf('<b>১.</b>')));
+      expect(stemAt, lessThan(html.indexOf('<b>২.</b>')));
     });
 
     test('the intro carries no number of its own', () {
@@ -348,7 +348,7 @@ void main() {
           .first;
 
       expect(stem, isNot(contains('<b>')));
-      expect(html, contains('<b>1.</b>'));
+      expect(html, contains('<b>১.</b>'));
     });
 
     test('two different intros open two groups', () {
@@ -376,7 +376,7 @@ void main() {
       final head = html.substring(html.indexOf('class="mcq-head"'),
           html.indexOf('class="mcq-options"'));
       expect(head, contains('class="mcq-stem"'));
-      expect(head, contains('<b>1.</b>'));
+      expect(head, contains('<b>১.</b>'));
       expect(
           html, matches(RegExp(r'\.mcq-head\s*\{[^}]*break-inside:\s*avoid;')));
     });
@@ -611,8 +611,7 @@ void main() {
     const bare = 'নিচের তথ্য থেকে ২৬ ও ২৭ নং প্রশ্নের উত্তর দাও।';
 
     test('a bracketed reference becomes the numbers the paper prints', () {
-      expect(
-          HighSchoolExportService.stemWithNumbers(bracketed, [1, 2]),
+      expect(HighSchoolExportService.stemWithNumbers(bracketed, [1, 2]),
           'নিচের তথ্যের আলোকে (১ ও ২) নং প্রশ্নের উত্তর দাও:');
     });
 
@@ -629,19 +628,19 @@ void main() {
     });
 
     test('three questions read as a list, not a pair', () {
-      expect(
-          HighSchoolExportService.stemWithNumbers(bracketed, [3, 4, 5]),
+      expect(HighSchoolExportService.stemWithNumbers(bracketed, [3, 4, 5]),
           'নিচের তথ্যের আলোকে (৩, ৪ ও ৫) নং প্রশ্নের উত্তর দাও:');
     });
 
     test('a question on its own names only itself', () {
-      expect(
-          HighSchoolExportService.stemWithNumbers(bracketed, [7]),
+      expect(HighSchoolExportService.stemWithNumbers(bracketed, [7]),
           'নিচের তথ্যের আলোকে (৭) নং প্রশ্নের উত্তর দাও:');
     });
 
     test('an intro written in ASCII digits keeps them', () {
-      expect(HighSchoolExportService.stemWithNumbers('answer 12 and 13 নং', [4, 5]),
+      expect(
+          HighSchoolExportService.stemWithNumbers(
+              'answer 12 and 13 নং', [4, 5]),
           'answer 4 and 5 নং');
     });
 
@@ -688,8 +687,12 @@ void main() {
       final questions = [
         mcq(id: 'a', stem: bracketed),
         mcq(id: 'b', stem: bracketed),
-        mcq(id: 'c', stem: 'নিচের তথ্যের আলোকে (১২৩ ও ১২৪) নং প্রশ্নের উত্তর দাও:'),
-        mcq(id: 'd', stem: 'নিচের তথ্যের আলোকে (১২৩ ও ১২৪) নং প্রশ্নের উত্তর দাও:'),
+        mcq(
+            id: 'c',
+            stem: 'নিচের তথ্যের আলোকে (১২৩ ও ১২৪) নং প্রশ্নের উত্তর দাও:'),
+        mcq(
+            id: 'd',
+            stem: 'নিচের তথ্যের আলোকে (১২৩ ও ১২৪) নং প্রশ্নের উত্তর দাও:'),
       ];
       final html = htmlOf(questions);
 
@@ -700,8 +703,8 @@ void main() {
       // Still one intro per group, and the questions under them keep their own
       // printed numbers.
       expect(countOf(html, 'class="mcq-stem"'), 2);
-      expect(html, contains('<b>1.</b>'));
-      expect(html, contains('<b>4.</b>'));
+      expect(html, contains('<b>১.</b>'));
+      expect(html, contains('<b>৪.</b>'));
     });
 
     test('ASCII digits in the question body do not change the hand', () {
@@ -756,8 +759,7 @@ void main() {
           ).first;
 
       expect(height(drawn), greaterThan(0));
-      expect(height(drawn),
-          closeTo(height(question.mcqStemText), 0.01),
+      expect(height(drawn), closeTo(height(question.mcqStemText), 0.01),
           reason: 'the override must be the text that is measured');
     });
   });

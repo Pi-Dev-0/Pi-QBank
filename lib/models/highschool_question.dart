@@ -136,6 +136,30 @@ int compareChapterNumbers(String a, String b) {
   return a.compareTo(b);
 }
 
+/// The Bengali digits, in order, for [toBengaliDigits].
+const List<String> _bengaliDigitChars = [
+  '০',
+  '১',
+  '২',
+  '৩',
+  '৪',
+  '৫',
+  '৬',
+  '৭',
+  '৮',
+  '৯',
+];
+
+/// [number] written in Bengali digits: `12` becomes `১২`.
+///
+/// Non-digit characters are kept as they are, so a minus sign or a decimal
+/// point survives. Question and mark numbers are positive, but a shared helper
+/// should not silently drop the rest of the value.
+String toBengaliDigits(int number) => '$number'.split('').map((char) {
+      final digit = int.tryParse(char);
+      return digit == null ? char : _bengaliDigitChars[digit];
+    }).join();
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main HighSchool Question model
 // ─────────────────────────────────────────────────────────────────────────────
@@ -418,6 +442,81 @@ class HighSchoolQuestion {
   bool get isShort =>
       questionType.toUpperCase() == 'RQ' ||
       questionType.toUpperCase() == 'SHORT';
+
+  /// Whether this question is written in English.
+  ///
+  /// The bank has no language column, so a row says what language it is in by
+  /// what it says. A subject that names English — `English`, `English 1st
+  /// Paper`, `ইংরেজি` — is English outright, whatever its text. Otherwise the
+  /// question's own words decide: any Bengali script makes it a Bengali
+  /// question, and a row written only in Latin letters is an English one. A
+  /// row with neither — a formula, a figure, a bare number — stays Bengali,
+  /// which is the language a paper is printed in unless a row says otherwise.
+  ///
+  /// The English version of a Bengali-medium subject is caught by the text even
+  /// though its subject does not say `English`.
+  bool get isEnglishQuestion {
+    final rawSubject = subject;
+    final lowerSubject = rawSubject.toLowerCase();
+    if (lowerSubject.contains('english') || rawSubject.contains('ইংরেজি')) {
+      return true;
+    }
+
+    final sample = _languageSample;
+    if (_bengaliScript.hasMatch(sample)) return false;
+    return _latinLetter.hasMatch(sample);
+  }
+
+  /// Any Bengali codepoint: a letter, a digit, or the danda that ends a
+  /// Bengali sentence. A row carrying one is Bengali, even when maths leaves
+  /// Latin letters around it.
+  static final RegExp _bengaliScript = RegExp(r'[\u0980-\u09FF]');
+
+  /// A Latin letter. Digits alone do not make a row English: `1 + 1 = ?` is a
+  /// Bengali paper's arithmetic as much as an English paper's.
+  static final RegExp _latinLetter = RegExp(r'[A-Za-z]');
+
+  /// The text that decides [isEnglishQuestion].
+  ///
+  /// The printed forms are used, not the raw columns, so a Bengali source tag
+  /// riding at the end of an English stem does not turn the question Bengali.
+  /// An MCQ's own line and its options count too: a question whose stem is a
+  /// figure may still be written in English.
+  String get _languageSample {
+    final buffer = StringBuffer();
+    void add(String text) {
+      if (text.trim().isNotEmpty) buffer.writeln(text);
+    }
+
+    add(paperStemText);
+    if (isCq) {
+      for (final sub in cqSubQuestions) {
+        add(sub.text);
+      }
+    } else if (isMcq) {
+      final mcq = mcqData;
+      if (mcq != null) {
+        add(mcq.text);
+        for (final option in mcq.options) {
+          add(option);
+        }
+      }
+    } else if (isShort) {
+      final short = shortData;
+      if (short != null) add(short.text);
+    }
+    return buffer.toString();
+  }
+
+  /// [number] written the way this question's paper writes numbers.
+  ///
+  /// A Bengali question prints `১`, `২`, `৩`; an English question — or the
+  /// English version of a Bengali subject — prints `1`, `2`, `3`.
+  String formatNumber(int number) =>
+      isEnglishQuestion ? '$number' : toBengaliDigits(number);
+
+  /// The number this question prints under.
+  String questionNumber(int number) => formatNumber(number);
 
   /// [stemText] as it should be printed.
   ///

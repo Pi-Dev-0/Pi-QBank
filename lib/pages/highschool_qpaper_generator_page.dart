@@ -2924,7 +2924,7 @@ class _HighSchoolQPaperGeneratorPageState
         final q = questions[i];
         out.addAll([
           _sheetText(
-            '${_bengaliNumber(i + 1)}. ${q.paperStemText}',
+            '${q.questionNumber(i + 1)}. ${q.paperStemText}',
             style: TextStyle(fontSize: s(12), height: 1.45),
           ),
           if (q.stemImageUrl.trim().isNotEmpty && _imageSize.isVisible)
@@ -2943,7 +2943,7 @@ class _HighSchoolQPaperGeneratorPageState
                   ),
                   SizedBox(width: s(6)),
                   _sheetText(
-                    _bengaliNumber(sub.mark),
+                    q.formatNumber(sub.mark),
                     style: TextStyle(
                         fontSize: s(11.5), fontWeight: FontWeight.w700),
                   ),
@@ -2973,7 +2973,7 @@ class _HighSchoolQPaperGeneratorPageState
               _buildPreviewImage(q.stemImageUrl, s),
           ],
           _sheetText(
-            '${_bengaliNumber(i + 1)}. ${mcq?.text ?? ''}',
+            '${q.questionNumber(i + 1)}. ${mcq?.text ?? ''}',
             style: TextStyle(fontSize: s(12), height: 1.45),
           ),
           if (mcq != null && mcq.options.isNotEmpty)
@@ -3011,7 +3011,8 @@ class _HighSchoolQPaperGeneratorPageState
         Padding(
           padding: EdgeInsets.only(bottom: s(5)),
           child: _sheetText(
-            '${_bengaliNumber(i + 1)}. ${questions[i].shortData?.text ?? ''}',
+            '${questions[i].questionNumber(i + 1)}. '
+            '${questions[i].shortData?.text ?? ''}',
             style: TextStyle(fontSize: s(12), height: 1.45),
           ),
         ),

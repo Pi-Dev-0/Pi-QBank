@@ -139,6 +139,7 @@ class CloudTestsPage extends StatefulWidget {
           ? HighSchoolExportService.stemWithNumbers(
               question.mcqStemText,
               HighSchoolExportService.mcqStemRunNumbers(questions, i),
+              bengali: !question.isEnglishQuestion,
             )
           : '';
       payloads.add(
@@ -4146,7 +4147,8 @@ class _QuestionPickerState extends State<QuestionPicker> {
                           style: TextStyle(
                             fontSize: 13,
                             height: 1.35,
-                            fontWeight: on ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight:
+                                on ? FontWeight.w600 : FontWeight.normal,
                             color: on ? const Color(0xFF0F172A) : _C.ink,
                           ),
                         ),
@@ -4514,6 +4516,7 @@ class _PreviewSheet extends StatelessWidget {
         ? HighSchoolExportService.stemWithNumbers(
             question.mcqStemText,
             HighSchoolExportService.mcqStemRunNumbers(questions, index),
+            bengali: !question.isEnglishQuestion,
           ).trim()
         : '';
     final chapter = question.chapterName.trim();

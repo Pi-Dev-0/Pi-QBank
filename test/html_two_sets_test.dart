@@ -157,9 +157,9 @@ void main() {
 
       final printed = sets(generate(questions, setLabels: const ['ক', 'খ']));
 
-      expect(printed[0], contains('<b>1.</b> ক-এক'));
-      expect(printed[0], contains('<b>2.</b> ক-দুই'));
-      expect(printed[1], contains('<b>1.</b> খ-এক'));
+      expect(printed[0], contains('<b>১.</b> ক-এক'));
+      expect(printed[0], contains('<b>২.</b> ক-দুই'));
+      expect(printed[1], contains('<b>১.</b> খ-এক'));
     });
 
     test('a question filed into no set is printed in both', () {
